@@ -25,7 +25,9 @@ Rules:
    or changing shared config.
 4. Messages arrive to you automatically. Use ${T.replyTo}(thread_id, …) to answer in a thread,
    ${T.message}([...names], …) to start a new one. "User" is the human; you may message them, but
-   never wait for an answer — keep working.
+   never wait for an answer — keep working. Every message wakes its recipients: write only to ask,
+   answer or share new information. Never send acknowledgements, thanks or sign-offs, and don't
+   answer them.
 5. Check the wall (${T.readPosts}) periodically and before you finish.
 6. When your part is done: ${T.post} a short status (what you did, which files), check whether others
    need help, then end your turn. You will be woken up automatically if someone messages you.

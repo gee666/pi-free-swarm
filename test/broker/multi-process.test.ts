@@ -1,57 +1,70 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { after, describe, it } from "node:test";
 import { heartbeatRunLock } from "../../src/store/locks.js";
 import { createTempDb, seedSwarm } from "../helpers/temp-db.js";
 
 const temp = createTempDb();
-after(() => temp.cleanup());
+const children: ChildProcess[] = [];
+after(() => {
+  for (const child of children) if (child.exitCode === null) child.kill("SIGKILL");
+  temp.cleanup();
+});
 const { db } = temp;
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const writer = fileURLToPath(new URL("./fixtures/concurrent-writer.ts", import.meta.url));
-const WRITES = 150;
+const LOCKSTEP = 60;
+const BURST = 60;
+const PER_WRITER = LOCKSTEP + BURST;
+const swarmId = seedSwarm(db, { now: Date.now() }).id;
 
-function runWriter(author: string, startAt: number): Promise<{ code: number | null; stderr: string }> {
-  const child = spawn(
-    process.execPath,
-    ["--import", "tsx/esm", writer, db.path, String(swarmId), author, String(WRITES), String(startAt)],
-    { cwd: repoRoot, stdio: ["ignore", "ignore", "pipe"] },
-  );
+function runWriter(author: string, peer: string): Promise<{ code: number | null; stderr: string }> {
+  const args = [db.path, String(swarmId), author, peer, String(LOCKSTEP), String(BURST)];
+  const child = spawn(process.execPath, ["--import", "tsx/esm", writer, ...args], {
+    cwd: repoRoot,
+    stdio: ["ignore", "ignore", "pipe"],
+  });
+  children.push(child);
   let stderr = "";
-  child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
+  child.stderr?.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
   return new Promise((resolve) => child.on("close", (code) => resolve({ code, stderr })));
 }
-
-const swarmId = seedSwarm(db, { now: Date.now() }).id;
 
 function count(sql: string): number {
   return Number(db.sql.prepare(sql).get()?.n);
 }
 
 describe("two processes writing one swarm.db", () => {
-  it("loses no rows and hits no busy errors", { timeout: 60_000 }, async () => {
-    const startAt = Date.now() + 2_000;
-    const results = Promise.all([runWriter("Maria", startAt), runWriter("John", startAt)]);
-    // This process keeps writing too, like a runner heartbeating while agents post.
+  it("interleave without lost rows or busy errors", { timeout: 120_000 }, async () => {
+    const results = Promise.all([runWriter("Maria", "John"), runWriter("John", "Maria")]);
+    // This process writes too, like a runner heartbeating while its agents post.
     const heartbeat = setInterval(() => heartbeatRunLock(db, swarmId, process.pid, Date.now()), 5);
-    const [maria, john] = await results;
-    clearInterval(heartbeat);
+    const [maria, john] = await results.finally(() => clearInterval(heartbeat));
     assert.deepEqual([maria.code, maria.stderr], [0, ""]);
     assert.deepEqual([john.code, john.stderr], [0, ""]);
 
-    const perWriter = WRITES / 2;
-    assert.equal(count("SELECT COUNT(*) AS n FROM posts"), 2 * perWriter);
-    assert.equal(count("SELECT COUNT(*) AS n FROM messages"), 2 * perWriter);
-    assert.equal(count("SELECT COUNT(*) AS n FROM message_recipients"), 2 * 2 * perWriter);
-    assert.equal(count("SELECT COUNT(*) AS n FROM events WHERE type = 'post.created'"), 2 * perWriter);
-    assert.equal(count("SELECT COUNT(*) AS n FROM events WHERE type = 'message.created'"), 2 * perWriter);
-    assert.equal(count("SELECT COUNT(*) AS n FROM message_recipients WHERE status = 'pending'"), 2 * perWriter);
-    const authors = db.sql
-      .prepare("SELECT author FROM posts ORDER BY id")
+    const posts = PER_WRITER; // half of each writer's writes, two writers
+    const messages = PER_WRITER;
+    assert.equal(count("SELECT COUNT(*) AS n FROM posts"), posts);
+    assert.equal(count("SELECT COUNT(*) AS n FROM messages"), messages);
+    assert.equal(count("SELECT COUNT(*) AS n FROM message_recipients"), 2 * messages);
+    assert.equal(count("SELECT COUNT(*) AS n FROM message_recipients WHERE name = 'User'"), messages);
+    assert.equal(count("SELECT COUNT(*) AS n FROM events WHERE type = 'post.created'"), posts);
+    assert.equal(count("SELECT COUNT(*) AS n FROM events WHERE type = 'message.created'"), messages);
+
+    // Lockstep lets no writer get more than one write ahead, so in commit order its runs are at most two
+    // long. The first 2 × LOCKSTEP - 1 writes are all lockstep writes (one writer may start its burst while
+    // the other still owes its last one), hence at least LOCKSTEP - 1 author switches, whatever the scheduler.
+    const writers = db.sql
+      .prepare(
+        `SELECT COALESCE(json_extract(payload, '$.post.author'), json_extract(payload, '$.message.sender')) AS who
+         FROM events WHERE type IN ('post.created', 'message.created') ORDER BY id`,
+      )
       .all()
-      .map((row) => row.author);
-    const switches = authors.filter((author, i) => i > 0 && author !== authors[i - 1]).length;
-    assert.ok(switches > 2, `writers did not overlap (${switches} switches)`);
+      .map((row) => String(row.who));
+    const lockstepWrites = writers.slice(0, 2 * LOCKSTEP - 1);
+    const switches = lockstepWrites.filter((who, i) => i > 0 && who !== lockstepWrites[i - 1]).length;
+    assert.ok(switches >= LOCKSTEP - 1, `writers did not interleave (${switches} switches)`);
   });
 });

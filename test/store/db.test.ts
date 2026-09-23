@@ -45,18 +45,24 @@ describe("openSwarmDb", () => {
 
   it("refuses a missing file without create", () => {
     const cwd = mkdtempSync(path.join(tmpdir(), "pi-free-swarm-missing-"));
-    after(() => rmSync(cwd, { recursive: true, force: true }));
-    assert.throws(() => openSwarmDb(swarmDbPath(cwd), { create: false }), /not found/);
-    assert.equal(existsSync(swarmDataDir(cwd)), false);
+    try {
+      assert.throws(() => openSwarmDb(swarmDbPath(cwd), { create: false }), /not found/);
+      assert.equal(existsSync(swarmDataDir(cwd)), false);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
   });
 
   it("refuses a schema newer than the code", () => {
     const other = createTempDb();
-    after(() => other.cleanup());
-    other.db.sql.exec("PRAGMA user_version = 2");
-    assert.throws(() => openSwarmDb(other.db.path, { create: false }), {
-      message: "swarm.db schema v2 is newer than this extension (v1). Update pi-free-swarm.",
-    });
+    try {
+      other.db.sql.exec("PRAGMA user_version = 2");
+      assert.throws(() => openSwarmDb(other.db.path, { create: false }), {
+        message: "swarm.db schema v2 is newer than this extension (v1). Update pi-free-swarm.",
+      });
+    } finally {
+      other.cleanup();
+    }
   });
 
   it("builds session paths under the data dir", () => {
@@ -126,14 +132,26 @@ describe("write", () => {
     assert.throws(() => insertParticipant("user", "idle"), /CHECK constraint failed/);
   });
 
-  it("serialises two handles writing the same file", () => {
+  it("serialises writers across handles and lets readers see only committed rows", () => {
     const second = openSwarmDb(db.path, { create: false });
-    after(() => second.close());
-    const before = postCount(db);
-    for (let i = 0; i < 20; i++) {
-      const handle = i % 2 === 0 ? db : second;
-      handle.write(() => insertPost(`p${i}`, handle));
+    try {
+      // No busy wait in a single thread: the blocked handle fails at once instead of after busy_timeout.
+      second.sql.exec("PRAGMA busy_timeout = 0");
+      const before = postCount(db);
+      db.write(() => {
+        insertPost("held", db);
+        assert.throws(() => second.write(() => insertPost("blocked", second)), /database is locked/);
+        assert.equal(postCount(second), before, "WAL readers see the last commit");
+      });
+      assert.equal(second.sql.isTransaction, false);
+      for (let i = 0; i < 20; i++) {
+        const handle = i % 2 === 0 ? db : second;
+        handle.write(() => insertPost(`p${i}`, handle));
+      }
+      assert.equal(postCount(second), before + 21);
+      assert.equal(postCount(db), before + 21);
+    } finally {
+      second.close();
     }
-    assert.equal(postCount(second), before + 20);
   });
 });
