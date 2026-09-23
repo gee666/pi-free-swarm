@@ -6,6 +6,8 @@ export const SWARM_DIR = ".pi/swarm";
 export const DB_FILE = "swarm.db";
 export const SETTINGS_FILE = "settings.json";
 export const SESSIONS_DIR = "sessions";
+/** Per agent, both in `<SWARM_DIR>/<SESSIONS_DIR>/<swarmId>/<Name>/`. One session file for all runs and revives. */
+export const SESSION_FILE = "session.jsonl";
 export const SYSTEM_PROMPT_FILE = "system-prompt.md";
 
 // ── Environment variables ────────────────────────────────────────────────────
@@ -55,6 +57,8 @@ export const DEFAULT_IDLE_TIMEOUT_MS = 20 * 60_000;
 export const DEFAULT_STARTUP_RETRIES = 2;
 export const STARTUP_RETRY_BASE_BACKOFF_MS = 1_000;
 export const MAX_CAPTURED_STDERR_CHARS = 64_000;
+/** pi's stderr text when an extension (e.g. a tool name conflict) fails to load: fatal, never revived. */
+export const EXTENSION_LOAD_FAILURE_MARKER = "Failed to load extension";
 
 // ── Settings defaults ────────────────────────────────────────────────────────
 export const DEFAULT_MIN_AGENTS = 1;
@@ -85,16 +89,17 @@ export const MAIN_NAME = "Main";
 export const SYSTEM_NAME = "System";
 export const RESERVED_NAMES: readonly string[] = [USER_NAME, MAIN_NAME, SYSTEM_NAME];
 
-// ── Tool names (pending spike: collisions may force a `swarm_` prefix; change only here) ──
+// ── Tool names ───────────────────────────────────────────────────────────────
 export const MAIN_TOOL = { swarm: "swarm", resumeSwarm: "resume_swarm" } as const;
+/** Prefixed because a tool name conflict makes pi exit at startup, and generic names like `post` are likely taken. */
 export const AGENT_TOOL = {
-  readPosts: "read_posts",
-  readPost: "read_post",
-  post: "post",
-  comment: "comment",
-  message: "message",
-  replyTo: "reply_to",
-  readThread: "read_thread",
+  readPosts: "swarm_read_posts",
+  readPost: "swarm_read_post",
+  post: "swarm_post",
+  comment: "swarm_comment",
+  message: "swarm_message",
+  replyTo: "swarm_reply_to",
+  readThread: "swarm_read_thread",
 } as const;
 
 // ── Fixed texts that more than one module writes or recognises ───────────────

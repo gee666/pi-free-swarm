@@ -36,8 +36,8 @@ CREATE TABLE participants (
   status           TEXT CHECK (status IN ('pending', 'starting', 'working', 'idle', 'crashed', 'stopped')),
   -- Agents only: JSON of AgentActivity, NULL when idle.
   activity         TEXT,
-  -- Agents only, relative to .pi/swarm/, e.g. sessions/3/Maria.
-  session_dir      TEXT,
+  -- Agents only, relative to .pi/swarm/: sessions/3/Maria/session.jsonl (system-prompt.md beside it).
+  session_file     TEXT,
   launch_order     INTEGER,
   revive_count     INTEGER NOT NULL DEFAULT 0,
   joined_at        INTEGER,
@@ -112,12 +112,13 @@ CREATE INDEX recipients_by_inbox ON message_recipients (swarm_id, name, message_
 -- The 300 ms delivery poll and completion checks only look at open rows.
 CREATE INDEX recipients_open ON message_recipients (swarm_id, status) WHERE status IN ('pending', 'delivered');
 
--- One row per assistant message of an agent.
+-- One row per assistant message or compaction of an agent; turns count only kind = 'message'.
 CREATE TABLE usage (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   swarm_id    INTEGER NOT NULL REFERENCES swarms(id),
   agent       TEXT NOT NULL,
   run         INTEGER NOT NULL,
+  kind        TEXT NOT NULL CHECK (kind IN ('message', 'compaction')),
   input       INTEGER NOT NULL,
   output      INTEGER NOT NULL,
   cache_read  INTEGER NOT NULL,

@@ -138,7 +138,7 @@ export interface UsageTotals {
   cacheWrite: number;
   /** USD. */
   cost: number;
-  /** Assistant messages counted. */
+  /** Assistant messages counted. Tokens and cost also include compactions. */
   turns: number;
 }
 

@@ -19,7 +19,7 @@ export interface SessionPage {
   agent: string;
   /** Newest first. Items of one session entry keep their in-entry order reversed as well. */
   items: SessionItem[];
-  /** Pass as `before` to load older items; `null` when the oldest entry is included. */
+  /** Pass as `before` to load older items; `null` when the oldest entry is included or there is no session file yet. */
   olderCursor: string | null;
   /** Pass as `after` to load newer items; `null` when the session has no entries yet. */
   newestCursor: string | null;
@@ -70,11 +70,12 @@ export interface SessionToolCallItem extends SessionItemBase {
   /** True when the server cut `result` at its size cap. */
   resultTruncated: boolean;
   isError: boolean;
-  /** From the assistant message to its tool result; `null` while running or when unknown. */
+  /** Tool result time minus the assistant entry's persist time (approximate for parallel calls); `null` while running. */
   durationMs: number | null;
 }
 
-export type SessionSystemEvent = "compaction" | "revive" | "error" | "model_change";
+/** `retry`: a failed model call pi retried (removed from context by a later `context_edit`); `error`: a final failure. */
+export type SessionSystemEvent = "compaction" | "revive" | "retry" | "error" | "model_change";
 
 /** Rendered as one centered muted line; `error` is pink. */
 export interface SessionSystemItem extends SessionItemBase {
