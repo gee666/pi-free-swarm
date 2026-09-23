@@ -1,0 +1,57 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-width: 1280px;
+  overflow: hidden;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--gap-panels);
+}
+
+.content > * {
+  flex: 1;
+}
+
+.columns {
+  display: flex;
+  gap: var(--gap-panels);
+  min-height: 0;
+}
+
+.list {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: var(--list-w);
+  min-height: 0;
+}
+
+.list > * {
+  flex: 1;
+}
+
+.mainColumn {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--gap-panels);
+  min-width: 0;
+  min-height: 0;
+}
+
+.mainColumn > :first-child {
+  flex: 1;
+}

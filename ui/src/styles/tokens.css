@@ -1,0 +1,76 @@
+:root {
+  /* ---- Surfaces ---- */
+  --bg-app: #18181b; /* page background, top bar, tab rail */
+  --bg-panel: #1f1f23; /* large content panels (agent list, mailbox, compose) */
+  --bg-panel-raised: #26262b; /* expanded message, inputs, hovered rows */
+  --bg-hover: #2a2a30; /* row hover */
+  --bg-chip: #2e2e34; /* neutral pills ("to Maria"), neutral avatars */
+
+  /* ---- Borders ---- */
+  --border: #2f2f36; /* panel borders, row dividers */
+  --border-strong: #3a3a42; /* inputs, secondary buttons, dropdowns */
+
+  /* ---- Text ---- */
+  --text-primary: #ececf1; /* names, titles, message subjects */
+  --text-secondary: #b4b4bd; /* body text, message content */
+  --text-muted: #7c7c86; /* timestamps, placeholders, meta, "Mailbox" label */
+  --text-on-accent: #ffffff;
+
+  /* ---- Accent (pink) ---- */
+  --accent: #ff4fa3; /* primary buttons, badges, unread dots, active indicator */
+  --accent-hover: #ff66b0;
+  --accent-pressed: #e63d8f;
+  --accent-strong: #c93a7f; /* filled avatar of the selected/current entity */
+  --accent-soft-bg: #3a1f2d; /* selected row background, active segmented button fill */
+  --accent-soft-bg-2: #2c1a24; /* chip background (pink-outlined chips) */
+  --accent-border: #ff4fa3; /* outlines of active toggle / chips */
+  --accent-glow: 0 0 0 3px rgba(255, 79, 163, 0.18); /* focus ring only */
+
+  /* ---- Status (pink-only system) ---- */
+  --status-live: var(--accent); /* running / unread / online */
+  --status-idle: #5c5c66; /* idle / read / offline */
+  /* No green/yellow/red/blue. Errors use --accent + text wording, e.g. "Failed". */
+
+  /* ---- Typography ---- */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --fs-app-title: 26px; /* "Pi Swarm" */
+  --fs-h1: 24px; /* entity header name, e.g. "Maria" */
+  --fs-h2: 20px; /* panel titles, e.g. "Agents" */
+  --fs-body: 15px; /* rows, message text, inputs */
+  --fs-small: 13px; /* meta, chips, timestamps, hints */
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --lh-body: 1.6;
+  --lh-tight: 1.25;
+
+  /* ---- Spacing scale (4px base) ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* ---- Radii ---- */
+  --radius-sm: 6px; /* chips, small pills, badges-as-pills */
+  --radius-md: 8px; /* buttons, inputs, dropdowns, segmented control */
+  --radius-lg: 12px; /* panels, cards, expanded message */
+  --radius-full: 999px; /* avatars, count badges, status dots */
+
+  /* ---- Layout ---- */
+  --topbar-h: 72px;
+  --rail-w: 96px;
+  --list-w: 350px;
+  --row-h: 56px; /* mailbox / post rows */
+  --row-h-lg: 72px; /* agent rows with avatar */
+  --avatar-sm: 32px;
+  --avatar-md: 48px;
+  --avatar-lg: 64px;
+  --gap-panels: 16px;
+
+  --transition: 120ms ease-out;
+}

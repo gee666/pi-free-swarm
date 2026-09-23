@@ -1,0 +1,58 @@
+.badge,
+.badgeSpace {
+  min-width: 28px;
+}
+
+.badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.unreadDot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+}
+
+.unread {
+  background: var(--accent);
+}
+
+.statusDot {
+  flex: none;
+  border-radius: var(--radius-full);
+}
+
+.sm {
+  width: 8px;
+  height: 8px;
+}
+
+.md {
+  width: 14px;
+  height: 14px;
+}
+
+.live {
+  background: var(--status-live);
+}
+
+.idle {
+  background: var(--status-idle);
+}
+
+.crashed {
+  border: 1px solid var(--accent);
+}

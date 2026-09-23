@@ -1,0 +1,91 @@
+.bar {
+  /* Brand and selector columns share the selector width; the status column keeps the dot in place. */
+  --selector-w: 270px;
+  --status-w: 200px;
+  display: grid;
+  flex: none;
+  grid-template-columns: calc(var(--selector-w) - var(--space-6)) var(--selector-w) minmax(0, 1fr) var(--status-w);
+  align-items: center;
+  column-gap: var(--space-6);
+  height: calc(var(--topbar-h) + 1px);
+  padding: 0 var(--space-8);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-app);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
+
+.logo {
+  flex: none;
+  color: var(--accent);
+}
+
+.title {
+  color: var(--text-primary);
+  font-size: var(--fs-app-title);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}
+
+.select {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 44px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-size: var(--fs-body);
+  text-align: left;
+  transition: background var(--transition);
+}
+
+.select:hover {
+  background: var(--bg-hover);
+}
+
+.selectLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.prompt {
+  gap: var(--space-3);
+  color: var(--text-secondary);
+}
+
+.promptIcon {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.promptText {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+  color: var(--text-primary);
+  white-space: nowrap;
+}

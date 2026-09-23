@@ -1,0 +1,52 @@
+.control {
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  font-size: var(--fs-body);
+  transition: border-color var(--transition);
+}
+
+.control::placeholder {
+  color: var(--text-muted);
+}
+
+.control:focus-visible {
+  border-color: var(--accent-border);
+}
+
+.control:disabled {
+  cursor: not-allowed;
+}
+
+.textarea {
+  display: block;
+  min-height: 80px;
+  max-height: 240px;
+  padding: var(--space-3) var(--space-4);
+  line-height: var(--lh-body);
+  resize: none;
+}
+
+.inputWrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.input {
+  height: 44px;
+  padding: 0 var(--space-4);
+}
+
+.counter {
+  flex: none;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.over {
+  color: var(--accent);
+}

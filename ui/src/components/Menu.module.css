@@ -1,0 +1,43 @@
+.menu {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: var(--space-1) 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 40px;
+  padding: 0 var(--space-4);
+  color: var(--text-primary);
+  font-size: var(--fs-body);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.active {
+  background: var(--bg-hover);
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.check {
+  flex: none;
+  color: var(--accent);
+}
+
+.empty {
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}

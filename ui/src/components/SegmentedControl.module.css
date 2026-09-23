@@ -1,0 +1,32 @@
+.group {
+  display: inline-flex;
+  flex: none;
+  height: 48px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+}
+
+.segment {
+  min-width: 130px;
+  /* Overlaps the container border so the active outline replaces it. */
+  margin: -1px;
+  padding: 0 var(--space-6);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--fs-body);
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+.segment:hover:not(.active) {
+  color: var(--text-primary);
+}
+
+.active {
+  border-color: var(--accent-border);
+  background: var(--accent-soft-bg);
+  color: var(--text-primary);
+  font-weight: var(--fw-semibold);
+}

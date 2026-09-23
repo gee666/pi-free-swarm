@@ -1,0 +1,40 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+}
+
+.inset {
+  flex: 1;
+  margin: 0 var(--space-4) var(--space-4);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  /* Same height as a list row plus its divider, with or without an action button. */
+  min-height: calc(var(--row-h-lg) + 1px);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.title {
+  font-size: var(--fs-h2);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  color: var(--text-primary);
+}

@@ -1,0 +1,82 @@
+.compose {
+  flex: none;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.dimmed {
+  opacity: 0.5;
+}
+
+.notice,
+.threadLine {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-small);
+}
+
+.notice {
+  color: var(--text-secondary);
+}
+
+.threadLine {
+  color: var(--text-muted);
+}
+
+.toRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.toLabel {
+  margin-right: var(--space-2);
+  color: var(--text-secondary);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  white-space: nowrap;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.agentPopover {
+  width: 260px;
+}
+
+.search {
+  flex: none;
+  height: 40px;
+  padding: 0 var(--space-4);
+  border: none;
+  border-bottom: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--fs-body);
+}
+
+.search::placeholder {
+  color: var(--text-muted);
+}
+
+.search:focus-visible {
+  box-shadow: none;
+}

@@ -1,0 +1,62 @@
+.panel {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  height: var(--row-h);
+  padding: 0 var(--space-5);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  text-align: left;
+  transition: background var(--transition);
+}
+
+.row:hover {
+  background: var(--bg-hover);
+}
+
+.row:focus-visible {
+  box-shadow: inset var(--accent-glow);
+}
+
+.id,
+.time,
+.chevron {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.id {
+  min-width: 40px;
+  font-variant-numeric: tabular-nums;
+}
+
+.name {
+  flex: none;
+  max-width: 200px;
+  overflow: hidden;
+  font-weight: var(--fw-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time {
+  min-width: 72px;
+  font-size: var(--fs-small);
+  text-align: right;
+}

@@ -1,0 +1,40 @@
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-5) var(--space-6) var(--space-4);
+}
+
+.text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.title {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subtitle {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+}
