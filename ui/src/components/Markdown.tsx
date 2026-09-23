@@ -38,6 +38,15 @@ function InlineNodes({ nodes }: { nodes: Inline[] }) {
 
 const inline = (text: string) => <InlineNodes nodes={parseInline(text)} />;
 
+/** Fenced code: --bg-app box that scrolls horizontally. Also used for tool arguments and output. */
+export function CodeBlock({ children }: { children: string }) {
+  return (
+    <pre className={styles.codeBlock}>
+      <code>{children}</code>
+    </pre>
+  );
+}
+
 function BlockNode({ block }: { block: Block }) {
   switch (block.type) {
     case "paragraph":
@@ -50,11 +59,7 @@ function BlockNode({ block }: { block: Block }) {
         <h4 className={styles.headingSmall}>{inline(block.text)}</h4>
       );
     case "code":
-      return (
-        <pre className={styles.codeBlock}>
-          <code>{block.text}</code>
-        </pre>
-      );
+      return <CodeBlock>{block.text}</CodeBlock>;
     case "list": {
       const items = block.items.map((item, index) => <li key={index}>{inline(item)}</li>);
       return block.ordered ? <ol className={styles.list}>{items}</ol> : <ul className={styles.list}>{items}</ul>;

@@ -1,0 +1,153 @@
+.tiles {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--gap-panels);
+  margin: 0;
+  padding: var(--space-4);
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel-raised);
+}
+
+.tileLabel {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+.tileValue {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accent {
+  color: var(--accent);
+}
+
+/* Sized to the table so a short table leaves no empty box; scrolls once it outgrows the panel. */
+.tableBox {
+  flex: 0 1 auto;
+}
+
+.tableScroll {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.table th,
+.table td {
+  height: var(--row-h);
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--border);
+  font-weight: var(--fw-regular);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table th:first-child {
+  padding-left: var(--space-5);
+}
+
+.table th:last-child,
+.table td:last-child {
+  padding-right: var(--space-5);
+}
+
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+.table tbody tr {
+  transition: background var(--transition);
+}
+
+.table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+.table tfoot th,
+.table tfoot td {
+  position: sticky;
+  bottom: 0;
+  border-bottom: none;
+  background: var(--bg-panel-raised);
+  font-weight: var(--fw-semibold);
+}
+
+.table .number {
+  text-align: right;
+}
+
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  transition: color var(--transition);
+}
+
+.sortButton:hover {
+  color: var(--text-primary);
+}
+
+.agent,
+.status {
+  display: inline-flex;
+  align-items: center;
+}
+
+.agent {
+  gap: var(--space-3);
+  font-weight: var(--fw-medium);
+}
+
+.status {
+  gap: var(--space-2);
+  color: var(--text-secondary);
+}
+
+.shareColumn {
+  width: 180px;
+}
+
+.shareTrack {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--bg-chip);
+}
+
+.shareFill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}

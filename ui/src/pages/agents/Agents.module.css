@@ -1,0 +1,17 @@
+/* Lets the compose panel stay a direct flex item of the main column while the page can focus its textarea. */
+.composeSlot {
+  display: contents;
+}
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  margin: calc(-1 * var(--space-2)) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.threadFooter {
+  display: flex;
+  justify-content: flex-end;
+}

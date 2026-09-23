@@ -1,0 +1,45 @@
+.entry {
+  position: relative;
+  display: flex;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.entry:last-child {
+  border-bottom: none;
+}
+
+.own::before {
+  content: "";
+  position: absolute;
+  inset: var(--space-4) auto var(--space-4) calc(-1 * var(--space-4));
+  width: 3px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+
+.main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  line-height: var(--avatar-sm);
+}
+
+.author {
+  color: var(--text-primary);
+  font-weight: var(--fw-medium);
+}
+
+.time {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}

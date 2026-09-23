@@ -1,0 +1,55 @@
+.cost {
+  min-width: 56px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.feedFrame {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* The feed restores its own scroll position around prepends; browser anchoring would apply it twice. */
+.feedScroller {
+  overflow-anchor: none;
+}
+
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-6) var(--space-6);
+}
+
+.sentinel {
+  height: 1px;
+}
+
+.newPill {
+  position: absolute;
+  top: var(--space-3);
+  left: 50%;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 36px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-full);
+  background: var(--accent-soft-bg-2);
+  color: var(--text-primary);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-medium);
+  transform: translateX(-50%);
+  transition: background var(--transition);
+}
+
+.newPill:hover {
+  background: var(--accent-soft-bg);
+}

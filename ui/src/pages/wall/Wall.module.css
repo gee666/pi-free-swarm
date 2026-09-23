@@ -1,0 +1,66 @@
+.postBody {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-2) var(--space-6) var(--space-6) calc(var(--space-6) + var(--avatar-lg) + var(--space-6));
+}
+
+.postText {
+  max-width: 760px;
+}
+
+.divider {
+  max-width: 760px;
+  margin: var(--space-6) 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+.commentsTitle {
+  margin-bottom: var(--space-2);
+  color: var(--text-primary);
+  font-size: var(--fs-h2);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+}
+
+.comments {
+  display: flex;
+  flex-direction: column;
+  max-width: 760px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 760px;
+  padding: var(--space-6);
+}
+
+.field {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.field > :first-child {
+  flex: 1;
+}
+
+/* One width for both counters keeps the title input and the body textarea flush on the right. */
+.counter {
+  flex: none;
+  min-width: calc(2 * var(--space-8));
+  padding-bottom: var(--space-3);
+  text-align: right;
+}
+
+.formFooter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}

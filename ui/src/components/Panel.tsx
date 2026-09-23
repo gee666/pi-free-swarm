@@ -1,4 +1,4 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
 import { cx } from "../lib/cx";
 import styles from "./Panel.module.css";
 
@@ -16,14 +16,17 @@ export function Panel({ inset = false, className, children, ...rest }: PanelProp
   );
 }
 
-/** Scrolling region that fills the rest of a panel. */
-export function PanelBody({ className, children, ...rest }: HTMLAttributes<HTMLDivElement>) {
+/** Scrolling region that fills the rest of a panel; the ref gives access to its scroll position. */
+export const PanelBody = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(function PanelBody(
+  { className, children, ...rest },
+  ref,
+) {
   return (
-    <div className={cx(styles.body, className)} {...rest}>
+    <div ref={ref} className={cx(styles.body, className)} {...rest}>
       {children}
     </div>
   );
-}
+});
 
 interface PanelHeaderProps {
   title: ReactNode;
