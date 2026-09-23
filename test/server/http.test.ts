@@ -78,11 +78,13 @@ describe("static files", () => {
     assert.equal(await (await fetch(`${base}/../secret.txt`)).text(), UI_INDEX);
     for (const path of ["/../secret.txt", "/%2e%2e/secret.txt", "/assets/..%2f..%2fsecret.txt", "/..%5csecret.txt"]) {
       const response = await rawGet(path);
-      assert.equal(response.status, 200, path);
-      assert.equal(response.body, UI_INDEX, path);
+      assert.ok([200, 400].includes(response.status), path);
       assert.notEqual(response.body, OUTSIDE_SECRET, path);
     }
-    assert.equal((await rawGet("/%E0%A4%A")).body, UI_INDEX, "malformed escapes fall back too");
+    assert.equal((await rawGet("/%E0%A4%A")).status, 400);
+    assert.equal((await rawGet("/%00")).status, 400);
+    assert.equal((await rawGet(`/${"a".repeat(300)}`)).status, 404);
+    assert.equal((await fetch(base)).status, 200, "malformed paths do not kill the server");
   });
 
   it("routes first, then a JSON 404 for unknown /api and /events paths and non-GET methods", async () => {

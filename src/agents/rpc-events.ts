@@ -1,9 +1,29 @@
 // Pure readers for pi's RPC JSONL records (docs/pi-findings.md §2, §5, §8).
 import { StringDecoder } from "node:string_decoder";
 import type { AgentActivity } from "../api-types.js";
+import { AGENT_TOOL } from "../constants.js";
+import { findMessageIds } from "../message-format.js";
 import type { UsageSample } from "../runtime-types.js";
 
 export type RpcRecord = Record<string, unknown>;
+
+/** Only headers outside quoted message bodies can acknowledge delivery. */
+export function headerMessageIds(text: string): number[] {
+  const ids: number[] = [];
+  let inBody = false;
+  for (const line of text.split("\n")) {
+    if (inBody) {
+      if (line.startsWith(`(reply with ${AGENT_TOOL.replyTo}(`)) inBody = false;
+      continue;
+    }
+    if (line.startsWith('"')) {
+      inBody = true;
+      continue;
+    }
+    if (line.startsWith("[swarm message #")) ids.push(...findMessageIds(line.slice(0, line.indexOf("]") + 1)));
+  }
+  return ids;
+}
 
 const DIALOG_METHODS = new Set(["select", "confirm", "input", "editor"]);
 

@@ -7,13 +7,21 @@ type SeenCounts = Record<string, number>;
 const storageKey = (swarmId: string) => `pi-swarm:wall-seen:${swarmId}`;
 
 function readSeen(swarmId: string): SeenCounts {
-  const raw = window.localStorage.getItem(storageKey(swarmId));
-  if (raw === null) return {};
-  const parsed: unknown = JSON.parse(raw);
-  if (typeof parsed !== "object" || parsed === null) return {};
-  return Object.fromEntries(
-    Object.entries(parsed).filter((entry): entry is [string, number] => typeof entry[1] === "number"),
-  );
+  try {
+    const raw = window.localStorage.getItem(storageKey(swarmId));
+    if (raw === null) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        (entry): entry is [string, number] =>
+          typeof entry[1] === "number" && Number.isSafeInteger(entry[1]) && entry[1] >= 0,
+      ),
+    );
+  } catch {
+    // Storage is optional: blocked access or corrupt data must not prevent reading the wall.
+    return {};
+  }
 }
 
 /**
@@ -40,7 +48,13 @@ export function useSeenComments(
     });
   }, [posts, openPostId]);
 
-  useEffect(() => window.localStorage.setItem(storageKey(swarmId), JSON.stringify(seen)), [swarmId, seen]);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(storageKey(swarmId), JSON.stringify(seen));
+    } catch {
+      // Keep the current in-memory counts when persistence is unavailable or full.
+    }
+  }, [swarmId, seen]);
 
   return (post) => Math.max(0, post.commentCount - (seen[post.id] ?? post.commentCount));
 }

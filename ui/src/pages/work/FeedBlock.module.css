@@ -155,7 +155,9 @@
 .systemText {
   max-width: 70%;
   text-align: center;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .error {

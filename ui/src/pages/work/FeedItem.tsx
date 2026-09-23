@@ -52,9 +52,22 @@ function ThinkingBlock({ item }: { item: SessionThinkingItem }) {
 }
 
 function SystemLine({ item }: { item: SessionSystemItem }) {
+  const [expanded, setExpanded] = useState(false);
+  const summary = item.text.trim().startsWith("{") ? item.event.replaceAll("_", " ") : firstLine(item.text);
   return (
-    <div className={cx(styles.system, item.event === "error" && styles.error)} role="note">
-      <span className={styles.systemText}>{`${item.text} · ${formatTimestamp(item.timestamp)}`}</span>
+    <div role="note" className={item.event === "error" ? styles.error : undefined}>
+      <div className={cx(styles.system, item.event === "error" && styles.error)}>
+        <button
+          type="button"
+          className={styles.systemText}
+          aria-expanded={expanded}
+          onClick={() => setExpanded(!expanded)}
+        >
+          {summary}
+        </button>
+        <time className={styles.time}>{formatTimestamp(item.timestamp)}</time>
+      </div>
+      {expanded && <RichText text={item.text} />}
     </div>
   );
 }

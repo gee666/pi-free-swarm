@@ -42,9 +42,13 @@ test("a crashed agent can be launched again on the same session file", async () 
 });
 
 test("the inactivity watchdog kills a silent agent and reports a crash", async () => {
-  const agent = superviseFake(SCENARIOS.inactivityStall, { watchdog: FAST });
+  const clock = new FakeClock();
+  const agent = superviseFake(SCENARIOS.inactivityStall, { clock, watchdog: FAST });
   try {
     await agent.supervisor.launch(agent.fake.spec(), prompt("go"));
+    await agent.waitStatus("working");
+    await waitFor(() => clock.nextDelay() === FAST.idleTimeoutMs, "first turn");
+    clock.advance(FAST.idleTimeoutMs);
     await agent.waitStatus("crashed");
     const [crash] = agent.recorded.crashes;
     assert.equal(crash.reason, "inactivity");

@@ -53,6 +53,7 @@ export interface PortChoice {
 export interface ServerHostOptions {
   cwd: string;
   getDb(): SwarmDb | null;
+  isOwnedActiveRun?(db: SwarmDb, swarmId: number, runnerPid: number): boolean;
   /** The built board (`ui_dist/` of this package). */
   uiDir: string;
   pid?: number;
@@ -186,10 +187,16 @@ export class ServerHost {
       choice.explicit || previousPort === null
         ? choice.candidates
         : [previousPort, ...choice.candidates.filter((port) => port !== previousPort)];
-    const hub = new SseHub({ db, clock: this.clock, watcher: this.watcher });
-    const api = createApiRoutes({ db, clock: this.clock, sessions: this.reader, alive: this.alive });
+    const onError = (message: string) => this.report(message);
+    const hub = new SseHub({ db, clock: this.clock, watcher: this.watcher, onError });
+    const api = createApiRoutes({ db, clock: this.clock, sessions: this.reader, alive: this.alive, onError });
     try {
-      const server = await startBoardServer({ candidates, uiDir: this.options.uiDir, routes: [hub.route, api] });
+      const server = await startBoardServer({
+        candidates,
+        uiDir: this.options.uiDir,
+        routes: [hub.route, api],
+        onError,
+      });
       return { server, hub };
     } catch (error) {
       this.report(this.bindError(error, choice));
@@ -207,7 +214,13 @@ export class ServerHost {
 
   private beginHosting(db: SwarmDb, { server, hub }: Bound): void {
     hub.start();
-    const sweep = () => sweepStaleRuns(db, this.clock.now(), this.alive);
+    const sweep = () =>
+      sweepStaleRuns(
+        db,
+        this.clock.now(),
+        this.alive,
+        (id, pid) => this.options.isOwnedActiveRun?.(db, id, pid) ?? false,
+      );
     const prune = () => pruneEvents(db, this.clock.now() - EVENTS_RETENTION_MS);
     const heartbeat = () => {
       if (!heartbeatServerHost(db, this.pid, this.clock.now())) void this.stopHosting();

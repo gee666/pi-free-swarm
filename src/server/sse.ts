@@ -39,8 +39,11 @@ export class SseHub {
   private timers: TimerHandle[] = [];
   /** Newest outbox id already pushed to live clients. */
   private lastSeen = 0;
+  private lastError: string | null = null;
+  private readonly onError?: (message: string) => void;
 
-  constructor(options: { db: SwarmDb; clock?: Clock; watcher: SessionWatcher }) {
+  constructor(options: { db: SwarmDb; clock?: Clock; watcher: SessionWatcher; onError?(message: string): void }) {
+    this.onError = options.onError;
     this.db = options.db;
     this.clock = options.clock ?? systemClock;
     this.watcher = options.watcher;
@@ -55,14 +58,18 @@ export class SseHub {
     if (this.timers.length > 0) return;
     this.lastSeen = latestEventId(this.db);
     this.timers = [
-      this.clock.every(EVENTS_TAIL_MS, () => this.tail()),
-      this.clock.every(SSE_KEEPALIVE_MS, () => this.writeAll(": keep-alive\n\n")),
+      this.clock.every(EVENTS_TAIL_MS, () => this.guard(() => this.tail())),
+      this.clock.every(SSE_KEEPALIVE_MS, () => this.guard(() => this.writeAll(": keep-alive\n\n"))),
     ];
   }
 
   stop(): void {
     for (const timer of this.timers) timer.cancel();
     this.timers = [];
+    this.closeClients();
+  }
+
+  private closeClients(): void {
     for (const client of this.clients) client.res.end();
     this.clients.clear();
     for (const unwatch of this.watches.values()) unwatch();
@@ -88,12 +95,23 @@ export class SseHub {
     // A first chunk makes the headers reach the client now rather than with the first event.
     res.write(": connected\n\n");
     const client: Client = { res, swarmId };
-    this.replay(client, req.headers["last-event-id"]);
     this.clients.add(client);
-    if (swarmId !== null && !this.watches.has(swarmId)) this.watchSessions(swarmId);
     const leave = () => this.remove(client);
-    req.on("close", leave);
-    res.on("error", leave);
+    res.on("close", leave);
+    res.on("error", (error: Error) => {
+      leave();
+      res.destroy();
+      if (!("code" in error && (error.code === "ECONNRESET" || error.code === "EPIPE"))) {
+        this.report(error);
+      }
+    });
+    try {
+      this.replay(client, req.headers["last-event-id"]);
+      if (swarmId !== null && !this.watches.has(swarmId)) this.watchSessions(swarmId);
+    } catch (error) {
+      this.remove(client);
+      throw error;
+    }
   }
 
   /** After a reconnect, sends what the client missed up to the point the live tail continues from. */
@@ -122,16 +140,35 @@ export class SseHub {
   private watchSessions(swarmId: number): void {
     const unwatchers = listAgentSessions(this.db, swarmId).map(({ name, sessionFile }) =>
       this.watcher.watch(name, sessionFile, (newestCursor) =>
-        this.broadcast({
-          id: null,
-          swarmId,
-          type: "session.appended",
-          payload: { agent: name, newestCursor },
-          createdAt: this.clock.now(),
-        }),
+        this.guard(() =>
+          this.broadcast({
+            id: null,
+            swarmId,
+            type: "session.appended",
+            payload: { agent: name, newestCursor },
+            createdAt: this.clock.now(),
+          }),
+        ),
       ),
     );
     this.watches.set(swarmId, () => unwatchers.forEach((unwatch) => unwatch()));
+  }
+
+  private guard(task: () => void): void {
+    try {
+      task();
+    } catch (error) {
+      this.closeClients();
+      this.report(error);
+    }
+  }
+
+  private report(error: unknown): void {
+    const message = `SSE failed: ${error instanceof Error ? error.message : String(error)}`;
+    if (message !== this.lastError) {
+      this.lastError = message;
+      this.onError?.(message);
+    }
   }
 
   private tail(): void {

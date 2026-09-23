@@ -3,7 +3,7 @@
   flex: none;
   align-items: center;
   gap: var(--space-3);
-  height: 36px;
+  height: var(--control-compact-h);
   padding: 0 var(--space-3);
   border: 1px solid var(--accent-border);
   border-radius: var(--radius-md);

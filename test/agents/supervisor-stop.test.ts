@@ -59,9 +59,9 @@ test("stop during a run resolves once the process is gone", async () => {
   }
 });
 
-test("killAllAgentsSync SIGKILLs every registered agent group synchronously", async () => {
+test("killAllAgentsSync sends TERM so pi can clean up detached tools", async () => {
   useFakePi();
-  const fake = createFakePiRun(SCENARIOS.stubborn);
+  const fake = createFakePiRun({ startup: [{ type: "grandchild" }] });
   try {
     const proc = spawnAgentProcess(fake.spec());
     const exited = once(proc, "exit");
@@ -69,8 +69,8 @@ test("killAllAgentsSync SIGKILLs every registered agent group synchronously", as
     const grandchild = Number(fake.log().find((record) => record.fake === "grandchild")?.pid);
     killAllAgentsSync();
     const [code, signal] = await exited;
-    assert.equal(code, null);
-    assert.equal(signal, "SIGKILL");
+    assert.equal(code, 143);
+    assert.equal(signal, null);
     await waitFor(() => !isAlive(grandchild), "grandchild killed with the group");
   } finally {
     fake.cleanup();

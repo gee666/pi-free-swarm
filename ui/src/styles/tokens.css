@@ -72,5 +72,23 @@
   --avatar-lg: 64px;
   --gap-panels: 16px;
 
+  /* ---- Shared component dimensions ---- */
+  --count-badge-size: 24px;
+  --dot-size: 8px;
+  --topbar-dot-size: 10px;
+  --button-primary-h: 48px;
+  --button-secondary-h: 40px;
+  --control-compact-h: 36px;
+  --input-h: 44px;
+  --textarea-min-h: 80px;
+  --textarea-max-h: 240px;
+  --segment-h: 48px;
+  --segment-min-w: 130px;
+  --menu-row-h: 40px;
+  --agent-popover-w: 260px;
+  --message-sender-w: 136px; /* 160px column including its 24px gap */
+  --message-subject-w: 320px;
+  --timestamp-min-w: 72px;
+
   --transition: 120ms ease-out;
 }

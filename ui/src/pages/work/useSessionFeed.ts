@@ -67,8 +67,15 @@ export function useSessionFeed({ swarmId, agent, stream, onBeforePrepend }: Sess
   useEffect(() => {
     const controller = new AbortController();
     lifetime.current = controller;
+    current.current = undefined;
+    newer.current = { running: false, again: false };
+    olderBusy.current = false;
+    setData(undefined);
+    setLoadingOlder(false);
+    setOlderError(undefined);
+    setNewerError(undefined);
     return () => controller.abort();
-  }, []);
+  }, [swarmId, agent]);
 
   // One catch-up at a time; events that arrive meanwhile (or before the first page) trigger one more round.
   const fetchNewer = async () => {
@@ -97,7 +104,10 @@ export function useSessionFeed({ swarmId, agent, stream, onBeforePrepend }: Sess
           newestCursor: page.newestCursor ?? latest.newestCursor,
         });
         setNewerError(undefined);
-      } while (flags.again);
+        // Cursors count persisted entries, not rendered items (some entries emit nothing).
+        // Drain until the server stops advancing, including after reconnects without a target cursor.
+        if (page.newestCursor !== null && page.newestCursor !== base.newestCursor) flags.again = true;
+      } while (flags.again && !signal.aborted);
     } catch (reason) {
       if (!signal.aborted) setNewerError(toError(reason));
     } finally {
@@ -151,6 +161,7 @@ export function useSessionFeed({ swarmId, agent, stream, onBeforePrepend }: Sess
         },
       )
       .finally(() => {
+        if (signal.aborted) return;
         olderBusy.current = false;
         setLoadingOlder(false);
       });

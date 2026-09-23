@@ -9,10 +9,12 @@ import type { SwarmDb } from "../store/db.js";
 import { getMessages, listInboxAfter, listOpenAgentRecipients } from "../store/message-queries.js";
 import { markDelivered } from "./delivery-state.js";
 import { onLocalMessage } from "./notify.js";
+import { guardRunAction } from "./run-failure.js";
 
 export interface DeliveryTarget {
   readonly status: ParticipantStatus;
   deliver(prompt: PromptPayload): Promise<DeliveryOutcome>;
+  recoverUnread?(prompt: PromptPayload): Promise<DeliveryOutcome>;
 }
 
 export interface DeliveryLoopOptions {
@@ -22,6 +24,7 @@ export interface DeliveryLoopOptions {
   agents: ReadonlyMap<string, DeliveryTarget>;
   clock?: Clock;
   pollMs?: number;
+  onError?(error: unknown): void;
   /** Each new message in the User's inbox, once. */
   onUserMessage?(message: MessageView): void;
 }
@@ -35,6 +38,7 @@ export class DeliveryLoop {
   readonly #agents: ReadonlyMap<string, DeliveryTarget>;
   readonly #clock: Clock;
   readonly #pollMs: number;
+  readonly #onError: (error: unknown) => void;
   readonly #onUserMessage: ((message: MessageView) => void) | undefined;
   /** One prompt per agent at a time, so a slow response never doubles a delivery. */
   readonly #inFlight = new Set<string>();
@@ -51,6 +55,10 @@ export class DeliveryLoop {
     this.#clock = options.clock ?? systemClock;
     this.#pollMs = options.pollMs ?? DELIVERY_POLL_MS;
     this.#onUserMessage = options.onUserMessage;
+    this.#onError = (error) => {
+      this.stop();
+      options.onError?.(error);
+    };
   }
 
   start(): void {
@@ -58,7 +66,7 @@ export class DeliveryLoop {
     this.#running = true;
     // Only messages that arrive during this run are news for the terminal.
     this.#userCursor = listInboxAfter(this.#db, this.#swarmId, USER_NAME, 0).at(-1)?.id ?? 0;
-    this.#timers.push(this.#clock.every(this.#pollMs, () => this.#pass()));
+    this.#timers.push(this.#clock.every(this.#pollMs, () => guardRunAction(() => this.#pass(), this.#onError)));
     this.#unsubscribe = onLocalMessage((swarmId) => {
       if (swarmId === this.#swarmId) this.#soon();
     });
@@ -88,30 +96,36 @@ export class DeliveryLoop {
     if (!this.#running || this.#wake) return;
     this.#wake = this.#clock.after(0, () => {
       this.#wake = null;
-      this.#pass();
+      guardRunAction(() => this.#pass(), this.#onError);
     });
   }
 
   #pass(): void {
     if (!this.#running) return;
-    const pending = new Map<string, number[]>();
-    for (const open of listOpenAgentRecipients(this.#db, this.#swarmId)) {
-      if (open.status !== "pending") continue;
-      pending.set(open.name, [...(pending.get(open.name) ?? []), open.messageId]);
-    }
-    for (const [name, messageIds] of pending) {
-      const target = this.#agents.get(name);
-      if (target && RECEIVING.has(target.status) && !this.#inFlight.has(name)) {
-        void this.#deliver(name, target, messageIds);
-      }
+    const open = listOpenAgentRecipients(this.#db, this.#swarmId);
+    for (const [name, target] of this.#agents) {
+      if (!RECEIVING.has(target.status) || this.#inFlight.has(name)) continue;
+      const recipients = open.filter((recipient) => recipient.name === name);
+      const recover =
+        target.status === "idle" &&
+        !!target.recoverUnread &&
+        recipients.some((recipient) => recipient.status === "delivered");
+      const messageIds = recipients
+        .filter((recipient) => recover || recipient.status === "pending")
+        .map((recipient) => recipient.messageId);
+      if (messageIds.length) guardRunAction(() => this.#deliver(name, target, messageIds, recover), this.#onError);
     }
     this.#announceUserMessages();
   }
 
-  async #deliver(name: string, target: DeliveryTarget, messageIds: number[]): Promise<void> {
+  async #deliver(name: string, target: DeliveryTarget, messageIds: number[], recover: boolean): Promise<void> {
     this.#inFlight.add(name);
     const text = formatDeliveredMessages(getMessages(this.#db, messageIds), name);
-    const outcome = await target.deliver({ text, messageIds }).finally(() => this.#inFlight.delete(name));
+    const outcome = await (
+      recover && target.recoverUnread
+        ? target.recoverUnread({ text, messageIds })
+        : target.deliver({ text, messageIds })
+    ).finally(() => this.#inFlight.delete(name));
     if (!this.#running || !outcome.accepted) return;
     markDelivered(this.#db, this.#swarmId, name, messageIds, this.#clock.now());
     // More may have arrived while this prompt was on its way. A rejection waits for the poll instead.

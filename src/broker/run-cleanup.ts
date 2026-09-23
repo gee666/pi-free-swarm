@@ -3,7 +3,8 @@
 import { USER_NAME } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
 import { listOpenAgentRecipients } from "../store/message-queries.js";
-import { count, int, jsonList, text, textOrNull } from "../store/rows.js";
+import { count, int, intOrNull, jsonList, text, textOrNull } from "../store/rows.js";
+import { releaseRunLock } from "../store/locks.js";
 import { emitParticipantUpdated, emitRecipientStatus, emitSwarmUpdated } from "./emit.js";
 import { addUndeliverableReply } from "./message-insert.js";
 
@@ -17,11 +18,10 @@ export function cleanupRun(db: SwarmDb, swarmId: number, end: RunEndStatus, now:
         .all(swarmId)
         .map((row) => [text(row, "name"), `${text(row, "status")}|${textOrNull(row, "activity")}`]),
     );
-    db.sql
-      .prepare(
-        "UPDATE swarms SET status = ?, finished_at = ?, runner_pid = NULL, runner_heartbeat_at = NULL WHERE id = ?",
-      )
-      .run(end, now, swarmId);
+    const swarm = db.sql.prepare("SELECT runner_pid FROM swarms WHERE id = ?").get(swarmId);
+    const runnerPid = swarm === undefined ? null : intOrNull(swarm, "runner_pid");
+    if (runnerPid !== null) releaseRunLock(db, swarmId, runnerPid);
+    db.sql.prepare("UPDATE swarms SET status = ?, finished_at = ? WHERE id = ?").run(end, now, swarmId);
     db.sql
       .prepare("UPDATE swarm_runs SET ended_at = ?, end_status = ? WHERE swarm_id = ? AND ended_at IS NULL")
       .run(now, end, swarmId);

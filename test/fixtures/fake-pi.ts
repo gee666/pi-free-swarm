@@ -41,7 +41,7 @@ export type FakeStep =
   /** Fire-and-forget UI record. */
   | { type: "notify" }
   /** A sleeping process in the fake's process group, to prove group kills. */
-  | { type: "grandchild" };
+  | { type: "grandchild"; ignoreSigterm?: boolean };
 
 export interface FakePiScenario {
   /** Before any command is answered. */
@@ -50,6 +50,7 @@ export interface FakePiScenario {
   runs?: FakeStep[][];
   /** Hold every agent_settled until the next command arrives, like pi's settle gap. */
   settleGap?: boolean;
+  retainQueueOnError?: boolean;
   /** Prompts containing this text are answered success:false. */
   reject?: string;
   /** Log SIGTERM but keep running, so only SIGKILL stops the fake. */
@@ -211,7 +212,10 @@ async function runStep(step: FakeStep): Promise<void> {
       emit({ type: "extension_ui_request", id: randomUUID(), method: "notify", message: "hello", notifyType: "info" });
       return;
     case "grandchild": {
-      const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
+      const script = `${step.ignoreSigterm ? 'process.on("SIGTERM", () => {});' : ""}
+        setInterval(() => {}, 1000); process.send("ready"); process.disconnect();`;
+      const child = spawn(process.execPath, ["-e", script], { stdio: ["ignore", "ignore", "ignore", "ipc"] });
+      await new Promise<void>((resolve) => child.once("message", () => resolve()));
       log({ fake: "grandchild", pid: child.pid });
       return;
     }
@@ -226,7 +230,9 @@ async function run(text: string): Promise<void> {
   emit({ type: "turn_start" });
   userMessage(text);
   for (const step of steps) await runStep(step);
-  if (steering.length > 0) await runStep({ type: "turn" }).then(() => runStep({ type: "reply" }));
+  if (scenario.retainQueueOnError && runCount === 1) {
+    emit({ type: "message_end", message: { role: "assistant", stopReason: "error", errorMessage: "provider error" } });
+  } else if (steering.length > 0) await runStep({ type: "turn" }).then(() => runStep({ type: "reply" }));
   emit({ type: "turn_end", toolResults: [] });
   emit({ type: "agent_end", messages: [], willRetry: false });
   running = false;
@@ -261,7 +267,9 @@ function handleCommand(command: Json): void {
     emit({ type: "agent_settled" });
   }
   if (command.type === "prompt") handlePrompt(command);
-  else if (command.type === "set_steering_mode") respond(command);
+  else if (command.type === "clear_queue") {
+    respond(command, { success: true, data: { steering: steering.splice(0), followUp: [] } });
+  } else if (command.type === "set_steering_mode") respond(command);
   else respond(command, { success: false, error: `Unknown command: ${String(command.type)}` });
 }
 

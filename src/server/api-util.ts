@@ -16,6 +16,7 @@ export interface ApiDeps {
   clock: Clock;
   sessions: SessionReader;
   alive?: PidAlive;
+  onError?(message: string): void;
 }
 
 export class ApiFailure extends Error {
@@ -197,7 +198,7 @@ function brokerStatus(code: BrokerError["code"]): { status: number; code: ApiErr
   }
 }
 
-function errorReply(error: unknown): { status: number; body: ApiErrorBody } {
+function errorReply(error: unknown, onError?: (message: string) => void): { status: number; body: ApiErrorBody } {
   const body = (code: ApiErrorCode, message: string, field?: string): ApiErrorBody =>
     field === undefined ? { error: code, message } : { error: code, message, field };
   if (error instanceof ApiFailure) return { status: error.status, body: body(error.code, error.message, error.field) };
@@ -206,11 +207,11 @@ function errorReply(error: unknown): { status: number; body: ApiErrorBody } {
     return { status: mapped.status, body: body(mapped.code, error.message, error.field) };
   }
   if (error instanceof SessionCursorError) return { status: 400, body: body("validation", error.message, error.field) };
-  console.error("[pi-free-swarm] API error:", error);
+  onError?.(`API error: ${error instanceof Error ? error.message : String(error)}`);
   return { status: 500, body: body("internal", "Internal server error.") };
 }
 
-export function sendError(res: ServerResponse, error: unknown): void {
-  const { status, body } = errorReply(error);
+export function sendError(res: ServerResponse, error: unknown, onError?: (message: string) => void): void {
+  const { status, body } = errorReply(error, onError);
   sendJson(res, status, body);
 }

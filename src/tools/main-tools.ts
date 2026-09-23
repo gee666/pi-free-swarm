@@ -4,7 +4,8 @@ import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-ag
 import { Type, type Static } from "typebox";
 import { systemClock } from "../clock.js";
 import { MAIN_TOOL, SETTINGS_FILE, SWARM_DIR } from "../constants.js";
-import { MAIN_FEEDBACK_MAX, TITLE_MAX } from "../limits.js";
+import { checkText, checkTitle, MAIN_FEEDBACK_MAX, TITLE_MAX } from "../limits.js";
+import { BrokerError } from "../broker/errors.js";
 import { readRunProgress, type RunProgress } from "../broker/run-progress.js";
 import { resumeSwarm, startSwarm, type RunEnvironment, type RunOptions, type RunOutcome } from "../broker/swarm-run.js";
 import type { MainRuntime } from "../main-runtime.js";
@@ -106,13 +107,17 @@ export function createMainToolHandlers(runtime: MainRuntime, runner: SwarmRunner
       onUpdate: OnUpdate,
       ctx: LaunchSource,
     ): Promise<ToolResult> {
+      const name = checkTitle(params.swarm_name);
+      if (!name.ok) throw new BrokerError("validation", `swarm_name: ${name.error}`, "swarm_name");
+      const taskPrompt = checkText(params.task_prompt, Infinity);
+      if (!taskPrompt.ok) throw new BrokerError("validation", `task_prompt: ${taskPrompt.error}`, "task_prompt");
       const settings = readSettings(runtime);
       const agentAmount = resolveAgentAmount(settings, params.agent_amount);
       // The first swarm of a project creates .pi/swarm/: the one moment to suggest ignoring it.
       const firstSwarm = runtime.getDb(false) === null;
       const db = runtime.getDb(true);
       if (db === null) throw new Error("Could not create the swarm database.");
-      const input = { name: params.swarm_name, taskPrompt: params.task_prompt, agentAmount };
+      const input = { name: name.value, taskPrompt: taskPrompt.value, agentAmount };
       const result = await run({
         db,
         settings,

@@ -40,6 +40,54 @@ afterEach(() => {
 });
 
 describe("SessionFeed", () => {
+  it("drains bursts larger than 120 entries, including after reconnect", async () => {
+    const server = mockSessionServer(10);
+    const stream = fakeStream();
+    const view = render(<SessionFeed swarmId="3" agent="John" stream={stream} />);
+    await screen.findByText("Entry 9");
+    server.append(135);
+    act(() => stream.emit(sessionAppended("John")));
+    await screen.findByText("Entry 144");
+    await waitFor(() => expect(server.requests.at(-1)?.get("after")).toBe("144"));
+    expect(entries()).toHaveLength(145);
+    server.append(125);
+    view.rerender(<SessionFeed swarmId="3" agent="John" stream={{ ...stream, openCount: 2 }} />);
+    await screen.findByText("Entry 269");
+    expect(new Set(entries()).size).toBe(270);
+  });
+
+  it("coalesces events during an in-flight burst and stops on a stationary cursor", async () => {
+    const server = mockSessionServer(10);
+    const stream = fakeStream();
+    render(<SessionFeed swarmId="3" agent="John" stream={stream} />);
+    await screen.findByText("Entry 9");
+    const release = server.hold();
+    server.append(70);
+    act(() => stream.emit(sessionAppended("John")));
+    server.append(70);
+    act(() => stream.emit(sessionAppended("John")));
+    release();
+    await screen.findByText("Entry 149");
+    await waitFor(() => expect(server.requests).toHaveLength(5));
+    expect(server.requests.map((query) => query.get("after"))).toEqual([null, "9", "59", "109", "149"]);
+    expect(new Set(entries()).size).toBe(150);
+  });
+
+  it("ignores a catch-up response after switching agents", async () => {
+    const server = mockSessionServer(10);
+    const stream = fakeStream();
+    const view = render(<SessionFeed swarmId="3" agent="John" stream={stream} />);
+    await screen.findByText("Entry 9");
+    const release = server.hold();
+    server.append(130);
+    act(() => stream.emit(sessionAppended("John")));
+    view.rerender(<SessionFeed swarmId="3" agent="Maria" stream={stream} />);
+    const signal = server.fetch.mock.calls[1]?.[1]?.signal;
+    expect(signal?.aborted).toBe(true);
+    release();
+    await screen.findByText("Entry 139");
+    expect(entries()).toHaveLength(50);
+  });
   it("shows the newest page first and appends older pages without duplicates", async () => {
     const server = mockSessionServer(120, { overlap: true });
     render(<SessionFeed swarmId="3" agent="John" stream={fakeStream()} />);
@@ -78,7 +126,7 @@ describe("SessionFeed", () => {
     act(() => stream.emit(sessionAppended("John")));
     await screen.findByText("Entry 11");
     expect(entries().slice(0, 3)).toEqual(["Entry 11", "Entry 10", "Entry 9"]);
-    expect(server.requests.map((query) => query.get("after"))).toEqual([null, "9"]);
+    expect(server.requests.map((query) => query.get("after"))).toEqual([null, "9", "11"]);
     expect(screen.queryByRole("button", { name: /new/ })).toBeNull();
   });
 
@@ -123,7 +171,7 @@ describe("SessionFeed", () => {
     server.append(1);
     act(() => stream.emit(sessionAppended("John")));
     await screen.findByText("Entry 0");
-    expect(server.requests.map((query) => query.get("after"))).toEqual([null, null]);
+    expect(server.requests.map((query) => query.get("after"))).toEqual([null, null, "0"]);
   });
 
   it("offers a retry when the first page fails", async () => {

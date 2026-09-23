@@ -40,6 +40,8 @@
 }
 
 .time {
+  margin-inline-start: auto;
+  white-space: nowrap;
   color: var(--text-muted);
   font-size: var(--fs-small);
 }

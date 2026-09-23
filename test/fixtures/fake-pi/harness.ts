@@ -52,6 +52,7 @@ export const SCENARIOS = {
     ],
   },
   settleGap: { settleGap: true, reject: "REJECT" },
+  retainedQueueError: { retainQueueOnError: true, runs: [[{ type: "tool", ms: 700 }], [{ type: "reply" }]] },
   dialog: { startup: [{ type: "notify" }, { type: "dialog", method: "confirm" }] },
   compaction: { runs: [[{ type: "reply" }, { type: "compaction", usage: { input: 700, output: 600, cost: 0.004 } }]] },
   /** Ignores SIGTERM and has a grandchild in its group. */

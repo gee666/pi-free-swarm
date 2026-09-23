@@ -10,6 +10,27 @@ import { AGENT_TOOL, RESUME_PROMPT_HEADER, REVIVE_PROMPT_HEADER } from "../../sr
 
 const BASH_RULE =
   "Remember: always pass a timeout to every bash call; never run blocking servers/watchers in the foreground.";
+test("every launch prompt repeats file coordination and message-wake anti-loop rules", () => {
+  const prompts = [
+    buildSystemPrompt({ agentName: "Maria", swarmName: "Test" }),
+    buildKickoffPrompt({ taskPrompt: "Build it", wallIsEmpty: false, messages: "" }),
+    buildResumePrompt({ messages: "" }),
+    buildRevivePrompt({ messages: "" }),
+  ];
+  for (const prompt of prompts) {
+    assert.ok(prompt.includes(`Immediately before editing, read the latest wall (${AGENT_TOOL.readPosts})`));
+    assert.ok(prompt.includes("Resolve conflicting file ownership before touching files"));
+    assert.ok(prompt.includes("Do not overwrite peer files"));
+    assert.ok(prompt.includes("Never reply to Main feedback with an acknowledgment"));
+    assert.ok(prompt.includes("post completion on the wall, not in messages"));
+    assert.ok(
+      prompt.includes("If woken by thanks, acknowledgments, sign-offs or repeated completion notices: do not reply"),
+    );
+    assert.ok(prompt.includes("end your turn without calling messaging tools"));
+    assert.ok(prompt.includes("actionable questions, answers or new information needed by a specific recipient"));
+  }
+});
+
 const MESSAGES = '[swarm message #3] thread #1 · from Main · to: Maria, You\n"Fix the tests"';
 
 test("the system prompt names the agent, the swarm, every tool and the bash rule", () => {
@@ -32,11 +53,11 @@ test("the system prompt names the agent, the swarm, every tool and the bash rule
 
 test("kickoff: task, first-agent hint only on an empty wall, bash rule, messages last", () => {
   const empty = buildKickoffPrompt({ taskPrompt: "Write docs.", wallIsEmpty: true, messages: "" });
-  assert.equal(
-    empty,
-    `Task for the swarm:\nWrite docs.\n\nStart by reading the wall (${AGENT_TOOL.readPosts}). You are the first — post a short kickoff\n` +
-      `(${AGENT_TOOL.post}): how you suggest splitting the work and what you take.\n${BASH_RULE}`,
+  assert.ok(
+    empty.startsWith(`Task for the swarm:\nWrite docs.\n\nStart by reading the wall (${AGENT_TOOL.readPosts}).`),
   );
+  assert.ok(empty.includes(`You are the first — post a short kickoff\n(${AGENT_TOOL.post})`));
+  assert.ok(empty.endsWith(BASH_RULE));
   const busy = buildKickoffPrompt({ taskPrompt: "Write docs.", wallIsEmpty: false, messages: MESSAGES });
   assert.ok(!busy.includes("You are the first"));
   assert.ok(busy.endsWith(`${BASH_RULE}\n\n${MESSAGES}`));

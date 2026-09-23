@@ -72,6 +72,68 @@ afterEach(() => {
 });
 
 describe("DeliveryLoop", () => {
+  it("routes rejected delivery and accepted-prompt DB failures to onError, once", async () => {
+    for (const reject of [true, false]) {
+      const failure = new Error("delivery persistence failure");
+      const errors: unknown[] = [];
+      const target: DeliveryTarget = {
+        status: "idle",
+        deliver: async () => {
+          if (reject) throw failure;
+          return { accepted: true };
+        },
+      };
+      const tested = new DeliveryLoop({
+        db: temp.db,
+        swarmId,
+        clock,
+        agents: new Map([["Maria", target]]),
+        onError: (error) => errors.push(error),
+      });
+      send("User", ["Maria"], "delivery failure");
+      tested.start();
+      const original = temp.db.write;
+      if (!reject)
+        temp.db.write = () => {
+          throw failure;
+        };
+      try {
+        clock.advance(0);
+        await flush();
+        clock.advance(DELIVERY_POLL_MS * 5);
+        await flush();
+        assert.deepEqual(errors, [failure]);
+      } finally {
+        temp.db.write = original;
+        tested.stop();
+      }
+    }
+  });
+
+  it("keeps unread recovery under the same in-flight guard as normal delivery", async () => {
+    const id = send("User", ["Maria"], "queued");
+    markDelivered(temp.db, swarmId, "Maria", [id], clock.now());
+    let recoveries = 0;
+    const target: DeliveryTarget = {
+      status: "idle",
+      deliver: () => {
+        throw new Error("must recover instead");
+      },
+      recoverUnread: (prompt) => {
+        recoveries++;
+        return maria.deliver(prompt);
+      },
+    };
+    maria.answer = null;
+    const tested = new DeliveryLoop({ db: temp.db, swarmId, clock, agents: new Map([["Maria", target]]) });
+    tested.start();
+    clock.advance(DELIVERY_POLL_MS * 5);
+    assert.equal(recoveries, 1);
+    assert.deepEqual(maria.prompts[0].messageIds, [id]);
+    tested.stop();
+    maria.release();
+    await flush();
+  });
   it("wakes on a local write without waiting for the poll and marks the message delivered", async () => {
     loop.start();
     const id = send("User", ["Maria"], "hello");

@@ -2,6 +2,8 @@
 import { createReadStream, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
+import type { Readable } from "node:stream";
 import type { ApiErrorBody } from "../api-types.js";
 import { SERVER_BIND_HOST } from "../constants.js";
 
@@ -69,15 +71,26 @@ function staticPath(uiDir: string, pathname: string): string | null {
   } catch {
     return null;
   }
+  if (decoded.includes("\0")) return null;
   const file = path.resolve(uiDir, `.${decoded}`);
   return file === uiDir || file.startsWith(uiDir + path.sep) ? file : null;
 }
 
-function serveStatic(req: IncomingMessage, res: ServerResponse, url: URL, uiDir: string): void {
+async function serveStatic(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+  uiDir: string,
+  readFile: (file: string) => Readable,
+): Promise<void> {
   const requested = staticPath(uiDir, url.pathname);
+  if (requested === null) {
+    sendJson(res, 400, { error: "bad_request", message: "Invalid request path." });
+    return;
+  }
   const index = path.join(uiDir, "index.html");
   // Deep links like /s/3/agents are client-side routes: answer them with the app shell.
-  const file = requested !== null && isFile(requested) ? requested : index;
+  const file = isFile(requested) ? requested : index;
   if (!isFile(file)) {
     res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
     res.end("The board UI is not built (ui_dist/index.html is missing).");
@@ -91,24 +104,42 @@ function serveStatic(req: IncomingMessage, res: ServerResponse, url: URL, uiDir:
     "X-Content-Type-Options": "nosniff",
   });
   if (req.method === "HEAD") res.end();
-  else createReadStream(file).pipe(res);
+  else await pipeline(readFile(file), res);
 }
 
-function createHandler(uiDir: string, routes: readonly RouteHandler[]) {
+function createHandler(
+  uiDir: string,
+  routes: readonly RouteHandler[],
+  readFile: (file: string) => Readable,
+  onError?: (message: string) => void,
+) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const method = req.method ?? "GET";
-    const url = new URL(req.url ?? "/", `http://${SERVER_BIND_HOST}`);
     try {
+      const url = new URL(req.url ?? "/", `http://${SERVER_BIND_HOST}`);
       for (const route of routes) if (await route(req, res, url)) return;
+      const isApi = url.pathname === "/api" || url.pathname.startsWith("/api/") || url.pathname === "/events";
+      if (isApi || (method !== "GET" && method !== "HEAD")) notFound(res, url, method);
+      else await serveStatic(req, res, url, uiDir, readFile);
     } catch (error) {
-      console.error("[pi-free-swarm] board request failed:", error);
+      const code = error instanceof Error && "code" in error ? error.code : undefined;
+      if (code === "ERR_STREAM_PREMATURE_CLOSE" || code === "ECONNRESET") return;
+      if (code === "ENAMETOOLONG" || code === "ENOENT" || code === "ENOTDIR") {
+        if (!res.destroyed && !res.headersSent) {
+          sendJson(res, 404, { error: "not_found", message: "File not found." });
+          return;
+        }
+        // The asset may disappear during a UI rebuild, after its headers were prepared.
+        onError?.(`Board file read failed: ${error instanceof Error ? error.message : String(error)}`);
+        res.destroy();
+        return;
+      }
+      onError?.(`Board request failed: ${error instanceof Error ? error.message : String(error)}`);
+      if (res.destroyed) return;
       if (res.headersSent) res.destroy();
       else sendJson(res, 500, { error: "internal", message: "Internal server error." } satisfies ApiErrorBody);
       return;
     }
-    const isApi = url.pathname === "/api" || url.pathname.startsWith("/api/") || url.pathname === "/events";
-    if (isApi || (method !== "GET" && method !== "HEAD")) notFound(res, url, method);
-    else serveStatic(req, res, url, uiDir);
   };
 }
 
@@ -135,8 +166,15 @@ export async function startBoardServer(options: {
   candidates: readonly number[];
   uiDir: string;
   routes: readonly RouteHandler[];
+  onError?(message: string): void;
+  readFile?: (file: string) => Readable;
 }): Promise<BoardServer> {
-  const handler = createHandler(path.resolve(options.uiDir), options.routes);
+  const handler = createHandler(
+    path.resolve(options.uiDir),
+    options.routes,
+    options.readFile ?? createReadStream,
+    options.onError,
+  );
   for (const candidate of options.candidates) {
     const server = createServer((req, res) => void handler(req, res));
     const port = await listen(server, candidate);

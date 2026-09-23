@@ -15,7 +15,7 @@ export function createApiRoutes(deps: ApiDeps): RouteHandler {
         const { status, body } = await route.handle({ req, url, params });
         sendJson(res, status, body);
       } catch (error) {
-        sendError(res, error);
+        sendError(res, error, deps.onError);
       }
       return true;
     }

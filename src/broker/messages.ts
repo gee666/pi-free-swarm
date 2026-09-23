@@ -4,14 +4,13 @@ import { MAIN_FEEDBACK_POST_SUFFIX, MAIN_FEEDBACK_POST_TITLE, MAIN_NAME, USER_NA
 import { charCount, MAIN_FEEDBACK_MAX, TEXT_MAX } from "../limits.js";
 import type { SwarmDb } from "../store/db.js";
 import { getThread, getThreadView, unreadCounts } from "../store/message-queries.js";
-import { count } from "../store/rows.js";
 import {
   findParticipant,
   listAgentSessions,
   listMessageableNames,
   type ParticipantRef,
 } from "../store/swarm-queries.js";
-import { emitRecipientStatus } from "./emit.js";
+import { markRead } from "./delivery-state.js";
 import { BrokerError } from "./errors.js";
 import { createThread, sendToThread } from "./message-insert.js";
 import { notifyLocalMessage } from "./notify.js";
@@ -151,16 +150,7 @@ export function markUserRead(
 ): MarkReadResponse {
   return db.write(() => {
     requireSwarm(db, swarmId);
-    const update = db.sql.prepare(
-      `UPDATE message_recipients SET status = 'read', read_at = ?, delivered_at = COALESCE(delivered_at, ?)
-       WHERE message_id = ? AND swarm_id = ? AND name = ? AND status IN ('pending', 'delivered')`,
-    );
-    let updated = 0;
-    for (const messageId of new Set(messageIds)) {
-      if (count(update.run(now, now, messageId, swarmId, USER_NAME).changes) === 0) continue;
-      updated++;
-      emitRecipientStatus(db, swarmId, messageId, USER_NAME, now);
-    }
+    const updated = markRead(db, swarmId, USER_NAME, messageIds, now);
     return { updated, unread: unreadCounts(db, swarmId, [USER_NAME])[USER_NAME] };
   });
 }

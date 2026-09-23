@@ -4,6 +4,7 @@ import type { Clock } from "../clock.js";
 import type { SwarmDb } from "../store/db.js";
 import { recordUsage, setAgentActivity, setAgentStatus } from "./agent-state.js";
 import { markRead } from "./delivery-state.js";
+import { guardRunAction } from "./run-failure.js";
 
 export interface AgentHooksContext {
   db: SwarmDb;
@@ -13,26 +14,24 @@ export interface AgentHooksContext {
   /** True once the run is ending: endRun writes the final statuses, so stop() transitions are dropped. */
   isEnding(): boolean;
   onCrash(crash: AgentCrash): void;
+  onError?(error: unknown): void;
 }
 
 export function createAgentHooks(ctx: AgentHooksContext): SupervisorHooks {
   const { db, swarmId, name, clock } = ctx;
+  const write = (action: () => void) => {
+    if (ctx.isEnding()) return;
+    if (ctx.onError) guardRunAction(action, ctx.onError);
+    else action();
+  };
   return {
-    onStatus(status) {
-      if (!ctx.isEnding()) setAgentStatus(db, swarmId, name, status, clock.now());
-    },
-    onActivity(activity) {
-      if (!ctx.isEnding()) setAgentActivity(db, swarmId, name, activity, clock.now());
-    },
-    // Reads and usage stay recorded while ending: status guards keep reads monotonic, and spent tokens are real.
-    onMessagesRead(messageIds) {
-      markRead(db, swarmId, name, messageIds, clock.now());
-    },
-    onUsage(sample) {
-      recordUsage(db, swarmId, name, sample, clock.now());
-    },
-    onCrash(crash) {
-      if (!ctx.isEnding()) ctx.onCrash(crash);
-    },
+    onStatus: (status) => write(() => setAgentStatus(db, swarmId, name, status, clock.now())),
+    onActivity: (activity) => write(() => setAgentActivity(db, swarmId, name, activity, clock.now())),
+    onMessagesRead: (ids) =>
+      write(() => {
+        markRead(db, swarmId, name, ids, clock.now());
+      }),
+    onUsage: (sample) => write(() => recordUsage(db, swarmId, name, sample, clock.now())),
+    onCrash: (crash) => write(() => ctx.onCrash(crash)),
   };
 }

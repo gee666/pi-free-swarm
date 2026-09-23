@@ -6,7 +6,6 @@ import { after, describe, it } from "node:test";
 import {
   buildAgentEnv,
   describeAgentRange,
-  describeEnvKeys,
   loadSettings,
   resolveAgentAmount,
   resolvePort,
@@ -150,11 +149,6 @@ describe("agent env", () => {
       PI_SWARM_RUNNER_PID: "42",
     });
     assert.deepEqual(Object.keys(env).slice(0, 2), ["DATABASE_URL", "NODE_ENV"]);
-  });
-
-  it("describes only the key names", () => {
-    assert.equal(describeEnvKeys(settings), "env: DATABASE_URL, NODE_ENV");
-    assert.equal(describeEnvKeys(loadSettings(project()).settings), "");
   });
 });
 

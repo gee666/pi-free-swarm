@@ -16,6 +16,7 @@ import {
 } from "../src/constants.js";
 import { readAgentEnv } from "../src/agent-mode.js";
 import { createSwarm } from "../src/broker/swarms.js";
+import { registerActiveRun } from "../src/broker/active-ownership.js";
 import { createMainRuntime, registerMainMode, type BoardHost } from "../src/main-runtime.js";
 import { openSwarmDb, swarmDbPath } from "../src/store/db.js";
 import { getSwarm } from "../src/store/swarm-queries.js";
@@ -97,6 +98,48 @@ describe("role detection", () => {
 });
 
 describe("main mode lifecycle", () => {
+  it("routes server errors to the session notification UI", async () => {
+    const pi = new FakeExtensionApi();
+    const { host } = recordingHost();
+    let report: ((message: string) => void) | undefined;
+    const runtime = createMainRuntime({
+      cwd: project(),
+      extensionPath: "/abs/index.ts",
+      createHost: (options) => {
+        report = options.onError;
+        return host;
+      },
+    });
+    registerMainMode(pi, runtime);
+    pi.startSession();
+    assert.ok(report);
+    report("Board request failed: test error");
+    assert.deepEqual(pi.notes, ["Board request failed: test error"]);
+    await pi.shutdownSession();
+  });
+
+  it("startup sweep protects owned active runs but interrupts abandoned same-pid runs", async () => {
+    const cwd = project();
+    const { host } = recordingHost();
+    const pi = new FakeExtensionApi();
+    const runtime = createMainRuntime({ cwd, extensionPath: "/abs/index.ts", createHost: () => host });
+    const db = runtime.getDb(true);
+    assert.ok(db);
+    const input = { taskPrompt: "t", agentNames: ["Maria"], runnerPid: process.pid, now: Date.now() - 60_000 };
+    const active = createSwarm(db, { ...input, name: "active" });
+    const abandoned = createSwarm(db, { ...input, name: "abandoned" });
+    const unregister = registerActiveRun(db, active.id, process.pid);
+    try {
+      registerMainMode(pi, runtime);
+      pi.startSession();
+      assert.equal(getSwarm(db, active.id, Date.now())?.status, "starting");
+      assert.equal(getSwarm(db, abandoned.id, Date.now())?.status, "interrupted");
+    } finally {
+      unregister();
+      await pi.shutdownSession();
+    }
+  });
+
   it("does not host on session_start while the project has no swarm.db", async () => {
     const cwd = project();
     const { host, calls } = recordingHost();

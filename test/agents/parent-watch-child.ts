@@ -10,6 +10,7 @@ const fastClock: Clock = {
   every: (ms, fn) => systemClock.every(ms / SPEEDUP, fn),
 };
 
+process.on("SIGTERM", () => undefined);
 startParentWatch({
   runnerPid: Number(process.argv[2]),
   clock: fastClock,

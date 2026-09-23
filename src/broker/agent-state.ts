@@ -1,5 +1,5 @@
 // Runner side of agent rows: status (with working spans), live activity, usage and revives.
-import type { AgentActivity, ParticipantStatus } from "../api-types.js";
+import type { AgentActivity, AgentRunEndReason, ParticipantStatus } from "../api-types.js";
 import type { UsageSample } from "../runtime-types.js";
 import type { SwarmDb } from "../store/db.js";
 import { insertEvent } from "../store/events.js";
@@ -22,7 +22,7 @@ function agentRow(
   return { name: text(row, "name"), status: agentStatusOf(row), activity: textOrNull(row, "activity") };
 }
 
-function spanEndReason(next: ParticipantStatus): "settled" | "crashed" | "stopped" {
+function spanEndReason(next: ParticipantStatus): AgentRunEndReason {
   if (next === "idle") return "settled";
   return next === "crashed" ? "crashed" : "stopped";
 }

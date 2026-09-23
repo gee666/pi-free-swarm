@@ -90,12 +90,6 @@ export function describeAgentRange(settings: SwarmSettings): string {
   return `agent_amount: ${settings.minAgents}–${settings.maxAgents}, default ${settings.defaultAgents}`;
 }
 
-/** Key names only, for tool results and logs. */
-export function describeEnvKeys(settings: SwarmSettings): string {
-  const keys = Object.keys(settings.env);
-  return keys.length === 0 ? "" : `env: ${keys.join(", ")}`;
-}
-
 /** `settings.env` plus the reserved variables, which always win. The inherited env is added at spawn. */
 export function buildAgentEnv(settings: SwarmSettings, identity: AgentIdentity): Record<string, string> {
   return {

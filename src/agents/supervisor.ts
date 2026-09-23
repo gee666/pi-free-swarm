@@ -3,12 +3,11 @@
 import type { AgentActivity, ParticipantStatus } from "../api-types.js";
 import { systemClock, type Clock, type TimerHandle } from "../clock.js";
 import { EXTENSION_LOAD_FAILURE_MARKER, STARTUP_RETRY_BASE_BACKOFF_MS } from "../constants.js";
-import { findMessageIds } from "../message-format.js";
 import type { UsageSample } from "../runtime-types.js";
 import { AgentProcess, type AgentExitInfo } from "./agent-process.js";
 import type { AgentLaunchSpec } from "./launch.js";
 import { createProtocolHandler } from "./protocol.js";
-import { dialogRequestId, type RpcRecord } from "./rpc-events.js";
+import { dialogRequestId, headerMessageIds, type RpcRecord } from "./rpc-events.js";
 import { StallWatchdog, watchdogConfigFromEnv, type StallKind, type WatchdogConfig } from "./watchdog.js";
 
 export interface PromptPayload {
@@ -60,6 +59,8 @@ export class AgentSupervisor {
   #resolveLaunch: ((outcome: DeliveryOutcome) => void) | null = null;
   #retryTimer: TimerHandle | undefined;
   #activityKey = "null";
+  #deliveryTail: Promise<unknown> = Promise.resolve();
+  readonly #sentIds = new Set<number>();
   #stopped: Promise<void> | null = null;
 
   constructor(options: { name: string; hooks: SupervisorHooks; clock?: Clock; watchdog?: WatchdogConfig }) {
@@ -87,7 +88,45 @@ export class AgentSupervisor {
   }
 
   /** Only while working|idle. Queued as steering while working, starts a run while idle. */
-  async deliver(prompt: PromptPayload): Promise<DeliveryOutcome> {
+  deliver(prompt: PromptPayload): Promise<DeliveryOutcome> {
+    return this.#serialize(() => this.#deliver(prompt));
+  }
+
+  recoverUnread(prompt: PromptPayload): Promise<DeliveryOutcome> {
+    return this.#serialize(async () => {
+      const life = this.#life;
+      if (!life || this.#stopped || this.#status !== "idle") {
+        return { accepted: false, error: `${this.name} is ${this.#status}.` };
+      }
+      life.promptsInFlight++;
+      life.watchdog.rearm();
+      try {
+        const response = await life.proc.send({ type: "clear_queue" });
+        if (response.success !== true) {
+          life.watchdog.disarm();
+          return { accepted: false, error: "Could not clear the steering queue." };
+        }
+        if (life !== this.#life || this.#stopped) return { accepted: false, error: `${this.name} exited.` };
+        return (await this.#sendPrompt(life, prompt)) ?? { accepted: false, error: `${this.name} exited.` };
+      } catch (error) {
+        return { accepted: false, error: error instanceof Error ? error.message : String(error) };
+      } finally {
+        life.promptsInFlight--;
+        if (life.promptsInFlight === 0 && life.deferredSettle) {
+          life.deferredSettle = false;
+          this.#applySettle(life);
+        }
+      }
+    });
+  }
+
+  #serialize(operation: () => Promise<DeliveryOutcome>): Promise<DeliveryOutcome> {
+    const result = this.#deliveryTail.then(operation);
+    this.#deliveryTail = result.catch(() => undefined);
+    return result;
+  }
+
+  async #deliver(prompt: PromptPayload): Promise<DeliveryOutcome> {
     const life = this.#life;
     if (!life || this.#stopped || (this.#status !== "working" && this.#status !== "idle")) {
       return { accepted: false, error: `${this.name} is ${this.#status}.` };
@@ -141,7 +180,7 @@ export class AgentSupervisor {
         else this.#applySettle(life);
       },
       onUserMessage: (text) => {
-        const ids = findMessageIds(text);
+        const ids = headerMessageIds(text).filter((id) => this.#sentIds.has(id));
         if (ids.length > 0) this.#hooks.onMessagesRead(ids);
       },
       onUsage: (sample) => this.#hooks.onUsage(sample),
@@ -170,8 +209,10 @@ export class AgentSupervisor {
   /** null when the process exited before answering; the exit path reports that. */
   async #sendPrompt(life: Life, prompt: PromptPayload): Promise<DeliveryOutcome | null> {
     life.promptsInFlight++;
+    for (const id of prompt.messageIds) this.#sentIds.add(id);
     try {
       const response = await life.proc.send({ type: "prompt", message: prompt.text, streamingBehavior: "steer" });
+      if (life !== this.#life || this.#stopped) return null;
       if (response.success !== true) {
         return { accepted: false, error: typeof response.error === "string" ? response.error : "Prompt rejected." };
       }

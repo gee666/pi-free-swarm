@@ -5,6 +5,7 @@ import { systemClock } from "./clock.js";
 import type { SessionContext, SwarmExtensionApi } from "./extension-api.js";
 import { killAllAgentsSync } from "./agents/process-registry.js";
 import { stopAllRuns } from "./broker/swarm-run.js";
+import { ownsActiveRun } from "./broker/active-ownership.js";
 import { sweepStaleRuns } from "./broker/swarms.js";
 import { hasSwarmDb, openSwarmDb, swarmDbPath, type SwarmDb } from "./store/db.js";
 import { registerMainTools } from "./tools/main-tools.js";
@@ -21,6 +22,7 @@ export interface BoardHost {
 export interface BoardHostOptions {
   cwd: string;
   getDb(): SwarmDb | null;
+  isOwnedActiveRun(db: SwarmDb, swarmId: number, runnerPid: number): boolean;
   onError(message: string): void;
 }
 
@@ -55,6 +57,7 @@ export function createMainRuntime(options: {
     host: options.createHost({
       cwd: options.cwd,
       getDb: () => db,
+      isOwnedActiveRun: ownsActiveRun,
       onError: (message) => runtime.notify(message, "error"),
     }),
     getDb(create) {
@@ -92,7 +95,7 @@ export function registerMainMode(pi: SwarmExtensionApi, runtime: MainRuntimeCont
     runtime.attachUi(ctx.hasUI ? ctx.ui : null);
     const db = runtime.getDb(false);
     if (db === null) return;
-    sweepStaleRuns(db, systemClock.now());
+    sweepStaleRuns(db, systemClock.now(), undefined, (id, pid) => ownsActiveRun(db, id, pid));
     runtime.host.start();
   });
   pi.on("session_shutdown", async () => {

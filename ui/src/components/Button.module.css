@@ -17,7 +17,7 @@
 }
 
 .primary {
-  height: 48px;
+  height: var(--button-primary-h);
   padding: 0 var(--space-6);
   background: var(--accent);
   color: var(--text-on-accent);
@@ -33,7 +33,7 @@
 }
 
 .secondary {
-  height: 40px;
+  height: var(--button-secondary-h);
   padding: 0 var(--space-4);
   border: 1px solid var(--border-strong);
   color: var(--text-primary);
@@ -45,12 +45,12 @@
 }
 
 .small {
-  height: 36px;
+  height: var(--control-compact-h);
 }
 
 .iconButton {
-  width: 36px;
-  height: 36px;
+  width: var(--control-compact-h);
+  height: var(--control-compact-h);
   color: var(--text-secondary);
 }
 

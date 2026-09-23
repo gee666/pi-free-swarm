@@ -1,13 +1,13 @@
 .group {
   display: inline-flex;
   flex: none;
-  height: 48px;
+  height: var(--segment-h);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
 }
 
 .segment {
-  min-width: 130px;
+  min-width: var(--segment-min-w);
   /* Overlaps the container border so the active outline replaces it. */
   margin: -1px;
   padding: 0 var(--space-6);

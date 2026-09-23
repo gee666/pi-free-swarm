@@ -227,6 +227,38 @@ describe("maintenance while hosting", () => {
     assert.equal(status(), "interrupted");
   });
 
+  it("refreshes owned active runs on periodic sweeps but interrupts abandoned same-pid runs", async (t) => {
+    const { temp, clock, host, errors } = setup(t, T0);
+    const owned = new Set<number>();
+    await host({
+      isOwnedActiveRun(db, id, pid) {
+        assert.equal(db, temp.db);
+        assert.equal(pid, process.pid);
+        return owned.has(id);
+      },
+    }).ensure();
+
+    // Seed after hosting starts so only the periodic sweep can protect these overdue heartbeats.
+    const staleAt = T0 - RUN_LOCK_STALE_MS - 1;
+    const active = seedSwarm(temp.db, { now: staleAt }).id;
+    const abandoned = seedSwarm(temp.db, { now: staleAt }).id;
+    owned.add(active);
+    const row = (id: number) =>
+      temp.db.sql.prepare("SELECT status, runner_heartbeat_at FROM swarms WHERE id = ?").get(id);
+    clock.advance(STALE_SWEEP_INTERVAL_MS - 1);
+    assert.equal(row(active)?.runner_heartbeat_at, staleAt);
+    assert.equal(row(abandoned)?.status, "starting");
+    clock.advance(1);
+    assert.equal(row(active)?.status, "starting");
+    assert.equal(row(active)?.runner_heartbeat_at, clock.now());
+    assert.equal(row(abandoned)?.status, "interrupted");
+
+    owned.delete(active);
+    clock.advance(RUN_LOCK_STALE_MS + STALE_SWEEP_INTERVAL_MS);
+    assert.equal(row(active)?.status, "interrupted", "ownership is checked fresh on every sweep");
+    assert.deepEqual(errors, []);
+  });
+
   it("prunes outbox rows older than the retention", async (t) => {
     const { temp, host } = setup(t, T0 + EVENTS_RETENTION_MS + 1);
     seedSwarm(temp.db, { now: T0, runnerPid: 2 ** 30 });

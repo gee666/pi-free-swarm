@@ -14,6 +14,7 @@ import { incrementReviveCount } from "./agent-state.js";
 import type { DeliveryTarget } from "./delivery.js";
 import { markDelivered } from "./delivery-state.js";
 import type { AgentLiveness } from "./lifecycle.js";
+import { guardRunAction } from "./run-failure.js";
 
 export interface RunAgentContext {
   db: SwarmDb;
@@ -26,6 +27,7 @@ export interface RunAgentContext {
   collect(name: string, includeDeliveredUnread: boolean): { text: string; messageIds: number[] };
   isEnding(): boolean;
   onWorking(): void;
+  onError(error: unknown): void;
   onCrash(agent: RunAgent, crash: AgentCrash): void;
 }
 
@@ -49,6 +51,7 @@ export class RunAgent implements DeliveryTarget {
       name: spec.name,
       clock: ctx.clock,
       isEnding: ctx.isEnding,
+      onError: ctx.onError,
       onCrash: (crash) => ctx.onCrash(this, crash),
     });
     const observed = {
@@ -87,6 +90,10 @@ export class RunAgent implements DeliveryTarget {
     return this.#supervisor.deliver(prompt);
   }
 
+  recoverUnread(prompt: PromptPayload): Promise<DeliveryOutcome> {
+    return this.#supervisor.recoverUnread(prompt);
+  }
+
   /** pi reads the file at startup; a missing path would become literal prompt text. */
   writeSystemPrompt(): void {
     fs.mkdirSync(path.dirname(this.#spec.systemPromptFile), { recursive: true });
@@ -114,7 +121,7 @@ export class RunAgent implements DeliveryTarget {
     this.#revivesThisRun++;
     this.#reviveTimer = this.#ctx.clock.after(delayMs, () => {
       this.#reviveTimer = null;
-      if (!this.#ctx.isEnding()) void this.#revive();
+      if (!this.#ctx.isEnding()) guardRunAction(() => this.#revive(), this.#ctx.onError);
     });
   }
 

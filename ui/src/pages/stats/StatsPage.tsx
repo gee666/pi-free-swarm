@@ -11,19 +11,35 @@ import { EmptyState, ErrorBanner, SkeletonRows } from "../../components/States";
 import { AgentStatsTable } from "./AgentStatsTable";
 import { StatTiles } from "./StatTiles";
 import styles from "./Stats.module.css";
+import { useSwarmDetail } from "../agents/useSwarmDetail";
+import { isSwarmLive } from "../../lib/swarmStatus";
 
 // Busy swarms report usage after every turn of every agent; refetch at most this often.
 export const STATS_REFRESH_MS = 2000;
+export const STATS_CLOCK_MS = 10_000;
 
 /** Stats tab: one panel across both columns with the totals and the per-agent table. */
 export function StatsPage() {
   const { id = "" } = useParams();
   const stream = useSwarmStream();
   const stats = useAsync((signal) => fetchStats(id, signal), [id, stream.openCount]);
+  const detail = useSwarmDetail(id);
+  const live = detail.data !== undefined && isSwarmLive(detail.data.swarm.status);
   const refresh = useRef<ReturnType<typeof setTimeout>>();
-  useEffect(() => () => clearTimeout(refresh.current), []);
+  useEffect(() => {
+    if (!live) return;
+    const timer = setInterval(stats.reload, STATS_CLOCK_MS);
+    return () => clearInterval(timer);
+  }, [live, id, stats.reload]);
+  useEffect(
+    () => () => {
+      clearTimeout(refresh.current);
+      refresh.current = undefined;
+    },
+    [id],
+  );
   useStreamListener(stream, (event) => {
-    if (event.type !== "usage.updated" && event.type !== "participant.updated") return;
+    if (event.type === "session.appended" || event.type === "message.status") return;
     if (refresh.current !== undefined) return;
     refresh.current = setTimeout(() => {
       refresh.current = undefined;

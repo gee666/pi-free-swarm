@@ -4,7 +4,7 @@ import type { SwarmListItem } from "../api-types.js";
 import { MAIN_NAME, SYSTEM_NAME, USER_NAME } from "../constants.js";
 import { charCount, TITLE_MAX } from "../limits.js";
 import { agentSessionFile, type SwarmDb } from "../store/db.js";
-import { isPidAlive, isRunLockFresh, type PidAlive } from "../store/locks.js";
+import { claimRunLock, heartbeatRunLock, isPidAlive, isRunLockFresh, type PidAlive } from "../store/locks.js";
 import { count, int, intOrNull, swarmStatusOf, text } from "../store/rows.js";
 import { getSwarm } from "../store/swarm-queries.js";
 import { emitParticipantUpdated, emitSwarmUpdated } from "./emit.js";
@@ -89,14 +89,21 @@ export function beginResume(
     }
     const status = swarmStatusOf(row);
     if (status === "starting" || status === "running") cleanupRun(db, swarmId, "interrupted", now);
+    const claim = claimRunLock(db, swarmId, runnerPid, now);
+    if (!claim.ok) {
+      throw new BrokerError(
+        "swarm_running",
+        `Swarm #${swarmId} is running in another pi process (pid ${claim.holderPid}).`,
+      );
+    }
     const run = int(row, "run_count") + 1;
     db.sql
       .prepare(
-        `UPDATE swarms SET runner_pid = ?, runner_heartbeat_at = ?, run_count = ?, status = 'starting',
+        `UPDATE swarms SET run_count = ?, status = 'starting',
            started_at = ?, finished_at = NULL
          WHERE id = ?`,
       )
-      .run(runnerPid, now, run, now, swarmId);
+      .run(run, now, swarmId);
     db.sql.prepare("INSERT INTO swarm_runs (swarm_id, run, started_at) VALUES (?, ?, ?)").run(swarmId, run, now);
     const agents = db.sql
       .prepare(
@@ -135,19 +142,27 @@ export function endRun(db: SwarmDb, swarmId: number, runnerPid: number, end: Run
 }
 
 /** Ends every live-looking run whose lock went stale as `interrupted`; returns their ids. */
-export function sweepStaleRuns(db: SwarmDb, now: number, alive: PidAlive = isPidAlive): number[] {
+export function sweepStaleRuns(
+  db: SwarmDb,
+  now: number,
+  alive: PidAlive = isPidAlive,
+  isOwnedActiveRun?: (swarmId: number, runnerPid: number) => boolean,
+): number[] {
   return db.write(() => {
     const stale = db.sql
       .prepare("SELECT id, runner_pid, runner_heartbeat_at FROM swarms WHERE status IN ('starting', 'running')")
       .all()
-      .filter(
-        (row) =>
-          !isRunLockFresh(
-            { runnerPid: intOrNull(row, "runner_pid"), runnerHeartbeatAt: intOrNull(row, "runner_heartbeat_at") },
-            now,
-            alive,
-          ),
-      )
+      .filter((row) => {
+        const swarmId = int(row, "id");
+        const runnerPid = intOrNull(row, "runner_pid");
+        // A suspended event loop may resume with its sweep timer ahead of its heartbeat timer.
+        // Only runtime-confirmed ownership protects a run; abandoned same-pid rows still expire.
+        if (runnerPid === process.pid && isOwnedActiveRun?.(swarmId, runnerPid)) {
+          heartbeatRunLock(db, swarmId, runnerPid, now);
+          return false;
+        }
+        return !isRunLockFresh({ runnerPid, runnerHeartbeatAt: intOrNull(row, "runner_heartbeat_at") }, now, alive);
+      })
       .map((row) => int(row, "id"));
     for (const swarmId of stale) cleanupRun(db, swarmId, "interrupted", now);
     return stale;

@@ -1,15 +1,14 @@
 .badge,
 .badgeSpace {
-  min-width: 28px;
+  flex: none;
+  width: var(--count-badge-size);
 }
 
 .badge {
   display: inline-flex;
-  flex: none;
   align-items: center;
   justify-content: center;
-  height: 28px;
-  padding: 0 var(--space-2);
+  height: var(--count-badge-size);
   border-radius: var(--radius-full);
   background: var(--accent);
   color: var(--text-on-accent);
@@ -21,8 +20,8 @@
 
 .unreadDot {
   flex: none;
-  width: 8px;
-  height: 8px;
+  width: var(--dot-size);
+  height: var(--dot-size);
   border-radius: var(--radius-full);
 }
 
@@ -36,13 +35,13 @@
 }
 
 .sm {
-  width: 8px;
-  height: 8px;
+  width: var(--dot-size);
+  height: var(--dot-size);
 }
 
 .md {
-  width: 14px;
-  height: 14px;
+  width: var(--topbar-dot-size);
+  height: var(--topbar-dot-size);
 }
 
 .live {

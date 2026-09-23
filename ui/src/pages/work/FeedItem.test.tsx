@@ -24,6 +24,13 @@ const toolCall = (patch: Partial<SessionToolCallItem> = {}): SessionToolCallItem
 const renderItem = (item: SessionItem) => render(<FeedItem item={item} agent="John" />);
 
 describe("FeedItem", () => {
+  it("summarises multiline system payloads and expands their details", async () => {
+    const text = '{\n  "reason": "connection closed"\n}';
+    renderItem({ kind: "system", id: "s:0", timestamp, event: "retry", text });
+    expect(screen.queryByText(/connection closed/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "retry", expanded: false }));
+    expect(screen.getByText(/connection closed/)).toBeInTheDocument();
+  });
   it("renders a delivered swarm message with its thread header and plain text", () => {
     renderItem({
       kind: "swarm_message",
@@ -121,7 +128,7 @@ describe("FeedItem", () => {
       text: "Context compacted",
     });
     const line = screen.getByRole("note");
-    expect(line).toHaveTextContent("Context compacted · 10:24 AM");
+    expect(line).toHaveTextContent("Context compacted10:24 AM");
     expect(line.className).not.toMatch(/error/);
     rerender(
       <FeedItem item={{ kind: "system", id: "e1:0", timestamp, event: "error", text: "Aborted" }} agent="John" />,

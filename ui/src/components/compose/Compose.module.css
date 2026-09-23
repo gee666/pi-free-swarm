@@ -1,7 +1,7 @@
 .compose {
   flex: none;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: var(--space-5);
 }
 
 .controls {
@@ -59,12 +59,12 @@
 }
 
 .agentPopover {
-  width: 260px;
+  width: var(--agent-popover-w);
 }
 
 .search {
   flex: none;
-  height: 40px;
+  height: var(--input-h);
   padding: 0 var(--space-4);
   border: none;
   border-bottom: 1px solid var(--border-strong);
@@ -77,6 +77,6 @@
   color: var(--text-muted);
 }
 
-.search:focus-visible {
-  box-shadow: none;
+.search:focus {
+  box-shadow: inset var(--accent-glow);
 }

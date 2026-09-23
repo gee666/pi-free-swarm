@@ -22,9 +22,9 @@
 
 .textarea {
   display: block;
-  min-height: 80px;
-  max-height: 240px;
-  padding: var(--space-3) var(--space-4);
+  min-height: var(--textarea-min-h);
+  max-height: var(--textarea-max-h);
+  padding: var(--space-4);
   line-height: var(--lh-body);
   resize: none;
 }
@@ -36,7 +36,7 @@
 }
 
 .input {
-  height: 44px;
+  height: var(--input-h);
   padding: 0 var(--space-4);
 }
 

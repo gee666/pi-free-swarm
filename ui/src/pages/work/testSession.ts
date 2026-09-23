@@ -28,7 +28,7 @@ export function mockSessionServer(count: number, { overlap = false }: SessionSer
     const before = query.get("before");
     const after = query.get("after");
     let slice: SessionItem[];
-    if (after !== null) slice = entries.slice(Number(after) + 1);
+    if (after !== null) slice = entries.slice(Number(after) + 1, Number(after) + 1 + PAGE_SIZE);
     else if (before !== null)
       slice = entries.slice(Math.max(0, Number(before) - PAGE_SIZE), Number(before) + (overlap ? 1 : 0));
     else slice = entries.slice(-PAGE_SIZE);
@@ -37,7 +37,12 @@ export function mockSessionServer(count: number, { overlap = false }: SessionSer
       agent: "John",
       items: [...slice].reverse(),
       olderCursor: after === null && oldest > 0 ? String(oldest) : null,
-      newestCursor: entries.length === 0 ? null : String(entries.length - 1),
+      newestCursor:
+        after !== null
+          ? String(slice.length ? entries.indexOf(slice[slice.length - 1]) : Number(after))
+          : entries.length === 0
+            ? null
+            : String(entries.length - 1),
     };
   };
 

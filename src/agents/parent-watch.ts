@@ -13,7 +13,7 @@ function isPidAlive(pid: number): boolean {
   }
 }
 
-/** The agent was spawned detached, so its pid is its process group: this takes its tools down too. */
+/** Last resort after TERM; separately detached tools rely on pi's earlier TERM cleanup. */
 function killOwnProcessGroup(): void {
   try {
     process.kill(-process.pid, "SIGKILL");
@@ -28,16 +28,23 @@ export function startParentWatch(options: {
   shutdown(): void;
   clock?: Clock;
   alive?: (pid: number) => boolean;
+  terminate?: () => void;
 }): TimerHandle {
   const clock = options.clock ?? systemClock;
   const alive = options.alive ?? isPidAlive;
   const handle = clock.every(PARENT_WATCH_INTERVAL_MS, () => {
     if (alive(options.runnerPid)) return;
     handle.cancel();
-    options.abort();
-    options.shutdown();
-    // Backstop for a shutdown that hangs (e.g. a tool ignoring the abort).
+    // Arm first: abort/shutdown hooks may throw or hang. Pi's TERM handler also cleans up
+    // tracked bash children outside this process group before disposing the session.
     clock.after(SIGKILL_TIMEOUT_MS, killOwnProcessGroup);
+    try {
+      options.abort();
+      options.shutdown();
+    } finally {
+      if (options.terminate) options.terminate();
+      else process.kill(process.pid, "SIGTERM");
+    }
   });
   return handle;
 }

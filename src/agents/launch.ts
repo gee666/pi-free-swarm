@@ -96,7 +96,7 @@ export function buildAgentArgs(spec: AgentLaunchSpec): string[] {
   return args;
 }
 
-/** Detached: its own process group, so a stop reaches the agent's tools, and Ctrl+C never reaches it. */
+/** Detached: Ctrl+C cannot reach it. TERM lets pi clean up tools in separately detached groups. */
 export function spawnAgentProcess(spec: AgentLaunchSpec): ChildProcess {
   const { command, argsPrefix } = getPiCommand();
   const proc = spawn(command, [...argsPrefix, ...buildAgentArgs(spec)], {

@@ -13,6 +13,7 @@ test("the watch aborts and shuts down once the runner pid is gone, and only once
   const calls: string[] = [];
   startParentWatch({
     runnerPid: 4242,
+    terminate: () => undefined,
     clock,
     alive: (pid) => pid === 4242 && runnerAlive,
     abort: () => calls.push("abort"),

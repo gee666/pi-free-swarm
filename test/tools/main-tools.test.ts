@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, describe, it } from "node:test";
@@ -121,6 +121,22 @@ describe("registerMainTools", () => {
 });
 
 describe("swarm tool", () => {
+  for (const input of [
+    { swarm_name: "  ", task_prompt: "Build it", field: "swarm_name" },
+    { swarm_name: "🦋".repeat(61), task_prompt: "Build it", field: "swarm_name" },
+    { swarm_name: "valid", task_prompt: " \n\t ", field: "task_prompt" },
+  ]) {
+    it(`rejects invalid ${input.field} before creating runtime data or starting the host`, async () => {
+      const cwd = project();
+      const { runtime, host } = runtimeFor(cwd);
+      const tools = createMainToolHandlers(runtime);
+      await assert.rejects(tools.swarm(input, undefined, undefined, ctx), new RegExp(input.field));
+      assert.equal(host.starts, 0);
+      assert.equal(runtime.getDb(false), null);
+      assert.equal(existsSync(path.join(cwd, ".pi/swarm")), false);
+    });
+  }
+
   it("rejects an agent_amount outside the settings range without creating anything", async () => {
     const cwd = project('{"minAgents": 2, "maxAgents": 8}');
     const { runtime } = runtimeFor(cwd);

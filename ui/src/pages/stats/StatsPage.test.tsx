@@ -6,7 +6,7 @@ import type { AgentStats, StatsResponse, SwarmEvent } from "../../../../src/api-
 import { SwarmStreamProvider } from "../../api/SwarmStream";
 import { installFakeApi, type FakeApi } from "../../test/fakeApi";
 import { installFakeEventSource, type FakeEventSource } from "../../test/fakeEventSource";
-import { STATS_REFRESH_MS, StatsPage } from "./StatsPage";
+import { STATS_REFRESH_MS, STATS_CLOCK_MS, StatsPage } from "./StatsPage";
 
 const agentStats = (name: string, patch: Partial<AgentStats>): AgentStats => ({
   name,
@@ -64,6 +64,7 @@ beforeEach(() => {
   source = installFakeEventSource();
   api = installFakeApi();
   api.on("GET", "/api/swarms/3/stats", () => stats);
+  api.on("GET", "/api/swarms/3", () => ({ swarm: { id: 3, status: "running" }, participants: [] }));
 });
 
 afterEach(() => {
@@ -98,6 +99,96 @@ const bodyNames = () =>
     .map((row) => stats.agents.find(({ name }) => within(row).queryByRole("rowheader", { name }))?.name);
 
 describe("StatsPage", () => {
+  it("refreshes elapsed durations while running, but not after finishing", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await renderStats();
+    const count = () => api.callsTo("GET", "/api/swarms/3/stats").length;
+    const before = count();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(STATS_CLOCK_MS);
+    });
+    expect(count()).toBe(before + 1);
+    act(() =>
+      source().emit({
+        id: 9,
+        swarmId: 3,
+        createdAt: 0,
+        type: "swarm.updated",
+        payload: {
+          swarm: {
+            id: 3,
+            name: "test",
+            status: "finished",
+            acceptsMessages: false,
+            taskPrompt: "test",
+            agentAmount: 3,
+            agentsWorking: 0,
+            runCount: 1,
+            runnerPid: null,
+            createdAt: 0,
+            startedAt: 0,
+            finishedAt: 1,
+          },
+        },
+      }),
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(STATS_REFRESH_MS);
+    });
+    const finished = count();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(STATS_CLOCK_MS * 2);
+    });
+    expect(count()).toBe(finished);
+  });
+
+  it("invalidates counts on posts, comments and messages", async () => {
+    await renderStats();
+    vi.useFakeTimers();
+    const events: SwarmEvent[] = [
+      {
+        id: 1,
+        swarmId: 3,
+        createdAt: 0,
+        type: "post.created",
+        payload: { post: { id: 1, swarmId: 3, author: "Ava", title: "t", text: "x", commentCount: 0, createdAt: 0 } },
+      },
+      {
+        id: 2,
+        swarmId: 3,
+        createdAt: 0,
+        type: "comment.created",
+        payload: { comment: { id: 1, postId: 1, swarmId: 3, author: "Ava", text: "x", createdAt: 0 }, commentCount: 1 },
+      },
+      {
+        id: 3,
+        swarmId: 3,
+        createdAt: 0,
+        type: "message.created",
+        payload: {
+          message: {
+            id: 1,
+            threadId: 1,
+            swarmId: 3,
+            sender: "Ava",
+            senderKind: "agent",
+            text: "x",
+            createdAt: 0,
+            recipients: [],
+          },
+          unread: {},
+        },
+      },
+    ];
+    for (const event of events) {
+      const before = api.callsTo("GET", "/api/swarms/3/stats").length;
+      act(() => source().emit(event));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(STATS_REFRESH_MS);
+      });
+      expect(api.callsTo("GET", "/api/swarms/3/stats")).toHaveLength(before + 1);
+    }
+  });
   it("shows the swarm totals as formatted tiles, cost in accent", async () => {
     await renderStats();
     const tile = (label: string) => screen.getByText(label, { selector: "dt" }).nextElementSibling;

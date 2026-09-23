@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CreateCommentResponse } from "../../../../src/api-types";
 import { createComment } from "../../api/wall";
 
@@ -16,25 +16,39 @@ export function useCommentComposer(
   postId: number | undefined,
   onCreated: (response: CreateCommentResponse) => void,
 ): CommentComposer {
+  const revision = useRef(0);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   useEffect(() => {
+    revision.current += 1;
     setText("");
     setError(undefined);
-  }, [postId]);
+  }, [swarmId, postId]);
 
   const send = () => {
     if (postId === undefined) return;
+    const submittedRevision = revision.current;
     setBusy(true);
     setError(undefined);
     createComment(swarmId, postId, { text })
       .then((response) => {
         onCreated(response);
-        setText("");
+        if (revision.current === submittedRevision) setText("");
       })
-      .catch((failure: Error) => setError(failure.message))
+      .catch((failure: Error) => {
+        if (revision.current === submittedRevision) setError(failure.message);
+      })
       .finally(() => setBusy(false));
   };
-  return { text, setText, send, busy, error };
+  return {
+    text,
+    setText: (next) => {
+      revision.current += 1;
+      setText(next);
+    },
+    send,
+    busy,
+    error,
+  };
 }
