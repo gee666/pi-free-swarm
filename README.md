@@ -19,25 +19,30 @@ Start pi in the project you want to work on. Write requirements to a file, then 
 The main agent gets:
 
 - `swarm(swarm_name, task_prompt, agent_amount?)`: start a swarm; default **5 agents**, launched **20 seconds apart**. Use a short name (≤60 characters) and a concise task prompt pointing to requirements files.
-- `resume_swarm(swarm_id, message)`: resume with feedback (≤2000 characters), reusing each agent's session. Agents restart **5 seconds apart**. A fresh run lock prevents another process from resuming the same swarm concurrently.
+- `resume_swarm(swarm_id, message)`: resume with feedback (up to `bodyMaxChars`, default 4,000 characters), reusing each agent's session. Agents restart **5 seconds apart**. A fresh run lock prevents another process from resuming the same swarm concurrently.
 
 Both tools block and stream agent counts, activity, elapsed time, cost and a board URL. Completion requires all agents to have launched, every agent to be idle or permanently crashed, and no outstanding deliverable agent messages, continuously for **15 seconds**. Finished means the agents stopped working—not that their work is correct. The result includes a wall digest (at most 150 posts) and asks the main agent to review files, diffs and tests.
 
 **Esc aborts the run** and stops its agents (SIGTERM, then SIGKILL after 5 seconds if needed). Finished, stopped and interrupted swarms can be resumed by any main pi session in the same project.
 
-Agents get only these seven swarm tools, not `swarm` or `resume_swarm`:
+Every peer gets the same coordination tools, not `swarm` or `resume_swarm`:
 
 | Tool | Purpose |
 | --- | --- |
-| `swarm_read_posts` | Read the wall, newest first |
+| `swarm_read_posts` | Read history or use the returned `after` cursor for incremental posts and comments |
 | `swarm_read_post` | Read a post and its comments |
 | `swarm_post` | Post a plan or status |
 | `swarm_comment` | Comment on a post |
 | `swarm_message` | Start a direct or group thread |
 | `swarm_reply_to` | Reply to other members of a thread |
 | `swarm_read_thread` | Read a thread's history |
+| `swarm_acceptance` | Inspect, self-claim, record or challenge the whole task's acceptance judgment |
 
-Posts, comments and agent/User messages are plain text, ≤200 characters; post titles are ≤60. Put longer material in files and share paths. Messages wake idle agents; wall posts do not. Agents may message `User`, with terminal notifications when UI is available.
+Communication bodies allow 4,000 characters by default; `bodyMaxChars` is configurable from 256 to 16,000. Titles allow 60 characters. Wall lists show bounded previews; complete posts remain readable. Messages wake idle agents; wall posts do not. Agents may message `User`, with terminal notifications when UI is available.
+
+Acceptance is separate from execution status. Any peer can volunteer to check the original task and record evidence, gaps and an accepted, incomplete or blocked verdict. Revision checks prevent conflicting updates; no roles or reviewer quorum are imposed. At quiescence, an unchecked task triggers at most one targeted checkpoint notice per run. Unresolved work may still finish execution; it is not reported as task success.
+
+**Accepted means peer-attested, not independently verified.** Later artifact changes are not detected automatically. Peers may challenge the judgment; resuming resets it. Main results are bounded, with full oversized output saved to a readable file.
 
 ## Board
 
@@ -64,6 +69,7 @@ Optional, hand-written `.pi/swarm/settings.json`:
   "maxAgents": 10,
   "defaultAgents": 5,
   "staggerSeconds": 20,
+  "bodyMaxChars": 4000,
   "env": {
     "NODE_ENV": "development"
   }
@@ -75,6 +81,7 @@ These are the agent-count and stagger defaults; `env` defaults to `{}` and `port
 - `minAgents` is an integer ≥1; `maxAgents` must be ≥`minAgents`. If only `minAgents` exceeds 10, the implicit maximum rises to match it.
 - `defaultAgents` is clamped into the allowed range. An explicit `agent_amount` outside it is rejected, never silently clamped.
 - `staggerSeconds` is a nonnegative number.
+- `bodyMaxChars` is an integer from 256 to 16,000, checked on each communication write.
 - Settings are re-read on each launch/resume; the run keeps that snapshot for revives. Port settings apply when hosting starts.
 - Invalid settings fail the tool. Unknown keys produce warnings.
 - `env` values must be strings. They override inherited environment values. Keys starting with **`PI_SWARM_` are reserved** and ignored with a warning in `env`; the extension sets agent identity itself.
@@ -111,9 +118,9 @@ If settings contain secrets, omit the exception and ignore `settings.json` too.
 - Agents check their runner's PID every 5 seconds. A dead runner leads to shutdown; another main session can clean up the stale run and resume it.
 - Run locks expire after **20 seconds** without a heartbeat. Local sweeps protect runs this process still owns, but another process cannot distinguish a paused/blocked runner from a dead one. **Do not pause a runner while another main process is sweeping the same project**: it may mark the run interrupted before the old runner notices ownership loss.
 
-This is a **localhost PoC with no authentication**, not a sandbox or multi-user service. Do not expose its port. Agents share filesystem permissions and one working tree, with no worktree isolation or enforced file locks. Prompts require ownership agreement and preserving peer changes, but duplicate edits and overwrites remain possible. Review diffs and tests yourself.
+This is a **localhost PoC with no authentication**, not a sandbox or multi-user service. Do not expose its port. Agents share filesystem permissions and one working tree, with no worktree isolation or enforced file locks. Peers receive the same short interface description, without assigned roles or a coordination playbook. Duplicate edits and overwrites remain possible. Review diffs and tests yourself.
 
-Model-dependent acknowledgment/completion loops have occurred, especially after group feedback on resume, despite prompt guards. They can prevent completion and keep spending; watch the board and abort if needed. There is no hard message or cost budget. A five-agent run, real TUI Esc and host takeover were observed; provider rate limiting prevented several further recovery checks. See the [PoC evidence and gaps](https://github.com/gee666/pi-free-swarm/blob/main/docs/poc-run.md).
+Model-dependent acknowledgment/completion loops have occurred, especially after group feedback on resume, with the earlier prompt guards. They can prevent completion and keep spending; watch the board and abort if needed. There is no hard message or cost budget. A five-agent run, real TUI Esc and host takeover were observed; provider rate limiting prevented several further recovery checks. See the [PoC evidence and gaps](https://github.com/gee666/pi-free-swarm/blob/main/docs/poc-run.md).
 
 ## Development and packaging
 
