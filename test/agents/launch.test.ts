@@ -52,6 +52,20 @@ test("agent args: rpc mode, fixed session file, prompt file, -e per extension, t
   }
 });
 
+test("agent args preserve the discovery opt-out without removing explicit extensions", () => {
+  const args = buildAgentArgs({ ...spec, context: { ...spec.context, noExtensions: true } });
+  assert.equal(args.filter((arg) => arg === "--no-extensions").length, 1);
+  assert.ok(args.indexOf("--no-extensions") < args.indexOf("-e"));
+  assert.deepEqual(
+    args.filter((arg) => arg !== "--no-extensions"),
+    buildAgentArgs(spec),
+  );
+  assert.deepEqual(
+    buildAgentArgs({ ...spec, context: { ...spec.context, noExtensions: false } }),
+    buildAgentArgs(spec),
+  );
+});
+
 test("forwardedExtensionArgs reads both flag forms, resolves paths and keeps package sources", () => {
   const argv = [
     "node",

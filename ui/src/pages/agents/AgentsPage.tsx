@@ -82,7 +82,7 @@ export function AgentsPage() {
             text={composer.text}
             onTextChange={composer.setText}
             onSend={composer.send}
-            limit={TEXT_MAX}
+            limit={detail.data?.bodyMaxChars ?? TEXT_MAX}
             recipients={{ names: composer.to, options: agents, onChange: composer.setTo }}
             thread={composer.thread && { id: composer.thread.id, onCancel: composer.cancelReply }}
             disabled={composer.disabled}

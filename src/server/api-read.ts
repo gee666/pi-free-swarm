@@ -10,6 +10,8 @@ import type {
   SwarmListResponse,
   ThreadResponse,
 } from "../api-types.js";
+import { bodyLimit } from "../broker/body-limit.js";
+import { getAcceptance } from "../store/acceptance-queries.js";
 import { SESSION_PAGE_DEFAULT, SESSION_PAGE_MAX } from "../constants.js";
 import { getMailbox, getThread } from "../store/message-queries.js";
 import { getStats } from "../store/stats-queries.js";
@@ -51,7 +53,12 @@ export function readRoutes(deps: ApiDeps): ApiRoute[] {
       pattern: "/api/swarms/:swarmId",
       handle: ({ params }) => {
         const swarm = requireSwarmItem(deps, params.id("swarmId"));
-        return reply<SwarmDetailResponse>({ swarm, participants: listParticipants(db, swarm.id) });
+        return reply<SwarmDetailResponse>({
+          swarm,
+          participants: listParticipants(db, swarm.id),
+          acceptance: getAcceptance(db, swarm.id),
+          bodyMaxChars: bodyLimit(db),
+        });
       },
     },
     {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, describe, it } from "node:test";
 import { WALL_DIGEST_MAX_POSTS } from "../../src/constants.js";
+import { inspectAcceptance, mutateAcceptance } from "../../src/broker/acceptance.js";
 import { sendMessage } from "../../src/broker/messages.js";
 import { endRun } from "../../src/broker/swarms.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
@@ -17,10 +18,53 @@ const BOARD = "http://127.0.0.1:3010";
 function outcomeOf(swarmId: number, end: "finished" | "stopped" | "interrupted") {
   const swarm = getSwarm(db, swarmId, END);
   assert.ok(swarm);
-  return { swarm, run: 1, end };
+  return { swarm, run: 1, end, acceptance: inspectAcceptance(db, swarmId) };
 }
 
 describe("buildRunResultText", () => {
+  it("projects the closure snapshot as attestation, never a later shared verdict", () => {
+    const swarm = seedSwarm(db);
+    mutateAcceptance(db, swarm.id, "Maria", { action: "claim", revision: 0 }, T0);
+    mutateAcceptance(
+      db,
+      swarm.id,
+      "Maria",
+      {
+        action: "update",
+        revision: 1,
+        verdict: "accepted",
+        payload: {
+          evidence: [
+            {
+              reference: "checks.log",
+              result: "passed",
+              command: "test",
+              cwd: "/project",
+              fingerprint: "supplied-hash",
+            },
+          ],
+          knownGaps: [],
+          findings: [],
+        },
+      },
+      T0,
+    );
+    const outcome = outcomeOf(swarm.id, "finished");
+    mutateAcceptance(
+      db,
+      swarm.id,
+      "John",
+      { action: "challenge", revision: 2, finding: "Output changed; recheck requirements." },
+      T0,
+    );
+    const text = buildRunResultText(db, outcome, BOARD, T0);
+    assert.match(text, /Task verdict: accepted \(acceptance revision 2\)/);
+    assert.match(text, /Agent-attested against the original task, not exhaustive proof/);
+    assert.match(text, /Supplied fingerprint \(not automatically checked\): supplied-hash/);
+    const challenged = buildRunResultText(db, outcomeOf(swarm.id, "finished"), BOARD, T0);
+    assert.match(challenged, /Task verdict: incomplete/);
+    assert.match(challenged, /Known gap: Output changed/);
+  });
   it("formats a finished swarm per plan §6.1", () => {
     const swarm = seedSwarm(db, { name: "auth-refactor" });
     createPost(db, swarm.id, "Maria", { title: "Kickoff", text: "I take backend API routes." }, T0 + 1_000);
@@ -34,7 +78,9 @@ describe("buildRunResultText", () => {
     assert.equal(
       text,
       [
-        `Swarm "auth-refactor" (#${swarm.id}) finished. Run 1. 3 agents, 23m, $0.00, 0 tokens.`,
+        `Swarm "auth-refactor" (#${swarm.id}) finished execution (quiescent; not a task-success verdict). Run 1. 3 agents, 23m, $0.00, 0 tokens.`,
+        "Task verdict: unchecked (acceptance revision 0).",
+        "Task completion is not accepted; execution may finish with unresolved work.",
         `Board: ${BOARD}/s/${swarm.id}`,
         "",
         "Wall digest (all posts, oldest first):",

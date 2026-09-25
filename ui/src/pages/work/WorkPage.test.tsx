@@ -2,6 +2,7 @@ import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { acceptance } from "../../test/acceptanceFixture";
 import type { AgentParticipantView, SwarmDetailResponse, SwarmEvent } from "../../../../src/api-types";
 import { SwarmStreamProvider } from "../../api/SwarmStream";
 import { installFakeApi } from "../../test/fakeApi";
@@ -24,6 +25,8 @@ const agent = (name: string, patch: Partial<AgentParticipantView> = {}): AgentPa
 });
 
 const detail: SwarmDetailResponse = {
+  acceptance,
+  bodyMaxChars: 4000,
   swarm: {
     id: 3,
     name: "auth-refactor",

@@ -1,10 +1,10 @@
 // `swarm` and `resume_swarm`, the main agent's two tools. Both block until the run ends and stream a
 // status snapshot about once a second; Esc aborts the tool signal, which stops the swarm.
-import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { systemClock } from "../clock.js";
 import { MAIN_TOOL, SETTINGS_FILE, SWARM_DIR } from "../constants.js";
-import { checkText, checkTitle, MAIN_FEEDBACK_MAX, TITLE_MAX } from "../limits.js";
+import { BODY_SAFETY_MAX, checkText, checkTitle, MAIN_FEEDBACK_MAX, TITLE_MAX } from "../limits.js";
 import { BrokerError } from "../broker/errors.js";
 import { readRunProgress, type RunProgress } from "../broker/run-progress.js";
 import { resumeSwarm, startSwarm, type RunEnvironment, type RunOptions, type RunOutcome } from "../broker/swarm-run.js";
@@ -19,7 +19,7 @@ import {
   renderSwarmCall,
   renderToolResult,
 } from "./render.js";
-import { buildRunResultText } from "./result.js";
+import { boundRunResult, buildRunResultText, type RunToolResult } from "./result.js";
 import { buildRunEnvironment, gitignoreHint, type LaunchSource } from "./run-environment.js";
 
 /** The runner entry points; tests replace them to exercise the tools without agents. */
@@ -42,11 +42,11 @@ export const SWARM_PARAMS = Type.Object({
 export const RESUME_PARAMS = Type.Object({
   swarm_id: Type.Integer({ description: "Id from the swarm result, e.g. 3." }),
   message: Type.String({
-    description: `Feedback for the agents, max ${MAIN_FEEDBACK_MAX} chars: what is wrong or missing and what to do.`,
+    description: `Feedback for the agents: what is wrong or missing and what to do. Body allowance is bodyMaxChars in settings.json (default ${MAIN_FEEDBACK_MAX}, safety ceiling ${BODY_SAFETY_MAX} chars).`,
   }),
 });
 
-type ToolResult = AgentToolResult<RunProgress>;
+type ToolResult = RunToolResult;
 type OnUpdate = ((partial: ToolResult) => void) | undefined;
 
 /** Read fresh on every call; warnings go to the user, a SettingsError fails the tool. */
@@ -128,7 +128,7 @@ export function createMainToolHandlers(runtime: MainRuntime, runner: SwarmRunner
       });
       const hint = firstSwarm ? gitignoreHint(runtime.cwd) : null;
       if (hint !== null) result.content.push({ type: "text", text: hint });
-      return result;
+      return boundRunResult(result);
     },
     async resume(
       params: Static<typeof RESUME_PARAMS>,
@@ -140,14 +140,16 @@ export function createMainToolHandlers(runtime: MainRuntime, runner: SwarmRunner
       const db = runtime.getDb(false);
       if (db === null) throw new Error(`Swarm #${params.swarm_id} not found: this project has no swarms yet.`);
       const input = { swarmId: params.swarm_id, message: params.message };
-      return run({
-        db,
-        settings,
-        ctx,
-        signal,
-        onUpdate,
-        start: (env, options) => runner.resumeSwarm(env, input, options),
-      });
+      return boundRunResult(
+        await run({
+          db,
+          settings,
+          ctx,
+          signal,
+          onUpdate,
+          start: (env, options) => runner.resumeSwarm(env, input, options),
+        }),
+      );
     },
   };
 }

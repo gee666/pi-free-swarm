@@ -85,9 +85,9 @@ describe("sendMessage", () => {
       "Add at least one recipient other than yourself.",
     );
     brokerError(
-      () => sendMessage(db, swarm.id, "Maria", ["John"], "x".repeat(243), NOW),
+      () => sendMessage(db, swarm.id, "Maria", ["John"], "x".repeat(4001), NOW),
       "validation",
-      "Too long: 243/200 characters. Shorten it or point to a file path.",
+      "Too long: 4001/4000 characters. Shorten it or point to a file path.",
     );
     brokerError(
       () => sendMessage(db, swarm.id, "Ghost", ["John"], "hi", NOW),
@@ -187,20 +187,20 @@ describe("sendMainFeedback", () => {
     assert.equal(post.author, "Main");
     assert.equal(post.title, "Feedback from Main");
     assert.ok(post.text.endsWith(" …see your messages"));
-    assert.ok(charCount(post.text) <= 200);
+    assert.ok(charCount(post.text) <= 4000);
     // Replies in Main's thread skip Main.
     const reply = replyToThread(db, swarm.id, "John", message.threadId, "on it", NOW);
     assert.deepEqual(statuses(reply), ["Maria:pending", "Liam:pending"]);
   });
 
-  it("keeps short feedback whole and caps at 2000 characters", () => {
+  it("keeps short feedback whole and caps at 4000 characters", () => {
     assert.equal(feedbackPostBody("Add tests."), "Add tests. …see your messages");
-    assert.equal(charCount(feedbackPostBody("😀".repeat(500))), 200);
+    assert.equal(charCount(feedbackPostBody("😀".repeat(5000))), 4000);
     const swarm = seedSwarm(db);
     brokerError(
-      () => sendMainFeedback(db, swarm.id, "x".repeat(2001), NOW),
+      () => sendMainFeedback(db, swarm.id, "x".repeat(4001), NOW),
       "validation",
-      "Too long: 2001/2000 characters. Shorten it or point to a file path.",
+      "Too long: 4001/4000 characters. Shorten it or point to a file path.",
     );
   });
 });

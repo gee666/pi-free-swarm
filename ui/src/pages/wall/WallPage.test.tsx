@@ -6,7 +6,7 @@ import type { CommentView, PostSummary, SwarmEvent } from "../../../../src/api-t
 import { SwarmStreamProvider } from "../../api/SwarmStream";
 import { installFakeApi, type FakeApi } from "../../test/fakeApi";
 import { installFakeEventSource, type FakeEventSource } from "../../test/fakeEventSource";
-import { eventBase } from "../agents/testFixtures";
+import { detail, eventBase } from "../agents/testFixtures";
 import { WallPage } from "./WallPage";
 
 const AT = new Date().setHours(10, 24, 0, 0);
@@ -65,6 +65,7 @@ beforeEach(() => {
   vi.stubGlobal("localStorage", new MemoryStorage());
   source = installFakeEventSource();
   api = installFakeApi();
+  api.on("GET", "/api/swarms/3", () => detail());
   api.on("GET", "/api/swarms/3/posts", () => ({ posts: [plan, scopes], total: 2 }));
   api.on("GET", "/api/swarms/3/posts/1", () => ({ post: plan, comments: planComments }));
 });
@@ -93,6 +94,13 @@ const seen = () => JSON.parse(window.localStorage.getItem("pi-swarm:wall-seen:3"
 const emit = (event: SwarmEvent) => act(() => source().emit(event));
 
 describe("WallPage", () => {
+  it("uses the configured allowance for new posts and comments", async () => {
+    api.on("GET", "/api/swarms/3", () => ({ ...detail(), bodyMaxChars: 8000 }));
+    await renderWall("/s/3/wall/new");
+    expect(await screen.findByText("0/8000")).toBeInTheDocument();
+    await userEvent.click(within(postList()).getByText("Plan: split OAuth work"));
+    expect(await screen.findByText("0/8000")).toBeInTheDocument();
+  });
   it("lists posts with author, comment pill and unread badges from localStorage", async () => {
     window.localStorage.setItem("pi-swarm:wall-seen:3", JSON.stringify({ 1: 1 }));
     await renderWall();
@@ -126,7 +134,7 @@ describe("WallPage", () => {
     await renderWall("/s/3/wall/1");
     const box = await screen.findByRole("textbox", { name: "Write a comment…" });
     await userEvent.type(box, "Signed state it is.");
-    expect(screen.getByText("19/200")).toBeInTheDocument();
+    expect(screen.getByText("19/4000")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Comment" }));
 
     expect(await screen.findByText("Signed state it is.")).toBeInTheDocument();
@@ -150,7 +158,7 @@ describe("WallPage", () => {
     await userEvent.type(title, "x".repeat(61));
     await userEvent.type(body, "Ship login first.");
     expect(screen.getByText("61/60")).toBeInTheDocument();
-    expect(screen.getByText("17/200")).toBeInTheDocument();
+    expect(screen.getByText("17/4000")).toBeInTheDocument();
     expect(submit).toBeDisabled();
 
     await userEvent.clear(title);

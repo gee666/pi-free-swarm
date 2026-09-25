@@ -1,17 +1,29 @@
 // What `swarm` and `resume_swarm` return to the main agent (plan §6.1): the finished state and the whole
 // wall, never a summary written by the agents. The main agent reviews the real work itself.
+import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
 import { USER_NAME, WALL_DIGEST_MAX_POSTS } from "../constants.js";
 import type { RunEndStatus } from "../broker/swarms.js";
-import { readRunProgress } from "../broker/run-progress.js";
+import { readRunProgress, type RunProgress } from "../broker/run-progress.js";
 import type { RunOutcome } from "../broker/swarm-run.js";
 import type { SwarmDb } from "../store/db.js";
 import { listInboxAfter, unreadCounts } from "../store/message-queries.js";
 import { listParticipants } from "../store/swarm-queries.js";
 import { listPosts } from "../store/wall-queries.js";
 import { formatCost, formatElapsed, formatTokens, plural, swarmBoardUrl } from "./run-format.js";
+import { agentToolResult } from "./agent-tool-result.js";
+
+export type RunToolResult = AgentToolResult<RunProgress & { fullOutputPath?: string }>;
+
+/** Bound the aggregate, including hints, without replacing the renderer's progress snapshot. */
+export async function boundRunResult(result: RunToolResult): Promise<RunToolResult> {
+  const text = result.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
+  const bounded = await agentToolResult(text);
+  if (bounded.details === undefined) return result;
+  return { ...result, content: bounded.content, details: { ...result.details, ...bounded.details } };
+}
 
 const END_TEXT: Record<RunEndStatus, string> = {
-  finished: "finished",
+  finished: "finished execution (quiescent; not a task-success verdict)",
   stopped: "was stopped (tool aborted, all agents killed)",
   interrupted: "was interrupted (this pi process lost the swarm's run lock)",
 };
@@ -27,6 +39,20 @@ export function buildRunResultText(db: SwarmDb, outcome: RunOutcome, boardUrl: s
     `Swarm "${swarm.name}" (#${swarm.id}) ${END_TEXT[end]}. Run ${run}. ${plural(swarm.agentAmount, "agent")}, ` +
       `${formatElapsed(progress.elapsedMs)}, ${formatCost(progress.cost)}, ${formatTokens(progress.tokens)} tokens.`,
   ];
+  const acceptance = outcome.acceptance;
+  lines.push(`Task verdict: ${acceptance.verdict} (acceptance revision ${acceptance.revision}).`);
+  if (acceptance.verdict === "accepted") {
+    lines.push(
+      "Agent-attested against the original task, not exhaustive proof. Artifacts were not automatically validated; later changes are not detected.",
+    );
+  } else lines.push("Task completion is not accepted; execution may finish with unresolved work.");
+  for (const evidence of acceptance.evidence) {
+    lines.push(`Evidence: ${evidence.reference} — ${evidence.result}`);
+    if (evidence.command) lines.push(`Check: ${evidence.command} (cwd: ${evidence.cwd})`);
+    if (evidence.fingerprint) lines.push(`Supplied fingerprint (not automatically checked): ${evidence.fingerprint}`);
+  }
+  for (const gap of acceptance.knownGaps) lines.push(`Known gap: ${gap}`);
+  for (const finding of acceptance.findings) lines.push(`Unresolved finding: ${finding}`);
   if (crashed.length > 0) lines.push(`Crashed and not revived: ${crashed.join(", ")}.`);
   lines.push(url === null ? "Board: not running." : `Board: ${url}`, "", ...wallDigest(db, swarm.id), "");
   lines.push(userMessagesLine(db, swarm.id), "", ...nextSteps(swarm.id, end));

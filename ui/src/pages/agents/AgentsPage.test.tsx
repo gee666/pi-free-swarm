@@ -91,6 +91,12 @@ async function expandScopes() {
 }
 
 describe("AgentsPage", () => {
+  it("uses the server allowance for messages", async () => {
+    serve();
+    api.on("GET", "/api/swarms/3", () => ({ ...detail(), bodyMaxChars: 8000 }));
+    mount("/s/3/agents/John");
+    expect(await screen.findByText("0/8000")).toBeInTheDocument();
+  });
   it("lists User first with the you pill, then the agents in launch order with their badges", async () => {
     serve();
     await renderAgents();

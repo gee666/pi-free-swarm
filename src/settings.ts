@@ -21,6 +21,8 @@ import {
   SWARM_ID_ENV,
 } from "./constants.js";
 
+import { BODY_SAFETY_MAX, TEXT_MAX } from "./limits.js";
+
 export interface SwarmSettings {
   /** From the file only; `null` = not set. */
   port: number | null;
@@ -29,6 +31,7 @@ export interface SwarmSettings {
   /** Already clamped into `[minAgents, maxAgents]`. */
   defaultAgents: number;
   staggerSeconds: number;
+  bodyMaxChars: number;
   /** `PI_SWARM_*` keys already dropped. */
   env: Readonly<Record<string, string>>;
 }
@@ -47,7 +50,15 @@ export class SettingsError extends Error {
   }
 }
 
-const KNOWN_KEYS = new Set(["port", "minAgents", "maxAgents", "defaultAgents", "staggerSeconds", "env"]);
+const KNOWN_KEYS = new Set([
+  "port",
+  "minAgents",
+  "maxAgents",
+  "defaultAgents",
+  "staggerSeconds",
+  "bodyMaxChars",
+  "env",
+]);
 const PORT_MIN = 1;
 const PORT_MAX = 65_535;
 
@@ -70,9 +81,16 @@ export function loadSettings(cwd: string): { settings: SwarmSettings; warnings: 
   if (staggerSeconds !== undefined && !(typeof staggerSeconds === "number" && staggerSeconds >= 0)) {
     throw new SettingsError(`staggerSeconds must be a number >= 0 (got ${describe(staggerSeconds)})`);
   }
+  const bodyMaxChars = optionalInteger(
+    parsed,
+    "bodyMaxChars",
+    `an integer 256–${BODY_SAFETY_MAX}`,
+    256,
+    BODY_SAFETY_MAX,
+  );
   const env = parseEnv(parsed.env, warnings);
   return {
-    settings: buildSettings({ port, minAgents, maxAgents, defaultAgents, staggerSeconds }, env),
+    settings: buildSettings({ port, minAgents, maxAgents, defaultAgents, staggerSeconds, bodyMaxChars }, env),
     warnings,
   };
 }
@@ -127,6 +145,7 @@ interface ParsedNumbers {
   maxAgents?: number;
   defaultAgents?: number;
   staggerSeconds?: number;
+  bodyMaxChars?: number;
 }
 
 function buildSettings(values: ParsedNumbers, env: Record<string, string>): SwarmSettings {
@@ -141,6 +160,7 @@ function buildSettings(values: ParsedNumbers, env: Record<string, string>): Swar
     maxAgents,
     defaultAgents,
     staggerSeconds: values.staggerSeconds ?? DEFAULT_STAGGER_SECONDS,
+    bodyMaxChars: values.bodyMaxChars ?? TEXT_MAX,
     env,
   };
 }

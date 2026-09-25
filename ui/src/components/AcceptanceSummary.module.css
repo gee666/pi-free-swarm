@@ -1,0 +1,16 @@
+.summary.summary {
+  flex: none;
+  max-height: 40vh;
+  overflow: auto;
+  padding: var(--gap-panels);
+  margin-bottom: var(--gap-panels);
+  overflow-wrap: anywhere;
+}
+
+.summary summary {
+  cursor: pointer;
+}
+
+.summary pre {
+  white-space: pre-wrap;
+}

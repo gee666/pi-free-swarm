@@ -87,6 +87,7 @@ export function buildChildProcessEnv(extra: Record<string, string>): NodeJS.Proc
 export function buildAgentArgs(spec: AgentLaunchSpec): string[] {
   const { context } = spec;
   const args = ["--mode", "rpc", "--session", spec.sessionFile, "--append-system-prompt", spec.systemPromptFile];
+  if (context.noExtensions) args.push("--no-extensions");
   for (const extension of context.extensionArgs) args.push("-e", extension);
   args.push(context.projectTrusted ? "--approve" : "--no-approve");
   if (context.model) {

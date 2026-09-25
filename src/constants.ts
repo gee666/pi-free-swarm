@@ -100,6 +100,7 @@ export const AGENT_TOOL = {
   message: "swarm_message",
   replyTo: "swarm_reply_to",
   readThread: "swarm_read_thread",
+  acceptance: "swarm_acceptance",
 } as const;
 
 // ── Fixed texts that more than one module writes or recognises ───────────────

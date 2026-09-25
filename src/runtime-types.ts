@@ -23,8 +23,10 @@ export interface ModelSelection {
 
 /** What every agent spawn of one run inherits from the main process; captured once per tool call. */
 export interface AgentLaunchContext {
-  /** Absolute; this extension's index.ts first, then the main process's own `-e` values. Never `-ne`. */
+  /** This extension's index.ts first, then the main process's explicit `-e` paths or package sources. */
   extensionArgs: readonly string[];
+  /** Preserve the parent's opt-out from discovered/configured extensions; explicit `-e` still loads. */
+  noExtensions?: boolean;
   /** `ctx.isProjectTrusted()`: `--approve` when true, else `--no-approve`. */
   projectTrusted: boolean;
   model: ModelSelection | null;

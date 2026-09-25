@@ -8,7 +8,6 @@ import { AgentSupervisor, type AgentCrash, type DeliveryOutcome, type PromptPayl
 import type { WatchdogConfig } from "../agents/watchdog.js";
 import type { Clock, TimerHandle } from "../clock.js";
 import type { SwarmDb } from "../store/db.js";
-import { listPosts } from "../store/wall-queries.js";
 import { createAgentHooks } from "./agent-hooks.js";
 import { incrementReviveCount } from "./agent-state.js";
 import type { DeliveryTarget } from "./delivery.js";
@@ -105,13 +104,12 @@ export class RunAgent implements DeliveryTarget {
 
   /** Kickoff for a fresh session, the resume prompt when the session already has history. */
   launchFirst(): Promise<void> {
-    const { db, swarmId, taskPrompt } = this.#ctx;
+    const { taskPrompt } = this.#ctx;
     const messages = this.#ctx.collect(this.name, false);
     const text = hasSessionFile(this.#spec.sessionFile)
       ? buildResumePrompt({ messages: messages.text })
       : buildKickoffPrompt({
           taskPrompt,
-          wallIsEmpty: listPosts(db, swarmId, { count: 1, offset: 0 }).total === 0,
           messages: messages.text,
         });
     return this.#launch(text, messages.messageIds);

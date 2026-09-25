@@ -10,6 +10,8 @@ import type {
   ThreadView,
 } from "../../../../src/api-types";
 
+import { acceptance } from "../../test/acceptanceFixture";
+
 const AT = new Date(2026, 3, 12, 10, 24).getTime();
 
 export const swarm: SwarmListItem = {
@@ -43,6 +45,8 @@ export const agent = (name: string, launchOrder: number, patch: Partial<AgentPar
 
 export const detail = (patch: Partial<SwarmListItem> = {}): SwarmDetailResponse => ({
   swarm: { ...swarm, ...patch },
+  acceptance,
+  bodyMaxChars: 4000,
   participants: [
     { kind: "user", name: "User", unread: 1, joinedAt: AT, lastActivityAt: AT },
     agent("John", 1, { unread: 2 }),

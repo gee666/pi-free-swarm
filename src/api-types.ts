@@ -153,6 +153,8 @@ export interface SwarmListResponse {
 export interface SwarmDetailResponse {
   swarm: SwarmListItem;
   participants: ParticipantView[];
+  acceptance: import("./store/acceptance-types.js").AcceptanceRecord;
+  bodyMaxChars: number;
 }
 
 // ── REST: wall ────────────────────────────────────────────────────────────────
@@ -306,7 +308,7 @@ export type ApiErrorCode = "validation" | "bad_request" | "not_member" | "not_fo
 
 export interface ApiErrorBody {
   error: ApiErrorCode;
-  /** Human-readable, safe to show as is, e.g. "Too long: 243/200 characters. Shorten it or point to a file path." */
+  /** Human-readable, safe to show as is, e.g. "Too long: 4001/4000 characters. Shorten it or point to a file path." */
   message: string;
   /** Request field a validation error refers to, e.g. "text", "title", "to". */
   field?: string;
@@ -315,6 +317,7 @@ export interface ApiErrorBody {
 // ── SSE: GET /events?swarm=:id ────────────────────────────────────────────────
 
 export interface SwarmEventPayloads {
+  "acceptance.updated": { revision: number };
   "post.created": { post: PostSummary };
   "comment.created": { comment: CommentView; commentCount: number };
   "message.created": { message: MessageView; unread: UnreadCounts };

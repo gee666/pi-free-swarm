@@ -1,3 +1,5 @@
+import { AcceptanceSummary } from "../components/AcceptanceSummary";
+import { useSwarmDetail } from "../pages/agents/useSwarmDetail";
 import { Outlet, useNavigate, useParams } from "react-router-dom";
 import { fetchSwarms, withSwarm } from "../api/swarms";
 import { SwarmStreamProvider, useSwarmStream } from "../api/SwarmStream";
@@ -19,6 +21,7 @@ export function SwarmLayout() {
 
 function SwarmFrame({ swarmId }: { swarmId: string }) {
   const navigate = useNavigate();
+  const detail = useSwarmDetail(swarmId);
   const stream = useSwarmStream();
   const list = useAsync(fetchSwarms, [stream.openCount]);
   useStreamListener(stream, (event) => {
@@ -36,6 +39,7 @@ function SwarmFrame({ swarmId }: { swarmId: string }) {
       }
       rail={<TabRail basePath={`/s/${swarmId}`} />}
     >
+      {detail.data && <AcceptanceSummary detail={detail.data} />}
       <Outlet />
     </AppShell>
   );

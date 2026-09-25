@@ -2,7 +2,7 @@
 // the live model and thinking level follow `/model`, so they are read now and reused for every revive.
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { parseArgs, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { systemClock } from "../clock.js";
 import { SETTINGS_FILE, SWARM_DIR } from "../constants.js";
 import { forwardedExtensionArgs } from "../agents/launch.js";
@@ -18,10 +18,12 @@ export type LaunchSource = Pick<ExtensionContext, "model" | "thinkingLevel" | "i
 export function captureLaunchContext(
   ctx: LaunchSource,
   extensionPath: string,
-  argv?: readonly string[],
+  argv: readonly string[] = process.argv,
 ): AgentLaunchContext {
+  const { noExtensions } = parseArgs(argv.slice(2));
   return {
     extensionArgs: dedupeByRealpath([extensionPath, ...forwardedExtensionArgs(argv)]),
+    ...(noExtensions ? { noExtensions: true } : {}),
     projectTrusted: ctx.isProjectTrusted(),
     model:
       ctx.model === undefined

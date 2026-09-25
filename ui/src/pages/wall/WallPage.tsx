@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { FileQuestion, MessageSquare } from "lucide-react";
+import { useSwarmDetail } from "../agents/useSwarmDetail";
 import { TEXT_MAX } from "../../../../src/limits";
 import { useSwarmStream } from "../../api/SwarmStream";
 import { ComposeBox } from "../../components/compose/ComposeBox";
@@ -33,6 +34,8 @@ export function WallPage() {
   const navigate = useNavigate();
   const stream = useSwarmStream();
   const posts = usePosts(swarmId);
+  const detail = useSwarmDetail(swarmId);
+  const bodyMaxChars = detail.data?.bodyMaxChars ?? TEXT_MAX;
   const postId = parsePostId(route);
   const post = usePost(swarmId, postId);
   const unreadComments = useSeenComments(swarmId, posts.data?.posts, postId);
@@ -48,6 +51,7 @@ export function WallPage() {
     main = (
       <NewPostForm
         swarmId={swarmId}
+        bodyMaxChars={bodyMaxChars}
         banners={reconnecting}
         onCancel={() => navigate(wallUrl)}
         onCreated={(created) => {
@@ -109,7 +113,7 @@ export function WallPage() {
             text={composer.text}
             onTextChange={composer.setText}
             onSend={composer.send}
-            limit={TEXT_MAX}
+            limit={bodyMaxChars}
             placeholder="Write a comment…"
             sendLabel="Comment"
             busy={composer.busy}

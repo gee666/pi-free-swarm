@@ -9,6 +9,7 @@ export function useSwarmDetail(swarmId: string): AsyncState<SwarmDetailResponse>
   const stream = useSwarmStream();
   const detail = useAsync((signal) => fetchSwarmDetail(swarmId, signal), [swarmId, stream.openCount]);
   useStreamListener(stream, (event) => {
+    if (event.type === "acceptance.updated" || event.type === "swarm.updated") detail.reload();
     detail.update((current) => {
       if (!current) return current;
       if (event.type === "swarm.updated") {

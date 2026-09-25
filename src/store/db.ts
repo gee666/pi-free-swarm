@@ -16,7 +16,11 @@ export interface SwarmDb {
 }
 
 /** Each file is applied once, in order, inside the transaction that bumps `user_version` to its version. */
-const MIGRATIONS: readonly { version: number; file: string }[] = [{ version: 1, file: "schema.sql" }];
+const MIGRATIONS: readonly { version: number; file: string }[] = [
+  { version: 1, file: "schema.sql" },
+  { version: 2, file: "002-communication.sql" },
+  { version: 3, file: "acceptance.sql" },
+];
 const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 
 export function swarmDataDir(cwd: string): string {
@@ -81,20 +85,28 @@ export function openSwarmDb(dbPath: string, options: { create: boolean }): Swarm
 
 function migrate(db: SwarmDb): void {
   if (userVersion(db) === LATEST_VERSION) return;
-  db.write(() => {
-    // Re-read under the write lock: another process may have migrated since the first check.
-    const current = userVersion(db);
-    if (current > LATEST_VERSION) {
-      throw new Error(
-        `${DB_FILE} schema v${current} is newer than this extension (v${LATEST_VERSION}). Update pi-free-swarm.`,
-      );
-    }
-    for (const migration of MIGRATIONS) {
-      if (migration.version <= current) continue;
-      db.sql.exec(readFileSync(new URL(migration.file, import.meta.url), "utf8"));
-    }
-    db.sql.exec(`PRAGMA user_version = ${LATEST_VERSION}`);
-  });
+  db.sql.exec("PRAGMA foreign_keys = OFF");
+  try {
+    db.write(() => {
+      // Re-read under the write lock: another process may have migrated since the first check.
+      const current = userVersion(db);
+      if (current > LATEST_VERSION) {
+        throw new Error(
+          `${DB_FILE} schema v${current} is newer than this extension (v${LATEST_VERSION}). Update pi-free-swarm.`,
+        );
+      }
+      for (const migration of MIGRATIONS) {
+        if (migration.version <= current) continue;
+        db.sql.exec(readFileSync(new URL(migration.file, import.meta.url), "utf8"));
+      }
+      if (db.sql.prepare("PRAGMA foreign_key_check").all().length > 0) {
+        throw new Error("Schema migration would violate foreign keys");
+      }
+      db.sql.exec(`PRAGMA user_version = ${LATEST_VERSION}`);
+    });
+  } finally {
+    db.sql.exec("PRAGMA foreign_keys = ON");
+  }
 }
 
 function userVersion(db: SwarmDb): number {

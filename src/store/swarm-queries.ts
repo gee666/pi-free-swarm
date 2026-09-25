@@ -9,6 +9,7 @@ import { activityOf, agentStatusOf, int, intOrNull, kindOf, real, swarmStatusOf,
 
 const SWARM_SELECT = `
   SELECT s.*,
+    (SELECT a.closed_run = s.run_count FROM acceptance a WHERE a.swarm_id = s.id) AS admission_closed,
     (SELECT COUNT(*) FROM participants p
       WHERE p.swarm_id = s.id AND p.kind = 'agent' AND p.status = 'working') AS agents_working
   FROM swarms s`;
@@ -24,7 +25,7 @@ function swarmOf(row: Row, now: number, alive: PidAlive): SwarmListItem {
     name: text(row, "name"),
     taskPrompt: text(row, "task_prompt"),
     status: wantsLive && !live ? "interrupted" : stored,
-    acceptsMessages: live,
+    acceptsMessages: live && row.admission_closed !== 1,
     agentAmount: int(row, "agent_amount"),
     agentsWorking: live ? int(row, "agents_working") : 0,
     runCount: int(row, "run_count"),

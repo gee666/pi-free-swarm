@@ -10,6 +10,7 @@ import { getSwarm } from "../store/swarm-queries.js";
 import { emitParticipantUpdated, emitSwarmUpdated } from "./emit.js";
 import { BrokerError } from "./errors.js";
 import { cleanupRun, type RunEndStatus } from "./run-cleanup.js";
+import { reopenAcceptance } from "./run-acceptance.js";
 
 export type { RunEndStatus } from "./run-cleanup.js";
 
@@ -96,6 +97,7 @@ export function beginResume(
         `Swarm #${swarmId} is running in another pi process (pid ${claim.holderPid}).`,
       );
     }
+    reopenAcceptance(db, swarmId, now);
     const run = int(row, "run_count") + 1;
     db.sql
       .prepare(

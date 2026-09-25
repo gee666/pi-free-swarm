@@ -4,6 +4,7 @@ import type { Clock } from "../clock.js";
 import type { AgentLaunchContext } from "../runtime-types.js";
 import type { SwarmSettings } from "../settings.js";
 import type { SwarmDb } from "../store/db.js";
+import type { AcceptanceRecord } from "../store/acceptance-types.js";
 import type { RunProgress } from "./run-progress.js";
 import type { RunEndStatus } from "./swarms.js";
 
@@ -39,4 +40,5 @@ export interface RunOutcome {
   swarm: SwarmListItem;
   run: number;
   end: RunEndStatus;
+  acceptance: AcceptanceRecord;
 }

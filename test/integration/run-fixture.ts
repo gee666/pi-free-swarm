@@ -51,6 +51,7 @@ export function createRunFixture(
     minAgents: 1,
     maxAgents: 10,
     defaultAgents: 2,
+    bodyMaxChars: 4000,
     staggerSeconds: options.staggerSeconds ?? 0,
     env: { ...fake.env, ...options.settingsEnv },
   };

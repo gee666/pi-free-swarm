@@ -1,16 +1,19 @@
-// The seven swarm_* tools of an agent process. They call the broker directly on PI_SWARM_DB, always as
+// The swarm_* tools of an agent process. They call the broker directly on PI_SWARM_DB, always as
 // this agent; a BrokerError is thrown as is so its exact message becomes the tool error.
-import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { systemClock, type Clock } from "../clock.js";
 import { AGENT_TOOL, PAGE_DEFAULT_COUNT, PAGE_MAX_COUNT } from "../constants.js";
-import { TEXT_MAX, TITLE_MAX } from "../limits.js";
+import { BODY_SAFETY_MAX, TEXT_MAX, TITLE_MAX } from "../limits.js";
 import { BrokerError } from "../broker/errors.js";
 import { replyToThread, readThreadAs, sendMessage } from "../broker/messages.js";
-import { addComment, createPost, readPostsAs } from "../broker/wall.js";
+import { addComment, createPost } from "../broker/wall.js";
 import type { SwarmDb } from "../store/db.js";
 import { getPostDetail } from "../store/wall-queries.js";
-import { formatPostDetail, formatPostList, formatSent, formatThread } from "./agent-tool-format.js";
+import { formatPostDetail, formatSent, formatThread } from "./agent-tool-format.js";
+import { acceptanceToolDescription, acceptanceToolParameters, executeAcceptanceTool } from "./acceptance-tool.js";
+import { readWallTool } from "./wall-read.js";
+import { agentToolResult as textResult } from "./agent-tool-result.js";
 
 export interface AgentToolIdentity {
   getDb(): SwarmDb;
@@ -20,14 +23,18 @@ export interface AgentToolIdentity {
 }
 
 const BRIEF = "Be extremely brief and focused.";
+const BODY_LIMIT = `Body allowance: bodyMaxChars in settings.json (default ${TEXT_MAX}, safety ceiling ${BODY_SAFETY_MAX} chars).`;
 const textParam = () =>
-  Type.String({ description: `Plain text, max ${TEXT_MAX} chars. For more, write a file and give its path.` });
+  Type.String({ description: `Plain text. ${BODY_LIMIT} For more, write a file and give its path.` });
 
 const READ_POSTS = Type.Object({
   count: Type.Optional(
-    Type.Integer({ description: `Posts to show, 1–${PAGE_MAX_COUNT} (default ${PAGE_DEFAULT_COUNT}).` }),
+    Type.Integer({ description: `Posts or changes to show, 1–${PAGE_MAX_COUNT} (default ${PAGE_DEFAULT_COUNT}).` }),
   ),
-  offset: Type.Optional(Type.Integer({ description: "Skip this many newest posts (default 0)." })),
+  offset: Type.Optional(Type.Integer({ description: "Skip this many newest posts (default 0); ignored with after." })),
+  after: Type.Optional(
+    Type.String({ description: "Opaque next cursor from a wall read; returns post and comment changes oldest first." }),
+  ),
 });
 const READ_POST = Type.Object({ post_id: Type.Integer() });
 const POST = Type.Object({
@@ -48,9 +55,7 @@ export function createAgentToolHandlers(identity: AgentToolIdentity) {
   const clock = identity.clock ?? systemClock;
   return {
     readPosts(params: Static<typeof READ_POSTS>): string {
-      const page = { count: params.count ?? PAGE_DEFAULT_COUNT, offset: params.offset ?? 0 };
-      const result = readPostsAs(identity.getDb(), swarmId, agentName, page);
-      return formatPostList(result.page, result.newPostIds, page.offset, clock.now());
+      return readWallTool(identity.getDb(), swarmId, agentName, params, clock.now());
     },
     readPost(params: Static<typeof READ_POST>): string {
       const detail = getPostDetail(identity.getDb(), swarmId, params.post_id);
@@ -77,11 +82,10 @@ export function createAgentToolHandlers(identity: AgentToolIdentity) {
       const thread = readThreadAs(identity.getDb(), swarmId, agentName, params.thread_id);
       return formatThread(thread, agentName, clock.now());
     },
+    acceptance(params: Static<typeof acceptanceToolParameters>): string {
+      return JSON.stringify(executeAcceptanceTool(identity.getDb(), swarmId, agentName, params, clock.now()));
+    },
   };
-}
-
-function textResult(text: string): AgentToolResult<undefined> {
-  return { content: [{ type: "text", text }], details: undefined };
 }
 
 export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, identity: AgentToolIdentity): void {
@@ -89,8 +93,9 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
   pi.registerTool({
     name: AGENT_TOOL.readPosts,
     label: "Read wall",
-    description: `Read the swarm wall, newest first. Posts added since your last read are marked (new). Check it before starting work, periodically, and before finishing.`,
-    promptSnippet: "Read the swarm wall (newest first, new posts marked).",
+    description:
+      "Read the wall newest first, with new posts marked. Optional after returns post/comment changes oldest first; reuse Next cursor for subsequent pages. The initial history cursor starts at the beginning, so unseen older history is not skipped. Bodies are previews; read a post for full text.",
+    promptSnippet: "Read wall history or post/comment changes after a cursor.",
     parameters: READ_POSTS,
     async execute(_toolCallId, params) {
       return textResult(run.readPosts(params));
@@ -109,7 +114,7 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
   pi.registerTool({
     name: AGENT_TOOL.post,
     label: "Post",
-    description: `Post to the swarm wall: plans, what you take, status. ${BRIEF} Title max ${TITLE_MAX} chars, text max ${TEXT_MAX}; plain text, no markdown.`,
+    description: `Post to the swarm wall: plans, what you take, status. ${BRIEF} Title max ${TITLE_MAX} chars. ${BODY_LIMIT} Plain text, no markdown.`,
     promptSnippet: "Post a short plan or status to the swarm wall.",
     parameters: POST,
     async execute(_toolCallId, params) {
@@ -119,7 +124,7 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
   pi.registerTool({
     name: AGENT_TOOL.comment,
     label: "Comment",
-    description: `Comment on a wall post. ${BRIEF} Max ${TEXT_MAX} chars, plain text.`,
+    description: `Comment on a wall post. ${BRIEF} ${BODY_LIMIT} Plain text.`,
     promptSnippet: "Comment on a wall post.",
     parameters: COMMENT,
     async execute(_toolCallId, params) {
@@ -129,7 +134,7 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
   pi.registerTool({
     name: AGENT_TOOL.message,
     label: "Message",
-    description: `Start a new message thread with the given participants (names from the wall, or "User" for the human). They are woken up with it. ${BRIEF} Max ${TEXT_MAX} chars. Never wait for an answer.`,
+    description: `Start a new message thread with the given participants (names from the wall, or "User" for the human). They are woken up with it. ${BRIEF} ${BODY_LIMIT} Never wait for an answer.`,
     promptSnippet: "Message other agents or the User in a new thread.",
     parameters: MESSAGE,
     async execute(_toolCallId, params) {
@@ -139,7 +144,7 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
   pi.registerTool({
     name: AGENT_TOOL.replyTo,
     label: "Reply",
-    description: `Reply to every other member of a thread you are in. ${BRIEF} Max ${TEXT_MAX} chars.`,
+    description: `Reply to every other member of a thread you are in. ${BRIEF} ${BODY_LIMIT}`,
     promptSnippet: "Reply in a message thread.",
     parameters: REPLY_TO,
     async execute(_toolCallId, params) {
@@ -154,6 +159,16 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
     parameters: READ_THREAD,
     async execute(_toolCallId, params) {
       return textResult(run.readThread(params));
+    },
+  });
+  pi.registerTool({
+    name: AGENT_TOOL.acceptance,
+    label: "Acceptance",
+    description: acceptanceToolDescription,
+    promptSnippet: "Inspect or update the shared task acceptance attestation.",
+    parameters: acceptanceToolParameters,
+    async execute(_toolCallId, params) {
+      return textResult(run.acceptance(params));
     },
   });
 }

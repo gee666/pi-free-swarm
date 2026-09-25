@@ -58,9 +58,9 @@ describe("posts and comments", () => {
       "title",
     );
     brokerError(
-      () => createPost(db, swarm.id, "Maria", { title: "ok", text: "x".repeat(243) }, T0),
+      () => createPost(db, swarm.id, "Maria", { title: "ok", text: "x".repeat(4001) }, T0),
       "validation",
-      "Too long: 243/200 characters. Shorten it or point to a file path.",
+      "Too long: 4001/4000 characters. Shorten it or point to a file path.",
       "text",
     );
     brokerError(() => addComment(db, swarm.id, "Maria", 9999, "hi", T0), "not_found", "Post #9999 not found.");

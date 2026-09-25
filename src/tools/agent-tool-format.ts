@@ -1,5 +1,6 @@
 // Model-facing text of the agent tools: one compact line per item, relative times, no markdown.
 import type { MessageView, PostDetailResponse, PostListResponse, PostSummary, ThreadResponse } from "../api-types.js";
+import { WALL_PREVIEW_CHARS } from "../broker/wall-delta.js";
 import { UNDELIVERABLE_REPLY_TEXT } from "../constants.js";
 
 const SECOND = 1_000;
@@ -21,7 +22,12 @@ function plural(count: number, noun: string): string {
 
 /** `#12 Maria · 5m ago · Kickoff — text (4 comments) (new)` */
 export function formatPostLine(post: PostSummary, now: number, isNew: boolean): string {
-  const line = `#${post.id} ${post.author} · ${timeAgo(post.createdAt, now)} · ${post.title} — ${post.text}`;
+  const chars = Array.from(post.text);
+  const preview =
+    chars.length > WALL_PREVIEW_CHARS
+      ? `${chars.slice(0, WALL_PREVIEW_CHARS).join("")} … (read post #${post.id} for full text)`
+      : post.text;
+  const line = `#${post.id} ${post.author} · ${timeAgo(post.createdAt, now)} · ${post.title} — ${preview}`;
   return `${line} (${plural(post.commentCount, "comment")})${isNew ? " (new)" : ""}`;
 }
 

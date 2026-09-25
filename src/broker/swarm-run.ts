@@ -21,6 +21,9 @@ import { heartbeatRunLock } from "../store/locks.js";
 import { listOpenAgentRecipients } from "../store/message-queries.js";
 import { getSwarm, listAgentSessions } from "../store/swarm-queries.js";
 import { DeliveryLoop } from "./delivery.js";
+import { inspectAcceptance, invalidateAcceptanceClaim } from "./acceptance.js";
+import { closeRunAdmission, prepareRunCompletion } from "./run-acceptance.js";
+import type { AcceptanceRecord } from "../store/acceptance-types.js";
 import { CompletionTracker, reviveDelayMs } from "./lifecycle.js";
 import { sendMainFeedback } from "./messages.js";
 import { RunAgent } from "./run-agent.js";
@@ -42,10 +45,6 @@ const DEFAULT_TIMINGS: RunTimings = {
   reviveBackoffMs: REVIVE_BACKOFF_MS,
 };
 
-function timingsOf(env: RunEnvironment): RunTimings {
-  return { ...DEFAULT_TIMINGS, ...env.timings };
-}
-
 const activeRuns = new Set<SwarmRun>();
 
 class SwarmRun {
@@ -66,6 +65,7 @@ class SwarmRun {
   #allLaunched = false;
   #releaseOwnership: (() => void) | undefined;
   #failure: { error: unknown } | undefined;
+  #acceptance: AcceptanceRecord | undefined;
   readonly #fail = (error: unknown) => {
     if (this.#failure) return;
     this.#failure = { error };
@@ -85,7 +85,7 @@ class SwarmRun {
     this.#swarm = swarm;
     this.#run = run;
     this.#options = options;
-    this.#timings = timingsOf(env);
+    this.#timings = { ...DEFAULT_TIMINGS, ...env.timings };
     this.#done = new Promise((resolve, reject) => (this.#settle = { resolve, reject }));
     const { db, clock, settings, runnerPid } = env;
     for (const { name, sessionFile } of listAgentSessions(db, swarm.id)) {
@@ -164,6 +164,14 @@ class SwarmRun {
   }
 
   #onCrash(agent: RunAgent, crash: AgentCrash): void {
+    invalidateAcceptanceClaim(
+      this.#env.db,
+      this.#swarm.id,
+      this.#run,
+      agent.name,
+      `Checker crashed: ${crash.message}`,
+      this.#env.clock.now(),
+    );
     if (crash.fatal) {
       this.#env.notifyUser(`Swarm "${this.#swarm.name}": ${agent.name} could not start. ${crash.message}`);
       this.#giveUp(agent);
@@ -209,7 +217,21 @@ class SwarmRun {
       agents: agents.map((agent) => agent.liveness()),
       openRecipients,
     });
-    if (quiet) void this.#end("finished");
+    if (!quiet) return;
+    const { db, runnerPid, clock } = this.#env;
+    const decision = prepareRunCompletion(db, {
+      swarmId: this.#swarm.id,
+      run: this.#run,
+      runnerPid,
+      now: clock.now(),
+      exhausted: givenUp,
+      available: agents.filter((agent) => agent.status === "idle" && !agent.exhausted).map((agent) => agent.name),
+    });
+    if (decision.kind === "closed") {
+      this.#acceptance = decision.acceptance;
+      void this.#end("finished");
+    } else if (decision.kind === "lost") void this.#end("interrupted", true);
+    else this.#tracker.reset();
   }
 
   #reportProgress(): void {
@@ -237,12 +259,28 @@ class SwarmRun {
     this.#delivery.stop();
     this.#options.signal?.removeEventListener("abort", this.#onAbort);
     try {
-      await Promise.allSettled([...this.#agents.values()].map((agent) => agent.stop()));
       const { db, runnerPid, clock } = this.#env;
+      try {
+        this.#acceptance ??=
+          (!lockLost &&
+            closeRunAdmission(
+              db,
+              {
+                swarmId: this.#swarm.id,
+                run: this.#run,
+                runnerPid,
+                now: clock.now(),
+              },
+              `Run ${end} before the acceptance check completed.`,
+            )) ||
+          inspectAcceptance(db, this.#swarm.id);
+      } finally {
+        await Promise.allSettled([...this.#agents.values()].map((agent) => agent.stop()));
+      }
       const ended = !lockLost && endRun(db, this.#swarm.id, runnerPid, end, clock.now());
       this.#reportProgress();
       const swarm = getSwarm(db, this.#swarm.id, clock.now()) ?? this.#swarm;
-      return { swarm, run: this.#run, end: ended ? end : "interrupted" };
+      return { swarm, run: this.#run, end: ended ? end : "interrupted", acceptance: this.#acceptance };
     } finally {
       activeRuns.delete(this);
       this.#releaseOwnership?.();
@@ -283,7 +321,7 @@ export async function resumeSwarm(
     sendMainFeedback(db, input.swarmId, input.message, clock.now());
     return resumed;
   });
-  return executeRun(env, swarm, run, options, timingsOf(env).resumeStaggerMs);
+  return executeRun(env, swarm, run, options, env.timings?.resumeStaggerMs ?? RESUME_STAGGER_MS);
 }
 
 function executeRun(

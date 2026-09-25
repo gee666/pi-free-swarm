@@ -1,8 +1,9 @@
 // Shared by the broker and the UI counters, so it must stay free of Node imports.
 
 export const TITLE_MAX = 60;
-export const TEXT_MAX = 200;
-export const MAIN_FEEDBACK_MAX = 2000;
+export const TEXT_MAX = 4000;
+export const BODY_SAFETY_MAX = 16000;
+export const MAIN_FEEDBACK_MAX = TEXT_MAX;
 
 export type LimitCheck = { ok: true; value: string } | { ok: false; error: string };
 

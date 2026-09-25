@@ -7,11 +7,13 @@ import { count, int, intOrNull, jsonList, text, textOrNull } from "../store/rows
 import { releaseRunLock } from "../store/locks.js";
 import { emitParticipantUpdated, emitRecipientStatus, emitSwarmUpdated } from "./emit.js";
 import { addUndeliverableReply } from "./message-insert.js";
+import { failPendingAcceptance } from "./run-acceptance.js";
 
 export type RunEndStatus = "finished" | "stopped" | "interrupted";
 
 export function cleanupRun(db: SwarmDb, swarmId: number, end: RunEndStatus, now: number): void {
   db.write(() => {
+    failPendingAcceptance(db, swarmId, `Run ${end} before the acceptance check completed.`, now);
     const before = new Map(
       db.sql
         .prepare("SELECT name, status, activity FROM participants WHERE swarm_id = ? AND kind = 'agent'")

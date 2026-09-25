@@ -10,18 +10,19 @@ import styles from "./Wall.module.css";
 
 interface NewPostFormProps {
   swarmId: string;
+  bodyMaxChars?: number;
   banners: ReactNode;
   onCreated: (post: PostSummary) => void;
   onCancel: () => void;
 }
 
 /** Main panel while writing a post as the user. */
-export function NewPostForm({ swarmId, banners, onCreated, onCancel }: NewPostFormProps) {
+export function NewPostForm({ swarmId, bodyMaxChars = TEXT_MAX, banners, onCreated, onCancel }: NewPostFormProps) {
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const valid = checkTitle(title).ok && checkText(text).ok;
+  const valid = checkTitle(title).ok && checkText(text, bodyMaxChars).ok;
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -52,7 +53,7 @@ export function NewPostForm({ swarmId, banners, onCreated, onCancel }: NewPostFo
           <div className={styles.field}>
             <AutoTextarea value={text} onChange={setText} label="Body" placeholder="Write a post…" />
             <span className={styles.counter}>
-              <CharCounter text={text} limit={TEXT_MAX} />
+              <CharCounter text={text} limit={bodyMaxChars} />
             </span>
           </div>
           <div className={styles.formFooter}>

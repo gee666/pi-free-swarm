@@ -108,6 +108,7 @@ describe("StatsPage", () => {
       await vi.advanceTimersByTimeAsync(STATS_CLOCK_MS);
     });
     expect(count()).toBe(before + 1);
+    api.on("GET", "/api/swarms/3", () => ({ swarm: { id: 3, status: "finished" }, participants: [] }));
     act(() =>
       source().emit({
         id: 9,

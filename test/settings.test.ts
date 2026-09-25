@@ -44,9 +44,17 @@ describe("loadSettings", () => {
       maxAgents: 10,
       defaultAgents: 5,
       staggerSeconds: 20,
+      bodyMaxChars: 4000,
       env: {},
     });
     assert.deepEqual(warnings, []);
+  });
+
+  it("bounds the configurable body allowance", () => {
+    assert.equal(loadSettings(project('{"bodyMaxChars": 8000}')).settings.bodyMaxChars, 8000);
+    for (const value of [0, 255, 16001, 4000.5, "4000"]) {
+      assert.match(loadError(JSON.stringify({ bodyMaxChars: value })), /bodyMaxChars must be an integer/);
+    }
   });
 
   it("reads every key and clamps defaultAgents into the range", () => {
