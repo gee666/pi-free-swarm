@@ -7,6 +7,7 @@ import {
   AGENT_ROLE,
   DB_ENV,
   DEFAULT_AGENTS,
+  DEFAULT_LATE_PEERS,
   DEFAULT_MAX_AGENTS,
   DEFAULT_MIN_AGENTS,
   DEFAULT_PORT,
@@ -32,6 +33,8 @@ export interface SwarmSettings {
   defaultAgents: number;
   staggerSeconds: number;
   bodyMaxChars: number;
+  /** Fresh-context peers launched only once the others first go quiet; see swarm-run. */
+  latePeers: number;
   /** `PI_SWARM_*` keys already dropped. */
   env: Readonly<Record<string, string>>;
 }
@@ -57,6 +60,7 @@ const KNOWN_KEYS = new Set([
   "defaultAgents",
   "staggerSeconds",
   "bodyMaxChars",
+  "latePeers",
   "env",
 ]);
 const PORT_MIN = 1;
@@ -88,9 +92,13 @@ export function loadSettings(cwd: string): { settings: SwarmSettings; warnings: 
     256,
     BODY_SAFETY_MAX,
   );
+  const latePeers = optionalInteger(parsed, "latePeers", "an integer >= 0", 0);
   const env = parseEnv(parsed.env, warnings);
   return {
-    settings: buildSettings({ port, minAgents, maxAgents, defaultAgents, staggerSeconds, bodyMaxChars }, env),
+    settings: buildSettings(
+      { port, minAgents, maxAgents, defaultAgents, staggerSeconds, bodyMaxChars, latePeers },
+      env,
+    ),
     warnings,
   };
 }
@@ -105,7 +113,10 @@ export function resolveAgentAmount(settings: SwarmSettings, requested: number | 
 }
 
 export function describeAgentRange(settings: SwarmSettings): string {
-  return `agent_amount: ${settings.minAgents}–${settings.maxAgents}, default ${settings.defaultAgents}`;
+  const range = `agent_amount: ${settings.minAgents}–${settings.maxAgents}, default ${settings.defaultAgents}`;
+  if (settings.latePeers === 0) return range;
+  const late = settings.latePeers === 1 ? "1 late peer" : `${settings.latePeers} late peers`;
+  return `${range}, including up to ${late} launched when the others first go quiet`;
 }
 
 /** `settings.env` plus the reserved variables, which always win. The inherited env is added at spawn. */
@@ -146,6 +157,7 @@ interface ParsedNumbers {
   defaultAgents?: number;
   staggerSeconds?: number;
   bodyMaxChars?: number;
+  latePeers?: number;
 }
 
 function buildSettings(values: ParsedNumbers, env: Record<string, string>): SwarmSettings {
@@ -161,6 +173,7 @@ function buildSettings(values: ParsedNumbers, env: Record<string, string>): Swar
     defaultAgents,
     staggerSeconds: values.staggerSeconds ?? DEFAULT_STAGGER_SECONDS,
     bodyMaxChars: values.bodyMaxChars ?? TEXT_MAX,
+    latePeers: values.latePeers ?? DEFAULT_LATE_PEERS,
     env,
   };
 }

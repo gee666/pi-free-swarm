@@ -65,6 +65,7 @@ export const DEFAULT_MIN_AGENTS = 1;
 export const DEFAULT_MAX_AGENTS = 10;
 export const DEFAULT_AGENTS = 5;
 export const DEFAULT_STAGGER_SECONDS = 20;
+export const DEFAULT_LATE_PEERS = 1;
 
 // ── Board server ─────────────────────────────────────────────────────────────
 export const SERVER_BIND_HOST = "127.0.0.1";

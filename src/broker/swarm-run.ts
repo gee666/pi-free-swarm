@@ -24,6 +24,7 @@ import { DeliveryLoop } from "./delivery.js";
 import { inspectAcceptance, invalidateAcceptanceClaim } from "./acceptance.js";
 import { closeRunAdmission, prepareRunCompletion } from "./run-acceptance.js";
 import type { AcceptanceRecord } from "../store/acceptance-types.js";
+import { LateReserve } from "./late-peers.js";
 import { CompletionTracker, reviveDelayMs } from "./lifecycle.js";
 import { sendMainFeedback } from "./messages.js";
 import { RunAgent } from "./run-agent.js";
@@ -56,6 +57,7 @@ class SwarmRun {
   readonly #agents = new Map<string, RunAgent>();
   readonly #delivery: DeliveryLoop;
   readonly #tracker: CompletionTracker;
+  readonly #reserve: LateReserve;
   readonly #done: Promise<RunOutcome>;
   #settle: { resolve(outcome: RunOutcome): void; reject(error: unknown): void } = {
     resolve: () => undefined,
@@ -122,9 +124,10 @@ class SwarmRun {
       onUserMessage: (message) => this.#announce(message),
     });
     this.#tracker = new CompletionTracker(clock, this.#timings.completionGraceMs);
+    this.#reserve = new LateReserve([...this.#agents.values()], settings.latePeers, run);
   }
 
-  /** Agent `i` launches at `i × staggerMs`. Resolves when the run has ended. */
+  /** Early agent `i` launches at `i × staggerMs`, late peers at the first quiet point. Resolves at the end. */
   execute(staggerMs: number): Promise<RunOutcome> {
     activeRuns.add(this);
     this.#releaseOwnership = registerActiveRun(this.#env.db, this.#swarm.id, this.#env.runnerPid);
@@ -138,7 +141,7 @@ class SwarmRun {
     const timings = this.#timings;
     this.#timers.push(clock.every(timings.heartbeatMs, () => this.#guard(() => this.#heartbeat())));
     this.#delivery.start();
-    const agents = [...this.#agents.values()];
+    const agents = [...this.#agents.values()].filter((agent) => !this.#reserve.holds(agent.name));
     agents.forEach((agent, index) => {
       const isLast = index === agents.length - 1;
       this.#timers.push(clock.after(index * staggerMs, () => this.#guard(() => this.#launchFirst(agent, isLast))));
@@ -207,10 +210,10 @@ class SwarmRun {
 
   #checkCompletion(): void {
     if (this.#isEnding) return;
-    const agents = [...this.#agents.values()];
+    const agents = [...this.#agents.values()].filter((agent) => !this.#reserve.holds(agent.name));
     const givenUp = new Set(agents.filter((agent) => agent.exhausted).map((agent) => agent.name));
     const openRecipients = listOpenAgentRecipients(this.#env.db, this.#swarm.id).filter(
-      (open) => !givenUp.has(open.name),
+      (open) => !givenUp.has(open.name) && !this.#reserve.holds(open.name),
     ).length;
     const quiet = this.#tracker.update({
       allLaunched: this.#allLaunched,
@@ -218,6 +221,7 @@ class SwarmRun {
       openRecipients,
     });
     if (!quiet) return;
+    if (this.#reserve.release((agent) => this.#guard(() => agent.launchFirst()))) return this.#tracker.reset();
     const { db, runnerPid, clock } = this.#env;
     const decision = prepareRunCompletion(db, {
       swarmId: this.#swarm.id,

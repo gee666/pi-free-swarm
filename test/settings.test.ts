@@ -45,6 +45,7 @@ describe("loadSettings", () => {
       defaultAgents: 5,
       staggerSeconds: 20,
       bodyMaxChars: 4000,
+      latePeers: 1,
       env: {},
     });
     assert.deepEqual(warnings, []);
@@ -54,6 +55,17 @@ describe("loadSettings", () => {
     assert.equal(loadSettings(project('{"bodyMaxChars": 8000}')).settings.bodyMaxChars, 8000);
     for (const value of [0, 255, 16001, 4000.5, "4000"]) {
       assert.match(loadError(JSON.stringify({ bodyMaxChars: value })), /bodyMaxChars must be an integer/);
+    }
+  });
+
+  it("reads latePeers as a nonnegative integer", () => {
+    assert.equal(loadSettings(project('{"latePeers": 0}')).settings.latePeers, 0);
+    assert.equal(loadSettings(project('{"latePeers": 3}')).settings.latePeers, 3);
+    for (const value of [-1, 1.5, "1", null, true]) {
+      assert.equal(
+        loadError(JSON.stringify({ latePeers: value })),
+        `settings.json: latePeers must be an integer >= 0 (got ${JSON.stringify(value)})`,
+      );
     }
   });
 
@@ -131,7 +143,12 @@ describe("agent amount", () => {
   });
 
   it("describes the range", () => {
-    assert.equal(describeAgentRange(settings), "agent_amount: 2–8, default 5");
+    assert.equal(
+      describeAgentRange(settings),
+      "agent_amount: 2–8, default 5, including up to 1 late peer launched when the others first go quiet",
+    );
+    assert.equal(describeAgentRange({ ...settings, latePeers: 0 }), "agent_amount: 2–8, default 5");
+    assert.match(describeAgentRange({ ...settings, latePeers: 2 }), /up to 2 late peers/);
   });
 });
 

@@ -41,7 +41,12 @@ export interface RunFixture {
 
 export function createRunFixture(
   scenario: FakePiScenario,
-  options: { staggerSeconds?: number; timings?: Partial<RunTimings>; settingsEnv?: Record<string, string> } = {},
+  options: {
+    staggerSeconds?: number;
+    latePeers?: number;
+    timings?: Partial<RunTimings>;
+    settingsEnv?: Record<string, string>;
+  } = {},
 ): RunFixture {
   const cwd = mkdtempSync(path.join(tmpdir(), "pi-free-swarm-run-"));
   const db = openSwarmDb(swarmDbPath(cwd), { create: true });
@@ -53,6 +58,7 @@ export function createRunFixture(
     defaultAgents: 2,
     bodyMaxChars: 4000,
     staggerSeconds: options.staggerSeconds ?? 0,
+    latePeers: options.latePeers ?? 0,
     env: { ...fake.env, ...options.settingsEnv },
   };
   const notes: string[] = [];

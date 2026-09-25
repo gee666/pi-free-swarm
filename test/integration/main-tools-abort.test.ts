@@ -30,7 +30,7 @@ it("aborting the tool signal stops every agent and returns the stopped result", 
   mkdirSync(path.join(cwd, ".pi/swarm"), { recursive: true });
   writeFileSync(
     path.join(cwd, ".pi/swarm/settings.json"),
-    JSON.stringify({ minAgents: 1, staggerSeconds: 0, env: fake.env }),
+    JSON.stringify({ minAgents: 1, staggerSeconds: 0, latePeers: 0, env: fake.env }),
   );
   const runtime = createMainRuntime({ cwd, extensionPath: "/abs/index.ts", createHost: () => host });
   const tools = createMainToolHandlers(runtime);

@@ -21,7 +21,9 @@ The main agent gets:
 - `swarm(swarm_name, task_prompt, agent_amount?)`: start a swarm; default **5 agents**, launched **20 seconds apart**. Use a short name (≤60 characters) and a concise task prompt pointing to requirements files.
 - `resume_swarm(swarm_id, message)`: resume with feedback (up to `bodyMaxChars`, default 4,000 characters), reusing each agent's session. Agents restart **5 seconds apart**. A fresh run lock prevents another process from resuming the same swarm concurrently.
 
-Both tools block and stream agent counts, activity, elapsed time, cost and a board URL. Completion requires all agents to have launched, every agent to be idle or permanently crashed, and no outstanding deliverable agent messages, continuously for **15 seconds**. Finished means the agents stopped working—not that their work is correct. The result includes a wall digest (at most 150 posts) and asks the main agent to review files, diffs and tests.
+On a fresh swarm, the last `latePeers` agents (default **1**, always fewer than `agent_amount`) are **late peers**: they stay pending while the others work and launch together, with the same system prompt and kickoff, the first time the others go quiet. They bring a fresh context to the shared result; they have no special role. `agent_amount` includes them. Resume launches every agent at once.
+
+Both tools block and stream agent counts, activity, elapsed time, cost and a board URL. Completion requires all agents, late peers included, to have launched, every agent to be idle or permanently crashed, and no outstanding deliverable agent messages, continuously for **15 seconds**. Finished means the agents stopped working—not that their work is correct. The result includes a wall digest (at most 150 posts) and asks the main agent to review files, diffs and tests.
 
 **Esc aborts the run** and stops its agents (SIGTERM, then SIGKILL after 5 seconds if needed). Finished, stopped and interrupted swarms can be resumed by any main pi session in the same project.
 
@@ -70,6 +72,7 @@ Optional, hand-written `.pi/swarm/settings.json`:
   "defaultAgents": 5,
   "staggerSeconds": 20,
   "bodyMaxChars": 4000,
+  "latePeers": 1,
   "env": {
     "NODE_ENV": "development"
   }
@@ -82,6 +85,7 @@ These are the agent-count and stagger defaults; `env` defaults to `{}` and `port
 - `defaultAgents` is clamped into the allowed range. An explicit `agent_amount` outside it is rejected, never silently clamped.
 - `staggerSeconds` is a nonnegative number.
 - `bodyMaxChars` is an integer from 256 to 16,000, checked on each communication write.
+- `latePeers` is an integer ≥0; `0` launches everyone up front. At least one agent always starts early.
 - Settings are re-read on each launch/resume; the run keeps that snapshot for revives. Port settings apply when hosting starts.
 - Invalid settings fail the tool. Unknown keys produce warnings.
 - `env` values must be strings. They override inherited environment values. Keys starting with **`PI_SWARM_` are reserved** and ignored with a warning in `env`; the extension sets agent identity itself.
