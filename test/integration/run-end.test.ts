@@ -54,7 +54,7 @@ describe("the end of a run", () => {
     const last = run.progress.at(-1);
     assert.equal(last?.status, "finished");
     assert.equal(last?.agents.idle, 1);
-    assert.equal(last?.messages, 1);
+    assert.equal(last?.messages, 2, "late request plus one bounded acceptance notice");
     assert.ok((last?.cost ?? 0) > 0 && (last?.tokens ?? 0) > 0);
   });
 
@@ -76,7 +76,7 @@ describe("the end of a run", () => {
     controller.abort();
     // The race: this lands while the agents are being stopped, before the run lock is released.
     const racing = sendMessage(db, swarmId, "User", [first], "during shutdown", Date.now());
-    assert.equal(recipientStatus(db, racing.id, first), "pending");
+    assert.equal(recipientStatus(db, racing.id, first), "undeliverable", "stop closes admission before shutdown");
 
     const result = await outcome;
     assert.equal(result.end, "stopped");

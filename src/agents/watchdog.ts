@@ -42,6 +42,7 @@ export class StallWatchdog {
   #startupTimer: TimerHandle | undefined;
   #idleTimer: TimerHandle | undefined;
   #receivedFirstTurn = false;
+  #providerWaitId: string | null = null;
   #settled = false;
   #fired = false;
 
@@ -54,7 +55,7 @@ export class StallWatchdog {
   /** Until the first model turn: catches cold-start hangs (slow extension load, wedged init). */
   armStartup(): void {
     const timeoutMs = this.#config.startupTimeoutMs;
-    if (timeoutMs === 0 || this.#fired) return;
+    if (timeoutMs === 0 || this.#fired || this.#settled || this.#receivedFirstTurn) return;
     this.#startupTimer?.cancel();
     this.#startupTimer = this.#clock.after(timeoutMs, () => {
       if (this.#receivedFirstTurn) return;
@@ -81,6 +82,26 @@ export class StallWatchdog {
     });
   }
 
+  /** Receipt is liveness, not a first turn. Missing ticks still exhaust the configured timeout. */
+  noteProviderWait(waitId: string): void {
+    if (this.#fired || this.#settled) return;
+    this.#providerWaitId = waitId;
+    this.#refreshProviderWait();
+  }
+
+  endProviderWait(waitId?: string): void {
+    if (this.#providerWaitId === null || (waitId !== undefined && waitId !== this.#providerWaitId)) return;
+    this.#providerWaitId = null;
+    if (this.#fired || this.#settled) return;
+    // Allow the retry or terminal error to arrive, but never turn an ended wait into an exemption.
+    this.#refreshProviderWait();
+  }
+
+  #refreshProviderWait(): void {
+    if (this.#receivedFirstTurn) this.noteActivity();
+    else this.armStartup();
+  }
+
   toolStarted(toolCallId: string): void {
     this.#activeToolCallIds.add(toolCallId);
     this.#cancelIdle();
@@ -94,6 +115,7 @@ export class StallWatchdog {
   /** A settled agent waits for messages as long as needed, so nothing may fire until rearm(). */
   disarm(): void {
     this.#settled = true;
+    this.#providerWaitId = null;
     this.#activeToolCallIds.clear();
     this.#cancelStartup();
     this.#cancelIdle();
@@ -106,6 +128,7 @@ export class StallWatchdog {
 
   #fire(kind: StallKind, message: string): void {
     this.#fired = true;
+    this.#providerWaitId = null;
     this.#cancelStartup();
     this.#cancelIdle();
     this.#onStall(kind, message);

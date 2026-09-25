@@ -5,6 +5,7 @@ import { RETRY_WAIT_GRACE_MS } from "../constants.js";
 import type { UsageSample } from "../runtime-types.js";
 import { activityOf, extractUsage, extractUserText, type RpcRecord } from "./rpc-events.js";
 import type { StallWatchdog } from "./watchdog.js";
+import { limitsWaitStatus } from "./limits-wait-status.js";
 
 export interface ProtocolHandlers {
   onRunStart(): void;
@@ -52,6 +53,13 @@ export function createProtocolHandler(watchdog: StallWatchdog, handlers: Protoco
   return (event) => {
     const type = event.type;
     if (typeof type !== "string") return;
+
+    const wait = limitsWaitStatus(event);
+    if (wait !== null) {
+      if (wait.event === "wait") watchdog.noteProviderWait(wait.waitId);
+      else watchdog.endProviderWait(wait.event === "wait_end" ? wait.waitId : undefined);
+      return;
+    }
 
     const activity = activityOf(event);
     if (activity !== undefined) handlers.onActivity(activity);
