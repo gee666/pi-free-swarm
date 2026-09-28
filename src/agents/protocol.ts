@@ -5,7 +5,6 @@ import { RETRY_WAIT_GRACE_MS } from "../constants.js";
 import type { UsageSample } from "../runtime-types.js";
 import { activityOf, extractUsage, extractUserText, type RpcRecord } from "./rpc-events.js";
 import type { StallWatchdog } from "./watchdog.js";
-import { limitsWaitStatus } from "./limits-wait-status.js";
 
 export interface ProtocolHandlers {
   onRunStart(): void;
@@ -26,18 +25,6 @@ const SEMANTIC_EVENT_TYPES = new Set([
   "tool_execution_end",
 ]);
 
-/** Streaming and housekeeping events that also count as activity once the first turn happened. */
-const STREAMING_EVENT_TYPES = new Set([
-  "message_update",
-  "tool_execution_update",
-  "auto_retry_end",
-  "compaction_start",
-  "compaction_end",
-  "summarization_retry_scheduled",
-  "summarization_retry_attempt_start",
-  "summarization_retry_finished",
-]);
-
 function isAssistantMessageEnd(event: RpcRecord): boolean {
   const message = event.message;
   return (
@@ -51,15 +38,9 @@ function isAssistantMessageEnd(event: RpcRecord): boolean {
 
 export function createProtocolHandler(watchdog: StallWatchdog, handlers: ProtocolHandlers): (event: RpcRecord) => void {
   return (event) => {
+    watchdog.noteOutput();
     const type = event.type;
     if (typeof type !== "string") return;
-
-    const wait = limitsWaitStatus(event);
-    if (wait !== null) {
-      if (wait.event === "wait") watchdog.noteProviderWait(wait.waitId);
-      else watchdog.endProviderWait(wait.event === "wait_end" ? wait.waitId : undefined);
-      return;
-    }
 
     const activity = activityOf(event);
     if (activity !== undefined) handlers.onActivity(activity);
@@ -96,8 +77,6 @@ export function createProtocolHandler(watchdog: StallWatchdog, handlers: Protoco
       if (type === "tool_execution_start" && toolCallId) watchdog.toolStarted(toolCallId);
       else if (type === "tool_execution_end" && toolCallId) watchdog.toolEnded(toolCallId);
       else watchdog.noteActivity();
-      return;
     }
-    if (STREAMING_EVENT_TYPES.has(type)) watchdog.noteActivity();
   };
 }

@@ -14,7 +14,7 @@ it("projects acceptance independently from execution and reads the configured bo
     const swarm = seedSwarm(db, { now: Date.now() });
     const url = `${board.base}/api/swarms/${swarm.id}`;
     const initial = (await getJson<SwarmDetailResponse>(url)).body;
-    assert.equal(initial.bodyMaxChars, 4000);
+    assert.equal(initial.bodyMaxChars, 200);
     assert.equal(initial.acceptance.verdict, "unchecked");
     writeFileSync(path.join(cwd, ".pi/swarm/settings.json"), JSON.stringify({ bodyMaxChars: 8000 }));
     mutateAcceptance(db, swarm.id, "Maria", { action: "claim", revision: 0 }, Date.now());

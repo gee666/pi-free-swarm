@@ -57,7 +57,7 @@ class SwarmRun {
   readonly #agents = new Map<string, RunAgent>();
   readonly #delivery: DeliveryLoop;
   readonly #tracker: CompletionTracker;
-  readonly #reserve: LateReserve;
+  readonly #reserve: LateReserve<RunAgent>;
   readonly #done: Promise<RunOutcome>;
   #settle: { resolve(outcome: RunOutcome): void; reject(error: unknown): void } = {
     resolve: () => undefined,
@@ -124,10 +124,10 @@ class SwarmRun {
       onUserMessage: (message) => this.#announce(message),
     });
     this.#tracker = new CompletionTracker(clock, this.#timings.completionGraceMs);
-    this.#reserve = new LateReserve([...this.#agents.values()], settings.latePeers, run);
+    this.#reserve = new LateReserve([...this.#agents.values()], settings.latePeerRatio, run);
   }
 
-  /** Early agent `i` launches at `i × staggerMs`, late peers at the first quiet point. Resolves at the end. */
+  /** Early agent `i` launches at `i × staggerMs`, late peers as the others go quiet. Resolves at the end. */
   execute(staggerMs: number): Promise<RunOutcome> {
     activeRuns.add(this);
     this.#releaseOwnership = registerActiveRun(this.#env.db, this.#swarm.id, this.#env.runnerPid);
@@ -220,8 +220,8 @@ class SwarmRun {
       agents: agents.map((agent) => agent.liveness()),
       openRecipients,
     });
+    if (this.#reserve.release(quiet, (agent) => this.#guard(() => agent.launchFirst()))) return this.#tracker.reset();
     if (!quiet) return;
-    if (this.#reserve.release((agent) => this.#guard(() => agent.launchFirst()))) return this.#tracker.reset();
     const { db, runnerPid, clock } = this.#env;
     const decision = prepareRunCompletion(db, {
       swarmId: this.#swarm.id,

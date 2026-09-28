@@ -235,7 +235,8 @@ export class AgentSupervisor {
     if (life !== this.#life || this.#stopped || this.#status === "crashed") return;
     const dialogId = dialogRequestId(event);
     if (dialogId) life.proc.write({ type: "extension_ui_response", id: dialogId, cancelled: true });
-    else life.handle(event);
+    // Dialogs included: every record is liveness for the watchdog.
+    life.handle(event);
   }
 
   #applySettle(life: Life): void {

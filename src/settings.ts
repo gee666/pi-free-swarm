@@ -7,11 +7,12 @@ import {
   AGENT_ROLE,
   DB_ENV,
   DEFAULT_AGENTS,
-  DEFAULT_LATE_PEERS,
+  DEFAULT_LATE_PEER_RATIO,
   DEFAULT_MAX_AGENTS,
   DEFAULT_MIN_AGENTS,
   DEFAULT_PORT,
   DEFAULT_STAGGER_SECONDS,
+  MAX_LATE_PEER_RATIO,
   PORT_ENV,
   PORT_FALLBACK_LAST,
   RESERVED_ENV_PREFIX,
@@ -22,7 +23,7 @@ import {
   SWARM_ID_ENV,
 } from "./constants.js";
 
-import { BODY_SAFETY_MAX, TEXT_MAX } from "./limits.js";
+import { BODY_SAFETY_MAX, BODY_STATED_MIN, TEXT_MAX } from "./limits.js";
 
 export interface SwarmSettings {
   /** From the file only; `null` = not set. */
@@ -33,8 +34,8 @@ export interface SwarmSettings {
   defaultAgents: number;
   staggerSeconds: number;
   bodyMaxChars: number;
-  /** Fresh-context peers launched only once the others first go quiet; see swarm-run. */
-  latePeers: number;
+  /** Share of a fresh swarm launched late with a fresh context; see late-peers. */
+  latePeerRatio: number;
   /** `PI_SWARM_*` keys already dropped. */
   env: Readonly<Record<string, string>>;
 }
@@ -60,7 +61,7 @@ const KNOWN_KEYS = new Set([
   "defaultAgents",
   "staggerSeconds",
   "bodyMaxChars",
-  "latePeers",
+  "latePeerRatio",
   "env",
 ]);
 const PORT_MIN = 1;
@@ -81,22 +82,25 @@ export function loadSettings(cwd: string): { settings: SwarmSettings; warnings: 
   const minAgents = optionalInteger(parsed, "minAgents", "an integer >= 1", 1);
   const maxAgents = optionalInteger(parsed, "maxAgents", "an integer >= 1", 1);
   const defaultAgents = optionalInteger(parsed, "defaultAgents", "an integer");
-  const staggerSeconds = parsed.staggerSeconds;
-  if (staggerSeconds !== undefined && !(typeof staggerSeconds === "number" && staggerSeconds >= 0)) {
-    throw new SettingsError(`staggerSeconds must be a number >= 0 (got ${describe(staggerSeconds)})`);
-  }
+  const staggerSeconds = optionalNumber(parsed, "staggerSeconds", "a number >= 0", 0);
   const bodyMaxChars = optionalInteger(
     parsed,
     "bodyMaxChars",
-    `an integer 256–${BODY_SAFETY_MAX}`,
-    256,
+    `an integer ${BODY_STATED_MIN}–${BODY_SAFETY_MAX}`,
+    BODY_STATED_MIN,
     BODY_SAFETY_MAX,
   );
-  const latePeers = optionalInteger(parsed, "latePeers", "an integer >= 0", 0);
+  const latePeerRatio = optionalNumber(
+    parsed,
+    "latePeerRatio",
+    `a number 0–${MAX_LATE_PEER_RATIO}`,
+    0,
+    MAX_LATE_PEER_RATIO,
+  );
   const env = parseEnv(parsed.env, warnings);
   return {
     settings: buildSettings(
-      { port, minAgents, maxAgents, defaultAgents, staggerSeconds, bodyMaxChars, latePeers },
+      { port, minAgents, maxAgents, defaultAgents, staggerSeconds, bodyMaxChars, latePeerRatio },
       env,
     ),
     warnings,
@@ -114,9 +118,9 @@ export function resolveAgentAmount(settings: SwarmSettings, requested: number | 
 
 export function describeAgentRange(settings: SwarmSettings): string {
   const range = `agent_amount: ${settings.minAgents}–${settings.maxAgents}, default ${settings.defaultAgents}`;
-  if (settings.latePeers === 0) return range;
-  const late = settings.latePeers === 1 ? "1 late peer" : `${settings.latePeers} late peers`;
-  return `${range}, including up to ${late} launched when the others first go quiet`;
+  if (settings.latePeerRatio === 0) return range;
+  const share = Math.round(settings.latePeerRatio * 100);
+  return `${range}, including about ${share}% late peers (at least 1 from 2 agents) launched as the others go quiet`;
 }
 
 /** `settings.env` plus the reserved variables, which always win. The inherited env is added at spawn. */
@@ -157,7 +161,7 @@ interface ParsedNumbers {
   defaultAgents?: number;
   staggerSeconds?: number;
   bodyMaxChars?: number;
-  latePeers?: number;
+  latePeerRatio?: number;
 }
 
 function buildSettings(values: ParsedNumbers, env: Record<string, string>): SwarmSettings {
@@ -173,7 +177,7 @@ function buildSettings(values: ParsedNumbers, env: Record<string, string>): Swar
     defaultAgents,
     staggerSeconds: values.staggerSeconds ?? DEFAULT_STAGGER_SECONDS,
     bodyMaxChars: values.bodyMaxChars ?? TEXT_MAX,
-    latePeers: values.latePeers ?? DEFAULT_LATE_PEERS,
+    latePeerRatio: values.latePeerRatio ?? DEFAULT_LATE_PEER_RATIO,
     env,
   };
 }
@@ -215,6 +219,19 @@ function optionalInteger(
   const value = source[key];
   if (value === undefined) return undefined;
   if (typeof value === "number" && Number.isInteger(value) && value >= min && value <= max) return value;
+  throw new SettingsError(`${key} must be ${expected} (got ${describe(value)})`);
+}
+
+function optionalNumber(
+  source: Record<string, unknown>,
+  key: string,
+  expected: string,
+  min: number,
+  max = Infinity,
+): number | undefined {
+  const value = source[key];
+  if (value === undefined) return undefined;
+  if (typeof value === "number" && value >= min && value <= max) return value;
   throw new SettingsError(`${key} must be ${expected} (got ${describe(value)})`);
 }
 

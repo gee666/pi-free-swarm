@@ -33,7 +33,7 @@ describe("registerAgentTools", () => {
       registerTool: ({ name, label, description, promptSnippet }) =>
         void tools.push({ name, label, description, promptSnippet }),
     };
-    registerAgentTools(pi, { getDb: () => db, swarmId: 1, agentName: "Maria" });
+    registerAgentTools(pi, { getDb: () => db, swarmId: 1, agentName: "Maria" }, 200);
     assert.deepEqual(
       tools.map((tool) => tool.name),
       Object.values(AGENT_TOOL),
@@ -43,7 +43,9 @@ describe("registerAgentTools", () => {
       assert.ok(tool.label.length > 0);
     }
     for (const name of [AGENT_TOOL.post, AGENT_TOOL.comment, AGENT_TOOL.message, AGENT_TOOL.replyTo]) {
-      assert.match(tools.find((tool) => tool.name === name)?.description ?? "", /brief/i);
+      const description = tools.find((tool) => tool.name === name)?.description ?? "";
+      assert.match(description, /brief/i);
+      assert.ok(description.includes("At most 200 chars; put longer material in a file and share its path."));
     }
   });
 });
@@ -52,7 +54,7 @@ it("exposes cursor and acceptance schemas identically for all peers", () => {
   const swarm = seedSwarm(db);
   const peers = ["Maria", "John"].map((agentName) => {
     const pi = new FakeExtensionApi();
-    registerAgentTools(pi, { getDb: () => db, swarmId: swarm.id, agentName });
+    registerAgentTools(pi, { getDb: () => db, swarmId: swarm.id, agentName }, 200);
     return pi;
   });
   assert.deepEqual(peers[0].tools, peers[1].tools);
@@ -120,9 +122,6 @@ describe("agent tool output", () => {
     );
     assert.throws(() => maria.message({ to: ["Bob"], text: "hi" }), {
       message: "Unknown participant: Bob. Known participants: Maria, John, Liam, User.",
-    });
-    assert.throws(() => maria.post({ title: "t", text: "x".repeat(4001) }), {
-      message: "Too long: 4001/4000 characters. Shorten it or point to a file path.",
     });
   });
 

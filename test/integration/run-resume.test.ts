@@ -6,7 +6,7 @@ import { BrokerError } from "../../src/broker/errors.js";
 import { createSwarm, markSwarmRunning } from "../../src/broker/swarms.js";
 import { resumeSwarm, startSwarm } from "../../src/broker/swarm-run.js";
 import { MAIN_FEEDBACK_POST_SUFFIX, MAIN_FEEDBACK_POST_TITLE, RESUME_PROMPT_HEADER } from "../../src/constants.js";
-import { charCount, TEXT_MAX } from "../../src/limits.js";
+import { bodyCeiling, charCount, TEXT_MAX } from "../../src/limits.js";
 import { getSwarm } from "../../src/store/swarm-queries.js";
 import { listPosts } from "../../src/store/wall-queries.js";
 import { SCENARIOS } from "../fixtures/fake-pi/harness.js";
@@ -58,7 +58,7 @@ describe("resume_swarm", () => {
       assert.equal(post.author, "Main");
       assert.equal(post.title, MAIN_FEEDBACK_POST_TITLE);
       assert.ok(post.text.endsWith(` ${MAIN_FEEDBACK_POST_SUFFIX}`));
-      assert.ok(charCount(post.text) <= TEXT_MAX);
+      assert.ok(charCount(post.text) <= bodyCeiling(TEXT_MAX));
 
       const resumed = spawnsOf(run.fake).slice(2);
       assert.deepEqual(resumed.map((spawn) => spawn.session).sort(), [...sessions].sort(), "same session files");

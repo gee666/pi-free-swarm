@@ -134,7 +134,7 @@ describe("WallPage", () => {
     await renderWall("/s/3/wall/1");
     const box = await screen.findByRole("textbox", { name: "Write a comment…" });
     await userEvent.type(box, "Signed state it is.");
-    expect(screen.getByText("19/4000")).toBeInTheDocument();
+    expect(screen.getByText("19/200")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Comment" }));
 
     expect(await screen.findByText("Signed state it is.")).toBeInTheDocument();
@@ -158,7 +158,7 @@ describe("WallPage", () => {
     await userEvent.type(title, "x".repeat(61));
     await userEvent.type(body, "Ship login first.");
     expect(screen.getByText("61/60")).toBeInTheDocument();
-    expect(screen.getByText("17/4000")).toBeInTheDocument();
+    expect(screen.getByText("17/200")).toBeInTheDocument();
     expect(submit).toBeDisabled();
 
     await userEvent.clear(title);

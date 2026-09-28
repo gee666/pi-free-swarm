@@ -1,9 +1,11 @@
 // Agent mode (PI_SWARM_ROLE=agent): a child spawned by a swarm runner. It gets only the swarm_* tools and
 // the parent watch; never swarm/resume_swarm (no recursion) and never the board host.
+import path from "node:path";
 import type { TimerHandle } from "./clock.js";
 import type { SwarmExtensionApi } from "./extension-api.js";
 import { AGENT_NAME_ENV, DB_ENV, RUNNER_PID_ENV, SWARM_ID_ENV } from "./constants.js";
 import { startParentWatch } from "./agents/parent-watch.js";
+import { bodyLimitIn } from "./broker/body-limit.js";
 import { openSwarmDb, type SwarmDb } from "./store/db.js";
 import { registerAgentTools } from "./tools/agent-tools.js";
 
@@ -51,11 +53,15 @@ export function registerAgentMode(pi: SwarmExtensionApi, env: NodeJS.ProcessEnv)
   // Opened on the first tool call; the runner created the DB before spawning us.
   let db: SwarmDb | null = null;
   let watch: TimerHandle | null = null;
-  registerAgentTools(pi, {
-    getDb: () => (db ??= openSwarmDb(identity.dbPath, { create: false })),
-    swarmId: identity.swarmId,
-    agentName: identity.agentName,
-  });
+  registerAgentTools(
+    pi,
+    {
+      getDb: () => (db ??= openSwarmDb(identity.dbPath, { create: false })),
+      swarmId: identity.swarmId,
+      agentName: identity.agentName,
+    },
+    bodyLimitIn(path.dirname(identity.dbPath)),
+  );
   pi.on("session_start", (_event, ctx) => {
     watch?.cancel();
     watch = startParentWatch({

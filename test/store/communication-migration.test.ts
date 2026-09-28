@@ -7,6 +7,7 @@ import { it } from "node:test";
 import { inspectAcceptance } from "../../src/broker/acceptance.js";
 import { initialWallCursor, readWallDeltaAs } from "../../src/broker/wall-delta.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
+import { bodyCeiling, TEXT_MAX } from "../../src/limits.js";
 import { openSwarmDb } from "../../src/store/db.js";
 
 it("upgrades released v1 without losing history, delivery state, foreign keys or sequence high-water marks", () => {
@@ -51,9 +52,10 @@ it("upgrades released v1 without losing history, delivery state, foreign keys or
           ["comment", 4],
         ],
       );
-      const post = createPost(db, 1, "Maria", { title: "long", text: "x".repeat(4000) }, 3);
+      const long = "x".repeat(bodyCeiling(TEXT_MAX));
+      const post = createPost(db, 1, "Maria", { title: "long", text: long }, 3);
       assert.equal(post.id, 100);
-      assert.equal(addComment(db, 1, "Maria", 8, "x".repeat(4000), 3).comment.text.length, 4000);
+      assert.equal(addComment(db, 1, "Maria", 8, long, 3).comment.text, long);
       assert.throws(
         () =>
           db.sql

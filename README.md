@@ -19,9 +19,9 @@ Start pi in the project you want to work on. Write requirements to a file, then 
 The main agent gets:
 
 - `swarm(swarm_name, task_prompt, agent_amount?)`: start a swarm; default **5 agents**, launched **20 seconds apart**. Use a short name (≤60 characters) and a concise task prompt pointing to requirements files.
-- `resume_swarm(swarm_id, message)`: resume with feedback (up to `bodyMaxChars`, default 4,000 characters), reusing each agent's session. Agents restart **5 seconds apart**. A fresh run lock prevents another process from resuming the same swarm concurrently.
+- `resume_swarm(swarm_id, message)`: resume with feedback (up to 4,000 characters), reusing each agent's session. Agents restart **5 seconds apart**. A fresh run lock prevents another process from resuming the same swarm concurrently.
 
-On a fresh swarm, the last `latePeers` agents (default **1**, always fewer than `agent_amount`) are **late peers**: they stay pending while the others work and launch together, with the same system prompt and kickoff, the first time the others go quiet. They bring a fresh context to the shared result; they have no special role. `agent_amount` includes them. Resume launches every agent at once.
+On a fresh swarm, the last `round(agent_amount × latePeerRatio)` agents (default ratio **0.2**; at least 1 from 2 agents, always fewer than `agent_amount`) are **late peers**. They stay pending while the others work and launch with the same system prompt and kickoff. With `L` late and `E` early peers, late peer `i` of the first `L−1` joins once at least `⌈i·E/L⌉` early peers are idle (or permanently crashed) at the same time. The last late peer is the final reserve: it joins only once every launched agent is quiet, as for completion. Late peers bring a fresh context to the shared result; they have no special role. `agent_amount` includes them. Resume launches every agent at once.
 
 Both tools block and stream agent counts, activity, elapsed time, cost and a board URL. Completion requires all agents, late peers included, to have launched, every agent to be idle or permanently crashed, and no outstanding deliverable agent messages, continuously for **15 seconds**. Finished means the agents stopped working—not that their work is correct. The result includes a wall digest (at most 150 posts) and asks the main agent to review files, diffs and tests.
 
@@ -40,7 +40,7 @@ Every peer gets the same coordination tools, not `swarm` or `resume_swarm`:
 | `swarm_read_thread` | Read a thread's history |
 | `swarm_acceptance` | Inspect, self-claim, record or challenge the whole task's acceptance judgment |
 
-Communication bodies allow 4,000 characters by default; `bodyMaxChars` is configurable from 256 to 16,000. Titles allow 60 characters. Wall lists show bounded previews; complete posts remain readable. Messages wake idle agents; wall posts do not. Agents may message `User`, with terminal notifications when UI is available.
+Posts, comments and messages are told to stay within `bodyMaxChars` (default 200 characters) and to put longer material in files. Up to twice that is stored as-is to absorb miscounting; anything longer is not rejected: the full text is saved under `.pi/swarm/attachments/<swarm>/` and the stored body ends with its path. Titles allow 60 characters. Wall lists show stored bodies whole; complete posts remain readable. Messages wake idle agents; wall posts do not. Agents may message `User`, with terminal notifications when UI is available.
 
 Acceptance is separate from execution status. Any peer can volunteer to check the original task and record evidence, gaps and an accepted, incomplete or blocked verdict. Revision checks prevent conflicting updates; no roles or reviewer quorum are imposed. At quiescence, an unchecked task triggers at most one targeted checkpoint notice per run. Unresolved work may still finish execution; it is not reported as task success.
 
@@ -71,8 +71,8 @@ Optional, hand-written `.pi/swarm/settings.json`:
   "maxAgents": 10,
   "defaultAgents": 5,
   "staggerSeconds": 20,
-  "bodyMaxChars": 4000,
-  "latePeers": 1,
+  "bodyMaxChars": 200,
+  "latePeerRatio": 0.2,
   "env": {
     "NODE_ENV": "development"
   }
@@ -84,8 +84,8 @@ These are the agent-count and stagger defaults; `env` defaults to `{}` and `port
 - `minAgents` is an integer ≥1; `maxAgents` must be ≥`minAgents`. If only `minAgents` exceeds 10, the implicit maximum rises to match it.
 - `defaultAgents` is clamped into the allowed range. An explicit `agent_amount` outside it is rejected, never silently clamped.
 - `staggerSeconds` is a nonnegative number.
-- `bodyMaxChars` is an integer from 256 to 16,000, checked on each communication write.
-- `latePeers` is an integer ≥0; `0` launches everyone up front. At least one agent always starts early.
+- `bodyMaxChars` is an integer from 100 to 16,000: the limit stated to agents and shown in board counters. Main's resume feedback keeps its own 4,000-character limit.
+- `latePeerRatio` is a number from 0 to 0.5; `0` launches everyone up front. At least one agent always starts early; a single agent is never late.
 - Settings are re-read on each launch/resume; the run keeps that snapshot for revives. Port settings apply when hosting starts.
 - Invalid settings fail the tool. Unknown keys produce warnings.
 - `env` values must be strings. They override inherited environment values. Keys starting with **`PI_SWARM_` are reserved** and ignored with a warning in `env`; the extension sets agent identity itself.
@@ -116,7 +116,7 @@ If settings contain secrets, omit the exception and ignore `settings.json` too.
 
 ## Recovery and limits
 
-- Startup watchdog: **120 seconds**, with **2 startup retries**. Inactivity watchdog: **20 minutes** without semantic activity. Idle agents and active tool executions are not timed out; a hung tool can still block progress.
+- Startup watchdog: **120 seconds** without output before the first model turn, with **2 startup retries**. Inactivity watchdog: **20 minutes** without output after it. Any record the agent process writes counts, including other extensions' notifications and statuses, so an extension that waits long keeps its agent alive by reporting periodically; a silent process still times out. Idle agents and active tool executions are not timed out; a hung tool can still block progress.
 - Nonfatal crashes allow **3 revives per agent per run**, delayed 5, 30 and 120 seconds. Fatal startup failures are not revived. Exhausted agents are reported on the wall; the remaining swarm can finish.
 - Process-level overrides: `PI_SWARM_STARTUP_TIMEOUT` and `PI_SWARM_IDLE_TIMEOUT` (milliseconds), `PI_SWARM_STARTUP_RETRIES` (count). Set them in pi's environment, not settings `env`.
 - Agents check their runner's PID every 5 seconds. A dead runner leads to shutdown; another main session can clean up the stale run and resume it.

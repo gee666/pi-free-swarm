@@ -4,6 +4,7 @@ import path from "node:path";
 import { after, it } from "node:test";
 import { inspectAcceptance } from "../../src/broker/acceptance.js";
 import { initialWallCursor } from "../../src/broker/wall-delta.js";
+import { bodyCeiling, TEXT_MAX } from "../../src/limits.js";
 import { createAgentToolHandlers } from "../../src/tools/agent-tools.js";
 import { agentToolResult } from "../../src/tools/agent-tool-result.js";
 import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
@@ -16,11 +17,12 @@ const clock = { now: () => T0 + 100, after: () => ({ cancel() {} }), every: () =
 it("routes after to delta retrieval and returns reusable cursors for old-post comments", () => {
   const swarm = seedSwarm(db);
   const tools = createAgentToolHandlers({ getDb: () => db, swarmId: swarm.id, agentName: "Maria", clock });
-  const postResult = tools.post({ title: "Large body", text: "x".repeat(4000) });
+  const body = "x".repeat(bodyCeiling(TEXT_MAX));
+  const postResult = tools.post({ title: "Large body", text: body });
   const postId = Number(/#(\d+)/.exec(postResult)?.[1]);
   const first = tools.readPosts({ after: initialWallCursor(swarm.id), count: 1 });
   assert.match(first, new RegExp(`Post #${postId}: Large body`));
-  assert.match(first, /read post #\d+ for full text/);
+  assert.ok(first.includes(body), "stored bodies are listed whole");
   const after = /Next cursor: (\S+)/.exec(first)?.[1];
   assert.ok(after);
   tools.comment({ post_id: postId, text: "Updated evidence" });
@@ -30,7 +32,7 @@ it("routes after to delta retrieval and returns reusable cursors for old-post co
   const next = /Next cursor: (\S+)/.exec(delta)?.[1];
   assert.ok(next);
   assert.match(tools.readPosts({ after: next }), /^No wall changes./);
-  assert.match(tools.readPost({ post_id: postId }), new RegExp("x".repeat(4000)));
+  assert.ok(tools.readPost({ post_id: postId }).includes(body));
 });
 
 it("binds acceptance mutations to each peer's identity and propagates stale/ownership errors", () => {

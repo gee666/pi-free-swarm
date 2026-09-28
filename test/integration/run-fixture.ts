@@ -43,7 +43,7 @@ export function createRunFixture(
   scenario: FakePiScenario,
   options: {
     staggerSeconds?: number;
-    latePeers?: number;
+    latePeerRatio?: number;
     timings?: Partial<RunTimings>;
     settingsEnv?: Record<string, string>;
   } = {},
@@ -58,7 +58,7 @@ export function createRunFixture(
     defaultAgents: 2,
     bodyMaxChars: 4000,
     staggerSeconds: options.staggerSeconds ?? 0,
-    latePeers: options.latePeers ?? 0,
+    latePeerRatio: options.latePeerRatio ?? 0,
     env: { ...fake.env, ...options.settingsEnv },
   };
   const notes: string[] = [];

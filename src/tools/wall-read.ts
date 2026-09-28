@@ -1,4 +1,4 @@
-import { initialWallCursor, readWallDeltaAs } from "../broker/wall-delta.js";
+import { initialWallCursor, readWallDeltaAs, wallPreviewChars } from "../broker/wall-delta.js";
 import { readPostsAs } from "../broker/wall.js";
 import { PAGE_DEFAULT_COUNT } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
@@ -16,7 +16,7 @@ export function readWallTool(
     const count = input.count ?? PAGE_DEFAULT_COUNT;
     const offset = input.offset ?? 0;
     const result = readPostsAs(db, swarmId, reader, { count, offset });
-    return `${formatPostList(result.page, result.newPostIds, offset, now)}\nNext cursor: ${initialWallCursor(swarmId)} (delta history starts at the beginning)`;
+    return `${formatPostList(result.page, result.newPostIds, offset, now, wallPreviewChars(db))}\nNext cursor: ${initialWallCursor(swarmId)} (delta history starts at the beginning)`;
   }
   const delta = readWallDeltaAs(db, swarmId, reader, input.after, input.count);
   const lines = delta.changes.map((change) => {

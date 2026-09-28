@@ -100,9 +100,9 @@ describe("wall writes", () => {
       message: "Title too long: 72/60 characters. Shorten it.",
       field: "title",
     });
-    await expectError(postJson(url("/posts"), { title: "t", text: "x".repeat(4001) }), 400, {
+    await expectError(postJson(url("/posts"), { title: "t", text: " " }), 400, {
       error: "validation",
-      message: "Too long: 4001/4000 characters. Shorten it or point to a file path.",
+      message: "Text is empty.",
       field: "text",
     });
     await expectError(postJson(url("/posts/999/comments"), { text: "hi" }), 404, {

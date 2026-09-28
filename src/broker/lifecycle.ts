@@ -18,7 +18,8 @@ export interface QuiescenceInput {
   openRecipients: number;
 }
 
-function isSettled(agent: AgentLiveness): boolean {
+/** Idle, or crashed for good. */
+export function isSettled(agent: AgentLiveness): boolean {
   if (agent.status === "idle") return true;
   return agent.status === "crashed" && agent.revivesExhausted && !agent.reviveScheduled;
 }

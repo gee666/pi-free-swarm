@@ -9,6 +9,7 @@ import type { WatchdogConfig } from "../agents/watchdog.js";
 import type { Clock, TimerHandle } from "../clock.js";
 import type { SwarmDb } from "../store/db.js";
 import { createAgentHooks } from "./agent-hooks.js";
+import { bodyLimit } from "./body-limit.js";
 import { incrementReviveCount } from "./agent-state.js";
 import type { DeliveryTarget } from "./delivery.js";
 import { markDelivered } from "./delivery-state.js";
@@ -98,7 +99,11 @@ export class RunAgent implements DeliveryTarget {
     fs.mkdirSync(path.dirname(this.#spec.systemPromptFile), { recursive: true });
     fs.writeFileSync(
       this.#spec.systemPromptFile,
-      buildSystemPrompt({ agentName: this.name, swarmName: this.#ctx.swarmName }),
+      buildSystemPrompt({
+        agentName: this.name,
+        swarmName: this.#ctx.swarmName,
+        bodyMaxChars: bodyLimit(this.#ctx.db),
+      }),
     );
   }
 

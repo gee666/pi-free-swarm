@@ -22,7 +22,7 @@ await startSwarm(
       defaultAgents: 2,
       bodyMaxChars: 4000,
       staggerSeconds: 60,
-      latePeers: 0,
+      latePeerRatio: 0,
       env,
     },
     launch: { extensionArgs: [], projectTrusted: false, model: null },

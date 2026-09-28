@@ -10,7 +10,7 @@ import type { RunEnvironment, RunOptions, RunOutcome } from "../../src/broker/sw
 import { createSwarm, endRun } from "../../src/broker/swarms.js";
 import { createPost } from "../../src/broker/wall.js";
 import { WALL_DIGEST_MAX_POSTS } from "../../src/constants.js";
-import { BODY_SAFETY_MAX, TEXT_MAX } from "../../src/limits.js";
+import { BODY_SAFETY_MAX, bodyCeiling, TEXT_MAX } from "../../src/limits.js";
 import { createMainRuntime } from "../../src/main-runtime.js";
 import { getSwarm } from "../../src/store/swarm-queries.js";
 import { createMainToolHandlers, type SwarmRunner } from "../../src/tools/main-tools.js";
@@ -25,7 +25,9 @@ for (const mode of ["swarm", "resume"] as const) {
     it(`${mode} bounds ${WALL_DIGEST_MAX_POSTS} legal ${bodyMaxChars}-character bodies and preserves full evidence and progress`, async () => {
       const cwd = mkdtempSync(path.join(tmpdir(), "pi-main-result-"));
       mkdirSync(path.join(cwd, ".pi/swarm"), { recursive: true });
-      writeFileSync(path.join(cwd, ".pi/swarm/settings.json"), JSON.stringify({ bodyMaxChars }));
+      if (bodyMaxChars !== TEXT_MAX) {
+        writeFileSync(path.join(cwd, ".pi/swarm/settings.json"), JSON.stringify({ bodyMaxChars }));
+      }
       const runtime = createMainRuntime({
         cwd,
         extensionPath: "/extension/index.ts",
@@ -44,7 +46,7 @@ for (const mode of ["swarm", "resume"] as const) {
         const evidence = hugeEvidence
           ? `${"evidence line\n".repeat(DEFAULT_MAX_LINES + 1)}evidence-tail`
           : "all checks recorded";
-        const body = "😀".repeat(bodyMaxChars);
+        const body = "😀".repeat(bodyCeiling(bodyMaxChars));
         let fullText = "";
         let expectedProgress: RunProgress | undefined;
         const complete = (env: RunEnvironment, swarmId: number, options: RunOptions) => {

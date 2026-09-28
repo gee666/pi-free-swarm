@@ -1,7 +1,7 @@
 // Message writes: new threads, replies, Main's feedback and the User's read marks.
 import type { MarkReadResponse, MessageView, ThreadResponse } from "../api-types.js";
 import { MAIN_FEEDBACK_POST_SUFFIX, MAIN_FEEDBACK_POST_TITLE, MAIN_NAME, USER_NAME } from "../constants.js";
-import { charCount, TEXT_MAX } from "../limits.js";
+import { bodyCeiling, clipWithSuffix, MAIN_FEEDBACK_MAX } from "../limits.js";
 import type { SwarmDb } from "../store/db.js";
 import { getThread, getThreadView, unreadCounts } from "../store/message-queries.js";
 import {
@@ -10,6 +10,7 @@ import {
   listMessageableNames,
   type ParticipantRef,
 } from "../store/swarm-queries.js";
+import { storedBody } from "./attachment.js";
 import { bodyLimit } from "./body-limit.js";
 import { markRead } from "./delivery-state.js";
 import { BrokerError } from "./errors.js";
@@ -68,9 +69,9 @@ export function sendMessage(
   const result = db.write(() => {
     requireSwarm(db, swarmId);
     const sender = actAs(db, swarmId, from, now);
-    const value = requireText(text, bodyLimit(db));
     const recipients = resolveRecipients(db, swarmId, sender, to);
     const threadId = createThread(db, swarmId, [sender.name, ...recipients.map((r) => r.name)], now);
+    const value = storedBody(db, swarmId, "message", text);
     return sendToThread(db, { swarmId, threadId, sender, recipients, text: value, now });
   });
   return afterCommit(swarmId, result);
@@ -93,30 +94,27 @@ export function replyToThread(
     if (!thread.members.includes(sender.name)) {
       throw new BrokerError("not_member", `You are not a member of thread #${threadId}.`);
     }
-    const value = requireText(text, bodyLimit(db));
     const recipients = thread.members
       .filter((name) => name !== sender.name)
       .flatMap((name) => findParticipant(db, swarmId, name) ?? [])
       .filter(canReceive);
     if (recipients.length === 0) throw new BrokerError("validation", `Nobody else is in thread #${threadId}.`);
+    const value = storedBody(db, swarmId, "message", text);
     return sendToThread(db, { swarmId, threadId, sender, recipients, text: value, now });
   });
   return afterCommit(swarmId, result);
 }
 
 /** The full feedback stays in its thread; the wall carries a bounded pointer. */
-export function feedbackPostBody(feedback: string, max = TEXT_MAX): string {
-  const room = max - 1 - charCount(MAIN_FEEDBACK_POST_SUFFIX);
-  const chars = Array.from(feedback);
-  const head = chars.length <= room ? feedback : chars.slice(0, room).join("").trimEnd();
-  return `${head} ${MAIN_FEEDBACK_POST_SUFFIX}`;
+export function feedbackPostBody(feedback: string, max: number): string {
+  return clipWithSuffix(feedback, MAIN_FEEDBACK_POST_SUFFIX, max);
 }
 
-/** Resume feedback: a new thread from Main to every agent plus a short wall post by Main. */
+/** Resume feedback keeps its own larger limit: a new thread from Main to every agent plus a short wall post by Main. */
 export function sendMainFeedback(db: SwarmDb, swarmId: number, text: string, now: number): MessageView {
   const result = db.write(() => {
     requireSwarm(db, swarmId);
-    const value = requireText(text, bodyLimit(db), "message");
+    const value = requireText(text, MAIN_FEEDBACK_MAX, "message");
     const sender = actAs(db, swarmId, MAIN_NAME, now);
     const recipients = listAgentSessions(db, swarmId).map((agent): ParticipantRef => ({
       name: agent.name,
@@ -128,7 +126,7 @@ export function sendMainFeedback(db: SwarmDb, swarmId: number, text: string, now
       db,
       swarmId,
       MAIN_NAME,
-      { title: MAIN_FEEDBACK_POST_TITLE, text: feedbackPostBody(value, bodyLimit(db)) },
+      { title: MAIN_FEEDBACK_POST_TITLE, text: feedbackPostBody(value, bodyCeiling(bodyLimit(db))) },
       now,
     );
     return sent;

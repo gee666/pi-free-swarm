@@ -1,6 +1,5 @@
 // Model-facing text of the agent tools: one compact line per item, relative times, no markdown.
 import type { MessageView, PostDetailResponse, PostListResponse, PostSummary, ThreadResponse } from "../api-types.js";
-import { WALL_PREVIEW_CHARS } from "../broker/wall-delta.js";
 import { UNDELIVERABLE_REPLY_TEXT } from "../constants.js";
 
 const SECOND = 1_000;
@@ -21,11 +20,11 @@ function plural(count: number, noun: string): string {
 }
 
 /** `#12 Maria · 5m ago · Kickoff — text (4 comments) (new)` */
-export function formatPostLine(post: PostSummary, now: number, isNew: boolean): string {
+function formatPostLine(post: PostSummary, now: number, isNew: boolean, previewChars: number): string {
   const chars = Array.from(post.text);
   const preview =
-    chars.length > WALL_PREVIEW_CHARS
-      ? `${chars.slice(0, WALL_PREVIEW_CHARS).join("")} … (read post #${post.id} for full text)`
+    chars.length > previewChars
+      ? `${chars.slice(0, previewChars).join("")} … (read post #${post.id} for full text)`
       : post.text;
   const line = `#${post.id} ${post.author} · ${timeAgo(post.createdAt, now)} · ${post.title} — ${preview}`;
   return `${line} (${plural(post.commentCount, "comment")})${isNew ? " (new)" : ""}`;
@@ -36,11 +35,12 @@ export function formatPostList(
   newPostIds: readonly number[],
   offset: number,
   now: number,
+  previewChars: number,
 ): string {
   if (page.total === 0) return "The wall is empty.";
   if (page.posts.length === 0) return `No posts at offset ${offset} (${page.total} total).`;
   const fresh = new Set(newPostIds);
-  const lines = page.posts.map((post) => formatPostLine(post, now, fresh.has(post.id)));
+  const lines = page.posts.map((post) => formatPostLine(post, now, fresh.has(post.id), previewChars));
   if (page.posts.length < page.total) {
     lines.unshift(`Posts ${offset + 1}–${offset + page.posts.length} of ${page.total}, newest first:`);
   }

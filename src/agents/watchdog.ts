@@ -42,7 +42,7 @@ export class StallWatchdog {
   #startupTimer: TimerHandle | undefined;
   #idleTimer: TimerHandle | undefined;
   #receivedFirstTurn = false;
-  #providerWaitId: string | null = null;
+  #idleDeadline = 0;
   #settled = false;
   #fired = false;
 
@@ -76,30 +76,32 @@ export class StallWatchdog {
     // The window measures the agent, not its tools: a tool may be silent for longer than the timeout,
     // so stay disarmed until every concurrent execution ended (toolEnded restarts a full window).
     if (this.#activeToolCallIds.size > 0) return;
-    const quietMs = Math.max(idleTimeoutMs, minimumQuietMs);
+    this.#armIdle(Math.max(idleTimeoutMs, minimumQuietMs));
+  }
+
+  /**
+   * Any stdout record, including extension UI notices, proves the process is alive. It renews the
+   * configured window but never shortens a longer one, e.g. a retry grace; silence still stalls.
+   */
+  noteOutput(): void {
+    if (this.#fired || this.#settled) return;
+    if (!this.#receivedFirstTurn) {
+      this.armStartup();
+      return;
+    }
+    // Unarmed after the first turn means a tool runs or the timeout is off: output must not arm it.
+    if (this.#idleTimer === undefined) return;
+    const renewedMs = this.#config.idleTimeoutMs;
+    if (this.#clock.now() + renewedMs <= this.#idleDeadline) return;
+    this.#cancelIdle();
+    this.#armIdle(renewedMs);
+  }
+
+  #armIdle(quietMs: number): void {
+    this.#idleDeadline = this.#clock.now() + quietMs;
     this.#idleTimer = this.#clock.after(quietMs, () => {
       this.#fire("inactivity", `Agent inactivity timeout: no agent activity for ${quietMs}ms.`);
     });
-  }
-
-  /** Receipt is liveness, not a first turn. Missing ticks still exhaust the configured timeout. */
-  noteProviderWait(waitId: string): void {
-    if (this.#fired || this.#settled) return;
-    this.#providerWaitId = waitId;
-    this.#refreshProviderWait();
-  }
-
-  endProviderWait(waitId?: string): void {
-    if (this.#providerWaitId === null || (waitId !== undefined && waitId !== this.#providerWaitId)) return;
-    this.#providerWaitId = null;
-    if (this.#fired || this.#settled) return;
-    // Allow the retry or terminal error to arrive, but never turn an ended wait into an exemption.
-    this.#refreshProviderWait();
-  }
-
-  #refreshProviderWait(): void {
-    if (this.#receivedFirstTurn) this.noteActivity();
-    else this.armStartup();
   }
 
   toolStarted(toolCallId: string): void {
@@ -115,7 +117,6 @@ export class StallWatchdog {
   /** A settled agent waits for messages as long as needed, so nothing may fire until rearm(). */
   disarm(): void {
     this.#settled = true;
-    this.#providerWaitId = null;
     this.#activeToolCallIds.clear();
     this.#cancelStartup();
     this.#cancelIdle();
@@ -128,7 +129,6 @@ export class StallWatchdog {
 
   #fire(kind: StallKind, message: string): void {
     this.#fired = true;
-    this.#providerWaitId = null;
     this.#cancelStartup();
     this.#cancelIdle();
     this.#onStall(kind, message);

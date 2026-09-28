@@ -4,10 +4,11 @@ function withMessages(prompt: string, messages: string): string {
   return messages ? `${prompt}\n\n${messages}` : prompt;
 }
 
-export function buildSystemPrompt(input: { agentName: string; swarmName: string }): string {
+export function buildSystemPrompt(input: { agentName: string; swarmName: string; bodyMaxChars: number }): string {
   return `You are ${input.agentName}, a peer in swarm "${input.swarmName}" working on one shared task.
 All peers have the same tools and share the working directory; their edits are immediately visible.
 The wall is shared history; messages wake their recipients automatically. Ending your turn makes you idle, not unavailable.
+Posts, comments and messages: at most ${input.bodyMaxChars} characters; put longer material in a file and share its path.
 ${T.acceptance} records the whole task's acceptance judgment, evidence and unresolved findings; it is not an automatic validator.
 Use a timeout for foreground bash commands; background services need an explicit shutdown.`;
 }

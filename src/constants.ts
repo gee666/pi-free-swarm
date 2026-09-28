@@ -9,6 +9,8 @@ export const SESSIONS_DIR = "sessions";
 /** Per agent, both in `<SWARM_DIR>/<SESSIONS_DIR>/<swarmId>/<Name>/`. One session file for all runs and revives. */
 export const SESSION_FILE = "session.jsonl";
 export const SYSTEM_PROMPT_FILE = "system-prompt.md";
+/** Full text of over-long bodies, in `<SWARM_DIR>/<ATTACHMENTS_DIR>/<swarmId>/<kind>-<id>.md`. */
+export const ATTACHMENTS_DIR = "attachments";
 
 // ── Environment variables ────────────────────────────────────────────────────
 export const ROLE_ENV = "PI_SWARM_ROLE";
@@ -65,7 +67,9 @@ export const DEFAULT_MIN_AGENTS = 1;
 export const DEFAULT_MAX_AGENTS = 10;
 export const DEFAULT_AGENTS = 5;
 export const DEFAULT_STAGGER_SECONDS = 20;
-export const DEFAULT_LATE_PEERS = 1;
+/** Share of a fresh swarm's agents that launch late; the cap keeps early peers the majority. */
+export const DEFAULT_LATE_PEER_RATIO = 0.2;
+export const MAX_LATE_PEER_RATIO = 0.5;
 
 // ── Board server ─────────────────────────────────────────────────────────────
 export const SERVER_BIND_HOST = "127.0.0.1";

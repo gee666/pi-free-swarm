@@ -4,9 +4,9 @@ import type { SwarmDb } from "../store/db.js";
 import { insertEvent } from "../store/events.js";
 import { commentOf, count, int } from "../store/rows.js";
 import { getPost, listPosts } from "../store/wall-queries.js";
-import { bodyLimit } from "./body-limit.js";
+import { storedBody } from "./attachment.js";
 import { BrokerError } from "./errors.js";
-import { actAs, checkPage, requireParticipant, requireSwarm, requireText, requireTitle } from "./validate.js";
+import { actAs, checkPage, requireParticipant, requireSwarm, requireTitle } from "./validate.js";
 
 export function createPost(
   db: SwarmDb,
@@ -19,7 +19,7 @@ export function createPost(
     requireSwarm(db, swarmId);
     const participant = actAs(db, swarmId, author, now);
     const title = requireTitle(input.title);
-    const body = requireText(input.text, bodyLimit(db));
+    const body = storedBody(db, swarmId, "post", input.text);
     const postId = count(
       db.sql
         .prepare("INSERT INTO posts (swarm_id, author, title, body, created_at) VALUES (?, ?, ?, ?, ?)")
@@ -52,7 +52,7 @@ export function addComment(
     const participant = actAs(db, swarmId, author, now);
     const post = getPost(db, swarmId, postId);
     if (post === null) throw new BrokerError("not_found", `Post #${postId} not found.`);
-    const body = requireText(text, bodyLimit(db));
+    const body = storedBody(db, swarmId, "comment", text);
     const commentId = count(
       db.sql
         .prepare("INSERT INTO comments (post_id, swarm_id, author, body, created_at) VALUES (?, ?, ?, ?, ?)")

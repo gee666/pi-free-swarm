@@ -1,12 +1,18 @@
 import { Buffer } from "node:buffer";
 import { PAGE_DEFAULT_COUNT, PAGE_MAX_COUNT } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
+import { bodyCeiling } from "../limits.js";
 import { int, text as str } from "../store/rows.js";
+import { bodyLimit } from "./body-limit.js";
 import { BrokerError } from "./errors.js";
 import { requireParticipant, requireSwarm } from "./validate.js";
 
 export const WALL_DELTA_MAX = PAGE_MAX_COUNT;
-export const WALL_PREVIEW_CHARS = 500;
+
+/** Stored bodies fit the ceiling, so only rows written under a larger setting are cut in lists. */
+export function wallPreviewChars(db: SwarmDb): number {
+  return bodyCeiling(bodyLimit(db));
+}
 
 export interface WallChange {
   revision: number;
@@ -65,6 +71,7 @@ export function readWallDeltaAs(
     throw new BrokerError("validation", `count must be between 1 and ${WALL_DELTA_MAX}.`, "count");
   }
   const revision = decodeCursor(after, swarmId);
+  const preview = wallPreviewChars(db);
   return db.write(() => {
     requireSwarm(db, swarmId);
     requireParticipant(db, swarmId, reader);
@@ -83,7 +90,7 @@ export function readWallDeltaAs(
       ORDER BY w.revision LIMIT ?
     `,
       )
-      .all(WALL_PREVIEW_CHARS, swarmId, revision, count + 1);
+      .all(preview, swarmId, revision, count + 1);
     const changes = rows.slice(0, count).map((row): WallChange => ({
       revision: int(row, "revision"),
       kind: str(row, "kind") === "post" ? "post" : "comment",
@@ -92,7 +99,7 @@ export function readWallDeltaAs(
       author: str(row, "author"),
       title: str(row, "title"),
       text: str(row, "body"),
-      truncated: int(row, "body_length") > WALL_PREVIEW_CHARS,
+      truncated: int(row, "body_length") > preview,
       createdAt: int(row, "created_at"),
     }));
     return {

@@ -44,8 +44,8 @@ describe("loadSettings", () => {
       maxAgents: 10,
       defaultAgents: 5,
       staggerSeconds: 20,
-      bodyMaxChars: 4000,
-      latePeers: 1,
+      bodyMaxChars: 200,
+      latePeerRatio: 0.2,
       env: {},
     });
     assert.deepEqual(warnings, []);
@@ -53,18 +53,19 @@ describe("loadSettings", () => {
 
   it("bounds the configurable body allowance", () => {
     assert.equal(loadSettings(project('{"bodyMaxChars": 8000}')).settings.bodyMaxChars, 8000);
-    for (const value of [0, 255, 16001, 4000.5, "4000"]) {
+    for (const value of [0, 99, 16001, 4000.5, "4000"]) {
       assert.match(loadError(JSON.stringify({ bodyMaxChars: value })), /bodyMaxChars must be an integer/);
     }
   });
 
-  it("reads latePeers as a nonnegative integer", () => {
-    assert.equal(loadSettings(project('{"latePeers": 0}')).settings.latePeers, 0);
-    assert.equal(loadSettings(project('{"latePeers": 3}')).settings.latePeers, 3);
-    for (const value of [-1, 1.5, "1", null, true]) {
+  it("reads latePeerRatio as a fraction up to one half", () => {
+    for (const ratio of [0, 0.35, 0.5]) {
+      assert.equal(loadSettings(project(JSON.stringify({ latePeerRatio: ratio }))).settings.latePeerRatio, ratio);
+    }
+    for (const value of [-0.1, 0.51, 1, "0.2", null, true]) {
       assert.equal(
-        loadError(JSON.stringify({ latePeers: value })),
-        `settings.json: latePeers must be an integer >= 0 (got ${JSON.stringify(value)})`,
+        loadError(JSON.stringify({ latePeerRatio: value })),
+        `settings.json: latePeerRatio must be a number 0–0.5 (got ${JSON.stringify(value)})`,
       );
     }
   });
@@ -145,10 +146,10 @@ describe("agent amount", () => {
   it("describes the range", () => {
     assert.equal(
       describeAgentRange(settings),
-      "agent_amount: 2–8, default 5, including up to 1 late peer launched when the others first go quiet",
+      "agent_amount: 2–8, default 5, including about 20% late peers (at least 1 from 2 agents) launched as the others go quiet",
     );
-    assert.equal(describeAgentRange({ ...settings, latePeers: 0 }), "agent_amount: 2–8, default 5");
-    assert.match(describeAgentRange({ ...settings, latePeers: 2 }), /up to 2 late peers/);
+    assert.equal(describeAgentRange({ ...settings, latePeerRatio: 0 }), "agent_amount: 2–8, default 5");
+    assert.match(describeAgentRange({ ...settings, latePeerRatio: 0.5 }), /about 50% late peers/);
   });
 });
 

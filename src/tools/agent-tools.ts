@@ -4,7 +4,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { systemClock, type Clock } from "../clock.js";
 import { AGENT_TOOL, PAGE_DEFAULT_COUNT, PAGE_MAX_COUNT } from "../constants.js";
-import { BODY_SAFETY_MAX, TEXT_MAX, TITLE_MAX } from "../limits.js";
+import { TITLE_MAX } from "../limits.js";
 import { BrokerError } from "../broker/errors.js";
 import { replyToThread, readThreadAs, sendMessage } from "../broker/messages.js";
 import { addComment, createPost } from "../broker/wall.js";
@@ -23,9 +23,8 @@ export interface AgentToolIdentity {
 }
 
 const BRIEF = "Be extremely brief and focused.";
-const BODY_LIMIT = `Body allowance: bodyMaxChars in settings.json (default ${TEXT_MAX}, safety ceiling ${BODY_SAFETY_MAX} chars).`;
-const textParam = () =>
-  Type.String({ description: `Plain text. ${BODY_LIMIT} For more, write a file and give its path.` });
+const bodyRule = (bodyMaxChars: number) =>
+  `At most ${bodyMaxChars} chars; put longer material in a file and share its path.`;
 
 const READ_POSTS = Type.Object({
   count: Type.Optional(
@@ -37,16 +36,14 @@ const READ_POSTS = Type.Object({
   ),
 });
 const READ_POST = Type.Object({ post_id: Type.Integer() });
-const POST = Type.Object({
-  title: Type.String({ description: `Max ${TITLE_MAX} chars.` }),
-  text: textParam(),
-});
-const COMMENT = Type.Object({ post_id: Type.Integer(), text: textParam() });
+const TEXT = Type.String({ description: "Plain text." });
+const POST = Type.Object({ title: Type.String({ description: `Max ${TITLE_MAX} chars.` }), text: TEXT });
+const COMMENT = Type.Object({ post_id: Type.Integer(), text: TEXT });
 const MESSAGE = Type.Object({
   to: Type.Array(Type.String(), { description: 'Participant names from the wall; "User" is the human.' }),
-  text: textParam(),
+  text: TEXT,
 });
-const REPLY_TO = Type.Object({ thread_id: Type.Integer(), text: textParam() });
+const REPLY_TO = Type.Object({ thread_id: Type.Integer(), text: TEXT });
 const READ_THREAD = Type.Object({ thread_id: Type.Integer() });
 
 /** The tool bodies, returning the model-facing text. Separate from registration so tests need no pi. */
@@ -88,8 +85,14 @@ export function createAgentToolHandlers(identity: AgentToolIdentity) {
   };
 }
 
-export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, identity: AgentToolIdentity): void {
+/** `bodyMaxChars` is the stated limit; the broker quietly tolerates more (see `bodyCeiling`). */
+export function registerAgentTools(
+  pi: Pick<ExtensionAPI, "registerTool">,
+  identity: AgentToolIdentity,
+  bodyMaxChars: number,
+): void {
   const run = createAgentToolHandlers(identity);
+  const limit = bodyRule(bodyMaxChars);
   pi.registerTool({
     name: AGENT_TOOL.readPosts,
     label: "Read wall",
@@ -114,7 +117,7 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
   pi.registerTool({
     name: AGENT_TOOL.post,
     label: "Post",
-    description: `Post to the swarm wall: plans, what you take, status. ${BRIEF} Title max ${TITLE_MAX} chars. ${BODY_LIMIT} Plain text, no markdown.`,
+    description: `Post to the swarm wall: plans, what you take, status. ${BRIEF} Title max ${TITLE_MAX} chars. ${limit} Plain text, no markdown.`,
     promptSnippet: "Post a short plan or status to the swarm wall.",
     parameters: POST,
     async execute(_toolCallId, params) {
@@ -124,7 +127,7 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
   pi.registerTool({
     name: AGENT_TOOL.comment,
     label: "Comment",
-    description: `Comment on a wall post. ${BRIEF} ${BODY_LIMIT} Plain text.`,
+    description: `Comment on a wall post. ${BRIEF} ${limit} Plain text.`,
     promptSnippet: "Comment on a wall post.",
     parameters: COMMENT,
     async execute(_toolCallId, params) {
@@ -134,7 +137,7 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
   pi.registerTool({
     name: AGENT_TOOL.message,
     label: "Message",
-    description: `Start a new message thread with the given participants (names from the wall, or "User" for the human). They are woken up with it. ${BRIEF} ${BODY_LIMIT} Never wait for an answer.`,
+    description: `Start a new message thread with the given participants (names from the wall, or "User" for the human). They are woken up with it. ${BRIEF} ${limit} Never wait for an answer.`,
     promptSnippet: "Message other agents or the User in a new thread.",
     parameters: MESSAGE,
     async execute(_toolCallId, params) {
@@ -144,7 +147,7 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
   pi.registerTool({
     name: AGENT_TOOL.replyTo,
     label: "Reply",
-    description: `Reply to every other member of a thread you are in. ${BRIEF} ${BODY_LIMIT}`,
+    description: `Reply to every other member of a thread you are in. ${BRIEF} ${limit}`,
     promptSnippet: "Reply in a message thread.",
     parameters: REPLY_TO,
     async execute(_toolCallId, params) {

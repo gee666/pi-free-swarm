@@ -4,7 +4,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { systemClock } from "../clock.js";
 import { MAIN_TOOL, SETTINGS_FILE, SWARM_DIR } from "../constants.js";
-import { BODY_SAFETY_MAX, checkText, checkTitle, MAIN_FEEDBACK_MAX, TITLE_MAX } from "../limits.js";
+import { checkText, checkTitle, MAIN_FEEDBACK_MAX, TITLE_MAX } from "../limits.js";
 import { BrokerError } from "../broker/errors.js";
 import { readRunProgress, type RunProgress } from "../broker/run-progress.js";
 import { resumeSwarm, startSwarm, type RunEnvironment, type RunOptions, type RunOutcome } from "../broker/swarm-run.js";
@@ -42,7 +42,7 @@ export const SWARM_PARAMS = Type.Object({
 export const RESUME_PARAMS = Type.Object({
   swarm_id: Type.Integer({ description: "Id from the swarm result, e.g. 3." }),
   message: Type.String({
-    description: `Feedback for the agents: what is wrong or missing and what to do. Body allowance is bodyMaxChars in settings.json (default ${MAIN_FEEDBACK_MAX}, safety ceiling ${BODY_SAFETY_MAX} chars).`,
+    description: `Feedback for the agents: what is wrong or missing and what to do. At most ${MAIN_FEEDBACK_MAX} chars.`,
   }),
 });
 
