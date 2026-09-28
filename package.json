@@ -1,6 +1,6 @@
 {
   "name": "pi-free-swarm",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Pi extension that launches a leaderless swarm of pi agents that self-organise on a shared wall, with a live web board.",
   "type": "module",
   "main": "index.ts",
