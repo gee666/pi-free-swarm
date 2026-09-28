@@ -39,6 +39,21 @@ Extension commits (local, not pushed):
 3. `155e915` **Late peers**. The last `latePeers` (default 1) agents of a fresh swarm are held back and
    launched when the others first go quiet. Same system prompt and kickoff, fresh context.
 
+4. `c35f7aa` **Review follow-up** (discussion after run 07):
+   - **Short messages.** Agents are told `bodyMaxChars` (default 200) plus "put longer material in a file". Up to
+     2× is accepted silently to absorb miscounting. Anything longer is saved as an attachment, and the body
+     ends with its path: no rejection and no retry turn. Motivation: at 4,000 characters, Opus posts grew to a
+     median of ~800 (max 3,812), inflating every reader's context. At 200 characters, rejections were mostly
+     1–6 characters over.
+   - **Generic liveness.** Any record the agent process writes counts as liveness for the watchdog. This
+     replaces `a7f677e`'s parsing of another extension's private status key.
+   - **Scaled late peers.** Setting `latePeerRatio` (default 0.2) replaces `latePeers`: 20 agents → 16 early +
+     4 late. Late peer *i* of the first L−1 joins once ⌈i·E/L⌉ early peers are idle at the same time, so fresh
+     eyes arrive while work continues. The last one is kept for full quiescence, to catch cross-cutting issues.
+   - **`-ne` is only forwarded.** Agents get `--no-extensions` only when the parent itself used it, so they
+     load the same extensions. Test runs with `-ne` must pass needed provider extensions such as
+     `openai-dmitry` explicitly with `-e`.
+
 ## What the traces showed
 
 - **Rejected coordination writes disappeared.** The baseline had 139 length rejections (23.6% of
