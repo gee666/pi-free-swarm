@@ -1,6 +1,5 @@
 // Launching agents against test/fixtures/fake-pi.ts: env, temp dirs, logs and named scenarios.
 import * as fs from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PI_ARGS_PREFIX_ENV, PI_COMMAND_ENV } from "../../../src/constants.js";
@@ -71,7 +70,8 @@ export interface FakePiRun {
 }
 
 export function createFakePiRun(scenario: FakePiScenario): FakePiRun {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "swarm-fake-pi-"));
+  fs.mkdirSync("tmp", { recursive: true });
+  const dir = fs.mkdtempSync(path.resolve("tmp/swarm-fake-pi-"));
   const scenarioFile = path.join(dir, "scenario.json");
   const logFile = path.join(dir, "log.jsonl");
   fs.writeFileSync(scenarioFile, JSON.stringify(scenario));

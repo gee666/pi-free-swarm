@@ -1,6 +1,12 @@
 // Message writes: new threads, replies, Main's feedback and the User's read marks.
 import type { MarkReadResponse, MessageView, ThreadResponse } from "../api-types.js";
-import { MAIN_FEEDBACK_POST_SUFFIX, MAIN_FEEDBACK_POST_TITLE, MAIN_NAME, USER_NAME } from "../constants.js";
+import {
+  MAIN_FEEDBACK_POST_SUFFIX,
+  MAIN_FEEDBACK_POST_TITLE,
+  MAIN_NAME,
+  USER_NAME,
+  WATCHER_NAME,
+} from "../constants.js";
 import { bodyCeiling, clipWithSuffix, MAIN_FEEDBACK_MAX } from "../limits.js";
 import type { SwarmDb } from "../store/db.js";
 import { getThread, getThreadView, unreadCounts } from "../store/message-queries.js";
@@ -116,10 +122,12 @@ export function sendMainFeedback(db: SwarmDb, swarmId: number, text: string, now
     requireSwarm(db, swarmId);
     const value = requireText(text, MAIN_FEEDBACK_MAX, "message");
     const sender = actAs(db, swarmId, MAIN_NAME, now);
-    const recipients = listAgentSessions(db, swarmId).map((agent): ParticipantRef => ({
-      name: agent.name,
-      kind: "agent",
-    }));
+    const recipients = listAgentSessions(db, swarmId)
+      .filter((agent) => agent.name !== WATCHER_NAME)
+      .map((agent): ParticipantRef => ({
+        name: agent.name,
+        kind: "agent",
+      }));
     const threadId = createThread(db, swarmId, [sender.name, ...recipients.map((r) => r.name)], now);
     const sent = sendToThread(db, { swarmId, threadId, sender, recipients, text: value, now });
     createPost(

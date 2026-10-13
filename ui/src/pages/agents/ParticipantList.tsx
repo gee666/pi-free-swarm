@@ -1,6 +1,5 @@
-import { Mail } from "lucide-react";
 import type { ParticipantView } from "../../../../src/api-types";
-import { IconButton } from "../../components/Button";
+import { AgentName } from "../../components/AgentName";
 import { CountBadge, StatusDot } from "../../components/Indicators";
 import { ListRow } from "../../components/ListRow";
 import { Panel, PanelBody, PanelHeader } from "../../components/Panel";
@@ -10,16 +9,14 @@ import { ErrorBanner, SkeletonRows } from "../../components/States";
 import { agentDotStatus } from "../../lib/swarmStatus";
 
 interface ParticipantListProps {
-  /** `User` first, then agents by launch order (the API's order). */
+  /** Most recently active participants first. */
   participants: readonly ParticipantView[] | undefined;
   error: Error | undefined;
   selected: string | undefined;
   onSelect: (name: string) => void;
-  /** Envelope button: start a message to this agent. */
-  onMessage: (name: string) => void;
 }
 
-export function ParticipantList({ participants, error, selected, onSelect, onMessage }: ParticipantListProps) {
+export function ParticipantList({ participants, error, selected, onSelect }: ParticipantListProps) {
   return (
     <Panel aria-label="Agents">
       <PanelHeader title="Agents" />
@@ -44,17 +41,12 @@ export function ParticipantList({ participants, error, selected, onSelect, onMes
                 <ListRow
                   key={participant.name}
                   avatar={participant.name}
-                  title={participant.name}
+                  title={<AgentName name={participant.name} />}
                   selected={participant.name === selected}
                   onSelect={() => onSelect(participant.name)}
                   trailing={
                     <>
                       <StatusDot status={agentDotStatus(participant.status)} />
-                      <IconButton
-                        icon={Mail}
-                        label={`Message ${participant.name}`}
-                        onClick={() => onMessage(participant.name)}
-                      />
                       <CountBadge count={participant.unread} reserveSpace />
                     </>
                   }

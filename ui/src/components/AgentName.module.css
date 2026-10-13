@@ -1,0 +1,35 @@
+.name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  min-width: 0;
+  vertical-align: middle;
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  opacity: 0.4;
+  transition: opacity var(--transition);
+}
+
+:where(li, tr, header, article, [data-agent-row]):hover .actions,
+:where(li, tr, header, article, [data-agent-row]):focus-within .actions,
+.name:hover .actions,
+.name:focus-within .actions {
+  opacity: 1;
+}
+
+.action {
+  width: var(--agent-action-size);
+  height: var(--agent-action-size);
+  border-radius: var(--radius-sm);
+}

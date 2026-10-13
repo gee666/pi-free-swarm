@@ -52,6 +52,6 @@
   min-height: 0;
 }
 
-.mainColumn > :first-child {
+.mainColumn > :last-child {
   flex: 1;
 }

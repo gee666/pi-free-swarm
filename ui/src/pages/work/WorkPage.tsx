@@ -3,9 +3,11 @@ import { Users } from "lucide-react";
 import type { AgentParticipantView, ParticipantView } from "../../../../src/api-types";
 import { useSwarmStream } from "../../api/SwarmStream";
 import { Avatar } from "../../components/Avatar";
+import { AgentName } from "../../components/AgentName";
 import { Button } from "../../components/Button";
 import { EntityHeader } from "../../components/EntityHeader";
 import { Panel, PanelHeader } from "../../components/Panel";
+import { agentDestination } from "../../lib/agentNavigation";
 import { EmptyState, ErrorBanner, SkeletonRows } from "../../components/States";
 import { PanelLayout } from "../../shell/AppShell";
 import { useSwarmDetail } from "../agents/useSwarmDetail";
@@ -22,7 +24,7 @@ export function WorkPage() {
   const detail = useSwarmDetail(id);
 
   const agents = detail.data?.participants.filter(isAgent) ?? [];
-  const agentPath = (agent: string) => `/s/${id}/work/${encodeURIComponent(agent)}`;
+  const agentPath = (agent: string) => agentDestination(id, agent, "work");
   if (name === undefined && agents.length > 0) return <Navigate to={agentPath(agents[0].name)} replace />;
   const selected = agents.find((agent) => agent.name.toLowerCase() === name?.toLowerCase());
 
@@ -34,7 +36,8 @@ export function WorkPage() {
       <>
         <EntityHeader
           avatar={<Avatar name={selected.name} size="lg" accent />}
-          title={selected.name}
+          title={<AgentName name={selected.name} />}
+          titleLabel={selected.name}
           subtitle={`Session · run ${detail.data.swarm.runCount} · ${selected.status}`}
         />
         <SessionFeed key={selected.name} swarmId={id} agent={selected.name} stream={stream} />

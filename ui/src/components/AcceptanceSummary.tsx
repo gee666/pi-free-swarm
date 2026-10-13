@@ -1,5 +1,6 @@
 import type { SwarmDetailResponse } from "../../../src/api-types";
 import styles from "./AcceptanceSummary.module.css";
+import { AgentName } from "./AgentName";
 
 export function AcceptanceSummary({ detail }: { detail: SwarmDetailResponse }) {
   const record = detail.acceptance;
@@ -16,8 +17,13 @@ export function AcceptanceSummary({ detail }: { detail: SwarmDetailResponse }) {
       </p>
       <p>Original task: {record.originalTask}</p>
       <p>
-        Revision {record.revision} · Updated by {record.updatedBy ?? "nobody"}
-        {record.claimant && ` · Checking: ${record.claimant}`}
+        Revision {record.revision} · Updated by {record.updatedBy ? <AgentName name={record.updatedBy} /> : "nobody"}
+        {record.claimant && (
+          <>
+            {" "}
+            · Checking: <AgentName name={record.claimant} />
+          </>
+        )}
       </p>
       <h3>Evidence</h3>
       {record.evidence.length === 0 ? (

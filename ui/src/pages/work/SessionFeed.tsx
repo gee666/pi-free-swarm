@@ -20,12 +20,13 @@ interface SessionFeedProps {
   stream: EventStream;
 }
 
-/** Newest-first session with reverse infinite scroll and live prepends. Mount per agent (`key={agent}`). */
+/** Newest entries on top; scrolling down loads older pages. Mount per agent (`key={agent}`). */
 export function SessionFeed({ swarmId, agent, stream }: SessionFeedProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const sentinel = useRef<HTMLDivElement>(null);
-  // Scroll metrics captured before a prepend while scrolled down, restored after the commit.
-  const anchor = useRef<{ height: number; top: number } | null>(null);
+  const entries = useRef<HTMLDivElement>(null);
+  // An existing entry ignores height changes from older pages appended in the same commit.
+  const anchor = useRef<{ item: Element; top: number } | "top" | null>(null);
   const [unseen, setUnseen] = useState(0);
   const atTop = () => (scroller.current?.scrollTop ?? 0) <= AT_TOP_PX;
 
@@ -34,9 +35,12 @@ export function SessionFeed({ swarmId, agent, stream }: SessionFeedProps) {
     agent,
     stream,
     onBeforePrepend: (count) => {
-      const element = scroller.current;
-      if (!element || atTop()) return;
-      anchor.current = { height: element.scrollHeight, top: element.scrollTop };
+      if (atTop()) {
+        anchor.current = "top";
+        return;
+      }
+      const item = entries.current?.firstElementChild;
+      if (item && anchor.current === null) anchor.current = { item, top: item.getBoundingClientRect().top };
       setUnseen((value) => value + count);
     },
   });
@@ -44,9 +48,10 @@ export function SessionFeed({ swarmId, agent, stream }: SessionFeedProps) {
   useLayoutEffect(() => {
     const element = scroller.current;
     const saved = anchor.current;
-    if (!element || !saved) return;
     anchor.current = null;
-    element.scrollTop = saved.top + (element.scrollHeight - saved.height);
+    if (!element || !saved) return;
+    if (saved === "top") element.scrollTop = 0;
+    else if (saved.item.isConnected) element.scrollTop += saved.item.getBoundingClientRect().top - saved.top;
   }, [feed.items]);
 
   const loadOlder = useRef(feed.loadOlder);
@@ -109,7 +114,7 @@ export function SessionFeed({ swarmId, agent, stream }: SessionFeedProps) {
             {`Could not load new entries: ${feed.newerError.message}`}
           </ErrorBanner>
         )}
-        <div className={styles.feed}>
+        <div ref={entries} className={styles.feed}>
           {feed.items.map((item) => (
             <FeedItem key={item.id} item={item} agent={agent} />
           ))}

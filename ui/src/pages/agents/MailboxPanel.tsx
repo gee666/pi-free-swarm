@@ -3,6 +3,7 @@ import { Inbox, Send } from "lucide-react";
 import type { MailboxKind, ParticipantView, ThreadView } from "../../../../src/api-types";
 import { USER_NAME } from "../../api/agents";
 import { Avatar } from "../../components/Avatar";
+import { AgentName } from "../../components/AgentName";
 import { EntityHeader } from "../../components/EntityHeader";
 import { Panel, PanelBody } from "../../components/Panel";
 import { RowList } from "../../components/RowList";
@@ -42,7 +43,8 @@ export function MailboxPanel({ swarmId, participant, banners, canSend, onReply }
       {banners}
       <EntityHeader
         avatar={<Avatar name={isUser ? "You" : participant.name} size="lg" accent />}
-        title={participant.name}
+        title={<AgentName name={participant.name} />}
+        titleLabel={participant.name}
         subtitle={isUser ? "Your mailbox" : "Mailbox"}
         actions={<SegmentedControl label="Mailbox" options={boxes} value={box} onChange={switchBox} />}
       />

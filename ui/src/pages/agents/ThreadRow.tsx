@@ -22,7 +22,7 @@ interface ThreadRowProps {
 
 /** A collapsed mailbox row shows the thread's latest message; expanding it shows the whole thread. */
 export function ThreadRow({ swarmId, viewer, box, item, expanded, onToggle, canSend, onReply }: ThreadRowProps) {
-  const last = item.messages.at(-1);
+  const last = item.messages[0];
   if (!last) return null;
   const recipients = visibleRecipients(last, viewer, box);
   return (

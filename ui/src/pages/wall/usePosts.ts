@@ -4,6 +4,7 @@ import { useAsync, type AsyncState } from "../../api/useAsync";
 import { useStreamListener } from "../../api/useEventStream";
 import { useLoadMore, type LoadMore } from "../../api/useLoadMore";
 import { fetchPosts } from "../../api/wall";
+import { newestFirst } from "../../lib/newestFirst";
 import { withCommentCount, withOlderPosts, withPost } from "./wallModel";
 
 const PAGE_SIZE = 20;
@@ -11,7 +12,11 @@ const PAGE_SIZE = 20;
 /** The wall, newest first, kept live from the swarm stream; older posts load on demand. */
 export function usePosts(swarmId: string): AsyncState<PostListResponse> & LoadMore {
   const stream = useSwarmStream();
-  const state = useAsync((signal) => fetchPosts(swarmId, { count: PAGE_SIZE }, signal), [swarmId, stream.openCount]);
+  const state = useAsync(
+    (signal) =>
+      fetchPosts(swarmId, { count: PAGE_SIZE }, signal).then((list) => ({ ...list, posts: newestFirst(list.posts) })),
+    [swarmId, stream.openCount],
+  );
   const { update } = state;
 
   useStreamListener(stream, (event) => {

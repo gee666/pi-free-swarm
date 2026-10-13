@@ -46,6 +46,7 @@ interface Life {
   stall: { kind: StallKind; message: string } | null;
   promptsInFlight: number;
   deferredSettle: boolean;
+  runStarts: number;
 }
 
 export class AgentSupervisor {
@@ -55,7 +56,7 @@ export class AgentSupervisor {
   readonly #config: WatchdogConfig;
   #status: ParticipantStatus = "pending";
   #life: Life | null = null;
-  #launch: { spec: AgentLaunchSpec; prompt: PromptPayload; retriesUsed: number } | null = null;
+  #launch: { spec: AgentLaunchSpec; prompt: PromptPayload | null; retriesUsed: number } | null = null;
   #resolveLaunch: ((outcome: DeliveryOutcome) => void) | null = null;
   #retryTimer: TimerHandle | undefined;
   #activityKey = "null";
@@ -74,8 +75,8 @@ export class AgentSupervisor {
     return this.#status;
   }
 
-  /** From pending|crashed: spawn, set_steering_mode "all", prompt. Resolves with the prompt's outcome. */
-  launch(spec: AgentLaunchSpec, prompt: PromptPayload): Promise<DeliveryOutcome> {
+  /** Null prompt boots idle without a model call; otherwise resolves with the prompt's outcome. */
+  launch(spec: AgentLaunchSpec, prompt: PromptPayload | null): Promise<DeliveryOutcome> {
     if (this.#stopped || (this.#status !== "pending" && this.#status !== "crashed")) {
       return Promise.resolve({ accepted: false, error: `${this.name} is ${this.#status}.` });
     }
@@ -171,6 +172,7 @@ export class AgentSupervisor {
     });
     const handle = createProtocolHandler(watchdog, {
       onRunStart: () => {
+        life.runStarts++;
         life.deferredSettle = false;
         this.#setStatus("working");
       },
@@ -186,13 +188,19 @@ export class AgentSupervisor {
       onUsage: (sample) => this.#hooks.onUsage(sample),
       onActivity: (activity) => this.#setActivity(activity),
     });
-    life = { proc, watchdog, handle, stall: null, promptsInFlight: 0, deferredSettle: false };
+    life = { proc, watchdog, handle, stall: null, promptsInFlight: 0, deferredSettle: false, runStarts: 0 };
     this.#life = life;
     watchdog.armStartup();
 
     // pi handles commands concurrently; the mode must be set before the prompt can queue anything.
     const steering = await proc.send({ type: "set_steering_mode", mode: "all" }).catch(() => null);
     if (!steering || this.#stopped) return;
+    if (launch.prompt === null) {
+      watchdog.disarm();
+      this.#setStatus("idle");
+      this.#settleLaunch({ accepted: true });
+      return;
+    }
     const outcome = await this.#sendPrompt(life, launch.prompt);
     if (!outcome || this.#stopped) return;
     if (outcome.accepted) {
@@ -209,6 +217,7 @@ export class AgentSupervisor {
   /** null when the process exited before answering; the exit path reports that. */
   async #sendPrompt(life: Life, prompt: PromptPayload): Promise<DeliveryOutcome | null> {
     life.promptsInFlight++;
+    const runStarts = life.runStarts;
     for (const id of prompt.messageIds) this.#sentIds.add(id);
     try {
       const response = await life.proc.send({ type: "prompt", message: prompt.text, streamingBehavior: "steer" });
@@ -216,8 +225,8 @@ export class AgentSupervisor {
       if (response.success !== true) {
         return { accepted: false, error: typeof response.error === "string" ? response.error : "Prompt rejected." };
       }
-      // A run (or the current one) will process the prompt, so a settle that arrived meanwhile is stale.
-      life.deferredSettle = false;
+      // A fast new turn can settle in the same batch as its prompt response.
+      if (life.runStarts === runStarts) life.deferredSettle = false;
       life.watchdog.rearm();
       return { accepted: true };
     } catch {
@@ -240,7 +249,10 @@ export class AgentSupervisor {
   }
 
   #applySettle(life: Life): void {
-    if (life === this.#life && this.#status === "working") this.#setStatus("idle");
+    if (life === this.#life && this.#status === "working") {
+      life.watchdog.disarm();
+      this.#setStatus("idle");
+    }
   }
 
   #onExit(life: Life, info: AgentExitInfo): void {

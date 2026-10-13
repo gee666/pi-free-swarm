@@ -3,10 +3,11 @@
 import path from "node:path";
 import type { TimerHandle } from "./clock.js";
 import type { SwarmExtensionApi } from "./extension-api.js";
-import { AGENT_NAME_ENV, DB_ENV, RUNNER_PID_ENV, SWARM_ID_ENV } from "./constants.js";
+import { AGENT_NAME_ENV, DB_ENV, RUNNER_PID_ENV, SWARM_ID_ENV, WATCHER_NAME } from "./constants.js";
 import { startParentWatch } from "./agents/parent-watch.js";
 import { bodyLimitIn } from "./broker/body-limit.js";
 import { openSwarmDb, type SwarmDb } from "./store/db.js";
+import { registerWatcherTools } from "./tools/watcher-tools.js";
 import { registerAgentTools } from "./tools/agent-tools.js";
 
 export interface AgentEnv {
@@ -62,6 +63,12 @@ export function registerAgentMode(pi: SwarmExtensionApi, env: NodeJS.ProcessEnv)
     },
     bodyLimitIn(path.dirname(identity.dbPath)),
   );
+  if (identity.agentName === WATCHER_NAME)
+    registerWatcherTools(pi, {
+      getDb: () => (db ??= openSwarmDb(identity.dbPath, { create: false })),
+      swarmId: identity.swarmId,
+      agentName: identity.agentName,
+    });
   pi.on("session_start", (_event, ctx) => {
     watch?.cancel();
     watch = startParentWatch({

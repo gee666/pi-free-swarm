@@ -1,7 +1,8 @@
 // Swarm lifecycle writes: create, resume, running, end, and the sweep of runs whose runner vanished.
+import { ensureWatcher } from "./watcher.js";
 import path from "node:path";
 import type { SwarmListItem } from "../api-types.js";
-import { MAIN_NAME, SYSTEM_NAME, USER_NAME } from "../constants.js";
+import { MAIN_NAME, RESERVED_NAMES, SYSTEM_NAME, USER_NAME } from "../constants.js";
 import { charCount, TITLE_MAX } from "../limits.js";
 import { agentSessionFile, type SwarmDb } from "../store/db.js";
 import { claimRunLock, heartbeatRunLock, isPidAlive, isRunLockFresh, type PidAlive } from "../store/locks.js";
@@ -36,6 +37,11 @@ export function createSwarm(
   input: { name: string; taskPrompt: string; agentNames: readonly string[]; runnerPid: number; now: number },
 ): SwarmListItem {
   const { runnerPid, now } = input;
+  if (
+    input.agentNames.some((name) => RESERVED_NAMES.some((reserved) => reserved.toLowerCase() === name.toLowerCase()))
+  ) {
+    throw new BrokerError("validation", "Agent names cannot use reserved participant names.");
+  }
   const name = requireSwarmName(input.name);
   const taskPrompt = input.taskPrompt.trim();
   if (taskPrompt.length === 0) throw new BrokerError("validation", "task_prompt is empty.", "task_prompt");
@@ -62,6 +68,7 @@ export function createSwarm(
       const sessionFile = path.relative(db.dataDir, agentSessionFile(db.dataDir, swarmId, agentName));
       agent.run(swarmId, agentName, sessionFile, order);
     });
+    ensureWatcher(db, swarmId);
     emitSwarmUpdated(db, swarmId, now);
     return swarmOrThrow(db, swarmId, now);
   });
@@ -97,6 +104,7 @@ export function beginResume(
         `Swarm #${swarmId} is running in another pi process (pid ${claim.holderPid}).`,
       );
     }
+    ensureWatcher(db, swarmId);
     reopenAcceptance(db, swarmId, now);
     const run = int(row, "run_count") + 1;
     db.sql

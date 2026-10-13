@@ -10,11 +10,14 @@ import { AGENT_TOOL, RESUME_PROMPT_HEADER, REVIVE_PROMPT_HEADER } from "../../sr
 
 const MESSAGES = '[swarm message #3] thread #1 · from Main · to: Maria, You\n"Fix the tests"';
 
-test("peers receive identity and interface facts, without assigned roles or polling policy", () => {
+test("agents receive identity, shared facts and instructions to keep working until acceptance", () => {
   const text = buildSystemPrompt({ agentName: "Maria", swarmName: "Docs sprint", bodyMaxChars: 200 });
-  assert.match(text, /^You are Maria, a peer in swarm "Docs sprint"/);
-  assert.ok(text.includes("All peers have the same tools"));
-  assert.ok(text.includes("share the working directory"));
+  assert.match(text, /^You are Maria, one of the agents in swarm "Docs sprint"/);
+  assert.ok(text.includes("All agents share the working directory"));
+  assert.ok(text.includes("Work together until the shared task is fully done and accepted."));
+  assert.ok(text.includes("Then check the wall and what the others are doing"));
+  assert.ok(text.includes("Do not sit idle while the goal is unmet."));
+  assert.doesNotMatch(text, /peer|lead|role|coordinator|worker|reviewer|manager|quorum|equal|identical capabilities/i);
   assert.ok(text.includes("messages wake their recipients automatically"));
   assert.ok(text.includes(AGENT_TOOL.acceptance));
   assert.ok(text.includes("timeout"));
@@ -26,7 +29,7 @@ test("peers receive identity and interface facts, without assigned roles or poll
   );
 });
 
-test("kickoff preserves the task verbatim without privileging the first peer", () => {
+test("kickoff preserves the task verbatim", () => {
   assert.equal(buildKickoffPrompt({ taskPrompt: "Write docs.", messages: "" }), "Task for the swarm:\nWrite docs.");
   assert.equal(
     buildKickoffPrompt({ taskPrompt: "Write docs.", messages: MESSAGES }),

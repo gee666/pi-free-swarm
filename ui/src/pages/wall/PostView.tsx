@@ -5,6 +5,7 @@ import { displayName, USER_NAME } from "../../api/agents";
 import { ApiError } from "../../api/http";
 import { AuthoredEntry } from "../../components/AuthoredEntry";
 import { Avatar } from "../../components/Avatar";
+import { AgentName } from "../../components/AgentName";
 import { EntityHeader } from "../../components/EntityHeader";
 import { Panel, PanelBody } from "../../components/Panel";
 import { RichText } from "../../components/RichText";
@@ -44,7 +45,11 @@ export function PostView({ detail, error, banners }: PostViewProps) {
       <EntityHeader
         avatar={<Avatar name={author} size="lg" accent />}
         title={post.title}
-        subtitle={`Posted by ${author} · ${formatTimestamp(post.createdAt)}`}
+        subtitle={
+          <>
+            Posted by <AgentName name={author} /> · {formatTimestamp(post.createdAt)}
+          </>
+        }
       />
       <PanelBody key={post.id} className={styles.postBody}>
         <RichText text={post.text} className={styles.postText} />

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { ChartColumn } from "lucide-react";
 import { fetchStats } from "../../api/stats";
 import { useSwarmStream } from "../../api/SwarmStream";
@@ -21,6 +21,7 @@ export const STATS_CLOCK_MS = 10_000;
 /** Stats tab: one panel across both columns with the totals and the per-agent table. */
 export function StatsPage() {
   const { id = "" } = useParams();
+  const [query] = useSearchParams();
   const stream = useSwarmStream();
   const stats = useAsync((signal) => fetchStats(id, signal), [id, stream.openCount]);
   const detail = useSwarmDetail(id);
@@ -58,7 +59,7 @@ export function StatsPage() {
         ) : (
           <Panel inset className={styles.tableBox}>
             <div className={styles.tableScroll}>
-              <AgentStatsTable agents={agents} totals={totals} />
+              <AgentStatsTable agents={agents} totals={totals} selected={query.get("agent") ?? undefined} />
             </div>
           </Panel>
         )}

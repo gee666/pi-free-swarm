@@ -105,7 +105,8 @@ describe("WallPage", () => {
     window.localStorage.setItem("pi-swarm:wall-seen:3", JSON.stringify({ 1: 1 }));
     await renderWall();
     const list = postList();
-    expect(within(list).getByText("Oliver · 10:23 AM")).toBeInTheDocument();
+    expect(within(list).getByText("Oliver").closest("[data-agent-row]")).toHaveTextContent("Oliver · 10:23 AM");
+    expect(within(list).getByRole("button", { name: "Open work: Oliver" })).toBeInTheDocument();
     expect(within(list).getByTitle("2 comments")).toHaveTextContent("2");
     expect(within(list).getByText("1 new comments")).toBeInTheDocument();
     expect(screen.getByText("Select a post to read it")).toBeInTheDocument();
@@ -117,12 +118,21 @@ describe("WallPage", () => {
     window.localStorage.setItem("pi-swarm:wall-seen:3", JSON.stringify({ 1: 0, 2: 0 }));
     await renderWall("/s/3/wall/1");
     expect(await screen.findByRole("heading", { level: 1, name: "Plan: split OAuth work" })).toBeInTheDocument();
-    expect(screen.getByText("Posted by Oliver · 10:23 AM")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Post" }).querySelector("header")).toHaveTextContent(
+      "Posted by Oliver · 10:23 AM",
+    );
     expect(screen.getByRole("heading", { level: 2, name: "2 comments" })).toBeInTheDocument();
     const own = screen.getByText("Keep the UI small.").closest("li");
     const other = screen.getByText("I'll take provider config.").closest("li");
     expect(own?.className).toMatch(/own/);
     expect(other?.className).not.toMatch(/own/);
+    if (!own || !other) throw new Error("Expected both comments");
+    expect(own.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      screen
+        .getByRole("region", { name: "Compose" })
+        .compareDocumentPosition(screen.getByRole("region", { name: "Post" })) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     await waitFor(() => expect(within(postList()).queryByText("2 new comments")).not.toBeInTheDocument());
     expect(seen()).toEqual({ 1: 2, 2: 0 });
     expect(screen.getByRole("textbox", { name: "Write a comment…" })).toBeEnabled();
@@ -138,6 +148,9 @@ describe("WallPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Comment" }));
 
     expect(await screen.findByText("Signed state it is.")).toBeInTheDocument();
+    expect(screen.getByText("Signed state it is.").closest("ol")?.firstElementChild).toHaveTextContent(
+      "Signed state it is.",
+    );
     expect(box).toHaveValue("");
     expect(api.callsTo("POST", "/api/swarms/3/posts/1/comments")[0].body).toEqual({ text: "Signed state it is." });
     expect(screen.getByRole("heading", { level: 2, name: "3 comments" })).toBeInTheDocument();
@@ -170,14 +183,18 @@ describe("WallPage", () => {
       title: "Priorities",
       text: "Ship login first.",
     });
-    expect(within(postList()).getByText("You · 10:21 AM")).toBeInTheDocument();
+    expect(within(postList()).getByText("You").closest("[data-agent-row]")).toHaveTextContent("You · 10:21 AM");
   });
 
   it("applies new posts and comments from the stream", async () => {
     await renderWall("/s/3/wall/1");
     await screen.findByRole("heading", { level: 2, name: "2 comments" });
 
-    emit({ ...eventBase, type: "post.created", payload: { post: post(4, "Ava", "Logout flow", 0) } });
+    emit({
+      ...eventBase,
+      type: "post.created",
+      payload: { post: { ...post(4, "Ava", "Logout flow", 0), createdAt: AT + 60_000 } },
+    });
     const titles = within(postList())
       .getAllByText(/Logout flow|Plan: split OAuth work|Scopes for v1/)
       .map((node) => node.textContent);
@@ -193,6 +210,9 @@ describe("WallPage", () => {
     const live = comment(21, 1, "Noah", "CI is green again.");
     emit({ ...eventBase, type: "comment.created", payload: { comment: live, commentCount: 3 } });
     expect(screen.getByText("CI is green again.")).toBeInTheDocument();
+    expect(screen.getByText("CI is green again.").closest("ol")?.firstElementChild).toHaveTextContent(
+      "CI is green again.",
+    );
     expect(screen.getByRole("heading", { level: 2, name: "3 comments" })).toBeInTheDocument();
     await waitFor(() => expect(seen()[1]).toBe(3));
   });

@@ -1,3 +1,4 @@
+import { WATCHER_NAME } from "../constants.js";
 import type { AcceptanceRecord } from "../store/acceptance-types.js";
 import { getAcceptance, saveAcceptance } from "../store/acceptance-queries.js";
 import type { SwarmDb } from "../store/db.js";
@@ -35,10 +36,12 @@ export function prepareRunCompletion(
   const decision = db.write((): CompletionDecision => {
     if (!ownsRun(db, input)) return { kind: "lost" };
     const busy = db.sql
-      .prepare(`SELECT name, status FROM participants WHERE swarm_id = ? AND kind = 'agent'`)
-      .all(input.swarmId)
+      .prepare(`SELECT name, status FROM participants WHERE swarm_id = ? AND kind = 'agent' AND name <> ?`)
+      .all(input.swarmId, WATCHER_NAME)
       .some((row) => row.status !== "idle" && !(row.status === "crashed" && input.exhausted.has(text(row, "name"))));
-    const open = listOpenAgentRecipients(db, input.swarmId).some((row) => !input.exhausted.has(row.name));
+    const open = listOpenAgentRecipients(db, input.swarmId).some(
+      (row) => row.name !== WATCHER_NAME && !input.exhausted.has(row.name),
+    );
     if (busy || open) return { kind: "pending" };
     if (queuePendingAcceptance(db, input.swarmId, input.run, input.available, input.now)) return { kind: "notified" };
     return {

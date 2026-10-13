@@ -9,7 +9,7 @@ import { endRun } from "../../src/broker/swarms.js";
 import { initialWallCursor } from "../../src/broker/wall-delta.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
 import { createAgentToolHandlers, registerAgentTools } from "../../src/tools/agent-tools.js";
-import { timeAgo } from "../../src/tools/agent-tool-format.js";
+import { timeAgo } from "../../src/wall-format.js";
 import { FakeExtensionApi } from "../helpers/fake-extension-api.js";
 import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
 
@@ -41,6 +41,7 @@ describe("registerAgentTools", () => {
     for (const tool of tools) {
       assert.ok(tool.promptSnippet && tool.promptSnippet.length < 80, tool.name);
       assert.ok(tool.label.length > 0);
+      assert.doesNotMatch(tool.description, /peer|lead|role|coordinator|worker|reviewer|manager|quorum/i);
     }
     for (const name of [AGENT_TOOL.post, AGENT_TOOL.comment, AGENT_TOOL.message, AGENT_TOOL.replyTo]) {
       const description = tools.find((tool) => tool.name === name)?.description ?? "";
@@ -121,7 +122,7 @@ describe("agent tool output", () => {
       ].join("\n"),
     );
     assert.throws(() => maria.message({ to: ["Bob"], text: "hi" }), {
-      message: "Unknown participant: Bob. Known participants: Maria, John, Liam, User.",
+      message: "Unknown participant: Bob. Known participants: Maria, John, Liam, Watcher, User.",
     });
   });
 

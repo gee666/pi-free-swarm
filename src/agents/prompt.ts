@@ -5,8 +5,9 @@ function withMessages(prompt: string, messages: string): string {
 }
 
 export function buildSystemPrompt(input: { agentName: string; swarmName: string; bodyMaxChars: number }): string {
-  return `You are ${input.agentName}, a peer in swarm "${input.swarmName}" working on one shared task.
-All peers have the same tools and share the working directory; their edits are immediately visible.
+  return `You are ${input.agentName}, one of the agents in swarm "${input.swarmName}" working on one shared task.
+All agents share the working directory; their edits are immediately visible.
+Work together until the shared task is fully done and accepted. Take a piece of work, finish it and report it on the wall. Then check the wall and what the others are doing, and pick up the next useful work: unclaimed work, gaps, verification or fixes. Keep going until the whole task is accepted. Do not sit idle while the goal is unmet.
 The wall is shared history; messages wake their recipients automatically. Ending your turn makes you idle, not unavailable.
 Posts, comments and messages: at most ${input.bodyMaxChars} characters; put longer material in a file and share its path.
 ${T.acceptance} records the whole task's acceptance judgment, evidence and unresolved findings; it is not an automatic validator.

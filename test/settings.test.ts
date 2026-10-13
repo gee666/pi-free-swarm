@@ -44,10 +44,26 @@ describe("loadSettings", () => {
       maxAgents: 10,
       defaultAgents: 5,
       staggerSeconds: 20,
+      idleReminderDelay: 60_000,
+      idleReminderMax: 5,
+      idleReminderDigestSize: 10,
       bodyMaxChars: 200,
       latePeerRatio: 0.2,
       env: {},
     });
+    assert.deepEqual(warnings, []);
+  });
+
+  it("validates reminder settings and permits disabling reminders", () => {
+    const configured = { idleReminderDelay: 25, idleReminderMax: 0, idleReminderDigestSize: 3 };
+    const { settings, warnings } = loadSettings(project(JSON.stringify(configured)));
+    for (const [key, value] of Object.entries(configured)) {
+      assert.equal(Reflect.get(settings, key), value);
+      for (const invalid of [-1, 0.5, "5", null]) {
+        assert.match(loadError(JSON.stringify({ [key]: invalid })), new RegExp(`${key} must be an integer`));
+      }
+    }
+    assert.match(loadError('{"idleReminderDigestSize": 0}'), /idleReminderDigestSize must be an integer >= 1/);
     assert.deepEqual(warnings, []);
   });
 
@@ -146,10 +162,10 @@ describe("agent amount", () => {
   it("describes the range", () => {
     assert.equal(
       describeAgentRange(settings),
-      "agent_amount: 2–8, default 5, including about 20% late peers (at least 1 from 2 agents) launched as the others go quiet",
+      "agent_amount: 2–8, default 5, including about 20% late agents (at least 1 from 2 agents) launched as the others go quiet",
     );
     assert.equal(describeAgentRange({ ...settings, latePeerRatio: 0 }), "agent_amount: 2–8, default 5");
-    assert.match(describeAgentRange({ ...settings, latePeerRatio: 0.5 }), /about 50% late peers/);
+    assert.match(describeAgentRange({ ...settings, latePeerRatio: 0.5 }), /about 50% late agents/);
   });
 });
 

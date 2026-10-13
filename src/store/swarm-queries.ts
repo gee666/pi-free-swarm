@@ -2,7 +2,7 @@
 // lock is reported as `interrupted` until the next sweep writes it.
 import path from "node:path";
 import type { ParticipantKind, ParticipantView, SwarmListItem } from "../api-types.js";
-import { USER_NAME } from "../constants.js";
+import { USER_NAME, WATCHER_NAME } from "../constants.js";
 import type { SwarmDb } from "./db.js";
 import { isPidAlive, isRunLockFresh, type PidAlive } from "./locks.js";
 import { activityOf, agentStatusOf, int, intOrNull, kindOf, real, swarmStatusOf, text, type Row } from "./rows.js";
@@ -11,7 +11,7 @@ const SWARM_SELECT = `
   SELECT s.*,
     (SELECT a.closed_run = s.run_count FROM acceptance a WHERE a.swarm_id = s.id) AS admission_closed,
     (SELECT COUNT(*) FROM participants p
-      WHERE p.swarm_id = s.id AND p.kind = 'agent' AND p.status = 'working') AS agents_working
+      WHERE p.swarm_id = s.id AND p.kind = 'agent' AND p.name <> '${WATCHER_NAME}' AND p.status = 'working') AS agents_working
   FROM swarms s`;
 
 function swarmOf(row: Row, now: number, alive: PidAlive): SwarmListItem {

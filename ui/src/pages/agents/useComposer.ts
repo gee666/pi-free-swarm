@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { SwarmListItem, ThreadView } from "../../../../src/api-types";
 import { replyToThread, sendMessage } from "../../api/agents";
 import { ApiError } from "../../api/http";
@@ -37,13 +37,13 @@ export function useComposer(swarmId: string, swarm: SwarmListItem | undefined, d
   // A 409 disables compose until the next swarm record (stream event or reload) says otherwise.
   const [rejectedFor, setRejectedFor] = useState<SwarmListItem>();
 
-  const address = (names: string[]) => {
+  const address = useCallback((names: string[]) => {
     revision.current += 1;
     setThread(undefined);
     setTo(names);
-  };
+  }, []);
   const defaultKey = defaultTo.join("\n");
-  useEffect(() => address([...defaultTo]), [swarmId, defaultKey]);
+  useEffect(() => address([...defaultTo]), [swarmId, defaultKey, address]);
 
   const send = () => {
     const submittedRevision = revision.current;

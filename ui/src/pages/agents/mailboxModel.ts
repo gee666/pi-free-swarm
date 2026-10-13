@@ -6,6 +6,7 @@ import type {
   RecipientView,
   SwarmEvent,
 } from "../../../../src/api-types";
+import { insertNewest, newestFirst } from "../../lib/newestFirst";
 
 /** Not yet read by `name`: pending or delivered (the definition behind every unread badge). */
 export function isUnreadFor(message: MessageView, name: string): boolean {
@@ -31,9 +32,24 @@ export function withRecipient(messages: MessageView[], messageId: number, recipi
   );
 }
 
-/** Appends a message unless it is already there (the sender's own POST response and its event). */
-export function withMessage(messages: MessageView[], message: MessageView): MessageView[] {
-  return messages.some((existing) => existing.id === message.id) ? messages : [...messages, message];
+export const withMessage = insertNewest<MessageView>;
+
+function orderThreads(threads: readonly MailboxThread[]): MailboxThread[] {
+  return [...threads].sort(
+    (left, right) => right.lastMessageAt - left.lastMessageAt || right.thread.id - left.thread.id,
+  );
+}
+
+export function orderMailbox(mailbox: MailboxResponse): MailboxResponse {
+  return {
+    ...mailbox,
+    threads: orderThreads(
+      mailbox.threads.map((thread) => ({
+        ...thread,
+        messages: newestFirst(thread.messages),
+      })),
+    ),
+  };
 }
 
 function recount(thread: MailboxThread, name: string, box: MailboxKind): MailboxThread {
@@ -54,13 +70,15 @@ export function applyMailboxEvent(mailbox: MailboxResponse, event: SwarmEvent): 
     if (!belongsToBox(message, name, box)) return { kind: "unchanged" };
     const current = mailbox.threads.find((thread) => thread.thread.id === message.threadId);
     if (!current) return { kind: "reload" };
+    const messages = withMessage(current.messages, message);
+    if (messages === current.messages) return { kind: "unchanged" };
     const updated = recount(
-      { ...current, messages: withMessage(current.messages, message), lastMessageAt: message.createdAt },
+      { ...current, messages, lastMessageAt: Math.max(current.lastMessageAt, message.createdAt) },
       name,
       box,
     );
     const rest = mailbox.threads.filter((thread) => thread !== current);
-    return { kind: "patched", mailbox: { ...mailbox, threads: [updated, ...rest] } };
+    return { kind: "patched", mailbox: { ...mailbox, threads: orderThreads([updated, ...rest]) } };
   }
   if (event.type === "message.status") {
     const { messageId, threadId, recipient } = event.payload;
@@ -82,5 +100,5 @@ export function withOlderThreads(mailbox: MailboxResponse, page: MailboxResponse
   if (page.name !== mailbox.name || page.box !== mailbox.box) return mailbox;
   const known = new Set(mailbox.threads.map((thread) => thread.thread.id));
   const older = page.threads.filter((thread) => !known.has(thread.thread.id));
-  return { ...mailbox, threads: [...mailbox.threads, ...older], total: page.total };
+  return { ...mailbox, threads: orderThreads([...mailbox.threads, ...older]), total: page.total };
 }

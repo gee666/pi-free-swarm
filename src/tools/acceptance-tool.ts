@@ -51,7 +51,7 @@ export const acceptanceToolParameters = Type.Object({
 });
 
 export const acceptanceToolDescription =
-  "Inspect or self-claim the shared acceptance check against the whole original task. All peers have identical capabilities; no review quorum. " +
+  "Inspect or self-claim the shared acceptance check against the whole original task. Keep working until the whole task is accepted. " +
   "Mutations require the current revision; update/release require your own claim. Final judgments require evidence, knownGaps and findings " +
   "(empty arrays explicitly mean none). Incomplete/blocked require concrete gaps/findings. Evidence is agent attestation, not exhaustive proof: " +
   "record reference/result, command with cwd when applicable, and optional supplied artifact/input fingerprint. No automatic artifact validation " +

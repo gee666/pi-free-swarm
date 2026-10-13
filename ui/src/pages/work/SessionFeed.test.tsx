@@ -18,6 +18,12 @@ function scrollableFeed() {
     configurable: true,
   });
   Object.defineProperty(feed, "scrollHeight", { get: () => feed.querySelectorAll("article").length * BLOCK_HEIGHT });
+  for (const article of feed.querySelectorAll("article")) {
+    vi.spyOn(article, "getBoundingClientRect").mockImplementation(() => {
+      const index = [...feed.querySelectorAll("article")].indexOf(article);
+      return new DOMRect(0, index * BLOCK_HEIGHT - top, 100, BLOCK_HEIGHT);
+    });
+  }
   return {
     get top() {
       return top;
@@ -53,7 +59,7 @@ describe("SessionFeed", () => {
     server.append(125);
     view.rerender(<SessionFeed swarmId="3" agent="John" stream={{ ...stream, openCount: 2 }} />);
     await screen.findByText("Entry 269");
-    expect(new Set(entries()).size).toBe(270);
+    expect(entries()).toEqual(Array.from({ length: 270 }, (_, index) => `Entry ${269 - index}`));
   });
 
   it("coalesces events during an in-flight burst and stops on a stationary cursor", async () => {
@@ -107,11 +113,46 @@ describe("SessionFeed", () => {
     act(() => FakeIntersectionObserver.intersect());
     await screen.findByText("Entry 0");
     expect(entries()).toHaveLength(120);
-    expect(entries().at(-1)).toBe("Entry 0");
+    expect(entries()).toEqual(Array.from({ length: 120 }, (_, index) => `Entry ${119 - index}`));
     expect(server.requests.map((query) => query.get("before"))).toEqual([null, "70", "20"]);
     // The oldest page is in: nothing is left to observe.
     act(() => FakeIntersectionObserver.intersect());
     expect(server.requests).toHaveLength(3);
+  });
+
+  it("loads older entries at the bottom without moving the view", async () => {
+    mockSessionServer(120);
+    render(<SessionFeed swarmId="3" agent="John" stream={fakeStream()} />);
+    await screen.findByText("Entry 119");
+    const feed = scrollableFeed();
+    feed.scrollTo(500);
+    act(() => FakeIntersectionObserver.intersect());
+    await screen.findByText("Entry 20");
+    expect(feed.top).toBe(500);
+    expect(entries()[0]).toBe("Entry 119");
+    expect(entries().at(-1)).toBe("Entry 20");
+  });
+
+  it("anchors live prepends independently of concurrent older pages", async () => {
+    const server = mockSessionServer(120);
+    const stream = fakeStream();
+    render(<SessionFeed swarmId="3" agent="John" stream={stream} />);
+    await screen.findByText("Entry 119");
+    const feed = scrollableFeed();
+    feed.scrollTo(500);
+    const release = server.hold();
+    server.append(3);
+    act(() => {
+      stream.emit(sessionAppended("John"));
+      FakeIntersectionObserver.intersect();
+    });
+    release();
+    await screen.findByText("Entry 122");
+    await screen.findByText("Entry 20");
+    expect(feed.top).toBe(500 + 3 * BLOCK_HEIGHT);
+    expect(entries()[0]).toBe("Entry 122");
+    expect(entries().at(-1)).toBe("Entry 20");
+    expect(new Set(entries()).size).toBe(103);
   });
 
   it("puts new entries in place while the user is at the top", async () => {
@@ -119,13 +160,15 @@ describe("SessionFeed", () => {
     const stream = fakeStream();
     render(<SessionFeed swarmId="3" agent="John" stream={stream} />);
     await screen.findByText("Entry 9");
-    scrollableFeed();
+    const feed = scrollableFeed();
+    feed.scrollTo(10);
 
     server.append(2);
     act(() => stream.emit(sessionAppended("Maria")));
     act(() => stream.emit(sessionAppended("John")));
     await screen.findByText("Entry 11");
     expect(entries().slice(0, 3)).toEqual(["Entry 11", "Entry 10", "Entry 9"]);
+    expect(feed.top).toBe(0);
     expect(server.requests.map((query) => query.get("after"))).toEqual([null, "9", "11"]);
     expect(screen.queryByRole("button", { name: /new/ })).toBeNull();
   });

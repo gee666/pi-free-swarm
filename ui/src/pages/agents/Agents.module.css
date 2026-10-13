@@ -11,7 +11,7 @@
   list-style: none;
 }
 
-.threadFooter {
+.threadActions {
   display: flex;
   justify-content: flex-end;
 }

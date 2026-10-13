@@ -92,6 +92,11 @@
   background: var(--bg-hover);
 }
 
+.table tbody tr.selected,
+.table tbody tr.selected:hover {
+  background: var(--accent-soft-bg);
+}
+
 .table tfoot th,
 .table tfoot td {
   position: sticky;

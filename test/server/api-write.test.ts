@@ -146,7 +146,7 @@ describe("messages", () => {
   it("validates recipients and text", async () => {
     await expectError(postJson(url("/messages"), { to: ["Bob"], text: "hi" }), 400, {
       error: "validation",
-      message: "Unknown participant: Bob. Known participants: Maria, John, Liam, User.",
+      message: "Unknown participant: Bob. Known participants: Maria, John, Liam, Watcher, User.",
       field: "to",
     });
     await expectError(postJson(url("/messages"), { to: ["User"], text: "hi" }), 400, {

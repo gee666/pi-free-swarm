@@ -1,6 +1,7 @@
 import { X } from "lucide-react";
 import styles from "./RecipientChip.module.css";
 import { Icon } from "./Icon";
+import { AgentName } from "./AgentName";
 
 interface RecipientChipProps {
   name: string;
@@ -12,7 +13,7 @@ interface RecipientChipProps {
 export function RecipientChip({ name, onRemove, disabled = false }: RecipientChipProps) {
   return (
     <span className={styles.chip}>
-      {name}
+      <AgentName name={name} />
       {onRemove && (
         <button
           type="button"

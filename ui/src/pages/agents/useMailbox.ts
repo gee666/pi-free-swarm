@@ -4,7 +4,7 @@ import { useSwarmStream } from "../../api/SwarmStream";
 import { useAsync, type AsyncState } from "../../api/useAsync";
 import { useStreamListener } from "../../api/useEventStream";
 import { useLoadMore, type LoadMore } from "../../api/useLoadMore";
-import { applyMailboxEvent, withOlderThreads } from "./mailboxModel";
+import { applyMailboxEvent, orderMailbox, withOlderThreads } from "./mailboxModel";
 
 const PAGE_SIZE = 20;
 
@@ -12,7 +12,7 @@ const PAGE_SIZE = 20;
 export function useMailbox(swarmId: string, name: string, box: MailboxKind): AsyncState<MailboxResponse> & LoadMore {
   const stream = useSwarmStream();
   const state = useAsync(
-    (signal) => fetchMailbox(swarmId, name, { box, count: PAGE_SIZE }, signal),
+    (signal) => fetchMailbox(swarmId, name, { box, count: PAGE_SIZE }, signal).then(orderMailbox),
     [swarmId, name, box, stream.openCount],
   );
   const { data, update, reload } = state;
@@ -33,7 +33,7 @@ export function useMailbox(swarmId: string, name: string, box: MailboxKind): Asy
   const more = useLoadMore(state, {
     loaded: (mailbox) => mailbox.threads.length,
     total: (mailbox) => mailbox.total,
-    fetch: (offset) => fetchMailbox(swarmId, name, { box, count: PAGE_SIZE, offset }),
+    fetch: (offset) => fetchMailbox(swarmId, name, { box, count: PAGE_SIZE, offset }).then(orderMailbox),
     merge: withOlderThreads,
   });
   return { ...state, ...more };

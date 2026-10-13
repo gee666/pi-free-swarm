@@ -1,0 +1,11 @@
+.button {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.button:focus-visible {
+  box-shadow: inset var(--accent-glow);
+}

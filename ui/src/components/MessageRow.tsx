@@ -4,11 +4,12 @@ import { cx } from "../lib/cx";
 import { Icon } from "./Icon";
 import { UnreadDot } from "./Indicators";
 import styles from "./MessageRow.module.css";
-import { rowFocusProps } from "./RowList";
+import { RowButton } from "./RowButton";
+import { AgentName } from "./AgentName";
 
 interface MessageRowProps {
   unread?: boolean;
-  /** Fixed ~160px column: sender (inbox) or author (wall). */
+  /** Sender column. */
   sender: string;
   subject: string;
   /** Recipient pill(s) or comment count. */
@@ -43,9 +44,10 @@ export function MessageRow({
   };
   return (
     <div className={cx(styles.item, expanded && styles.expanded)} onKeyDown={onKeyDown}>
-      <button type="button" className={styles.row} aria-expanded={expanded} onClick={onToggle} {...rowFocusProps}>
+      <div className={styles.row} onClick={onToggle} data-agent-row>
+        <RowButton label={`${sender} ${subject} ${time}`} expanded={expanded} />
         <UnreadDot unread={unread} />
-        <span className={styles.sender}>{sender}</span>
+        <AgentName className={styles.sender} name={sender} />
         <span className={styles.subject}>{subject}</span>
         {meta}
         <span className={styles.end}>
@@ -53,7 +55,7 @@ export function MessageRow({
           <span className={styles.time}>{time}</span>
           <Icon icon={expanded ? ChevronUp : ChevronRight} className={styles.chevron} />
         </span>
-      </button>
+      </div>
       {expanded && <div className={styles.body}>{children}</div>}
     </div>
   );

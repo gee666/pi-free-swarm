@@ -178,7 +178,7 @@ describe("SseHub with a fake clock", () => {
     const url = `http://127.0.0.1:${server.port}/events?swarm=${id}`;
     const one = await openSse(url);
     const two = await openSse(url);
-    assert.equal(watcher.active, 2, "one watch per agent, shared by both clients");
+    assert.equal(watcher.active, 3, "workers and Watcher share watches across both clients");
 
     createPost(temp.db, id, "Maria", { title: "tick", text: "x" }, Date.now());
     clock.advance(EVENTS_TAIL_MS - 1);
@@ -192,7 +192,7 @@ describe("SseHub with a fake clock", () => {
 
     one.close();
     await new Promise((resolve) => setTimeout(resolve, 100));
-    assert.equal(watcher.active, 2, "still watched for the remaining client");
+    assert.equal(watcher.active, 3, "still watched for the remaining client");
     two.close();
     await waitFor(() => (watcher.active === 0 ? true : null), 2_000, "watchers released");
   });

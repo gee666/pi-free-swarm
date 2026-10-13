@@ -77,8 +77,8 @@ a:hover {
 }
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: var(--space-3);
+  height: var(--space-3);
 }
 
 ::-webkit-scrollbar-track {

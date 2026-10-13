@@ -1,10 +1,10 @@
 // A swarm run against the fake pi with every delay shrunk: temp project, DB, settings snapshot and probes.
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import path from "node:path";
 import type { ParticipantStatus, RecipientStatus } from "../../src/api-types.js";
 import type { RunProgress } from "../../src/broker/run-progress.js";
 import type { RunEnvironment, RunTimings } from "../../src/broker/swarm-run.js";
+import { WATCHER_NAME } from "../../src/constants.js";
 import { systemClock } from "../../src/clock.js";
 import type { SwarmSettings } from "../../src/settings.js";
 import { openSwarmDb, swarmDbPath, type SwarmDb } from "../../src/store/db.js";
@@ -46,11 +46,13 @@ export function createRunFixture(
     latePeerRatio?: number;
     timings?: Partial<RunTimings>;
     settingsEnv?: Record<string, string>;
+    reminders?: Pick<SwarmSettings, "idleReminderDelay" | "idleReminderMax" | "idleReminderDigestSize">;
   } = {},
 ): RunFixture {
-  const cwd = mkdtempSync(path.join(tmpdir(), "pi-free-swarm-run-"));
+  mkdirSync("tmp", { recursive: true });
+  const cwd = mkdtempSync(path.resolve("tmp/pi-free-swarm-run-"));
   const db = openSwarmDb(swarmDbPath(cwd), { create: true });
-  const fake = createFakePiRun(scenario);
+  const fake = createFakePiRun({ ...scenario, agents: { [WATCHER_NAME]: {}, ...scenario.agents } });
   const settings: SwarmSettings = {
     port: null,
     minAgents: 1,
@@ -59,6 +61,10 @@ export function createRunFixture(
     bodyMaxChars: 4000,
     staggerSeconds: options.staggerSeconds ?? 0,
     latePeerRatio: options.latePeerRatio ?? 0,
+    idleReminderDelay: 60_000,
+    idleReminderMax: 0,
+    idleReminderDigestSize: 10,
+    ...options.reminders,
     env: { ...fake.env, ...options.settingsEnv },
   };
   const notes: string[] = [];
@@ -96,7 +102,9 @@ export function newestSwarmId(db: SwarmDb): number {
 }
 
 export function agentNames(db: SwarmDb, swarmId: number): string[] {
-  return listAgentSessions(db, swarmId).map((agent) => agent.name);
+  return listAgentSessions(db, swarmId)
+    .filter((agent) => agent.name !== WATCHER_NAME)
+    .map((agent) => agent.name);
 }
 
 export function agentStatus(db: SwarmDb, swarmId: number, name: string): ParticipantStatus | null {
@@ -129,7 +137,7 @@ export interface FakeSpawn {
 export function spawnsOf(fake: FakePiRun): FakeSpawn[] {
   return fake
     .log()
-    .filter((record) => record.fake === "spawn")
+    .filter((record) => record.fake === "spawn" && record.agent !== WATCHER_NAME)
     .map((record) => {
       const argv = Array.isArray(record.argv) ? record.argv.map(String) : [];
       const index = argv.indexOf("--session");

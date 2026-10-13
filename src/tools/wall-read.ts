@@ -2,7 +2,7 @@ import { initialWallCursor, readWallDeltaAs, wallPreviewChars } from "../broker/
 import { readPostsAs } from "../broker/wall.js";
 import { PAGE_DEFAULT_COUNT } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
-import { formatPostList } from "./agent-tool-format.js";
+import { formatPostList } from "../wall-format.js";
 
 /** Shared execution helper; registration keeps the existing history parameters optional. */
 export function readWallTool(

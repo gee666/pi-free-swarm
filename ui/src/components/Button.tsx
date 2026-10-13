@@ -11,7 +11,7 @@ type NativeButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "type"> &
 interface ButtonProps extends NativeButtonProps {
   /** Primary is pink-filled: at most one per view region. */
   variant?: "primary" | "secondary";
-  /** md: 48px primary / 40px secondary. sm: 36px, to line up with recipient chips. */
+  /** sm lines up with recipient chips. */
   size?: "md" | "sm";
   icon?: LucideIcon;
 }
@@ -35,17 +35,18 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 
 interface IconButtonProps extends NativeButtonProps {
   icon: LucideIcon;
+  iconSize?: "inline" | "status";
   /** Accessible name; icon buttons have no visible text. */
   label: string;
 }
 
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-  { icon, label, className, type = "button", ...rest },
+  { icon, iconSize = "inline", label, className, type = "button", ...rest },
   ref,
 ) {
   return (
     <button ref={ref} type={type} aria-label={label} className={cx(styles.iconButton, className)} {...rest}>
-      <Icon icon={icon} />
+      <Icon icon={icon} size={iconSize} />
     </button>
   );
 });

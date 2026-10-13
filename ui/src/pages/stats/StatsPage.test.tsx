@@ -73,9 +73,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function renderStats() {
+async function renderStats(path = "/s/3/stats") {
   render(
-    <MemoryRouter initialEntries={["/s/3/stats"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
         <Route
           path="/s/:id/stats"
@@ -99,6 +99,20 @@ const bodyNames = () =>
     .map((row) => stats.agents.find(({ name }) => within(row).queryByRole("rowheader", { name }))?.name);
 
 describe("StatsPage", () => {
+  it("highlights and scrolls to the agent query after loading", async () => {
+    const scroll = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scroll });
+    await renderStats("/s/3/stats?agent=zoe");
+    const row = screen.getByRole("rowheader", { name: "Zoe" }).closest("tr");
+    expect(row).toHaveAttribute("aria-current", "true");
+    expect(row?.className).toMatch(/selected/);
+    expect(scroll).toHaveBeenCalledWith({ block: "center" });
+    expect(scroll.mock.instances[0]).toBe(row);
+    expect(screen.queryByRole("button", { name: "Show stats: Zoe" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Agent" }));
+    expect(screen.getByRole("rowheader", { name: "Zoe" }).closest("tr")).toHaveAttribute("aria-current", "true");
+  });
+
   it("refreshes elapsed durations while running, but not after finishing", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     await renderStats();

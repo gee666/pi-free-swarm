@@ -1,6 +1,8 @@
 // One agent within one run: its supervisor, launch prompts and revive state. The run decides the policy.
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { WATCHER_NAME } from "../constants.js";
+import { buildWatcherPrompt } from "../agents/watcher-prompt.js";
 import type { ParticipantStatus } from "../api-types.js";
 import { hasSessionFile, type AgentLaunchSpec } from "../agents/launch.js";
 import { buildKickoffPrompt, buildResumePrompt, buildRevivePrompt, buildSystemPrompt } from "../agents/prompt.js";
@@ -27,6 +29,8 @@ export interface RunAgentContext {
   collect(name: string, includeDeliveredUnread: boolean): { text: string; messageIds: number[] };
   isEnding(): boolean;
   onWorking(): void;
+  onStatus(name: string, status: ParticipantStatus): void;
+  onRealMessage(name: string): void;
   onError(error: unknown): void;
   onCrash(agent: RunAgent, crash: AgentCrash): void;
 }
@@ -58,6 +62,7 @@ export class RunAgent implements DeliveryTarget {
       ...hooks,
       onStatus: (status: ParticipantStatus) => {
         hooks.onStatus(status);
+        ctx.onStatus(this.name, status);
         if (status === "working") ctx.onWorking();
       },
     };
@@ -87,10 +92,12 @@ export class RunAgent implements DeliveryTarget {
   }
 
   deliver(prompt: PromptPayload): Promise<DeliveryOutcome> {
+    if (prompt.messageIds.length) this.#ctx.onRealMessage(this.name);
     return this.#supervisor.deliver(prompt);
   }
 
   recoverUnread(prompt: PromptPayload): Promise<DeliveryOutcome> {
+    if (prompt.messageIds.length) this.#ctx.onRealMessage(this.name);
     return this.#supervisor.recoverUnread(prompt);
   }
 
@@ -99,11 +106,13 @@ export class RunAgent implements DeliveryTarget {
     fs.mkdirSync(path.dirname(this.#spec.systemPromptFile), { recursive: true });
     fs.writeFileSync(
       this.#spec.systemPromptFile,
-      buildSystemPrompt({
-        agentName: this.name,
-        swarmName: this.#ctx.swarmName,
-        bodyMaxChars: bodyLimit(this.#ctx.db),
-      }),
+      this.name === WATCHER_NAME
+        ? buildWatcherPrompt(this.#ctx.swarmName)
+        : buildSystemPrompt({
+            agentName: this.name,
+            swarmName: this.#ctx.swarmName,
+            bodyMaxChars: bodyLimit(this.#ctx.db),
+          }),
     );
   }
 
@@ -111,6 +120,7 @@ export class RunAgent implements DeliveryTarget {
   launchFirst(): Promise<void> {
     const { taskPrompt } = this.#ctx;
     const messages = this.#ctx.collect(this.name, false);
+    if (this.name === WATCHER_NAME) return this.#launch(messages.text || null, messages.messageIds);
     const text = hasSessionFile(this.#spec.sessionFile)
       ? buildResumePrompt({ messages: messages.text })
       : buildKickoffPrompt({
@@ -147,10 +157,11 @@ export class RunAgent implements DeliveryTarget {
     return this.#launch(buildRevivePrompt({ messages: messages.text }), messages.messageIds);
   }
 
-  async #launch(text: string, messageIds: number[]): Promise<void> {
+  async #launch(text: string | null, messageIds: number[]): Promise<void> {
+    if (messageIds.length) this.#ctx.onRealMessage(this.name);
     this.#launching = true;
     const outcome = await this.#supervisor
-      .launch(this.#spec, { text, messageIds })
+      .launch(this.#spec, text === null ? null : { text, messageIds })
       .finally(() => (this.#launching = false));
     const { db, swarmId, clock } = this.#ctx;
     if (outcome.accepted && !this.#ctx.isEnding()) markDelivered(db, swarmId, this.name, messageIds, clock.now());

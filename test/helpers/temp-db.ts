@@ -1,6 +1,5 @@
 // A fresh swarm.db in its own temp project folder per test, so test files run in parallel.
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import path from "node:path";
 import type { SwarmListItem } from "../../src/api-types.js";
 import { createSwarm } from "../../src/broker/swarms.js";
@@ -14,7 +13,8 @@ export interface TempDb {
 }
 
 export function createTempDb(): TempDb {
-  const cwd = mkdtempSync(path.join(tmpdir(), "pi-free-swarm-"));
+  mkdirSync("tmp", { recursive: true });
+  const cwd = mkdtempSync(path.resolve("tmp/pi-free-swarm-"));
   const db = openSwarmDb(swarmDbPath(cwd), { create: true });
   return {
     cwd,

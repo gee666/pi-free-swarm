@@ -26,18 +26,18 @@ interface PanelLayoutProps {
   list: ReactNode;
   /** The main panel. */
   main: ReactNode;
-  /** Optional compose panel under the main panel. */
+  /** Optional compose panel above the newest content. */
   compose?: ReactNode;
 }
 
-/** List panel + main column (main panel over an optional compose panel). */
+/** List panel and main column with compose above the main panel. */
 export function PanelLayout({ list, main, compose }: PanelLayoutProps) {
   return (
     <div className={styles.columns}>
       <div className={styles.list}>{list}</div>
       <div className={styles.mainColumn}>
-        {main}
         {compose}
+        {main}
       </div>
     </div>
   );

@@ -35,60 +35,63 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
-  --fs-app-title: 26px; /* "Pi Swarm" */
-  --fs-h1: 24px; /* entity header name, e.g. "Maria" */
-  --fs-h2: 20px; /* panel titles, e.g. "Agents" */
-  --fs-body: 15px; /* rows, message text, inputs */
-  --fs-small: 13px; /* meta, chips, timestamps, hints */
+  --fs-app-title: 22px; /* "Pi Swarm" */
+  --fs-h1: 20px; /* entity header name, e.g. "Maria" */
+  --fs-h2: 17px; /* panel titles, e.g. "Agents" */
+  --fs-body: 14px; /* rows, message text, inputs */
+  --fs-small: 12px; /* meta, chips, timestamps, hints */
   --fw-regular: 400;
   --fw-medium: 500;
   --fw-semibold: 600;
-  --lh-body: 1.6;
-  --lh-tight: 1.25;
+  --lh-body: 1.45;
+  --lh-tight: 1.2;
 
-  /* ---- Spacing scale (4px base) ---- */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-8: 32px;
+  /* ---- Spacing scale ---- */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 10px;
+  --space-6: 12px;
+  --space-8: 16px;
 
   /* ---- Radii ---- */
-  --radius-sm: 6px; /* chips, small pills, badges-as-pills */
-  --radius-md: 8px; /* buttons, inputs, dropdowns, segmented control */
-  --radius-lg: 12px; /* panels, cards, expanded message */
+  --radius-sm: 2px; /* chips, small pills, badges-as-pills */
+  --radius-md: 3px; /* buttons, inputs, dropdowns, segmented control */
+  --radius-lg: 4px; /* panels, cards, expanded message */
   --radius-full: 999px; /* avatars, count badges, status dots */
 
   /* ---- Layout ---- */
-  --topbar-h: 72px;
-  --rail-w: 96px;
+  --topbar-h: 52px;
+  --rail-w: 76px;
   --list-w: 350px;
-  --row-h: 56px; /* mailbox / post rows */
-  --row-h-lg: 72px; /* agent rows with avatar */
-  --avatar-sm: 32px;
-  --avatar-md: 48px;
-  --avatar-lg: 64px;
-  --gap-panels: 16px;
+  --row-h: 40px; /* mailbox / post rows */
+  --row-h-lg: 52px; /* agent rows with avatar */
+  --avatar-sm: 28px;
+  --avatar-md: 36px;
+  --avatar-lg: 44px;
+  --gap-panels: 8px;
 
   /* ---- Shared component dimensions ---- */
-  --count-badge-size: 24px;
+  --count-badge-size: 20px;
   --dot-size: 8px;
   --topbar-dot-size: 10px;
-  --button-primary-h: 48px;
-  --button-secondary-h: 40px;
-  --control-compact-h: 36px;
-  --input-h: 44px;
-  --textarea-min-h: 80px;
+  --button-primary-h: 34px;
+  --button-secondary-h: 30px;
+  --control-compact-h: 28px;
+  --input-h: 32px;
+  --textarea-min-h: 60px;
   --textarea-max-h: 240px;
-  --segment-h: 48px;
-  --segment-min-w: 130px;
-  --menu-row-h: 40px;
+  --segment-h: 32px;
+  --segment-min-w: 104px;
+  --menu-row-h: 30px;
   --agent-popover-w: 260px;
-  --message-sender-w: 136px; /* 160px column including its 24px gap */
+  --message-sender-w: 176px;
   --message-subject-w: 320px;
   --timestamp-min-w: 72px;
+
+  --agent-action-size: 20px;
+  --rail-tab-h: 68px;
 
   --transition: 120ms ease-out;
 }

@@ -2,7 +2,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { PI_ARGS_PREFIX_ENV, PI_COMMAND_ENV } from "../constants.js";
+import { PI_ARGS_PREFIX_ENV, PI_COMMAND_ENV, WATCHER_NAME, WATCHER_TOOLS } from "../constants.js";
 import type { AgentLaunchContext } from "../runtime-types.js";
 import { registerAgentProcess } from "./process-registry.js";
 
@@ -87,6 +87,9 @@ export function buildChildProcessEnv(extra: Record<string, string>): NodeJS.Proc
 export function buildAgentArgs(spec: AgentLaunchSpec): string[] {
   const { context } = spec;
   const args = ["--mode", "rpc", "--session", spec.sessionFile, "--append-system-prompt", spec.systemPromptFile];
+  if (spec.name === WATCHER_NAME) {
+    args.push("--tools", WATCHER_TOOLS.join(","), "--exclude-tools", "mcp__*", "--no-skills", "--no-context-files");
+  }
   if (context.noExtensions) args.push("--no-extensions");
   for (const extension of context.extensionArgs) args.push("-e", extension);
   args.push(context.projectTrusted ? "--approve" : "--no-approve");

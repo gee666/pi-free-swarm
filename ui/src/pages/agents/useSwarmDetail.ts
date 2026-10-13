@@ -1,5 +1,5 @@
 import type { SwarmDetailResponse } from "../../../../src/api-types";
-import { applyParticipantEvent, fetchSwarmDetail } from "../../api/agents";
+import { applyParticipantEvent, fetchSwarmDetail, orderParticipants } from "../../api/agents";
 import { useSwarmStream } from "../../api/SwarmStream";
 import { useAsync, type AsyncState } from "../../api/useAsync";
 import { useStreamListener } from "../../api/useEventStream";
@@ -7,7 +7,14 @@ import { useStreamListener } from "../../api/useEventStream";
 /** Swarm record and participants, patched from the stream (statuses, unread counts, `swarm.updated`). */
 export function useSwarmDetail(swarmId: string): AsyncState<SwarmDetailResponse> {
   const stream = useSwarmStream();
-  const detail = useAsync((signal) => fetchSwarmDetail(swarmId, signal), [swarmId, stream.openCount]);
+  const detail = useAsync(
+    (signal) =>
+      fetchSwarmDetail(swarmId, signal).then((detail) => ({
+        ...detail,
+        participants: orderParticipants(detail.participants),
+      })),
+    [swarmId, stream.openCount],
+  );
   useStreamListener(stream, (event) => {
     if (event.type === "acceptance.updated" || event.type === "swarm.updated") detail.reload();
     detail.update((current) => {

@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -86,9 +86,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function renderWork() {
+function renderWork(path = "/s/3/work") {
   render(
-    <MemoryRouter initialEntries={["/s/3/work"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
         <Route
           path="/s/:id"
@@ -107,6 +107,14 @@ function renderWork() {
 }
 
 describe("WorkPage", () => {
+  it("opens a deep-linked agent rather than the first agent", async () => {
+    renderWork("/s/3/work/maria");
+    expect(await screen.findByText("Hello Maria")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Maria" })).toBeInTheDocument();
+    expect(screen.queryByText("Hello John")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open work: Maria" })).not.toBeInTheDocument();
+  });
+
   it("lists agents with activity and cost, and opens the first agent's session", async () => {
     renderWork();
     expect(await screen.findByRole("heading", { level: 1, name: "John" })).toBeInTheDocument();
@@ -115,8 +123,8 @@ describe("WorkPage", () => {
     const rows = screen.getAllByRole("button", { name: /John|Maria/ }).filter((row) => row.hasAttribute("data-row"));
     expect(rows).toHaveLength(2);
     expect(screen.queryByText("User")).toBeNull();
-    expect(within(rows[0]).getByText("running bash…")).toBeInTheDocument();
-    expect(within(rows[1]).getByText("thinking…")).toBeInTheDocument();
+    expect(rows[0].parentElement).toHaveTextContent("running bash…");
+    expect(rows[1].parentElement).toHaveTextContent("thinking…");
     expect(screen.getByText("$1.23")).toBeInTheDocument();
   });
 

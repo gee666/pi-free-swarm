@@ -113,7 +113,7 @@ test("tail DB failure reports, ends streams, and releases session watches withou
     temp.cleanup();
   });
   const response = await fetch(`http://127.0.0.1:${server.port}/events?swarm=${id}`);
-  assert.equal(watches, 1);
+  assert.equal(watches, 2);
   temp.db.sql.exec("DROP TABLE events");
   assert.doesNotThrow(() => clock.advance(EVENTS_TAIL_MS));
   await response.text();

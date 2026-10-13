@@ -27,7 +27,7 @@ export type RecipientStatus = "pending" | "delivered" | "read" | "undeliverable"
 
 export type AgentRunEndReason = "settled" | "crashed" | "stopped";
 
-export type ReservedName = "User" | "Main" | "System";
+export type ReservedName = "User" | "Main" | "System" | "Watcher";
 
 export type MailboxKind = "inbox" | "sent";
 

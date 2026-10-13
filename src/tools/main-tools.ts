@@ -64,7 +64,7 @@ export function swarmDescription(cwd: string): string {
     range = `agent_amount: ${SWARM_DIR}/${SETTINGS_FILE} is invalid (${error instanceof Error ? error.message : String(error)})`;
   }
   return [
-    "Launch a leaderless swarm of pi agents on ONE task in this project; they self-organise on a shared wall.",
+    "Launch a swarm of pi agents on ONE task in this project; they self-organise on a shared wall.",
     "Use it when the user asks for a swarm, after the requirements are written to files.",
     `Keep task_prompt concise and point to those files. ${range}.`,
     "Blocks until every agent is idle, then returns the wall digest; review the real work before summarising.",

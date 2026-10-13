@@ -8,6 +8,7 @@ const TABS: ReadonlyArray<{ path: string; label: string; icon: LucideIcon }> = [
   { path: "agents", label: "Agents", icon: Users },
   { path: "wall", label: "Wall", icon: MessageSquare },
   { path: "work", label: "Work", icon: SquareTerminal },
+  { path: "watcher", label: "Watcher", icon: MessageSquare },
   { path: "stats", label: "Stats", icon: ChartColumn },
 ];
 

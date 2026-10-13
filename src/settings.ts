@@ -8,6 +8,9 @@ import {
   DB_ENV,
   DEFAULT_AGENTS,
   DEFAULT_LATE_PEER_RATIO,
+  DEFAULT_IDLE_REMINDER_DELAY,
+  DEFAULT_IDLE_REMINDER_MAX,
+  DEFAULT_IDLE_REMINDER_DIGEST_SIZE,
   DEFAULT_MAX_AGENTS,
   DEFAULT_MIN_AGENTS,
   DEFAULT_PORT,
@@ -33,6 +36,10 @@ export interface SwarmSettings {
   /** Already clamped into `[minAgents, maxAgents]`. */
   defaultAgents: number;
   staggerSeconds: number;
+  /** Milliseconds of idle time before a reminder. */
+  idleReminderDelay: number;
+  idleReminderMax: number;
+  idleReminderDigestSize: number;
   bodyMaxChars: number;
   /** Share of a fresh swarm launched late with a fresh context; see late-peers. */
   latePeerRatio: number;
@@ -60,6 +67,9 @@ const KNOWN_KEYS = new Set([
   "maxAgents",
   "defaultAgents",
   "staggerSeconds",
+  "idleReminderDelay",
+  "idleReminderMax",
+  "idleReminderDigestSize",
   "bodyMaxChars",
   "latePeerRatio",
   "env",
@@ -97,10 +107,24 @@ export function loadSettings(cwd: string): { settings: SwarmSettings; warnings: 
     0,
     MAX_LATE_PEER_RATIO,
   );
+  const idleReminderDelay = optionalInteger(parsed, "idleReminderDelay", "an integer >= 0", 0);
+  const idleReminderMax = optionalInteger(parsed, "idleReminderMax", "an integer >= 0", 0);
+  const idleReminderDigestSize = optionalInteger(parsed, "idleReminderDigestSize", "an integer >= 1", 1);
   const env = parseEnv(parsed.env, warnings);
   return {
     settings: buildSettings(
-      { port, minAgents, maxAgents, defaultAgents, staggerSeconds, bodyMaxChars, latePeerRatio },
+      {
+        port,
+        minAgents,
+        maxAgents,
+        defaultAgents,
+        staggerSeconds,
+        bodyMaxChars,
+        latePeerRatio,
+        idleReminderDelay,
+        idleReminderMax,
+        idleReminderDigestSize,
+      },
       env,
     ),
     warnings,
@@ -120,7 +144,7 @@ export function describeAgentRange(settings: SwarmSettings): string {
   const range = `agent_amount: ${settings.minAgents}–${settings.maxAgents}, default ${settings.defaultAgents}`;
   if (settings.latePeerRatio === 0) return range;
   const share = Math.round(settings.latePeerRatio * 100);
-  return `${range}, including about ${share}% late peers (at least 1 from 2 agents) launched as the others go quiet`;
+  return `${range}, including about ${share}% late agents (at least 1 from 2 agents) launched as the others go quiet`;
 }
 
 /** `settings.env` plus the reserved variables, which always win. The inherited env is added at spawn. */
@@ -160,6 +184,9 @@ interface ParsedNumbers {
   maxAgents?: number;
   defaultAgents?: number;
   staggerSeconds?: number;
+  idleReminderDelay?: number;
+  idleReminderMax?: number;
+  idleReminderDigestSize?: number;
   bodyMaxChars?: number;
   latePeerRatio?: number;
 }
@@ -176,6 +203,9 @@ function buildSettings(values: ParsedNumbers, env: Record<string, string>): Swar
     maxAgents,
     defaultAgents,
     staggerSeconds: values.staggerSeconds ?? DEFAULT_STAGGER_SECONDS,
+    idleReminderDelay: values.idleReminderDelay ?? DEFAULT_IDLE_REMINDER_DELAY,
+    idleReminderMax: values.idleReminderMax ?? DEFAULT_IDLE_REMINDER_MAX,
+    idleReminderDigestSize: values.idleReminderDigestSize ?? DEFAULT_IDLE_REMINDER_DIGEST_SIZE,
     bodyMaxChars: values.bodyMaxChars ?? TEXT_MAX,
     latePeerRatio: values.latePeerRatio ?? DEFAULT_LATE_PEER_RATIO,
     env,

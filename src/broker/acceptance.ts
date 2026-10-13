@@ -61,7 +61,8 @@ export function mutateAcceptance(
   return db.write(() => {
     const run = acceptanceRun(db, swarmId);
     const participant = requireParticipant(db, swarmId, actor);
-    if (participant.kind !== "agent") throw new BrokerError("validation", "Acceptance mutations require a swarm peer.");
+    if (participant.kind !== "agent")
+      throw new BrokerError("validation", "Acceptance mutations require a swarm agent.");
     const record = inspectAcceptance(db, swarmId);
     requireAcceptanceRevision(record, mutation.revision);
     switch (mutation.action) {

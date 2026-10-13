@@ -91,13 +91,37 @@ async function expandScopes() {
 }
 
 describe("AgentsPage", () => {
+  it("addresses and focuses a new message from a compose deep link", async () => {
+    serve();
+    mount("/s/3/agents/User?compose=maria");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Remove Maria" })).toBeInTheDocument());
+    expect(textbox()).toHaveFocus();
+    expect(screen.queryByRole("button", { name: "Remove John" })).not.toBeInTheDocument();
+  });
+
+  it("switches from a reply to a new message through a name action", async () => {
+    serve();
+    await renderAgents();
+    await expandScopes();
+    await userEvent.click(await screen.findByRole("button", { name: "Reply" }));
+    await userEvent.type(textbox(), "Draft");
+    await userEvent.click(within(participantList()).getByRole("button", { name: "Send message: Emma" }));
+    await waitFor(() => expect(screen.queryByText("Replying in thread #2")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Remove Emma" })).toBeInTheDocument();
+    expect(textbox()).toHaveValue("Draft");
+    expect(textbox()).toHaveFocus();
+    await userEvent.click(screen.getByRole("button", { name: "Remove Emma" }));
+    await userEvent.click(within(participantList()).getByRole("button", { name: "Send message: Emma" }));
+    expect(screen.getByRole("button", { name: "Remove Emma" })).toBeInTheDocument();
+  });
+
   it("uses the server allowance for messages", async () => {
     serve();
     api.on("GET", "/api/swarms/3", () => ({ ...detail(), bodyMaxChars: 8000 }));
     mount("/s/3/agents/John");
     expect(await screen.findByText("0/8000")).toBeInTheDocument();
   });
-  it("lists User first with the you pill, then the agents in launch order with their badges", async () => {
+  it("keeps stable order for equal activity timestamps and shows unread badges", async () => {
     serve();
     await renderAgents();
     const list = participantList();
@@ -113,6 +137,27 @@ describe("AgentsPage", () => {
     expect(within(list).queryByRole("button", { name: /add agent/i })).not.toBeInTheDocument();
   });
 
+  it("shows newest-first fallback messages before the full thread loads, then prepends live replies", async () => {
+    serve();
+    api.on("GET", "/api/swarms/3/threads/2", () => jsonResponse(500, { error: "internal", message: "Unavailable" }));
+    await renderAgents();
+    const messages = await expandScopes();
+    expect(
+      within(messages)
+        .getAllByText(/Please sync on scopes|Scopes are merged/)
+        .map((node) => node.textContent),
+    ).toEqual(["Scopes are merged.\nSee config.", "Please sync on scopes"]);
+    await screen.findByText("Unavailable");
+    const reply = message(2, "Maria", [["John", "read"]], "Newest reply");
+    emit({ ...eventBase, type: "message.created", payload: { message: reply, unread: {} } });
+    expect(messages.firstElementChild).toHaveTextContent("Newest reply");
+    expect(
+      within(mailboxPanel())
+        .getAllByRole("button")
+        .filter((row) => row.hasAttribute("data-row"))[0],
+    ).toHaveAccessibleName(/Newest reply/);
+  });
+
   it("shows the inbox with the unread count and switches to sent", async () => {
     serve();
     await renderAgents();
@@ -125,7 +170,7 @@ describe("AgentsPage", () => {
     expect(sentCall?.query.get("box")).toBe("sent");
   });
 
-  it("expands the whole thread oldest first and marks the user's unread messages read", async () => {
+  it("expands the whole thread newest first with Reply above it and marks unread messages read", async () => {
     serve();
     await renderAgents();
     const messages = await expandScopes();
@@ -133,9 +178,20 @@ describe("AgentsPage", () => {
     const texts = within(messages)
       .getAllByText(/Please sync on scopes|Scopes are merged/)
       .map((node) => node.textContent);
-    expect(texts).toEqual(["Please sync on scopes", "Scopes are merged.\nSee config."]);
+    expect(texts).toEqual(["Scopes are merged.\nSee config.", "Please sync on scopes"]);
+    expect(
+      screen.getByRole("button", { name: "Reply" }).compareDocumentPosition(messages) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("region", { name: "Compose" }).compareDocumentPosition(mailboxPanel()) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     await waitFor(() => expect(api.callsTo("POST", "/api/swarms/3/participants/User/read")).toHaveLength(1));
     expect(api.callsTo("POST", "/api/swarms/3/participants/User/read")[0].body).toEqual({ messageIds: [scopes.id] });
+    const newest = message(2, "Maria", [["John", "read"]], "Live reply");
+    emit({ ...eventBase, type: "message.created", payload: { message: newest, unread: {} } });
+    expect(messages.firstElementChild).toHaveTextContent("Live reply");
   });
 
   it("replies in thread mode and restores the selected agent afterwards", async () => {
@@ -163,7 +219,7 @@ describe("AgentsPage", () => {
     serve();
     api.on("POST", "/api/swarms/3/messages", () => ({ message: sent }));
     await renderAgents();
-    await userEvent.click(within(participantList()).getByRole("button", { name: "Message Maria" }));
+    await userEvent.click(within(participantList()).getByRole("button", { name: "Send message: Maria" }));
     expect(textbox()).toHaveFocus();
     expect(screen.queryByRole("button", { name: "Remove John" })).not.toBeInTheDocument();
     await userEvent.type(textbox(), "Status?");

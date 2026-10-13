@@ -7,6 +7,7 @@ import type {
   SessionThinkingItem,
 } from "../../../../src/api-types";
 import { Icon } from "../../components/Icon";
+import { AgentName } from "../../components/AgentName";
 import { Markdown } from "../../components/Markdown";
 import { RichText } from "../../components/RichText";
 import { cx } from "../../lib/cx";
@@ -20,8 +21,16 @@ function SwarmMessageBlock({ item }: { item: SessionSwarmMessageItem }) {
   const header = (
     <>
       <span className={styles.meta}>{`thread #${item.threadId} · from`}</span>
-      <span className={styles.title}>{item.from}</span>
-      <span className={styles.summary}>{`· to: ${item.to.join(", ")}`}</span>
+      <AgentName className={styles.title} name={item.from} />
+      <span className={styles.summary}>
+        · to:{" "}
+        {item.to.map((name, index) => (
+          <span key={name}>
+            {index > 0 && ", "}
+            <AgentName name={name} />
+          </span>
+        ))}
+      </span>
     </>
   );
   return (
@@ -79,7 +88,7 @@ export function FeedItem({ item, agent }: { item: SessionItem; agent: string }) 
       return <SwarmMessageBlock item={item} />;
     case "assistant_text":
       return (
-        <FeedBlock header={<span className={styles.title}>{agent}</span>} timestamp={item.timestamp}>
+        <FeedBlock header={<AgentName className={styles.title} name={agent} />} timestamp={item.timestamp}>
           <Markdown source={item.text} />
         </FeedBlock>
       );

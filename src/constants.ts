@@ -67,6 +67,9 @@ export const DEFAULT_MIN_AGENTS = 1;
 export const DEFAULT_MAX_AGENTS = 10;
 export const DEFAULT_AGENTS = 5;
 export const DEFAULT_STAGGER_SECONDS = 20;
+export const DEFAULT_IDLE_REMINDER_DELAY = 60_000;
+export const DEFAULT_IDLE_REMINDER_MAX = 5;
+export const DEFAULT_IDLE_REMINDER_DIGEST_SIZE = 10;
 /** Share of a fresh swarm's agents that launch late; the cap keeps early peers the majority. */
 export const DEFAULT_LATE_PEER_RATIO = 0.2;
 export const MAX_LATE_PEER_RATIO = 0.5;
@@ -87,12 +90,18 @@ export const SESSION_PAGE_MAX = 200;
 export const SESSION_TOOL_OUTPUT_MAX_CHARS = 64 * 1024;
 export const SESSION_WATCH_POLL_MS = 1_000;
 export const WALL_DIGEST_MAX_POSTS = 150;
+export const WATCHER_ACTIVITY_DEFAULT = 10;
+export const WATCHER_ACTIVITY_MAX = 50;
+export const WATCHER_TEXT_MAX = 400;
+export const WATCHER_ARGS_MAX = 160;
+export const WATCHER_OVERVIEW_POSTS = 3;
 
 // ── Participants ─────────────────────────────────────────────────────────────
 export const USER_NAME = "User";
 export const MAIN_NAME = "Main";
 export const SYSTEM_NAME = "System";
-export const RESERVED_NAMES: readonly string[] = [USER_NAME, MAIN_NAME, SYSTEM_NAME];
+export const WATCHER_NAME = "Watcher";
+export const RESERVED_NAMES: readonly string[] = [USER_NAME, MAIN_NAME, SYSTEM_NAME, WATCHER_NAME];
 
 // ── Tool names ───────────────────────────────────────────────────────────────
 export const MAIN_TOOL = { swarm: "swarm", resumeSwarm: "resume_swarm" } as const;
@@ -108,6 +117,16 @@ export const AGENT_TOOL = {
   acceptance: "swarm_acceptance",
 } as const;
 
+export const WATCHER_TOOL = {
+  overview: "swarm_overview",
+  activity: "swarm_agent_activity",
+  threads: "swarm_read_threads",
+} as const;
+export const WATCHER_TOOLS = [
+  ...Object.values(AGENT_TOOL).filter((name) => name !== AGENT_TOOL.acceptance),
+  ...Object.values(WATCHER_TOOL),
+];
+
 // ── Fixed texts that more than one module writes or recognises ───────────────
 export const UNDELIVERABLE_REPLY_TEXT = "The swarm is finished. This message will not be delivered.";
 export const NOT_RUNNING_TEXT = "Swarm is not running. Messages can't be sent.";
@@ -116,3 +135,5 @@ export const MAIN_FEEDBACK_POST_SUFFIX = "…see your messages";
 /** First line of the revive prompt; the session reader shows such prompts as a `revive` system item. */
 export const REVIVE_PROMPT_HEADER = "[swarm] You were restarted after a crash or stall.";
 export const RESUME_PROMPT_HEADER = "[swarm resumed by Main]";
+export const IDLE_REMINDER_HEADER =
+  "[swarm] Reminder: the shared task is not accepted yet. Keep working until it is: check what the others are doing and pick up the next useful piece of work. Do not sit idle.";

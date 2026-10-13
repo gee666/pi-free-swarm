@@ -28,6 +28,8 @@
 }
 
 .main {
+  position: relative;
+  cursor: pointer;
   display: flex;
   flex: 1;
   align-items: center;
@@ -38,8 +40,8 @@
   text-align: left;
 }
 
-.main:focus-visible {
-  box-shadow: inset var(--accent-glow);
+.main > :not(button) {
+  position: relative;
 }
 
 .text {
@@ -57,9 +59,10 @@
 }
 
 .title {
+  min-width: 0;
   overflow: hidden;
   color: var(--text-primary);
-  font-size: calc(var(--fs-body) + 1px);
+  font-size: var(--fs-body);
   font-weight: var(--fw-medium);
   text-overflow: ellipsis;
   white-space: nowrap;

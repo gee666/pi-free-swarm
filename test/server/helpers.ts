@@ -1,6 +1,5 @@
 // Board server test harness: a temp swarm.db, the API + SSE routes on an OS-chosen port, fetch and SSE clients.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import type { SwarmEvent } from "../../src/api-types.js";
 import { systemClock, type Clock } from "../../src/clock.js";
@@ -22,7 +21,8 @@ export const OUTSIDE_SECRET = "outside ui_dist";
 
 /** A minimal ui_dist (app shell, one hashed asset, one plain file) with a file beside it that must stay private. */
 export function createUiFixture(): { dir: string; cleanup(): void } {
-  const root = mkdtempSync(path.join(tmpdir(), "pi-free-swarm-ui-"));
+  mkdirSync("tmp", { recursive: true });
+  const root = mkdtempSync(path.resolve("tmp/pi-free-swarm-ui-"));
   const dir = path.join(root, "ui_dist");
   mkdirSync(path.join(dir, "assets"), { recursive: true });
   writeFileSync(path.join(dir, "index.html"), UI_INDEX);

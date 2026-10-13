@@ -3,6 +3,7 @@ import { cx } from "../lib/cx";
 import type { RecipientStatus, RecipientView } from "../../../src/api-types";
 import { formatTimestamp } from "../lib/time";
 import { Avatar } from "./Avatar";
+import { AgentName } from "./AgentName";
 import styles from "./DeliveryStatus.module.css";
 import { Icon } from "./Icon";
 import { Tooltip } from "./Tooltip";
@@ -59,7 +60,7 @@ export function DeliveryList({ recipients }: { recipients: readonly RecipientVie
       {recipients.map((recipient) => (
         <li key={recipient.name} className={styles.line}>
           <Avatar name={recipient.name} size="xs" />
-          <span className={styles.name}>{recipient.name}</span>
+          <AgentName className={styles.name} name={recipient.name} />
           <span aria-hidden="true">·</span>
           <DeliveryIcon status={recipient.status} />
           <span>{deliveryLabel(recipient)}</span>

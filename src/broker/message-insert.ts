@@ -1,6 +1,6 @@
 // Inserting threads and messages, and the §7.4 race rule. Shared by messages.ts and the run cleanup.
 import type { MessageView, RecipientStatus } from "../api-types.js";
-import { SYSTEM_NAME, UNDELIVERABLE_REPLY_TEXT } from "../constants.js";
+import { SYSTEM_NAME, UNDELIVERABLE_REPLY_TEXT, WATCHER_NAME } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
 import { insertEvent } from "../store/events.js";
 import { getMessages, unreadCounts } from "../store/message-queries.js";
@@ -101,7 +101,8 @@ export function sendToThread(
   const live = getSwarm(db, swarmId, now)?.acceptsMessages === true;
   const recipients = input.recipients.map((recipient): RecipientInput => ({
     name: recipient.name,
-    status: recipient.kind === "user" ? "delivered" : live ? "pending" : "undeliverable",
+    status:
+      recipient.kind === "user" ? "delivered" : live || recipient.name === WATCHER_NAME ? "pending" : "undeliverable",
   }));
   const message = insertMessage(db, {
     swarmId,
@@ -112,6 +113,8 @@ export function sendToThread(
     now,
   });
   const hasAgent = input.recipients.some((recipient) => recipient.kind === "agent");
-  if (!live && hasAgent) addUndeliverableReply(db, swarmId, threadId, input.sender, now);
+  const unavailable =
+    !live && input.recipients.some((recipient) => recipient.kind === "agent" && recipient.name !== WATCHER_NAME);
+  if (unavailable) addUndeliverableReply(db, swarmId, threadId, input.sender, now);
   return { message, pending: live && hasAgent };
 }

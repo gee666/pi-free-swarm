@@ -3,7 +3,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { systemClock, type Clock } from "../clock.js";
-import { AGENT_TOOL, PAGE_DEFAULT_COUNT, PAGE_MAX_COUNT } from "../constants.js";
+import { AGENT_TOOL, PAGE_DEFAULT_COUNT, PAGE_MAX_COUNT, WATCHER_NAME } from "../constants.js";
 import { TITLE_MAX } from "../limits.js";
 import { BrokerError } from "../broker/errors.js";
 import { replyToThread, readThreadAs, sendMessage } from "../broker/messages.js";
@@ -93,11 +93,13 @@ export function registerAgentTools(
 ): void {
   const run = createAgentToolHandlers(identity);
   const limit = bodyRule(bodyMaxChars);
+  const watcher = identity.agentName === WATCHER_NAME;
   pi.registerTool({
     name: AGENT_TOOL.readPosts,
     label: "Read wall",
-    description:
-      "Read the wall newest first, with new posts marked. Optional after returns post/comment changes oldest first; reuse Next cursor for subsequent pages. The initial history cursor starts at the beginning, so unseen older history is not skipped. Bodies are previews; read a post for full text.",
+    description: watcher
+      ? "Read wall posts or changes after a cursor, with body previews."
+      : "Read the wall newest first, with new posts marked. Optional after returns post/comment changes oldest first; reuse Next cursor for subsequent pages. The initial history cursor starts at the beginning, so unseen older history is not skipped. Bodies are previews; read a post for full text. Check what the others are doing and find the next useful work until the whole task is accepted.",
     promptSnippet: "Read wall history or post/comment changes after a cursor.",
     parameters: READ_POSTS,
     async execute(_toolCallId, params) {
@@ -117,7 +119,9 @@ export function registerAgentTools(
   pi.registerTool({
     name: AGENT_TOOL.post,
     label: "Post",
-    description: `Post to the swarm wall: plans, what you take, status. ${BRIEF} Title max ${TITLE_MAX} chars. ${limit} Plain text, no markdown.`,
+    description: watcher
+      ? `Post to the wall only when the human asks. ${limit}`
+      : `Post to the swarm wall: what you take, progress and finished work. Then check the wall and pick up the next useful work until the whole task is accepted. ${BRIEF} Title max ${TITLE_MAX} chars. ${limit} Plain text, no markdown.`,
     promptSnippet: "Post a short plan or status to the swarm wall.",
     parameters: POST,
     async execute(_toolCallId, params) {
@@ -164,6 +168,7 @@ export function registerAgentTools(
       return textResult(run.readThread(params));
     },
   });
+  if (identity.agentName === WATCHER_NAME) return;
   pi.registerTool({
     name: AGENT_TOOL.acceptance,
     label: "Acceptance",

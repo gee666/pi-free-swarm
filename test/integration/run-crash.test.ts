@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { sendMessage } from "../../src/broker/messages.js";
 import { startSwarm } from "../../src/broker/swarm-run.js";
-import { REVIVE_PROMPT_HEADER } from "../../src/constants.js";
+import { REVIVE_PROMPT_HEADER, WATCHER_NAME } from "../../src/constants.js";
 import { listPosts } from "../../src/store/wall-queries.js";
 import { SCENARIOS, type FakePiScenario } from "../fixtures/fake-pi/harness.js";
 import {
@@ -74,7 +74,7 @@ describe("crash recovery", () => {
     assert.equal(reviveCount(db, swarmId, name), 1);
     assert.equal(spawnsOf(run.fake).length, 2);
     assert.ok(promptTexts(run.fake).some((text) => text.startsWith(REVIVE_PROMPT_HEADER)));
-    const signals = run.fake.log().filter((record) => record.fake === "signal");
+    const signals = run.fake.log().filter((record) => record.fake === "signal" && record.agent !== WATCHER_NAME);
     assert.equal(signals.length, 2, "SIGTERM for the stalled process, then for the revived one at the finish");
   });
 

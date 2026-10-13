@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SwarmEvent } from "../../../../src/api-types";
-import { applyMailboxEvent, withOlderThreads } from "./mailboxModel";
+import { applyMailboxEvent, orderMailbox, withMessage, withOlderThreads } from "./mailboxModel";
 import { canUserReply, visibleRecipients } from "./messageDisplay";
 import { eventBase, mailbox, mailboxThread, message, thread } from "./testFixtures";
 
@@ -18,6 +18,25 @@ const created = (item: ReturnType<typeof message>): SwarmEvent => ({
 });
 
 describe("applyMailboxEvent", () => {
+  it("normalizes thread lists and their fallback messages newest-first", () => {
+    const record = mailboxThread(thread(1, ["John", "Maria"]), [first, second], "Maria");
+    const result = orderMailbox(
+      mailbox("Maria", "inbox", [inbox.threads[0], { ...record, thread: thread(3, ["John", "Maria"]) }]),
+    );
+    expect(result.threads.map((item) => item.thread.id)).toEqual([3, 1]);
+    expect(result.threads[0].messages).toEqual([second, first]);
+    expect(withMessage(result.threads[0].messages, second)).toBe(result.threads[0].messages);
+  });
+
+  it("does not move a thread ahead of newer activity for a delayed event", () => {
+    const delayed = { ...message(1, "John", [["Maria", "read"]], "delayed"), createdAt: first.createdAt - 1 };
+    const patch = applyMailboxEvent(orderMailbox(inbox), created(delayed));
+    if (patch.kind !== "patched") throw new Error("expected a patch");
+    expect(patch.mailbox.threads.map((item) => item.thread.id)).toEqual([2, 1]);
+    expect(patch.mailbox.threads[1].messages).toEqual([first, delayed]);
+    expect(patch.mailbox.threads[1].lastMessageAt).toBe(first.createdAt);
+  });
+
   it("moves a known thread to the top with the new message and its unread count", () => {
     const reply = message(2, "Liam", [["Maria", "pending"]], "three");
     const patch = applyMailboxEvent(inbox, created(reply));
@@ -52,7 +71,7 @@ describe("applyMailboxEvent", () => {
       inbox.threads[1],
       mailboxThread(thread(9, ["Ava", "Maria"]), [first], "Maria"),
     ]);
-    expect(withOlderThreads(inbox, page).threads.map((item) => item.thread.id)).toEqual([1, 2, 9]);
+    expect(withOlderThreads(inbox, page).threads.map((item) => item.thread.id)).toEqual([2, 9, 1]);
     expect(withOlderThreads(inbox, { ...page, box: "sent" })).toBe(inbox);
   });
 });

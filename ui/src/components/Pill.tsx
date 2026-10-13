@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import styles from "./Pill.module.css";
 import { Icon } from "./Icon";
+import { AgentName } from "./AgentName";
 
 interface PillProps {
   /** Muted leading word, e.g. "to". */
@@ -24,16 +25,16 @@ export function Pill({ prefix, icon, title, children }: PillProps) {
 
 const MAX_LISTED = 2;
 
-/** "Maria", "Maria, John", or "Maria +2" once there are more than two names. */
-function formatRecipients(names: readonly string[]): string {
-  if (names.length <= MAX_LISTED) return names.join(", ");
-  return `${names[0]} +${names.length - 1}`;
-}
-
 export function RecipientPill({ names, prefix = "to" }: { names: readonly string[]; prefix?: string }) {
   return (
     <Pill prefix={prefix} title={names.length > MAX_LISTED ? names.join(", ") : undefined}>
-      {formatRecipients(names)}
+      {(names.length <= MAX_LISTED ? names : names.slice(0, 1)).map((name, index) => (
+        <span key={name}>
+          {index > 0 && ", "}
+          <AgentName name={name} />
+        </span>
+      ))}
+      {names.length > MAX_LISTED && ` +${names.length - 1}`}
     </Pill>
   );
 }

@@ -52,6 +52,6 @@ it("aborting the tool signal stops every agent and returns the stopped result", 
   const db = runtime.getDb(false);
   assert.ok(db);
   const statuses = listParticipants(db, 1).flatMap((p) => (p.kind === "agent" ? [p.status] : []));
-  assert.deepEqual(statuses, ["stopped", "stopped"]);
+  assert.deepEqual(statuses, ["stopped", "stopped", "stopped"]);
   runtime.closeDb();
 });

@@ -5,6 +5,7 @@ import type { LoadMore } from "../../api/useLoadMore";
 import { Button } from "../../components/Button";
 import { CountBadge } from "../../components/Indicators";
 import { ListRow } from "../../components/ListRow";
+import { AgentName } from "../../components/AgentName";
 import { Panel, PanelBody, PanelHeader } from "../../components/Panel";
 import { Pill } from "../../components/Pill";
 import { RowList } from "../../components/RowList";
@@ -51,7 +52,11 @@ export function PostList({ posts, error, more, selected, unreadComments, onSelec
                   avatar={author}
                   avatarSize="sm"
                   title={post.title}
-                  subtitle={`${author} · ${formatTimestamp(post.createdAt)}`}
+                  subtitle={
+                    <>
+                      <AgentName name={author} /> · {formatTimestamp(post.createdAt)}
+                    </>
+                  }
                   selected={post.id === selected}
                   onSelect={() => onSelect(post.id)}
                   trailing={

@@ -4,6 +4,7 @@ import { fetchThread, markUserRead, USER_NAME } from "../../api/agents";
 import { useSwarmStream } from "../../api/SwarmStream";
 import { useAsync, type AsyncState } from "../../api/useAsync";
 import { useStreamListener } from "../../api/useEventStream";
+import { newestFirst } from "../../lib/newestFirst";
 import { isUnreadFor, withMessage, withRecipient } from "./mailboxModel";
 
 export interface Thread extends AsyncState<ThreadResponse> {
@@ -13,7 +14,11 @@ export interface Thread extends AsyncState<ThreadResponse> {
 /** A whole thread, kept live; everything addressed to the user is marked read once it is on screen. */
 export function useThread(swarmId: string, threadId: number): Thread {
   const stream = useSwarmStream();
-  const state = useAsync((signal) => fetchThread(swarmId, threadId, signal), [swarmId, threadId, stream.openCount]);
+  const state = useAsync(
+    (signal) =>
+      fetchThread(swarmId, threadId, signal).then((thread) => ({ ...thread, messages: newestFirst(thread.messages) })),
+    [swarmId, threadId, stream.openCount],
+  );
   const { update } = state;
 
   useStreamListener(stream, (event) => {

@@ -50,6 +50,8 @@ export interface FakePiScenario {
   runs?: FakeStep[][];
   /** Hold every agent_settled until the next command arrives, like pi's settle gap. */
   settleGap?: boolean;
+  /** Send a prompt response and its whole turn as one stdout batch. */
+  batchRunOutput?: boolean;
   retainQueueOnError?: boolean;
   /** Prompts containing this text are answered success:false. */
   reject?: string;
@@ -57,6 +59,7 @@ export interface FakePiScenario {
   ignoreSigterm?: boolean;
   /** The n-th spawn with this scenario file uses spawns[n] (last repeats); counted in `<file>.spawns`. */
   spawns?: FakePiScenario[];
+  agents?: Record<string, FakePiScenario>;
 }
 
 type Json = Record<string, unknown>;
@@ -67,9 +70,14 @@ function isJson(value: unknown): value is Json {
 
 const logFile = process.env.FAKE_PI_LOG;
 const log = (record: Json) => {
-  if (logFile) fs.appendFileSync(logFile, `${JSON.stringify(record)}\n`);
+  if (logFile) fs.appendFileSync(logFile, `${JSON.stringify({ agent: process.env.PI_SWARM_AGENT, ...record })}\n`);
 };
-const emit = (record: Json) => process.stdout.write(`${JSON.stringify(record)}\n`);
+let outputBatch: string[] | null = null;
+const emit = (record: Json) => {
+  const line = `${JSON.stringify(record)}\n`;
+  if (outputBatch) outputBatch.push(line);
+  else process.stdout.write(line);
+};
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 const forever = () => new Promise<never>(() => undefined);
 
@@ -78,6 +86,8 @@ function loadScenario(): FakePiScenario {
   if (!file) return {};
   // Written by the test harness from a typed FakePiScenario.
   const scenario = JSON.parse(fs.readFileSync(file, "utf8")) as FakePiScenario;
+  const agent = process.env.PI_SWARM_AGENT;
+  if (agent && scenario.agents?.[agent]) return scenario.agents[agent];
   if (!scenario.spawns?.length) return scenario;
   const counter = `${file}.spawns`;
   const index = fs.existsSync(counter) ? Number(fs.readFileSync(counter, "utf8")) : 0;
@@ -257,8 +267,14 @@ function handlePrompt(command: Json): void {
     respond(command, { success: false, error: "Rejected by fake pi." });
     return;
   }
+  if (scenario.batchRunOutput) outputBatch = [];
   respond(command);
-  void run(text);
+  void run(text).then(() => {
+    if (!outputBatch) return;
+    const batch = outputBatch;
+    outputBatch = null;
+    process.stdout.write(batch.join(""));
+  });
 }
 
 function handleCommand(command: Json): void {

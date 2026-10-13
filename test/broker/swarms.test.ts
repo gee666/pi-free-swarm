@@ -44,7 +44,7 @@ describe("createSwarm", () => {
     assert.equal(swarm.runCount, 1);
     assert.deepEqual(
       listParticipants(db, swarm.id).map((p) => p.name),
-      ["User", "Maria", "John", "Liam"],
+      ["User", "Maria", "John", "Liam", "Watcher"],
     );
     assert.deepEqual(listAgentSessions(db, swarm.id)[0], {
       name: "Maria",
@@ -150,7 +150,7 @@ describe("runs", () => {
 
     const ended = getSwarm(db, swarm.id, T0 + 3);
     assert.deepEqual([ended?.status, ended?.runnerPid, ended?.finishedAt], ["stopped", null, T0 + 3]);
-    assert.deepEqual(agents(swarm.id), { Maria: "stopped", John: "crashed", Liam: "stopped" });
+    assert.deepEqual(agents(swarm.id), { Maria: "stopped", John: "crashed", Liam: "stopped", Watcher: "stopped" });
     const statuses = getMessages(db, [fromUser.id, fromAgent.id]).flatMap((m) => m.recipients.map((r) => r.status));
     assert.deepEqual(statuses, ["undeliverable", "undeliverable", "undeliverable"]);
     const userThread = getThread(db, swarm.id, fromUser.threadId)?.messages ?? [];
@@ -174,7 +174,7 @@ describe("runs", () => {
     setAgentStatus(db, swarm.id, "John", "crashed", T0);
     setAgentStatus(db, swarm.id, "Liam", "idle", T0);
     endRun(db, swarm.id, process.pid, "finished", T0 + 1);
-    assert.deepEqual(agents(swarm.id), { Maria: "idle", John: "crashed", Liam: "idle" });
+    assert.deepEqual(agents(swarm.id), { Maria: "idle", John: "crashed", Liam: "idle", Watcher: "stopped" });
   });
 
   it("refuses to resume a running swarm and resumes a finished one", () => {
@@ -192,7 +192,7 @@ describe("runs", () => {
     const resumed = beginResume(db, swarm.id, OTHER_PID, T0 + 20);
     assert.equal(resumed.run, 2);
     assert.deepEqual([resumed.swarm.status, resumed.swarm.runCount, resumed.swarm.finishedAt], ["starting", 2, null]);
-    assert.deepEqual(agents(swarm.id), { Maria: "pending", John: "pending", Liam: "pending" });
+    assert.deepEqual(agents(swarm.id), { Maria: "pending", John: "pending", Liam: "pending", Watcher: "pending" });
     assert.equal(getStats(db, swarm.id, T0 + 30)?.totals.wallTimeMs, 10 + 10);
   });
 

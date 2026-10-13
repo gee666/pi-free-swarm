@@ -80,6 +80,26 @@ export function getThread(db: SwarmDb, swarmId: number, threadId: number): Threa
   return { thread, messages: getMessages(db, messageIds) };
 }
 
+export function listThreads(db: SwarmDb, swarmId: number, page: { count: number; offset: number }): ThreadView[] {
+  return db.sql
+    .prepare("SELECT * FROM threads WHERE swarm_id = ? ORDER BY id DESC LIMIT ? OFFSET ?")
+    .all(swarmId, page.count, page.offset)
+    .map((row) => threadOf(db, row));
+}
+
+export function findDirectThread(db: SwarmDb, swarmId: number, first: string, second: string): ThreadResponse | null {
+  const row = db.sql
+    .prepare(
+      `SELECT t.id FROM threads t WHERE t.swarm_id = ?
+    AND (SELECT COUNT(*) FROM thread_members m WHERE m.thread_id = t.id) = 2
+    AND EXISTS (SELECT 1 FROM thread_members m WHERE m.thread_id = t.id AND m.name = ?)
+    AND EXISTS (SELECT 1 FROM thread_members m WHERE m.thread_id = t.id AND m.name = ?)
+    ORDER BY t.id DESC LIMIT 1`,
+    )
+    .get(swarmId, first, second);
+  return row === undefined ? null : getThread(db, swarmId, int(row, "id"));
+}
+
 function unreadOf(db: SwarmDb, swarmId: number, name: string, threadId?: number): number {
   const row =
     threadId === undefined

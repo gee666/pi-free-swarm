@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Inbox, Mail, MessageCircle } from "lucide-react";
+import { Inbox, MessageCircle } from "lucide-react";
 import { TEXT_MAX } from "../../../src/limits";
 import { Avatar } from "../components/Avatar";
-import { Button, IconButton } from "../components/Button";
+import { AgentName } from "../components/AgentName";
+import { Button } from "../components/Button";
 import { ComposeBox, type ComposeBoxProps } from "../components/compose/ComposeBox";
 import { DeliveryList, DeliverySummary } from "../components/DeliveryStatus";
 import { EntityHeader } from "../components/EntityHeader";
@@ -44,13 +45,12 @@ function ListPanel() {
   const agent = (name: string, unread: number) => (
     <ListRow
       avatar={name}
-      title={name}
+      title={<AgentName name={name} />}
       selected={selected === name}
       onSelect={() => setSelected(name)}
       trailing={
         <>
           <StatusDot status="live" />
-          <IconButton icon={Mail} label={`Message ${name}`} />
           <CountBadge count={unread} reserveSpace />
         </>
       }
@@ -73,7 +73,11 @@ function ListPanel() {
         avatar="Oliver"
         avatarSize="sm"
         title="Refresh token rotation plan"
-        subtitle="Oliver · 12:04"
+        subtitle={
+          <>
+            <AgentName name="Oliver" /> · 12:04
+          </>
+        }
         selected={selected === "post"}
         onSelect={() => setSelected("post")}
         trailing={<Pill icon={MessageCircle}>4</Pill>}
@@ -90,7 +94,16 @@ export function PanelsSection() {
       <Section title="List panel, entity header">
         <ListPanel />
         <Panel className={styles.mainPanel}>
-          <EntityHeader avatar={<Avatar name="Oliver" size="lg" accent />} title="Oliver" subtitle="Post by Oliver" />
+          <EntityHeader
+            avatar={<Avatar name="Oliver" size="lg" accent />}
+            title={<AgentName name="Oliver" />}
+            titleLabel="Oliver"
+            subtitle={
+              <>
+                Post by <AgentName name="Oliver" />
+              </>
+            }
+          />
           <ErrorBanner>Connection lost. Reconnecting…</ErrorBanner>
           <Panel inset>
             <MessageRow

@@ -1,6 +1,6 @@
 // The live snapshot the swarm tools stream into the terminal tool box about once a second (plan §9).
 import type { ParticipantStatus, SwarmStatus } from "../api-types.js";
-import { USER_NAME } from "../constants.js";
+import { USER_NAME, WATCHER_NAME } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
 import { unreadCounts } from "../store/message-queries.js";
 import { getStats } from "../store/stats-queries.js";
@@ -36,7 +36,7 @@ export function readRunProgress(db: SwarmDb, swarmId: number, now: number, board
     stopped: 0,
   };
   for (const participant of listParticipants(db, swarmId)) {
-    if (participant.kind === "agent") agents[participant.status]++;
+    if (participant.kind === "agent" && participant.name !== WATCHER_NAME) agents[participant.status]++;
   }
   const { totals } = stats;
   const startedAt = swarm.startedAt ?? now;

@@ -15,7 +15,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-3);
-  height: 100px;
+  height: var(--rail-tab-h);
   border-radius: var(--radius-lg) 0 0 var(--radius-lg);
   color: var(--text-muted);
   font-size: var(--fs-body);

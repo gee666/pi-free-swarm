@@ -64,12 +64,12 @@ describe("sendMessage", () => {
     brokerError(
       () => sendMessage(db, swarm.id, "Maria", ["Bob"], "hi", NOW),
       "validation",
-      "Unknown participant: Bob. Known participants: Maria, John, Liam, User.",
+      "Unknown participant: Bob. Known participants: Maria, John, Liam, Watcher, User.",
     );
     brokerError(
       () => sendMessage(db, swarm.id, "Maria", ["Bob", "Main", "system", "John"], "hi", NOW),
       "validation",
-      "Unknown participants: Bob, Main, system. Known participants: Maria, John, Liam, User.",
+      "Unknown participants: Bob, Main, system. Known participants: Maria, John, Liam, Watcher, User.",
     );
   });
 

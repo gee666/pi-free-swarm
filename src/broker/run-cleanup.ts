@@ -1,6 +1,6 @@
 // The end of a run, shared by endRun and the stale-lock sweep: close the spans, release the lock, and
 // make every message that can no longer reach its agent `undeliverable` (pi's queue died with it).
-import { USER_NAME } from "../constants.js";
+import { USER_NAME, WATCHER_NAME } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
 import { listOpenAgentRecipients } from "../store/message-queries.js";
 import { count, int, intOrNull, jsonList, text, textOrNull } from "../store/rows.js";
@@ -34,10 +34,10 @@ export function cleanupRun(db: SwarmDb, swarmId: number, end: RunEndStatus, now:
     db.sql
       .prepare(
         `UPDATE participants SET activity = NULL,
-           status = CASE WHEN ? <> 'finished' AND status <> 'crashed' THEN 'stopped' ELSE status END
+           status = CASE WHEN (? <> 'finished' OR name = ?) AND status <> 'crashed' THEN 'stopped' ELSE status END
          WHERE swarm_id = ? AND kind = 'agent'`,
       )
-      .run(end, swarmId);
+      .run(end, WATCHER_NAME, swarmId);
     for (const row of db.sql
       .prepare("SELECT name, status, activity FROM participants WHERE swarm_id = ? AND kind = 'agent'")
       .all(swarmId)) {
@@ -58,6 +58,8 @@ function abandonOpenMessages(db: SwarmDb, swarmId: number, now: number): void {
   );
   const affected = new Set<number>();
   for (const open of listOpenAgentRecipients(db, swarmId)) {
+    // Questions survive run shutdown so the next run can answer them.
+    if (open.name === WATCHER_NAME) continue;
     if (count(update.run(open.messageId, open.name).changes) === 0) continue;
     affected.add(open.messageId);
     emitRecipientStatus(db, swarmId, open.messageId, open.name, now);

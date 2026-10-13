@@ -23,7 +23,7 @@ export const displayName = (name: string) => (name === USER_NAME ? "You" : name)
 
 const swarmUrl = (swarmId: number | string) => `/api/swarms/${encodeURIComponent(swarmId)}`;
 
-/** Swarm record plus participants: `User` first, then agents by launch order. */
+/** Swarm record plus participants in API order. */
 export function fetchSwarmDetail(swarmId: number | string, signal: AbortSignal): Promise<SwarmDetailResponse> {
   return getJson<SwarmDetailResponse>(swarmUrl(swarmId), signal);
 }
@@ -81,8 +81,21 @@ function withUnread(participants: ParticipantView[], unread: UnreadCounts): Part
   });
 }
 
-/** Applies the participant-related part of an SSE event; returns the same array when nothing changed. */
+const activityAt = (participant: ParticipantView) => participant.lastActivityAt ?? participant.joinedAt ?? 0;
+
+export function orderParticipants(participants: readonly ParticipantView[]): ParticipantView[] {
+  return [...participants].sort(
+    (left, right) => activityAt(right) - activityAt(left) || (right.joinedAt ?? 0) - (left.joinedAt ?? 0),
+  );
+}
+
+/** Keeps activity lists newest-first without replacing unchanged arrays. */
 export function applyParticipantEvent(participants: ParticipantView[], event: SwarmEvent): ParticipantView[] {
+  const next = patchParticipantEvent(participants, event);
+  return next === participants ? participants : orderParticipants(next);
+}
+
+function patchParticipantEvent(participants: ParticipantView[], event: SwarmEvent): ParticipantView[] {
   switch (event.type) {
     case "participant.updated": {
       const next = event.payload.participant;
@@ -99,7 +112,16 @@ export function applyParticipantEvent(participants: ParticipantView[], event: Sw
           : participant,
       );
     }
-    case "message.created":
+    case "message.created": {
+      const { message, unread } = event.payload;
+      const involved = new Set([message.sender, ...message.recipients.map(({ name }) => name)]);
+      const active = patchEach(participants, (participant) =>
+        involved.has(participant.name) && message.createdAt > activityAt(participant)
+          ? { ...participant, lastActivityAt: message.createdAt }
+          : participant,
+      );
+      return withUnread(active, unread);
+    }
     case "message.status":
       return withUnread(participants, event.payload.unread);
     default:

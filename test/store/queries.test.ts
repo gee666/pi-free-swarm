@@ -102,7 +102,7 @@ describe("wall and stats", () => {
     );
     assert.deepEqual(
       stats?.agents.map((a) => a.name),
-      ["Maria", "John", "Liam"],
+      ["Maria", "John", "Liam", "Watcher"],
     );
     assert.equal(getStats(db, 9999, T0), null);
   });

@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { hasSessionFile } from "../../src/agents/launch.js";
 import { SCENARIOS, waitFor } from "../fixtures/fake-pi/harness.js";
 import { prompt, superviseFake } from "./supervisor-helpers.js";
+import { FakeClock } from "./fake-clock.js";
 
 test("launch → starting → working → idle, with usage, activity, read markers and a session file", async () => {
   const agent = superviseFake(SCENARIOS.settle);
@@ -43,6 +44,22 @@ test("launch → starting → working → idle, with usage, activity, read marke
     assert.ok(hasSessionFile(spec.sessionFile));
     const entries = fs.readFileSync(spec.sessionFile, "utf8").trim().split("\n");
     assert.equal(entries.length, 3, "header, user, assistant");
+  } finally {
+    await agent.cleanup();
+  }
+});
+
+test("batched prompt responses and complete turns preserve idle transitions and leave no idle timers", async () => {
+  const clock = new FakeClock();
+  const agent = superviseFake({ ...SCENARIOS.settle, batchRunOutput: true }, { clock });
+  try {
+    assert.deepEqual(await agent.supervisor.launch(agent.fake.spec(), prompt("go")), { accepted: true });
+    assert.equal(agent.supervisor.status, "idle");
+    assert.equal(clock.pending, 0);
+    assert.deepEqual(await agent.supervisor.deliver(prompt("[swarm] Reminder: keep working.")), { accepted: true });
+    assert.equal(agent.supervisor.status, "idle");
+    assert.equal(clock.pending, 0);
+    assert.deepEqual(agent.recorded.statuses, ["starting", "working", "idle", "working", "idle"]);
   } finally {
     await agent.cleanup();
   }

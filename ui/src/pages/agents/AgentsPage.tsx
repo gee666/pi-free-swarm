@@ -13,6 +13,7 @@ import styles from "./Agents.module.css";
 import { MailboxPanel } from "./MailboxPanel";
 import { ParticipantList } from "./ParticipantList";
 import { useComposer } from "./useComposer";
+import { useComposeRequest } from "./useComposeRequest";
 import { useSwarmDetail } from "./useSwarmDetail";
 
 /** Agents tab: participants, the selected one's mailbox, and the user's compose box. */
@@ -28,10 +29,7 @@ export function AgentsPage() {
   const composeSlot = useRef<HTMLDivElement>(null);
   const focusCompose = () => composeSlot.current?.querySelector("textarea")?.focus();
 
-  const messageAgent = (name: string) => {
-    composer.address([name]);
-    focusCompose();
-  };
+  useComposeRequest(participants, composer.address, composeSlot);
   const reply = (thread: ThreadView) => {
     composer.reply(thread);
     focusCompose();
@@ -52,7 +50,6 @@ export function AgentsPage() {
           error={detail.error}
           selected={selected?.name}
           onSelect={(name) => navigate(`/s/${swarmId}/agents/${encodeURIComponent(name)}`)}
-          onMessage={messageAgent}
         />
       }
       main={

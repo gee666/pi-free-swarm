@@ -7,6 +7,18 @@ const POST_SELECT = `
   SELECT p.*, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count
   FROM posts p`;
 
+/** IDs distinguish new contributions even when several writes share a timestamp. */
+export function wallActivityKey(db: SwarmDb, swarmId: number, author: string): string {
+  const row = db.sql
+    .prepare(
+      `SELECT
+    (SELECT COALESCE(MAX(id), 0) FROM posts WHERE swarm_id = ? AND author = ?) AS post,
+    (SELECT COALESCE(MAX(id), 0) FROM comments WHERE swarm_id = ? AND author = ?) AS comment`,
+    )
+    .get(swarmId, author, swarmId, author);
+  return row === undefined ? "0:0" : `${int(row, "post")}:${int(row, "comment")}`;
+}
+
 /** Newest first. */
 export function listPosts(db: SwarmDb, swarmId: number, page: { count: number; offset: number }): PostListResponse {
   const posts = db.sql

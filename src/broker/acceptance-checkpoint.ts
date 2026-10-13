@@ -1,4 +1,4 @@
-import { SYSTEM_NAME } from "../constants.js";
+import { SYSTEM_NAME, WATCHER_NAME } from "../constants.js";
 import { getAcceptance } from "../store/acceptance-queries.js";
 import type { SwarmDb } from "../store/db.js";
 import { text } from "../store/rows.js";
@@ -7,7 +7,7 @@ import { createThread, insertMessage } from "./message-insert.js";
 import { notifyLocalMessage } from "./notify.js";
 
 export const PENDING_ACCEPTANCE_NOTICE =
-  "Task acceptance is pending. swarm_acceptance can inspect the original task and shared evidence; any peer may self-claim or decline. This is the run's only automatic checkpoint notice.";
+  "Task acceptance is pending. swarm_acceptance can inspect the original task and shared evidence; any agent may self-claim or decline. This is the run's only automatic checkpoint notice.";
 
 /** Call once at quiescence before sealing. Durable run key also bounds duplicate/cross-process calls. */
 export function notifyPendingAcceptance(
@@ -49,7 +49,7 @@ export function queuePendingAcceptance(
       )
       .all(swarmId)
       .map((row) => text(row, "name"))
-      .filter((name) => available.has(name.toLowerCase()));
+      .filter((name) => name !== WATCHER_NAME && available.has(name.toLowerCase()));
     const recipient = peers[(run - 1) % peers.length];
     if (!recipient) return null;
     db.sql

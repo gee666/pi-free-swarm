@@ -61,7 +61,7 @@ describe("swarms", () => {
     assert.equal(body.swarm.id, swarmId);
     assert.deepEqual(
       body.participants.map((p) => p.name),
-      ["User", "Maria", "John", "Liam"],
+      ["User", "Maria", "John", "Liam", "Watcher"],
     );
   });
 
@@ -315,7 +315,7 @@ describe("stats", () => {
     assert.equal(status, 200);
     assert.deepEqual(
       body.agents.map((a) => a.name),
-      ["Maria", "John", "Liam"],
+      ["Maria", "John", "Liam", "Watcher"],
     );
     const usage = db.sql
       .prepare(

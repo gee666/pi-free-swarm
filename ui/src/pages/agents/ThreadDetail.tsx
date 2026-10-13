@@ -21,7 +21,7 @@ interface ThreadDetailProps {
   onReply: (thread: ThreadView) => void;
 }
 
-/** Expanded thread: every message oldest first, then Reply. */
+/** Expanded thread with Reply above the newest message. */
 export function ThreadDetail({ swarmId, viewer, box, item, canSend, onReply }: ThreadDetailProps) {
   const thread = useThread(swarmId, item.thread.id);
   const record = thread.data?.thread ?? item.thread;
@@ -30,18 +30,18 @@ export function ThreadDetail({ swarmId, viewer, box, item, canSend, onReply }: T
   return (
     <>
       {failure && <ErrorBanner>{failure.message}</ErrorBanner>}
-      <ol className={styles.thread} aria-label={`Thread #${record.id}`}>
-        {messages.map((message) => (
-          <ThreadMessage key={message.id} message={message} viewer={viewer} box={box} />
-        ))}
-      </ol>
       {canUserReply(record) && (
-        <div className={styles.threadFooter}>
+        <div className={styles.threadActions}>
           <Button icon={Reply} disabled={!canSend} onClick={() => onReply(record)}>
             Reply
           </Button>
         </div>
       )}
+      <ol className={styles.thread} aria-label={`Thread #${record.id}`}>
+        {messages.map((message) => (
+          <ThreadMessage key={message.id} message={message} viewer={viewer} box={box} />
+        ))}
+      </ol>
     </>
   );
 }

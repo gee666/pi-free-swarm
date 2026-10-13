@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { AgentStats, StatsTotals } from "../../../../src/api-types";
 import { Avatar } from "../../components/Avatar";
+import { AgentName } from "../../components/AgentName";
 import { Icon } from "../../components/Icon";
 import { StatusDot } from "../../components/Indicators";
 import { cx } from "../../lib/cx";
@@ -58,8 +59,22 @@ function SortHeader({ column, sort, onSort }: { column: (typeof COLUMNS)[number]
 }
 
 /** Per-agent usage, sortable, with the swarm total pinned at the bottom. */
-export function AgentStatsTable({ agents, totals }: { agents: readonly AgentStats[]; totals: StatsTotals }) {
+export function AgentStatsTable({
+  agents,
+  totals,
+  selected,
+}: {
+  agents: readonly AgentStats[];
+  totals: StatsTotals;
+  selected?: string;
+}) {
   const [sort, setSort] = useState<Sort>(DEFAULT_SORT);
+  const selectedRow = useRef<HTMLTableRowElement>(null);
+  const matches = (name: string) => name.toLowerCase() === selected?.toLowerCase();
+  const present = agents.some(({ name }) => matches(name));
+  useEffect(() => {
+    selectedRow.current?.scrollIntoView({ block: "center" });
+  }, [selected, present]);
   return (
     <table className={styles.table}>
       <thead>
@@ -79,11 +94,16 @@ export function AgentStatsTable({ agents, totals }: { agents: readonly AgentStat
       </thead>
       <tbody>
         {sortAgents(agents, sort).map((agent) => (
-          <tr key={agent.name}>
-            <th scope="row">
+          <tr
+            key={agent.name}
+            ref={matches(agent.name) ? selectedRow : undefined}
+            aria-current={matches(agent.name) ? "true" : undefined}
+            className={matches(agent.name) ? styles.selected : undefined}
+          >
+            <th scope="row" aria-label={agent.name}>
               <span className={styles.agent}>
                 <Avatar name={agent.name} size="sm" />
-                {agent.name}
+                <AgentName name={agent.name} />
               </span>
             </th>
             <td>

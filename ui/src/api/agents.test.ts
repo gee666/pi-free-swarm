@@ -1,12 +1,36 @@
 import { describe, expect, it } from "vitest";
 import type { ParticipantView, SwarmEvent } from "../../../src/api-types";
 import { agent, detail, eventBase, message } from "../pages/agents/testFixtures";
-import { applyParticipantEvent } from "./agents";
+import { applyParticipantEvent, orderParticipants } from "./agents";
 
 const participants: ParticipantView[] = detail().participants;
 const usage = { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, cost: 1.5, turns: 1 };
 
 describe("applyParticipantEvent", () => {
+  it("uses join time for participants without activity and puts unknown dates last", () => {
+    const unknown = { ...participants[0], lastActivityAt: null, joinedAt: null };
+    const joined = { ...participants[1], lastActivityAt: null, joinedAt: 10 };
+    const active = { ...participants[2], lastActivityAt: 20, joinedAt: 5 };
+    expect(orderParticipants([unknown, joined, active])).toEqual([active, joined, unknown]);
+  });
+
+  it("orders activity lists on load and moves recently messaged participants up", () => {
+    const initial = participants.map((participant, index) => ({ ...participant, lastActivityAt: index }));
+    expect(orderParticipants(initial).map(({ name }) => name)).toEqual(["Emma", "Maria", "John", "User"]);
+    const created: SwarmEvent = {
+      ...eventBase,
+      type: "message.created",
+      payload: { message: message(1, "John", [["User", "delivered"]], "Latest"), unread: {} },
+    };
+    expect(applyParticipantEvent(initial, created).map(({ name }) => name)).toEqual(["User", "John", "Emma", "Maria"]);
+    const updated = applyParticipantEvent(initial, {
+      ...eventBase,
+      type: "participant.updated",
+      payload: { participant: { ...initial[2], lastActivityAt: 20 } },
+    });
+    expect(updated[0].name).toBe("Maria");
+  });
+
   it("replaces an updated participant in place and appends unknown ones", () => {
     const working = agent("Maria", 2, { status: "working" });
     const updated = applyParticipantEvent(participants, {

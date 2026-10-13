@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { MemoryRouter } from "react-router-dom";
-import { Mail, Reply } from "lucide-react";
+import { Reply } from "lucide-react";
 import { TEXT_MAX } from "../../../src/limits";
 import { Avatar } from "../components/Avatar";
-import { Button, IconButton } from "../components/Button";
+import { AgentName } from "../components/AgentName";
+import { Button } from "../components/Button";
 import { ComposeBox } from "../components/compose/ComposeBox";
 import { DeliveryList, DeliverySummary } from "../components/DeliveryStatus";
 import { EntityHeader } from "../components/EntityHeader";
@@ -38,13 +39,12 @@ function AgentList({ selected, onSelect }: { selected: string; onSelect: (name: 
             <ListRow
               key={agent.name}
               avatar={agent.name}
-              title={agent.name}
+              title={<AgentName name={agent.name} />}
               selected={agent.name === selected}
               onSelect={() => onSelect(agent.name)}
               trailing={
                 <>
                   <StatusDot status={agentDotStatus(agent.status)} />
-                  <IconButton icon={Mail} label={`Message ${agent.name}`} />
                   <CountBadge count={agent.unread} reserveSpace />
                 </>
               }
@@ -63,7 +63,8 @@ function Mailbox({ name }: { name: string }) {
     <Panel>
       <EntityHeader
         avatar={<Avatar name={name} size="lg" accent />}
-        title={name}
+        title={<AgentName name={name} />}
+        titleLabel={name}
         subtitle="Mailbox"
         actions={<SegmentedControl label="Mailbox" options={BOXES} value={box} onChange={setBox} />}
       />
