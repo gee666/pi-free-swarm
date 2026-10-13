@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import path from "node:path";
 import { after, describe, it } from "node:test";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
@@ -9,10 +8,14 @@ import {
   AGENT_NAME_ENV,
   AGENT_TOOL,
   DB_ENV,
+  ENABLED_ENV,
+  ENABLE_FLAG,
   MAIN_TOOL,
   ROLE_ENV,
   RUNNER_PID_ENV,
   SWARM_ID_ENV,
+  WATCHER_NAME,
+  WATCHER_TOOLS,
 } from "../src/constants.js";
 import { readAgentEnv } from "../src/agent-mode.js";
 import { createSwarm } from "../src/broker/swarms.js";
@@ -29,7 +32,9 @@ const dirs: string[] = [];
 after(() => dirs.forEach((dir) => rmSync(dir, { recursive: true, force: true })));
 
 function project(): string {
-  const cwd = mkdtempSync(path.join(tmpdir(), "pi-free-swarm-index-"));
+  const root = path.resolve("tmp");
+  mkdirSync(root, { recursive: true });
+  const cwd = mkdtempSync(path.join(root, "pi-free-swarm-index-"));
   dirs.push(cwd);
   return cwd;
 }
@@ -64,16 +69,72 @@ function recordingHost() {
 describe("role detection", () => {
   it("is loadable as a pi ExtensionFactory", () => assert.equal(typeof factory, "function"));
 
-  it("main mode registers only swarm and resume_swarm", () => {
+  for (const enabled of [undefined, "0", "false", "TRUE", " true", "yes"]) {
+    it(`main mode stays disabled with env ${String(enabled)}, even with existing data`, async () => {
+      const cwd = project();
+      const db = openSwarmDb(swarmDbPath(cwd), { create: true });
+      createSwarm(db, { name: "old", taskPrompt: "t", agentNames: ["Maria"], runnerPid: 2 ** 22 + 1, now: Date.now() });
+      const pi = new FakeExtensionApi();
+      const before = process.listenerCount("exit");
+      try {
+        withEnv({ [ROLE_ENV]: undefined, [ENABLED_ENV]: enabled }, () => {
+          piFreeSwarm(pi);
+          pi.startSession(cwd);
+        });
+        assert.deepEqual(pi.toolNames(), []);
+        assert.equal(pi.getFlag(ENABLE_FLAG), false);
+        assert.equal(process.listenerCount("exit"), before);
+        await pi.shutdownSession();
+        assert.equal(db.sql.prepare("SELECT status FROM swarms WHERE id = 1").get()?.status, "starting");
+        assert.equal(db.sql.prepare("SELECT COUNT(*) AS count FROM server_host").get()?.count, 0);
+      } finally {
+        db.close();
+      }
+    });
+  }
+
+  for (const enabled of [undefined, "0", "false", "1", "true"]) {
+    const byFlag = enabled !== "1" && enabled !== "true";
+    it(`main mode activates once by ${byFlag ? "flag" : `env ${enabled}`}`, async () => {
+      const cwd = project();
+      const pi = new FakeExtensionApi();
+      withEnv({ [ROLE_ENV]: undefined, [ENABLED_ENV]: enabled }, () => {
+        piFreeSwarm(pi);
+        assert.deepEqual(pi.toolNames(), []);
+        assert.equal(pi.flags.get(ENABLE_FLAG)?.type, "boolean");
+        if (byFlag) pi.flagValues.set(ENABLE_FLAG, true);
+        pi.startSession(cwd);
+        pi.startSession(cwd);
+      });
+      assert.deepEqual(pi.toolNames(), [MAIN_TOOL.swarm, MAIN_TOOL.resumeSwarm]);
+      assert.equal(existsSync(swarmDbPath(cwd)), false);
+      await pi.shutdownSession();
+    });
+  }
+
+  it("activation sweeps the session cwd on its first session_start", async () => {
+    const cwd = project();
+    assert.notEqual(cwd, process.cwd());
+    const db = openSwarmDb(swarmDbPath(cwd), { create: true });
+    createSwarm(db, { name: "old", taskPrompt: "t", agentNames: ["Maria"], runnerPid: 2 ** 22 + 1, now: Date.now() });
     const pi = new FakeExtensionApi();
-    withEnv({ [ROLE_ENV]: undefined }, () => piFreeSwarm(pi));
-    assert.deepEqual(pi.toolNames(), [MAIN_TOOL.swarm, MAIN_TOOL.resumeSwarm]);
+    try {
+      withEnv({ [ROLE_ENV]: undefined, [ENABLED_ENV]: "true" }, () => {
+        piFreeSwarm(pi);
+        pi.startSession(cwd);
+      });
+      assert.equal(db.sql.prepare("SELECT status FROM swarms WHERE id = 1").get()?.status, "interrupted");
+    } finally {
+      await pi.shutdownSession();
+      db.close();
+    }
   });
 
   it("agent mode registers only the swarm_* tools, never swarm/resume_swarm", () => {
     const pi = new FakeExtensionApi();
     const agentEnv = {
       [ROLE_ENV]: "agent",
+      [ENABLED_ENV]: "false",
       [DB_ENV]: "/abs/.pi/swarm/swarm.db",
       [SWARM_ID_ENV]: "3",
       [AGENT_NAME_ENV]: "Maria",
@@ -81,6 +142,24 @@ describe("role detection", () => {
     };
     withEnv(agentEnv, () => piFreeSwarm(pi));
     assert.deepEqual(pi.toolNames(), Object.values(AGENT_TOOL));
+    assert.equal(pi.flags.size, 0);
+  });
+
+  it("Watcher gets agent-mode tools without opt-in", () => {
+    const pi = new FakeExtensionApi();
+    withEnv(
+      {
+        [ROLE_ENV]: "agent",
+        [ENABLED_ENV]: "0",
+        [DB_ENV]: "/abs/.pi/swarm/swarm.db",
+        [SWARM_ID_ENV]: "3",
+        [AGENT_NAME_ENV]: WATCHER_NAME,
+        [RUNNER_PID_ENV]: String(process.pid),
+      },
+      () => piFreeSwarm(pi),
+    );
+    assert.deepEqual(pi.toolNames(), WATCHER_TOOLS);
+    assert.equal(pi.flags.size, 0);
   });
 
   it("agent mode without its identity registers nothing and says what is missing", () => {
@@ -98,6 +177,26 @@ describe("role detection", () => {
 });
 
 describe("main mode lifecycle", () => {
+  it("starts from the initial context without waiting for another session_start", async () => {
+    const cwd = project();
+    const { host, calls } = recordingHost();
+    const pi = new FakeExtensionApi();
+    const runtime = createMainRuntime({ cwd, extensionPath: "/abs/index.ts", createHost: () => host });
+    assert.ok(runtime.getDb(true));
+    registerMainMode(pi, runtime, {
+      cwd,
+      hasUI: true,
+      ui: { notify: (message) => void pi.notes.push(message) },
+      abort: () => void pi.aborted++,
+      shutdown: () => void pi.shutdowns++,
+    });
+    assert.deepEqual(calls, ["start"]);
+    runtime.notify("initial context attached", "info");
+    assert.deepEqual(pi.notes, ["initial context attached"]);
+    await pi.shutdownSession();
+    assert.deepEqual(calls, ["start", "stop"]);
+  });
+
   it("routes server errors to the session notification UI", async () => {
     const pi = new FakeExtensionApi();
     const { host } = recordingHost();

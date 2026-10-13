@@ -89,15 +89,20 @@ function onProcessExit(cleanup: () => void): void {
   process.on("exit", () => exitCleanup?.());
 }
 
-export function registerMainMode(pi: SwarmExtensionApi, runtime: MainRuntimeControl): void {
+export function registerMainMode(
+  pi: SwarmExtensionApi,
+  runtime: MainRuntimeControl,
+  initialContext?: SessionContext,
+): void {
   registerMainTools(pi, runtime);
-  pi.on("session_start", (_event, ctx) => {
+  const start = (ctx: SessionContext) => {
     runtime.attachUi(ctx.hasUI ? ctx.ui : null);
     const db = runtime.getDb(false);
     if (db === null) return;
     sweepStaleRuns(db, systemClock.now(), undefined, (id, pid) => ownsActiveRun(db, id, pid));
     runtime.host.start();
-  });
+  };
+  pi.on("session_start", (_event, ctx) => start(ctx));
   pi.on("session_shutdown", async () => {
     await stopAllRuns();
     await runtime.host.stop();
@@ -109,4 +114,6 @@ export function registerMainMode(pi: SwarmExtensionApi, runtime: MainRuntimeCont
     killAllAgentsSync();
     runtime.host.releaseSync();
   });
+  // Activation during session_start cannot join that event's handler snapshot.
+  if (initialContext) start(initialContext);
 }

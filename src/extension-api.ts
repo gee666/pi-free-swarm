@@ -7,11 +7,11 @@ import type {
   SessionStartEvent,
 } from "@earendil-works/pi-coding-agent";
 
-export type SessionContext = Pick<ExtensionContext, "hasUI" | "abort" | "shutdown"> & {
+export type SessionContext = Pick<ExtensionContext, "cwd" | "hasUI" | "abort" | "shutdown"> & {
   ui: Pick<ExtensionContext["ui"], "notify">;
 };
 
-export interface SwarmExtensionApi extends Pick<ExtensionAPI, "registerTool"> {
+export interface SwarmExtensionApi extends Pick<ExtensionAPI, "registerTool" | "registerFlag" | "getFlag"> {
   on(event: "session_start", handler: (event: SessionStartEvent, ctx: SessionContext) => void): unknown;
   on(event: "session_shutdown", handler: (event: SessionShutdownEvent) => void | Promise<void>): unknown;
 }

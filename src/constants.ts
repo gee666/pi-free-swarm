@@ -13,6 +13,8 @@ export const SYSTEM_PROMPT_FILE = "system-prompt.md";
 export const ATTACHMENTS_DIR = "attachments";
 
 // ── Environment variables ────────────────────────────────────────────────────
+export const ENABLED_ENV = "PI_SWARM_ENABLED";
+export const ENABLE_FLAG = "swarm";
 export const ROLE_ENV = "PI_SWARM_ROLE";
 export const AGENT_ROLE = "agent";
 export const DB_ENV = "PI_SWARM_DB";

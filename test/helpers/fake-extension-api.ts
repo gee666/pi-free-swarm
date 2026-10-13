@@ -16,6 +16,8 @@ type ShutdownHandler = (event: SessionShutdownEvent) => void | Promise<void>;
 export class FakeExtensionApi implements SwarmExtensionApi {
   readonly tools: RecordedTool[] = [];
   readonly notes: string[] = [];
+  readonly flags = new Map<string, Parameters<SwarmExtensionApi["registerFlag"]>[1]>();
+  readonly flagValues = new Map<string, boolean | string>();
   aborted = 0;
   shutdowns = 0;
   private startHandlers: StartHandler[] = [];
@@ -28,6 +30,14 @@ export class FakeExtensionApi implements SwarmExtensionApi {
       promptSnippet: tool.promptSnippet,
       parameters: tool.parameters,
     });
+  }
+
+  registerFlag(name: string, options: Parameters<SwarmExtensionApi["registerFlag"]>[1]): void {
+    this.flags.set(name, options);
+  }
+
+  getFlag(name: string): boolean | string | undefined {
+    return this.flagValues.get(name) ?? this.flags.get(name)?.default;
   }
 
   on(event: "session_start", handler: StartHandler): unknown;
@@ -48,14 +58,15 @@ export class FakeExtensionApi implements SwarmExtensionApi {
     return tool;
   }
 
-  startSession(): void {
+  startSession(cwd: string = process.cwd()): void {
     const ctx: SessionContext = {
+      cwd,
       hasUI: true,
       ui: { notify: (message) => void this.notes.push(message) },
       abort: () => void this.aborted++,
       shutdown: () => void this.shutdowns++,
     };
-    for (const handler of this.startHandlers) handler({ type: "session_start", reason: "startup" }, ctx);
+    for (const handler of [...this.startHandlers]) handler({ type: "session_start", reason: "startup" }, ctx);
   }
 
   async shutdownSession(): Promise<void> {

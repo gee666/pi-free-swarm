@@ -1,7 +1,7 @@
 // pi-free-swarm entry. PI_SWARM_ROLE decides the role: `ctx.mode === "rpc"` is also true for IDE clients,
 // so only our own variable marks a swarm agent. The factory only registers; work starts on session_start.
 import { fileURLToPath } from "node:url";
-import { AGENT_ROLE, ROLE_ENV } from "./src/constants.js";
+import { AGENT_ROLE, ENABLED_ENV, ENABLE_FLAG, ROLE_ENV } from "./src/constants.js";
 import { registerAgentMode } from "./src/agent-mode.js";
 import type { SwarmExtensionApi } from "./src/extension-api.js";
 import { createMainRuntime, registerMainMode } from "./src/main-runtime.js";
@@ -15,10 +15,23 @@ export default function piFreeSwarm(pi: SwarmExtensionApi): void {
     registerAgentMode(pi, process.env);
     return;
   }
-  const runtime = createMainRuntime({
-    cwd: process.cwd(),
-    extensionPath,
-    createHost: (options) => new ServerHost({ ...options, uiDir }),
+  pi.registerFlag(ENABLE_FLAG, {
+    description: "Enable swarm tools and the project's swarm board",
+    type: "boolean",
+    default: false,
   });
-  registerMainMode(pi, runtime);
+  let activated = false;
+  // CLI values are applied after factories load; session_start sees the resolved flag, including on reload.
+  pi.on("session_start", (_event, ctx) => {
+    if (activated) return;
+    const enabled = process.env[ENABLED_ENV];
+    if (pi.getFlag(ENABLE_FLAG) !== true && enabled !== "1" && enabled !== "true") return;
+    const runtime = createMainRuntime({
+      cwd: ctx.cwd,
+      extensionPath,
+      createHost: (options) => new ServerHost({ ...options, uiDir }),
+    });
+    registerMainMode(pi, runtime, ctx);
+    activated = true;
+  });
 }
