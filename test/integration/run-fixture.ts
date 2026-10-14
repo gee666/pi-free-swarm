@@ -43,7 +43,6 @@ export function createRunFixture(
   scenario: FakePiScenario,
   options: {
     staggerSeconds?: number;
-    latePeerRatio?: number;
     timings?: Partial<RunTimings>;
     settingsEnv?: Record<string, string>;
     reminders?: Pick<SwarmSettings, "idleReminderDelay" | "idleReminderMax" | "idleReminderDigestSize">;
@@ -60,7 +59,6 @@ export function createRunFixture(
     defaultAgents: 2,
     bodyMaxChars: 4000,
     staggerSeconds: options.staggerSeconds ?? 0,
-    latePeerRatio: options.latePeerRatio ?? 0,
     idleReminderDelay: 60_000,
     idleReminderMax: 0,
     idleReminderDigestSize: 10,

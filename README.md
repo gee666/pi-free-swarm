@@ -28,12 +28,10 @@ Start enabled pi in the project you want to work on. Write requirements to a fil
 
 The main agent gets:
 
-- `swarm(swarm_name, task_prompt, agent_amount?)`: start a swarm; default **5 agents**, launched **20 seconds apart**. Use a short name (≤60 characters) and a concise task prompt pointing to requirements files.
+- `swarm(swarm_name, task_prompt, agent_amount?)`: start a swarm; default **5 agents**, launched **30 seconds apart**. Use a short name (≤60 characters) and a concise task prompt pointing to requirements files.
 - `resume_swarm(swarm_id, message)`: resume with feedback (up to 4,000 characters), reusing each agent's session. Agents restart **5 seconds apart**. A fresh run lock prevents another process from resuming the same swarm concurrently.
 
-On a fresh swarm, the last `round(agent_amount × latePeerRatio)` agents (default ratio **0.2**; at least 1 from 2 agents, always fewer than `agent_amount`) are **late peers**. They stay pending while the others work and launch with the same system prompt and kickoff. With `L` late and `E` early peers, late peer `i` of the first `L−1` joins once at least `⌈i·E/L⌉` early peers are idle (or permanently crashed) at the same time. The last late peer is the final reserve: it joins only once every launched agent is quiet, as for completion. Late peers bring a fresh context to the shared result; they have no special role. `agent_amount` includes them. Resume launches every agent at once.
-
-Both tools block and stream agent counts, activity, elapsed time, cost and a board URL. Completion requires all agents, late peers included, to have launched, every agent to be idle or permanently crashed, and no outstanding deliverable agent messages, continuously for **15 seconds**. Finished means the agents stopped working—not that their work is correct. The result includes a wall digest (at most 150 posts) and asks the main agent to review files, diffs and tests.
+Both tools block and stream agent counts, activity, elapsed time, cost and a board URL. Completion requires all agents to have launched, every agent to be idle or permanently crashed, and no outstanding deliverable agent messages, continuously for **15 seconds**. Finished means the agents stopped working—not that their work is correct. The result includes a wall digest (at most 150 posts) and asks the main agent to review files, diffs and tests.
 
 **Esc aborts the run** and stops its agents (SIGTERM, then SIGKILL after 5 seconds if needed). Finished, stopped and interrupted swarms can be resumed by any enabled main pi session in the same project.
 
@@ -80,9 +78,8 @@ Optional, hand-written `.pi/swarm/settings.json`:
   "minAgents": 1,
   "maxAgents": 10,
   "defaultAgents": 5,
-  "staggerSeconds": 20,
+  "staggerSeconds": 30,
   "bodyMaxChars": 200,
-  "latePeerRatio": 0.2,
   "idleReminderDelay": 60000,
   "idleReminderMax": 5,
   "idleReminderDigestSize": 10,
@@ -96,9 +93,8 @@ These are the agent-count and stagger defaults; `env` defaults to `{}` and `port
 
 - `minAgents` is an integer ≥1; `maxAgents` must be ≥`minAgents`. If only `minAgents` exceeds 10, the implicit maximum rises to match it.
 - `defaultAgents` is clamped into the allowed range. An explicit `agent_amount` outside it is rejected, never silently clamped.
-- `staggerSeconds` is a nonnegative number.
+- `staggerSeconds` is the nonnegative interval between worker launches on a fresh swarm, default 30 seconds. The first worker starts immediately; every other worker starts at its scheduled interval regardless of agent activity. Resume uses a fixed 5-second interval.
 - `bodyMaxChars` is an integer from 100 to 16,000: the limit stated to agents and shown in board counters. Main's resume feedback keeps its own 4,000-character limit.
-- `latePeerRatio` is a number from 0 to 0.5; `0` launches everyone up front. At least one agent always starts early; a single agent is never late.
 - `idleReminderDelay` (milliseconds, integer ≥0) is how long an agent may stay idle before it is reminded that the task is not accepted yet; the reminder includes the newest `idleReminderDigestSize` wall posts (integer ≥1). `idleReminderMax` (integer ≥0) caps reminders per agent in a row; a real message or the agent's own wall post resets the count, and `0` disables reminders. No reminders are sent once the acceptance verdict is accepted or blocked.
 - Settings are re-read on each launch/resume; the run keeps that snapshot for revives. Port settings apply when hosting starts.
 - Invalid settings fail the tool. Unknown keys produce warnings.

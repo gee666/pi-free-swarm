@@ -110,15 +110,16 @@ describe("WorkPage", () => {
   it("opens a deep-linked agent rather than the first agent", async () => {
     renderWork("/s/3/work/maria");
     expect(await screen.findByText("Hello Maria")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "Maria" })).toBeInTheDocument();
+    expect(screen.getByRole("feed", { name: "Session of Maria" })).toBeInTheDocument();
     expect(screen.queryByText("Hello John")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Open work: Maria" })).not.toBeInTheDocument();
   });
 
   it("lists agents with activity and cost, and opens the first agent's session", async () => {
     renderWork();
-    expect(await screen.findByRole("heading", { level: 1, name: "John" })).toBeInTheDocument();
-    expect(screen.getByText("Session · run 2 · working")).toBeInTheDocument();
+    expect(await screen.findByRole("feed", { name: "Session of John" })).toBeInTheDocument();
+    expect(screen.getByText("working")).toBeInTheDocument();
+    expect(screen.queryByText(/Session · run/)).not.toBeInTheDocument();
     expect(await screen.findByText("Hello John")).toBeInTheDocument();
     const rows = screen.getAllByRole("button", { name: /John|Maria/ }).filter((row) => row.hasAttribute("data-row"));
     expect(rows).toHaveLength(2);
@@ -145,6 +146,6 @@ describe("WorkPage", () => {
     await userEvent.click(screen.getByText("Maria"));
     expect(await screen.findByText("Hello Maria")).toBeInTheDocument();
     expect(screen.queryByText("Hello John")).toBeNull();
-    expect(screen.getByRole("heading", { level: 1, name: "Maria" })).toBeInTheDocument();
+    expect(screen.getByRole("feed", { name: "Session of Maria" })).toBeInTheDocument();
   });
 });

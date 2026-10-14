@@ -1,33 +1,45 @@
 .compose {
   flex: none;
-  gap: var(--space-3);
-  padding: var(--space-5);
+  min-width: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel-raised);
+  transition: border-color var(--transition);
+}
+
+.compose:focus-within {
+  border-color: var(--accent-border);
 }
 
 .controls {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+}
+
+.controls > textarea {
+  padding-right: calc(var(--control-compact-h) + var(--space-8));
+}
+
+.controls:has(.footer > [data-character-counter]) > textarea {
+  padding-right: calc(var(--control-compact-h) + 90px);
 }
 
 .dimmed {
   opacity: 0.5;
 }
 
-.notice,
 .threadLine {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  padding: var(--space-2) var(--space-4) 0;
+  color: var(--text-muted);
   font-size: var(--fs-small);
 }
 
-.notice {
-  color: var(--text-secondary);
-}
-
-.threadLine {
-  color: var(--text-muted);
+.threadLine > button {
+  margin-left: auto;
 }
 
 .toRow {
@@ -35,27 +47,29 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) 0;
+  font-size: var(--fs-small);
 }
 
 .toLabel {
-  margin-right: var(--space-2);
   color: var(--text-secondary);
 }
 
-.spacer {
-  flex: 1;
-}
-
-.hint {
-  color: var(--text-muted);
-  font-size: var(--fs-small);
-  white-space: nowrap;
-}
-
 .footer {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-3);
+}
+
+.send.send {
+  color: var(--accent);
+}
+
+.send.send:disabled {
+  color: var(--text-muted);
 }
 
 .agentPopover {

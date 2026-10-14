@@ -15,12 +15,13 @@ interface AuthoredEntryProps {
   own?: boolean;
   /** Body and anything under it, e.g. the delivery list. */
   children: ReactNode;
+  className?: string;
 }
 
 /** A thread message or wall comment with its author, time and body. */
-export function AuthoredEntry({ author, system = false, time, own = false, children }: AuthoredEntryProps) {
+export function AuthoredEntry({ author, system = false, time, own = false, children, className }: AuthoredEntryProps) {
   return (
-    <li className={cx(styles.entry, own && styles.own)}>
+    <li className={cx(styles.entry, own && styles.own, className)}>
       <Avatar name={author} size="sm" system={system} />
       <div className={styles.main}>
         <div className={styles.head}>

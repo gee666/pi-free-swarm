@@ -16,9 +16,11 @@ const RESERVED_NAMES = new Set(["user", "you", "main", "system"]);
 export function AgentName({ name, className }: { name: string; className?: string }) {
   const routed = useInRouterContext();
   return (
-    <span className={cx(styles.name, className)}>
-      <span className={styles.label}>{name}</span>
-      {routed && !RESERVED_NAMES.has(name.toLowerCase()) && <AgentActions name={name} />}
+    <span className={cx(styles.name, className)} data-agent-name>
+      <span className={styles.anchor}>
+        <span className={styles.label}>{name}</span>
+        {routed && !RESERVED_NAMES.has(name.toLowerCase()) && <AgentActions name={name} />}
+      </span>
     </span>
   );
 }

@@ -40,12 +40,15 @@ const sendButton = () => screen.getByRole("button", { name: "Send" });
 describe("ComposeBox", () => {
   it("counts characters and blocks sending above the limit", async () => {
     render(<Harness />);
-    expect(screen.getByText("0/10")).toBeInTheDocument();
+    expect(screen.queryByText("0/10")).not.toBeInTheDocument();
+    expect(textbox()).toHaveAttribute("rows", "1");
     expect(sendButton()).toBeDisabled();
     await userEvent.type(textbox(), "hello");
-    expect(screen.getByText("5/10")).toBeInTheDocument();
+    expect(screen.queryByText("5/10")).not.toBeInTheDocument();
     expect(sendButton()).toBeEnabled();
-    await userEvent.type(textbox(), " world!");
+    await userEvent.type(textbox(), " wo");
+    expect(screen.getByText("8/10")).toBeInTheDocument();
+    await userEvent.type(textbox(), "rld!");
     expect(screen.getByText("12/10")).toBeInTheDocument();
     expect(sendButton()).toBeDisabled();
   });
@@ -62,15 +65,19 @@ describe("ComposeBox", () => {
     expect(onSend).toHaveBeenLastCalledWith("hi\nthere", ["Maria"]);
   });
 
-  it("shows the Ctrl hint outside Apple platforms", () => {
-    render(<Harness />);
-    expect(screen.getByText("Press Ctrl Enter to send")).toBeInTheDocument();
+  it("puts the shortcut in the send tooltip, not the composer", async () => {
+    render(<Harness initialText="hi" />);
+    expect(screen.queryByText(/Press.*Enter/)).not.toBeInTheDocument();
+    expect(sendButton()).toHaveTextContent("");
+    await userEvent.hover(sendButton());
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Send (Ctrl+Enter)");
   });
 
   it("disables everything and explains why when the swarm is not running", () => {
     const onSend = vi.fn();
     render(<Harness onSend={onSend} initialText="hello" disabled />);
-    expect(screen.getByText(SWARM_NOT_RUNNING_NOTICE)).toBeInTheDocument();
+    expect(textbox()).toHaveAttribute("placeholder", SWARM_NOT_RUNNING_NOTICE);
+    expect(screen.queryByText(SWARM_NOT_RUNNING_NOTICE)).not.toBeInTheDocument();
     expect(textbox()).toBeDisabled();
     expect(sendButton()).toBeDisabled();
     expect(screen.getByRole("button", { name: "Remove Maria" })).toBeDisabled();

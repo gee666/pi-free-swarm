@@ -13,7 +13,6 @@ import { IdleReminders } from "./idle-reminder.js";
 import { inspectAcceptance, invalidateAcceptanceClaim } from "./acceptance.js";
 import { closeRunAdmission, prepareRunCompletion } from "./run-acceptance.js";
 import type { AcceptanceRecord } from "../store/acceptance-types.js";
-import { LateReserve } from "./late-peers.js";
 import { CompletionTracker, reviveDelayMs } from "./lifecycle.js";
 import { sendMainFeedback } from "./messages.js";
 import { RunAgent } from "./run-agent.js";
@@ -43,7 +42,6 @@ class SwarmRun {
   readonly #delivery: DeliveryLoop;
   readonly #reminders: IdleReminders;
   readonly #tracker: CompletionTracker;
-  readonly #reserve: LateReserve<RunAgent>;
   readonly #done: Promise<RunOutcome>;
   #settle: { resolve(outcome: RunOutcome): void; reject(error: unknown): void } = {
     resolve: () => undefined,
@@ -115,7 +113,6 @@ class SwarmRun {
       onError: this.#fail,
     });
     this.#tracker = new CompletionTracker(clock, this.#timings.completionGraceMs);
-    this.#reserve = new LateReserve(this.#workers(), settings.latePeerRatio, run);
   }
 
   #workers(): RunAgent[] {
@@ -137,7 +134,7 @@ class SwarmRun {
     this.#delivery.start();
     const watcher = this.#agents.get(WATCHER_NAME);
     if (watcher) this.#guard(() => watcher.launchFirst());
-    const agents = this.#workers().filter((agent) => !this.#reserve.holds(agent.name));
+    const agents = this.#workers();
     agents.forEach((agent, index) => {
       const isLast = index === agents.length - 1;
       this.#timers.push(clock.after(index * staggerMs, () => this.#guard(() => this.#launchFirst(agent, isLast))));
@@ -207,10 +204,10 @@ class SwarmRun {
 
   #checkCompletion(): void {
     if (this.#isEnding) return;
-    const agents = this.#workers().filter((agent) => !this.#reserve.holds(agent.name));
+    const agents = this.#workers();
     const givenUp = new Set(agents.filter((agent) => agent.exhausted).map((agent) => agent.name));
     const openRecipients = listOpenAgentRecipients(this.#env.db, this.#swarm.id).filter(
-      (open) => open.name !== WATCHER_NAME && !givenUp.has(open.name) && !this.#reserve.holds(open.name),
+      (open) => open.name !== WATCHER_NAME && !givenUp.has(open.name),
     ).length;
     const remindersPending = this.#reminders.update();
     const quiet = this.#tracker.update({
@@ -218,7 +215,6 @@ class SwarmRun {
       agents: agents.map((agent) => agent.liveness()),
       openRecipients,
     });
-    if (this.#reserve.release(quiet, (agent) => this.#guard(() => agent.launchFirst()))) return this.#tracker.reset();
     if (!quiet || remindersPending) return;
     const { db, runnerPid, clock } = this.#env;
     const decision = prepareRunCompletion(db, {

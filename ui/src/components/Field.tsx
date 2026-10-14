@@ -3,11 +3,12 @@ import { charCount } from "../../../src/limits";
 import { cx } from "../lib/cx";
 import styles from "./Field.module.css";
 
-/** "n/limit" in --text-muted, turning --accent once the limit is exceeded. */
+/** Show the counter only as the character limit approaches. */
 export function CharCounter({ text, limit }: { text: string; limit: number }) {
   const length = charCount(text);
+  if (length < limit * 0.8) return null;
   return (
-    <span className={cx(styles.counter, length > limit && styles.over)}>
+    <span className={cx(styles.counter, length > limit && styles.over)} data-character-counter>
       {length}/{limit}
     </span>
   );
@@ -22,7 +23,7 @@ interface AutoTextareaProps {
   onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
 }
 
-/** Textarea that grows with its content between the CSS min (80px) and max (240px) heights. */
+/** Height follows content; CSS caps it at eight lines. */
 export function AutoTextarea({ value, onChange, label, placeholder, disabled, onKeyDown }: AutoTextareaProps) {
   const ref = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {

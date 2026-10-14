@@ -22,7 +22,6 @@ await startSwarm(
       defaultAgents: 2,
       bodyMaxChars: 4000,
       staggerSeconds: 60,
-      latePeerRatio: 0,
       idleReminderDelay: 60_000,
       idleReminderMax: 0,
       idleReminderDigestSize: 10,

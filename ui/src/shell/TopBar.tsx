@@ -1,5 +1,6 @@
 import { FileText } from "lucide-react";
-import type { SwarmListItem } from "../../../src/api-types";
+import { AcceptanceSummary } from "../components/AcceptanceSummary";
+import type { SwarmDetailResponse, SwarmListItem } from "../../../src/api-types";
 import { Icon } from "../components/Icon";
 import { StatusDot } from "../components/Indicators";
 import { Tooltip } from "../components/Tooltip";
@@ -12,10 +13,11 @@ interface TopBarProps {
   swarms: readonly SwarmListItem[];
   /** Omit on the picker: the dropdown reads "Select a swarm" and prompt/status are hidden. */
   current?: SwarmListItem;
+  detail?: SwarmDetailResponse;
   onSelectSwarm: (id: number) => void;
 }
 
-export function TopBar({ swarms, current, onSelectSwarm }: TopBarProps) {
+export function TopBar({ swarms, current, detail, onSelectSwarm }: TopBarProps) {
   return (
     <header className={styles.bar}>
       <div className={styles.brand}>
@@ -23,12 +25,12 @@ export function TopBar({ swarms, current, onSelectSwarm }: TopBarProps) {
         <span className={styles.title}>Pi Swarm</span>
       </div>
       <SwarmSelect swarms={swarms} currentId={current?.id} onSelect={onSelectSwarm} />
-      {current && <CurrentSwarm swarm={current} />}
+      {current && <CurrentSwarm swarm={current} detail={detail} />}
     </header>
   );
 }
 
-function CurrentSwarm({ swarm }: { swarm: SwarmListItem }) {
+function CurrentSwarm({ swarm, detail }: { swarm: SwarmListItem; detail?: SwarmDetailResponse }) {
   const status = swarmStatusLabel(swarm);
   return (
     <>
@@ -41,6 +43,7 @@ function CurrentSwarm({ swarm }: { swarm: SwarmListItem }) {
       <div className={styles.status}>
         <StatusDot status={isSwarmLive(swarm.status) ? "live" : "idle"} size="md" label={status} />
         <span aria-hidden="true">{status}</span>
+        {detail && <AcceptanceSummary detail={detail} />}
       </div>
     </>
   );

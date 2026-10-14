@@ -68,7 +68,7 @@ export function AgentsPage() {
             {participants === undefined ? (
               !detail.error && <SkeletonRows />
             ) : (
-              <EmptyState icon={UserX} text={`Nobody named ${routeName} is in this swarm`} />
+              <EmptyState icon={UserX} text="Participant not found" />
             )}
           </Panel>
         )

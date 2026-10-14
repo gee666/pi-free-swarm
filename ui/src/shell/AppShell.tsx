@@ -22,22 +22,24 @@ export function AppShell({ topBar, rail, children }: AppShellProps) {
 }
 
 interface PanelLayoutProps {
-  /** The 350px list panel. */
+  /** The list panel. */
   list: ReactNode;
   /** The main panel. */
   main: ReactNode;
-  /** Optional compose panel above the newest content. */
+  /** Optional composer pinned below the scrolling content. */
   compose?: ReactNode;
+  listWidth?: string;
 }
 
-/** List panel and main column with compose above the main panel. */
-export function PanelLayout({ list, main, compose }: PanelLayoutProps) {
+export function PanelLayout({ list, main, compose, listWidth }: PanelLayoutProps) {
   return (
     <div className={styles.columns}>
-      <div className={styles.list}>{list}</div>
+      <div className={styles.list} style={listWidth ? { width: listWidth } : undefined}>
+        {list}
+      </div>
       <div className={styles.mainColumn}>
-        {compose}
         {main}
+        {compose}
       </div>
     </div>
   );

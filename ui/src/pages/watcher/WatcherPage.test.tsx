@@ -30,7 +30,7 @@ function serve(running = true, busy = false) {
     };
   });
   const older = message(9, "User", [[WATCHER_NAME, "read"]], "Old question", { id: 100 });
-  const newer = message(9, WATCHER_NAME, [["User", "delivered"]], "Newest answer", { id: 101 });
+  const newer = message(9, WATCHER_NAME, [["User", "delivered"]], "**Newest answer**", { id: 101 });
   api.on("GET", "/api/swarms/3/watcher", () => ({
     thread: thread(9, ["User", WATCHER_NAME]),
     messages: [older, newer],
@@ -53,18 +53,25 @@ function mount() {
   act(() => source().open());
 }
 
-it("registers the tab, puts compose above newest-first messages, shows busy state and sends through the chat API", async () => {
+it("pins compose below newest-first messages, renders markdown and shows thinking above replies", async () => {
   serve(true, true);
   mount();
   expect(screen.getByRole("link", { name: WATCHER_NAME })).toHaveAttribute("href", "/s/3/watcher");
   const messages = await screen.findByRole("list", { name: "Messages, newest first" });
   await screen.findByText("Newest answer");
-  const entries = within(messages).getAllByRole("listitem");
+  const entries = within(messages)
+    .getAllByRole("listitem")
+    .filter((entry) => entry.getAttribute("role") !== "status");
   expect(entries[0]).toHaveTextContent("Newest answer");
   expect(entries[1]).toHaveTextContent("Old question");
-  const composer = screen.getByRole("textbox", { name: "Ask Watcher about the swarm…" });
-  expect(composer.compareDocumentPosition(messages) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(screen.getByRole("status")).toHaveTextContent("Watcher is answering");
+  expect(screen.getByText("Newest answer").tagName).toBe("STRONG");
+  expect(entries[1].className).toMatch(/userMessage/);
+  expect(entries[0].className).not.toMatch(/userMessage/);
+  expect(within(messages).queryByText(/Read|Delivered/)).not.toBeInTheDocument();
+  const composer = screen.getByRole("textbox", { name: "Ask about the swarm…" });
+  expect(messages.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(screen.getByRole("status")).toHaveTextContent("thinking…");
+  expect(messages.firstElementChild).toBe(screen.getByRole("status"));
   const user = userEvent.setup();
   await user.type(composer, "What is Maria doing?");
   await user.click(screen.getByRole("button", { name: "Send" }));
@@ -75,16 +82,19 @@ it("registers the tab, puts compose above newest-first messages, shows busy stat
   expect(api.callsTo("POST", "/api/swarms/3/participants/User/read")[0]?.body).toEqual({ messageIds: [101] });
 });
 
-it("keeps compose enabled after finish, explains availability, queues questions and reloads on new messages", async () => {
+it("shows availability only in the placeholder, queues questions and reloads on new messages", async () => {
   serve(false);
   mount();
-  const composer = await screen.findByRole("textbox", { name: "Ask Watcher about the swarm…" });
+  const composer = await screen.findByRole("textbox", { name: "Watcher starts with the next run" });
   await screen.findByText("Newest answer");
-  expect(screen.getByText(/Watcher is available while the swarm runs/)).toBeInTheDocument();
+  expect(composer).toHaveAttribute("placeholder", "Watcher starts with the next run");
+  expect(screen.queryByText("Watcher starts with the next run")).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
   expect(composer).toBeEnabled();
   const user = userEvent.setup();
   await user.type(composer, "What did they finish?");
-  await user.click(screen.getByRole("button", { name: "Queue question" }));
+  await user.click(screen.getByRole("button", { name: "Send" }));
   await waitFor(() => expect(api.callsTo("POST", "/api/swarms/3/watcher")).toHaveLength(1));
   const before = api.callsTo("GET", "/api/swarms/3/watcher").length;
   act(() =>

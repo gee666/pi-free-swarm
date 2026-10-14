@@ -1,12 +1,12 @@
-import type { KeyboardEvent } from "react";
-import { Info, Reply, Send, X } from "lucide-react";
+import type { KeyboardEvent, ReactNode } from "react";
+import { Reply, Send, X } from "lucide-react";
 import { checkText } from "../../../../src/limits";
 import { cx } from "../../lib/cx";
 import { sendModifierLabel } from "../../lib/platform";
-import { Button, IconButton } from "../Button";
+import { IconButton } from "../Button";
 import { AutoTextarea, CharCounter } from "../Field";
 import { Icon } from "../Icon";
-import { Panel } from "../Panel";
+import { Tooltip } from "../Tooltip";
 import styles from "./Compose.module.css";
 import { RecipientField } from "./RecipientField";
 
@@ -29,7 +29,7 @@ export interface ComposeBoxProps {
   onTextChange: (text: string) => void;
   /** Called by the button and by ⌘/Ctrl+Enter, only when the text is sendable. */
   onSend: () => void;
-  /** Character limit shown as "n/limit"; sending is blocked above it. */
+  /** Sending is blocked above this character limit. */
   limit: number;
   /** Omit for the wall comment variant without a "To" row. */
   recipients?: ComposeRecipients;
@@ -37,11 +37,14 @@ export interface ComposeBoxProps {
   thread?: ComposeThread;
   placeholder?: string;
   sendLabel?: string;
-  /** Swarm not running: everything is disabled and the notice is shown. */
+  /** Swarm not running: controls are disabled. */
   disabled?: boolean;
   disabledNotice?: string;
   /** A send request is in flight. */
   busy?: boolean;
+  sendDisabled?: boolean;
+  textareaLabel?: string;
+  children?: ReactNode;
 }
 
 export function ComposeBox({
@@ -56,9 +59,12 @@ export function ComposeBox({
   disabled = false,
   disabledNotice = SWARM_NOT_RUNNING_NOTICE,
   busy = false,
+  sendDisabled = false,
+  textareaLabel,
+  children,
 }: ComposeBoxProps) {
   const hasRecipients = recipients === undefined || recipients.names.length > 0;
-  const canSend = !disabled && !busy && hasRecipients && checkText(text, limit).ok;
+  const canSend = !disabled && !busy && !sendDisabled && hasRecipients && checkText(text, limit).ok;
   const send = () => {
     if (canSend) onSend();
   };
@@ -67,17 +73,11 @@ export function ComposeBox({
     event.preventDefault();
     send();
   };
-  const hint = <span className={styles.hint}>Press {sendModifierLabel()} Enter to send</span>;
 
   return (
-    <Panel className={styles.compose} aria-label="Compose">
-      {disabled && (
-        <p className={styles.notice}>
-          <Icon icon={Info} size="status" />
-          {disabledNotice}
-        </p>
-      )}
+    <section className={styles.compose} aria-label="Compose">
       <div className={cx(styles.controls, disabled && styles.dimmed)}>
+        {children}
         {thread && (
           <div className={styles.threadLine}>
             <Icon icon={Reply} size="status" />
@@ -92,26 +92,23 @@ export function ComposeBox({
             onChange={recipients.onChange}
             readOnly={thread !== undefined}
             disabled={disabled}
-            hint={hint}
           />
         )}
         <AutoTextarea
           value={text}
           onChange={onTextChange}
-          label={placeholder}
-          placeholder={placeholder}
+          label={textareaLabel ?? placeholder}
+          placeholder={disabled ? disabledNotice : placeholder}
           disabled={disabled}
           onKeyDown={onKeyDown}
         />
         <div className={styles.footer}>
-          {!recipients && hint}
-          <span className={styles.spacer} />
           <CharCounter text={text} limit={limit} />
-          <Button variant="primary" icon={Send} disabled={!canSend} onClick={send}>
-            {sendLabel}
-          </Button>
+          <Tooltip content={`Send (${sendModifierLabel()}+Enter)`}>
+            <IconButton icon={Send} label={sendLabel} className={styles.send} disabled={!canSend} onClick={send} />
+          </Tooltip>
         </div>
       </div>
-    </Panel>
+    </section>
   );
 }

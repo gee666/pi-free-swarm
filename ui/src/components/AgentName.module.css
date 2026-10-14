@@ -1,10 +1,17 @@
 .name {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
   max-width: 100%;
   min-width: 0;
   vertical-align: middle;
+}
+
+.anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .label {
@@ -14,18 +21,27 @@
 }
 
 .actions {
+  position: absolute;
+  inset-inline-start: 100%;
+  top: 50%;
+  z-index: 2;
   display: inline-flex;
-  flex: none;
   align-items: center;
-  opacity: 0.4;
+  padding-inline: var(--space-1);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel-raised);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
   transition: opacity var(--transition);
 }
 
-:where(li, tr, header, article, [data-agent-row]):hover .actions,
-:where(li, tr, header, article, [data-agent-row]):focus-within .actions,
+:where(tr, [data-agent-row]):hover .actions,
+:where(tr, [data-agent-row]):focus-within .actions,
 .name:hover .actions,
 .name:focus-within .actions {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .action {

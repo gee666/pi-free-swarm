@@ -1,4 +1,5 @@
 import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { SwarmStreamProvider } from "../api/SwarmStream";
 import { useSwarmDetail } from "../pages/agents/useSwarmDetail";
@@ -28,6 +29,10 @@ it("separates finished execution from agent-attested acceptance and refreshes ev
     </SwarmStreamProvider>,
   );
   act(() => source().open());
+  const pill = await screen.findByRole("button", { name: "Task acceptance: unchecked" });
+  expect(pill).toHaveTextContent("verdict: unchecked");
+  expect(screen.queryByText(/Execution:/)).not.toBeInTheDocument();
+  await userEvent.click(pill);
   expect(await screen.findByText(/Execution: finished · Task verdict: unchecked/)).toBeInTheDocument();
   snapshot = {
     ...snapshot,
@@ -57,4 +62,8 @@ it("separates finished execution from agent-attested acceptance and refreshes ev
   act(() => source().emit({ ...eventBase, type: "acceptance.updated", payload: { revision: 2 } }));
   expect(await screen.findByText("Missing browser check")).toBeInTheDocument();
   expect(screen.getByText("Check the sign-in flow")).toBeInTheDocument();
+  await userEvent.keyboard("{Escape}");
+  expect(screen.queryByText("Check the sign-in flow")).not.toBeInTheDocument();
+  expect(pill).toHaveAttribute("aria-expanded", "false");
+  expect(pill).toHaveFocus();
 });

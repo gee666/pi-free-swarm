@@ -24,6 +24,31 @@ let fixture: RunFixture | undefined;
 afterEach(() => fixture?.cleanup());
 
 describe("the end of a run", () => {
+  it("launches every worker on its stagger while earlier workers remain working", { timeout: 20_000 }, async () => {
+    const run = createRunFixture(SCENARIOS.inactivityStall, { staggerSeconds: 0.1 });
+    fixture = run;
+    const controller = new AbortController();
+    const outcome = startSwarm(
+      run.env,
+      { name: "stagger", taskPrompt: "Work.", agentAmount: 5 },
+      { signal: controller.signal },
+    );
+    try {
+      const swarmId = newestSwarmId(run.db);
+      const names = agentNames(run.db, swarmId);
+      await waitFor(
+        () => names.every((name) => agentStatus(run.db, swarmId, name) === "working"),
+        "every worker working",
+        10_000,
+      );
+      assert.equal(spawnsOf(run.fake).length, names.length);
+      assert.equal(getSwarm(run.db, swarmId, Date.now())?.status, "running");
+    } finally {
+      controller.abort();
+      assert.equal((await outcome).end, "stopped");
+    }
+  });
+
   it("finishes only after a full grace of quiet, restarted by a late message", { timeout: 20_000 }, async () => {
     const graceMs = 800;
     const run = createRunFixture(SCENARIOS.settle, { timings: { completionGraceMs: graceMs } });

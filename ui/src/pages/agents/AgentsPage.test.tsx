@@ -119,7 +119,11 @@ describe("AgentsPage", () => {
     serve();
     api.on("GET", "/api/swarms/3", () => ({ ...detail(), bodyMaxChars: 8000 }));
     mount("/s/3/agents/John");
-    expect(await screen.findByText("0/8000")).toBeInTheDocument();
+    await screen.findByText("Signed state or nonce?");
+    const user = userEvent.setup();
+    await user.click(textbox());
+    await user.paste("x".repeat(6400));
+    expect(screen.getByText("6400/8000")).toBeInTheDocument();
   });
   it("keeps stable order for equal activity timestamps and shows unread badges", async () => {
     serve();
@@ -184,7 +188,7 @@ describe("AgentsPage", () => {
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      screen.getByRole("region", { name: "Compose" }).compareDocumentPosition(mailboxPanel()) &
+      mailboxPanel().compareDocumentPosition(screen.getByRole("region", { name: "Compose" })) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     await waitFor(() => expect(api.callsTo("POST", "/api/swarms/3/participants/User/read")).toHaveLength(1));
@@ -231,7 +235,7 @@ describe("AgentsPage", () => {
   it("disables compose and Reply while the swarm does not accept messages", async () => {
     serve({ status: "finished", acceptsMessages: false });
     await renderAgents();
-    expect(screen.getByText(SWARM_NOT_RUNNING_NOTICE)).toBeInTheDocument();
+    expect(textbox()).toHaveAttribute("placeholder", SWARM_NOT_RUNNING_NOTICE);
     expect(textbox()).toBeDisabled();
     await expandScopes();
     expect(await screen.findByRole("button", { name: "Reply" })).toBeDisabled();
@@ -245,7 +249,7 @@ describe("AgentsPage", () => {
     await renderAgents();
     await userEvent.type(textbox(), "Anyone there?");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
-    expect(await screen.findByText(SWARM_NOT_RUNNING_NOTICE)).toBeInTheDocument();
+    await waitFor(() => expect(textbox()).toHaveAttribute("placeholder", SWARM_NOT_RUNNING_NOTICE));
     expect(textbox()).toBeDisabled();
     expect(textbox()).toHaveValue("Anyone there?");
     expect(screen.queryByText(/Message not sent/)).not.toBeInTheDocument();
@@ -282,6 +286,6 @@ describe("AgentsPage", () => {
   it("explains an unknown participant name", async () => {
     serve();
     mount("/s/3/agents/Nobody");
-    expect(await screen.findByText("Nobody named Nobody is in this swarm")).toBeInTheDocument();
+    expect(await screen.findByText("Participant not found")).toBeInTheDocument();
   });
 });

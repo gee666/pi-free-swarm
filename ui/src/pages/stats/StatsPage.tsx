@@ -6,7 +6,7 @@ import { useSwarmStream } from "../../api/SwarmStream";
 import { useAsync } from "../../api/useAsync";
 import { useStreamListener } from "../../api/useEventStream";
 import { Button } from "../../components/Button";
-import { Panel, PanelHeader } from "../../components/Panel";
+import { Panel } from "../../components/Panel";
 import { EmptyState, ErrorBanner, SkeletonRows } from "../../components/States";
 import { AgentStatsTable } from "./AgentStatsTable";
 import { StatTiles } from "./StatTiles";
@@ -69,7 +69,6 @@ export function StatsPage() {
 
   return (
     <Panel>
-      <PanelHeader title="Stats" />
       {stream.status === "reconnecting" && <ErrorBanner>Connection lost. Reconnecting…</ErrorBanner>}
       {stats.error && (
         <ErrorBanner action={<Button onClick={stats.reload}>Retry</Button>}>

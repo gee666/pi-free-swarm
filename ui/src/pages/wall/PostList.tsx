@@ -1,4 +1,5 @@
-import { MessageCircle, MessageSquare, Plus } from "lucide-react";
+import type { ReactNode } from "react";
+import { MessageSquare, Plus } from "lucide-react";
 import type { PostSummary } from "../../../../src/api-types";
 import { displayName } from "../../api/agents";
 import type { LoadMore } from "../../api/useLoadMore";
@@ -6,8 +7,8 @@ import { Button } from "../../components/Button";
 import { CountBadge } from "../../components/Indicators";
 import { ListRow } from "../../components/ListRow";
 import { AgentName } from "../../components/AgentName";
-import { Panel, PanelBody, PanelHeader } from "../../components/Panel";
-import { Pill } from "../../components/Pill";
+import { Panel, PanelBody } from "../../components/Panel";
+import styles from "./Wall.module.css";
 import { RowList } from "../../components/RowList";
 import { ShowMore } from "../../components/ShowMore";
 import { EmptyState, ErrorBanner, SkeletonRows } from "../../components/States";
@@ -22,20 +23,28 @@ interface PostListProps {
   unreadComments: (post: PostSummary) => number;
   onSelect: (postId: number) => void;
   onNewPost: () => void;
+  newPost?: ReactNode;
 }
 
 /** List panel of the Wall tab. */
-export function PostList({ posts, error, more, selected, unreadComments, onSelect, onNewPost }: PostListProps) {
+export function PostList({
+  posts,
+  error,
+  more,
+  selected,
+  unreadComments,
+  onSelect,
+  onNewPost,
+  newPost,
+}: PostListProps) {
   return (
     <Panel aria-label="Wall">
-      <PanelHeader
-        title="Wall"
-        action={
-          <Button icon={Plus} onClick={onNewPost}>
-            New post
-          </Button>
-        }
-      />
+      <div className={styles.toolbar}>
+        <Button size="sm" icon={Plus} onClick={onNewPost}>
+          New post
+        </Button>
+      </div>
+      {newPost}
       {error && <ErrorBanner>{`Could not load posts: ${error.message}`}</ErrorBanner>}
       {posts === undefined ? (
         !error && <SkeletonRows avatar count={8} />
@@ -61,9 +70,11 @@ export function PostList({ posts, error, more, selected, unreadComments, onSelec
                   onSelect={() => onSelect(post.id)}
                   trailing={
                     <>
-                      <Pill icon={MessageCircle} title={commentCountLabel(post.commentCount)}>
-                        {post.commentCount}
-                      </Pill>
+                      {post.commentCount > 0 && (
+                        <span className={styles.commentCount} title={commentCountLabel(post.commentCount)}>
+                          💬 {post.commentCount}
+                        </span>
+                      )}
                       <CountBadge count={unreadComments(post)} label="new comments" reserveSpace />
                     </>
                   }

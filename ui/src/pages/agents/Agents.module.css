@@ -3,6 +3,20 @@
   display: contents;
 }
 
+.toolbar {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+  padding: var(--space-3) var(--space-4);
+}
+
+.mailboxBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .thread {
   display: flex;
   flex-direction: column;

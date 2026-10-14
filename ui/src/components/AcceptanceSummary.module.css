@@ -1,14 +1,33 @@
-.summary.summary {
+.pill {
   flex: none;
-  max-height: 40vh;
-  overflow: auto;
-  padding: var(--gap-panels);
-  margin-bottom: var(--gap-panels);
-  overflow-wrap: anywhere;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--text-secondary);
+  font-size: var(--fs-small);
+  white-space: nowrap;
 }
 
-.summary summary {
-  cursor: pointer;
+.pill:hover {
+  background: var(--bg-hover);
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: min(560px, calc(100vw - 2 * var(--space-8)));
+  max-height: 60vh;
+  overflow: auto;
+  padding: var(--space-6);
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  line-height: var(--lh-body);
+}
+
+.summary h3 {
+  color: var(--text-primary);
+  font-size: var(--fs-body);
 }
 
 .summary pre {

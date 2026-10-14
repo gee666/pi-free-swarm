@@ -46,21 +46,20 @@ export function WallPage() {
   const wallUrl = `/s/${swarmId}/wall`;
 
   const reconnecting = stream.status === "reconnecting" && <ErrorBanner>Connection lost. Reconnecting…</ErrorBanner>;
+  const newPost = route === NEW_POST_ROUTE && (
+    <NewPostForm
+      swarmId={swarmId}
+      bodyMaxChars={bodyMaxChars}
+      banners={reconnecting}
+      onCancel={() => navigate(wallUrl)}
+      onCreated={(created) => {
+        posts.update((current) => current && withPost(current, created));
+        navigate(`${wallUrl}/${created.id}`, { replace: true });
+      }}
+    />
+  );
   let main: ReactNode;
-  if (route === NEW_POST_ROUTE) {
-    main = (
-      <NewPostForm
-        swarmId={swarmId}
-        bodyMaxChars={bodyMaxChars}
-        banners={reconnecting}
-        onCancel={() => navigate(wallUrl)}
-        onCreated={(created) => {
-          posts.update((current) => current && withPost(current, created));
-          navigate(`${wallUrl}/${created.id}`, { replace: true });
-        }}
-      />
-    );
-  } else if (postId !== undefined) {
+  if (postId !== undefined) {
     const commentError = composer.error && <ErrorBanner>{`Comment not posted: ${composer.error}`}</ErrorBanner>;
     main = (
       <PostView
@@ -79,15 +78,10 @@ export function WallPage() {
     main = (
       <Panel aria-label="Post">
         {reconnecting}
-        {route !== undefined ? (
-          <EmptyState icon={FileQuestion} text="This post doesn't exist" />
+        {route !== undefined && route !== NEW_POST_ROUTE ? (
+          <EmptyState icon={FileQuestion} text="Post not found" />
         ) : (
-          count !== undefined && (
-            <EmptyState
-              icon={MessageSquare}
-              text={count > 0 ? "Select a post to read it" : "Posts from the agents and you will show up here"}
-            />
-          )
+          count !== undefined && <EmptyState icon={MessageSquare} text={count > 0 ? "Select a post" : "No posts yet"} />
         )}
       </Panel>
     );
@@ -95,8 +89,10 @@ export function WallPage() {
 
   return (
     <PanelLayout
+      listWidth="clamp(380px, 40%, 560px)"
       list={
         <PostList
+          newPost={newPost}
           posts={posts.data?.posts}
           error={posts.error}
           more={posts}

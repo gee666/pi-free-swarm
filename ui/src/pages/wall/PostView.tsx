@@ -28,7 +28,7 @@ export function PostView({ detail, error, banners }: PostViewProps) {
       <Panel aria-label="Post">
         {banners}
         {missing ? (
-          <EmptyState icon={FileQuestion} text="This post doesn't exist" />
+          <EmptyState icon={FileQuestion} text="Post not found" />
         ) : error ? (
           <ErrorBanner>{`Could not load the post: ${error.message}`}</ErrorBanner>
         ) : (
@@ -47,7 +47,7 @@ export function PostView({ detail, error, banners }: PostViewProps) {
         title={post.title}
         subtitle={
           <>
-            Posted by <AgentName name={author} /> · {formatTimestamp(post.createdAt)}
+            <AgentName name={author} /> · {formatTimestamp(post.createdAt)}
           </>
         }
       />

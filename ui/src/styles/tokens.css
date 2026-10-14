@@ -80,8 +80,8 @@
   --button-secondary-h: 30px;
   --control-compact-h: 28px;
   --input-h: 32px;
-  --textarea-min-h: 60px;
-  --textarea-max-h: 240px;
+  --textarea-min-h: 36px;
+  --textarea-max-h: calc(8 * 1em * var(--lh-body) + 2 * var(--space-4));
   --segment-h: 32px;
   --segment-min-w: 104px;
   --menu-row-h: 30px;

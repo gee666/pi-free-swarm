@@ -25,8 +25,15 @@
   min-height: var(--textarea-min-h);
   max-height: var(--textarea-max-h);
   padding: var(--space-4);
+  border: none;
+  border-radius: var(--radius-lg);
+  background: transparent;
   line-height: var(--lh-body);
   resize: none;
+}
+
+.textarea:focus-visible {
+  box-shadow: none;
 }
 
 .inputWrap {

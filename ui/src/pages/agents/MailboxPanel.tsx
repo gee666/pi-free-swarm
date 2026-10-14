@@ -1,10 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Inbox, Send } from "lucide-react";
 import type { MailboxKind, ParticipantView, ThreadView } from "../../../../src/api-types";
-import { USER_NAME } from "../../api/agents";
-import { Avatar } from "../../components/Avatar";
-import { AgentName } from "../../components/AgentName";
-import { EntityHeader } from "../../components/EntityHeader";
 import { Panel, PanelBody } from "../../components/Panel";
 import { RowList } from "../../components/RowList";
 import { SegmentedControl } from "../../components/SegmentedControl";
@@ -12,6 +8,7 @@ import { ShowMore } from "../../components/ShowMore";
 import { EmptyState, ErrorBanner, SkeletonRows } from "../../components/States";
 import { ThreadRow } from "./ThreadRow";
 import { useMailbox } from "./useMailbox";
+import styles from "./Agents.module.css";
 
 interface MailboxPanelProps {
   swarmId: string;
@@ -27,7 +24,6 @@ export function MailboxPanel({ swarmId, participant, banners, canSend, onReply }
   const [box, setBox] = useState<MailboxKind>("inbox");
   const [expanded, setExpanded] = useState<number>();
   const mailbox = useMailbox(swarmId, participant.name, box);
-  const isUser = participant.name === USER_NAME;
   const boxes = [
     { value: "inbox", label: participant.unread > 0 ? `Inbox (${participant.unread})` : "Inbox" },
     { value: "sent", label: "Sent" },
@@ -41,15 +37,11 @@ export function MailboxPanel({ swarmId, participant, banners, canSend, onReply }
   return (
     <Panel aria-label="Mailbox">
       {banners}
-      <EntityHeader
-        avatar={<Avatar name={isUser ? "You" : participant.name} size="lg" accent />}
-        title={<AgentName name={participant.name} />}
-        titleLabel={participant.name}
-        subtitle={isUser ? "Your mailbox" : "Mailbox"}
-        actions={<SegmentedControl label="Mailbox" options={boxes} value={box} onChange={switchBox} />}
-      />
+      <div className={styles.toolbar}>
+        <SegmentedControl label="Mailbox" options={boxes} value={box} onChange={switchBox} />
+      </div>
       {mailbox.error && <ErrorBanner>{`Could not load messages: ${mailbox.error.message}`}</ErrorBanner>}
-      <Panel inset>
+      <div className={styles.mailboxBody}>
         {threads === undefined ? (
           !mailbox.error && <SkeletonRows />
         ) : threads.length === 0 ? (
@@ -77,7 +69,7 @@ export function MailboxPanel({ swarmId, participant, banners, canSend, onReply }
             <ShowMore more={mailbox} />
           </PanelBody>
         )}
-      </Panel>
+      </div>
     </Panel>
   );
 }

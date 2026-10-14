@@ -1,11 +1,13 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { X } from "lucide-react";
 import type { PostSummary } from "../../../../src/api-types";
-import { checkText, checkTitle, TEXT_MAX, TITLE_MAX } from "../../../../src/limits";
+import { checkTitle, TEXT_MAX, TITLE_MAX } from "../../../../src/limits";
 import { createPost } from "../../api/wall";
-import { Button } from "../../components/Button";
-import { AutoTextarea, CharCounter, TextField } from "../../components/Field";
-import { Panel, PanelBody, PanelHeader } from "../../components/Panel";
+import { IconButton } from "../../components/Button";
+import { ComposeBox } from "../../components/compose/ComposeBox";
+import { TextField } from "../../components/Field";
 import { ErrorBanner } from "../../components/States";
+import { Tooltip } from "../../components/Tooltip";
 import styles from "./Wall.module.css";
 
 interface NewPostFormProps {
@@ -16,17 +18,14 @@ interface NewPostFormProps {
   onCancel: () => void;
 }
 
-/** Main panel while writing a post as the user. */
 export function NewPostForm({ swarmId, bodyMaxChars = TEXT_MAX, banners, onCreated, onCancel }: NewPostFormProps) {
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const valid = checkTitle(title).ok && checkText(text, bodyMaxChars).ok;
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    if (!valid || busy) return;
+  const submit = () => {
+    if (!checkTitle(title).ok || busy) return;
     setBusy(true);
     setError(undefined);
     createPost(swarmId, { title, text })
@@ -38,32 +37,27 @@ export function NewPostForm({ swarmId, bodyMaxChars = TEXT_MAX, banners, onCreat
   };
 
   return (
-    <Panel aria-label="New post">
+    <section className={styles.newPost} aria-label="New post">
       {banners}
-      <PanelHeader title="New post" />
       {error && <ErrorBanner>{`Post not published: ${error}`}</ErrorBanner>}
-      <PanelBody>
-        <form className={styles.form} onSubmit={submit}>
-          <div className={styles.field}>
-            <TextField value={title} onChange={setTitle} label="Title" placeholder="Title" />
-            <span className={styles.counter}>
-              <CharCounter text={title} limit={TITLE_MAX} />
-            </span>
-          </div>
-          <div className={styles.field}>
-            <AutoTextarea value={text} onChange={setText} label="Body" placeholder="Write a post…" />
-            <span className={styles.counter}>
-              <CharCounter text={text} limit={bodyMaxChars} />
-            </span>
-          </div>
-          <div className={styles.formFooter}>
-            <Button onClick={onCancel}>Cancel</Button>
-            <Button type="submit" variant="primary" disabled={!valid || busy}>
-              Post
-            </Button>
-          </div>
-        </form>
-      </PanelBody>
-    </Panel>
+      <ComposeBox
+        text={text}
+        onTextChange={setText}
+        onSend={submit}
+        limit={bodyMaxChars}
+        placeholder="Write a post…"
+        textareaLabel="Body"
+        sendLabel="Post"
+        sendDisabled={!checkTitle(title).ok}
+        busy={busy}
+      >
+        <div className={styles.postTitle}>
+          <TextField value={title} onChange={setTitle} label="Title" placeholder="Title" limit={TITLE_MAX} />
+          <Tooltip content="Cancel">
+            <IconButton icon={X} label="Cancel" onClick={onCancel} />
+          </Tooltip>
+        </div>
+      </ComposeBox>
+    </section>
   );
 }

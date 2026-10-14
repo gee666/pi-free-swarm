@@ -97,11 +97,18 @@ describe("WallPage", () => {
   it("uses the configured allowance for new posts and comments", async () => {
     api.on("GET", "/api/swarms/3", () => ({ ...detail(), bodyMaxChars: 8000 }));
     await renderWall("/s/3/wall/new");
-    expect(await screen.findByText("0/8000")).toBeInTheDocument();
-    await userEvent.click(within(postList()).getByText("Plan: split OAuth work"));
-    expect(await screen.findByText("0/8000")).toBeInTheDocument();
+    const user = userEvent.setup();
+    const body = within(postList()).getByRole("textbox", { name: "Body" });
+    await user.click(body);
+    await user.paste("x".repeat(6400));
+    expect(screen.getByText("6400/8000")).toBeInTheDocument();
+    await user.click(within(postList()).getByText("Plan: split OAuth work"));
+    const commentBox = await screen.findByRole("textbox", { name: "Write a comment…" });
+    await user.click(commentBox);
+    await user.paste("x".repeat(6400));
+    expect(screen.getByText("6400/8000")).toBeInTheDocument();
   });
-  it("lists posts with author, comment pill and unread badges from localStorage", async () => {
+  it("lists posts with author, nonzero comment counts and unread badges from localStorage", async () => {
     window.localStorage.setItem("pi-swarm:wall-seen:3", JSON.stringify({ 1: 1 }));
     await renderWall();
     const list = postList();
@@ -109,7 +116,8 @@ describe("WallPage", () => {
     expect(within(list).getByRole("button", { name: "Open work: Oliver" })).toBeInTheDocument();
     expect(within(list).getByTitle("2 comments")).toHaveTextContent("2");
     expect(within(list).getByText("1 new comments")).toBeInTheDocument();
-    expect(screen.getByText("Select a post to read it")).toBeInTheDocument();
+    expect(within(list).queryByTitle("0 comments")).not.toBeInTheDocument();
+    expect(screen.getByText("Select a post")).toBeInTheDocument();
     // A post seen for the first time counts as read.
     await waitFor(() => expect(seen()).toEqual({ 1: 1, 2: 0 }));
   });
@@ -118,9 +126,7 @@ describe("WallPage", () => {
     window.localStorage.setItem("pi-swarm:wall-seen:3", JSON.stringify({ 1: 0, 2: 0 }));
     await renderWall("/s/3/wall/1");
     expect(await screen.findByRole("heading", { level: 1, name: "Plan: split OAuth work" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Post" }).querySelector("header")).toHaveTextContent(
-      "Posted by Oliver · 10:23 AM",
-    );
+    expect(screen.getByRole("region", { name: "Post" }).querySelector("header")).toHaveTextContent("Oliver · 10:23 AM");
     expect(screen.getByRole("heading", { level: 2, name: "2 comments" })).toBeInTheDocument();
     const own = screen.getByText("Keep the UI small.").closest("li");
     const other = screen.getByText("I'll take provider config.").closest("li");
@@ -130,8 +136,8 @@ describe("WallPage", () => {
     expect(own.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(
       screen
-        .getByRole("region", { name: "Compose" })
-        .compareDocumentPosition(screen.getByRole("region", { name: "Post" })) & Node.DOCUMENT_POSITION_FOLLOWING,
+        .getByRole("region", { name: "Post" })
+        .compareDocumentPosition(screen.getByRole("region", { name: "Compose" })) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     await waitFor(() => expect(within(postList()).queryByText("2 new comments")).not.toBeInTheDocument());
     expect(seen()).toEqual({ 1: 2, 2: 0 });
@@ -144,7 +150,7 @@ describe("WallPage", () => {
     await renderWall("/s/3/wall/1");
     const box = await screen.findByRole("textbox", { name: "Write a comment…" });
     await userEvent.type(box, "Signed state it is.");
-    expect(screen.getByText("19/200")).toBeInTheDocument();
+    expect(screen.queryByText("19/200")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Comment" }));
 
     expect(await screen.findByText("Signed state it is.")).toBeInTheDocument();
@@ -167,11 +173,12 @@ describe("WallPage", () => {
     const title = screen.getByRole("textbox", { name: "Title" });
     const body = screen.getByRole("textbox", { name: "Body" });
     const submit = screen.getByRole("button", { name: "Post" });
-    expect(screen.getByText("0/60")).toBeInTheDocument();
+    expect(screen.queryByText("0/60")).not.toBeInTheDocument();
+    expect(within(postList()).getByRole("region", { name: "New post" })).toContainElement(body);
     await userEvent.type(title, "x".repeat(61));
     await userEvent.type(body, "Ship login first.");
     expect(screen.getByText("61/60")).toBeInTheDocument();
-    expect(screen.getByText("17/200")).toBeInTheDocument();
+    expect(screen.queryByText("17/200")).not.toBeInTheDocument();
     expect(submit).toBeDisabled();
 
     await userEvent.clear(title);
@@ -219,6 +226,6 @@ describe("WallPage", () => {
 
   it("explains an unknown post", async () => {
     await renderWall("/s/3/wall/99");
-    expect(await screen.findByText("This post doesn't exist")).toBeInTheDocument();
+    expect(await screen.findByText("Post not found")).toBeInTheDocument();
   });
 });

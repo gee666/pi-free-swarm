@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { RecipientChip } from "../RecipientChip";
 import { AddAgentButton } from "./AddAgentButton";
 import styles from "./Compose.module.css";
@@ -11,11 +10,9 @@ interface RecipientFieldProps {
   /** Thread members: chips without × and no "+ add agent". */
   readOnly: boolean;
   disabled: boolean;
-  hint: ReactNode;
 }
 
-/** Row 1 of the compose panel: "To:", recipient chips, "+ add agent" and the send hint. */
-export function RecipientField({ names, options, onChange, readOnly, disabled, hint }: RecipientFieldProps) {
+export function RecipientField({ names, options, onChange, readOnly, disabled }: RecipientFieldProps) {
   const available = options.filter((name) => !names.includes(name));
   return (
     <div className={styles.toRow}>
@@ -31,8 +28,6 @@ export function RecipientField({ names, options, onChange, readOnly, disabled, h
       {!readOnly && (
         <AddAgentButton options={available} disabled={disabled} onAdd={(name) => onChange([...names, name])} />
       )}
-      <span className={styles.spacer} />
-      {hint}
     </div>
   );
 }

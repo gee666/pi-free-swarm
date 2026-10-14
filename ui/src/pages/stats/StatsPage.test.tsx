@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -106,7 +106,7 @@ describe("StatsPage", () => {
     const row = screen.getByRole("rowheader", { name: "Zoe" }).closest("tr");
     expect(row).toHaveAttribute("aria-current", "true");
     expect(row?.className).toMatch(/selected/);
-    expect(scroll).toHaveBeenCalledWith({ block: "center" });
+    await waitFor(() => expect(scroll).toHaveBeenCalledWith({ block: "center" }));
     expect(scroll.mock.instances[0]).toBe(row);
     expect(screen.queryByRole("button", { name: "Show stats: Zoe" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Agent" }));

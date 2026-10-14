@@ -3,8 +3,8 @@ import { WATCHER_NAME } from "../../../../src/constants";
 import { displayName, USER_NAME } from "../../api/agents";
 import { AuthoredEntry } from "../../components/AuthoredEntry";
 import { ComposeBox } from "../../components/compose/ComposeBox";
-import { DeliveryList } from "../../components/DeliveryStatus";
-import { RichText } from "../../components/RichText";
+import { Markdown } from "../../components/Markdown";
+import { cx } from "../../lib/cx";
 import { ErrorBanner, SkeletonRows } from "../../components/States";
 import { formatTimestamp } from "../../lib/time";
 import { useSwarmDetail } from "../agents/useSwarmDetail";
@@ -30,8 +30,26 @@ function WatcherChat({ swarmId }: { swarmId: string }) {
   const messages = [...(chat.data?.messages ?? [])].sort((a, b) => b.id - a.id);
   return (
     <section className={styles.page} aria-label="Watcher chat">
-      <h1>Watcher</h1>
-      <p>Watcher is available while the swarm runs. Questions sent while unavailable are queued for the next run.</p>
+      {failure && <ErrorBanner>{failure}</ErrorBanner>}
+      {chat.loading && !chat.data && <SkeletonRows />}
+      <ol className={styles.messages} aria-label="Messages, newest first" aria-busy={busy}>
+        {busy && (
+          <li className={styles.thinking} role="status">
+            thinking<span className={styles.dots}>…</span>
+          </li>
+        )}
+        {messages.map((message) => (
+          <AuthoredEntry
+            key={message.id}
+            author={displayName(message.sender)}
+            className={cx(styles.message, message.sender === USER_NAME && styles.userMessage)}
+            system={message.senderKind === "system"}
+            time={formatTimestamp(message.createdAt)}
+          >
+            <Markdown source={message.text} />
+          </AuthoredEntry>
+        ))}
+      </ol>
       <ComposeBox
         text={text}
         onTextChange={setText}
@@ -39,32 +57,9 @@ function WatcherChat({ swarmId }: { swarmId: string }) {
         limit={detail.data?.bodyMaxChars ?? 0}
         busy={sending}
         disabled={!detail.data}
-        placeholder="Ask Watcher about the swarm…"
-        sendLabel={available ? "Send" : "Queue question"}
+        disabledNotice="Watcher starts with the next run"
+        placeholder={available ? "Ask about the swarm…" : "Watcher starts with the next run"}
       />
-      <p role="status">
-        {busy
-          ? "Watcher is answering…"
-          : available
-            ? "Watcher is idle."
-            : "Watcher is unavailable. Questions will be queued."}
-      </p>
-      {failure && <ErrorBanner>{failure}</ErrorBanner>}
-      {chat.loading && !chat.data && <SkeletonRows />}
-      <ol className={styles.messages} aria-label="Messages, newest first" aria-busy={busy}>
-        {messages.map((message) => (
-          <AuthoredEntry
-            key={message.id}
-            author={displayName(message.sender)}
-            own={message.sender === USER_NAME}
-            system={message.senderKind === "system"}
-            time={formatTimestamp(message.createdAt)}
-          >
-            <RichText text={message.text} />
-            {message.sender === USER_NAME && <DeliveryList recipients={message.recipients} />}
-          </AuthoredEntry>
-        ))}
-      </ol>
     </section>
   );
 }

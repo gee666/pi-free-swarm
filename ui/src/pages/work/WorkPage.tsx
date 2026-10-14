@@ -2,11 +2,12 @@ import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { Users } from "lucide-react";
 import type { AgentParticipantView, ParticipantView } from "../../../../src/api-types";
 import { useSwarmStream } from "../../api/SwarmStream";
-import { Avatar } from "../../components/Avatar";
 import { AgentName } from "../../components/AgentName";
 import { Button } from "../../components/Button";
-import { EntityHeader } from "../../components/EntityHeader";
-import { Panel, PanelHeader } from "../../components/Panel";
+import { StatusDot } from "../../components/Indicators";
+import { agentDotStatus } from "../../lib/swarmStatus";
+import styles from "./Work.module.css";
+import { Panel } from "../../components/Panel";
 import { agentDestination } from "../../lib/agentNavigation";
 import { EmptyState, ErrorBanner, SkeletonRows } from "../../components/States";
 import { PanelLayout } from "../../shell/AppShell";
@@ -30,16 +31,15 @@ export function WorkPage() {
 
   const main = () => {
     if (!detail.data) return detail.error ? null : <SkeletonRows avatar />;
-    if (agents.length === 0) return <EmptyState icon={Users} text="No agents in this swarm yet" />;
-    if (!selected) return <EmptyState icon={Users} text={`No agent named ${name ?? ""}`} />;
+    if (agents.length === 0) return <EmptyState icon={Users} text="No agents yet" />;
+    if (!selected) return <EmptyState icon={Users} text="Agent not found" />;
     return (
       <>
-        <EntityHeader
-          avatar={<Avatar name={selected.name} size="lg" accent />}
-          title={<AgentName name={selected.name} />}
-          titleLabel={selected.name}
-          subtitle={`Session · run ${detail.data.swarm.runCount} · ${selected.status}`}
-        />
+        <header className={styles.header}>
+          <AgentName name={selected.name} />
+          <StatusDot status={agentDotStatus(selected.status)} />
+          <span className={styles.state}>{selected.status}</span>
+        </header>
         <SessionFeed key={selected.name} swarmId={id} agent={selected.name} stream={stream} />
       </>
     );
@@ -49,7 +49,6 @@ export function WorkPage() {
     <PanelLayout
       list={
         <Panel>
-          <PanelHeader title="Work" />
           {detail.data ? (
             <WorkAgentList agents={agents} selected={selected?.name} onSelect={(agent) => navigate(agentPath(agent))} />
           ) : (

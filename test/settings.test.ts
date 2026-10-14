@@ -43,12 +43,11 @@ describe("loadSettings", () => {
       minAgents: 1,
       maxAgents: 10,
       defaultAgents: 5,
-      staggerSeconds: 20,
+      staggerSeconds: 30,
       idleReminderDelay: 60_000,
       idleReminderMax: 5,
       idleReminderDigestSize: 10,
       bodyMaxChars: 200,
-      latePeerRatio: 0.2,
       env: {},
     });
     assert.deepEqual(warnings, []);
@@ -71,18 +70,6 @@ describe("loadSettings", () => {
     assert.equal(loadSettings(project('{"bodyMaxChars": 8000}')).settings.bodyMaxChars, 8000);
     for (const value of [0, 99, 16001, 4000.5, "4000"]) {
       assert.match(loadError(JSON.stringify({ bodyMaxChars: value })), /bodyMaxChars must be an integer/);
-    }
-  });
-
-  it("reads latePeerRatio as a fraction up to one half", () => {
-    for (const ratio of [0, 0.35, 0.5]) {
-      assert.equal(loadSettings(project(JSON.stringify({ latePeerRatio: ratio }))).settings.latePeerRatio, ratio);
-    }
-    for (const value of [-0.1, 0.51, 1, "0.2", null, true]) {
-      assert.equal(
-        loadError(JSON.stringify({ latePeerRatio: value })),
-        `settings.json: latePeerRatio must be a number 0–0.5 (got ${JSON.stringify(value)})`,
-      );
     }
   });
 
@@ -127,11 +114,12 @@ describe("loadSettings", () => {
 
   it("warns about unknown keys and reserved env keys, and drops the latter", () => {
     const { settings, warnings } = loadSettings(
-      project(JSON.stringify({ foo: 1, env: { NODE_ENV: "dev", PI_SWARM_DB: "/evil.db" } })),
+      project(JSON.stringify({ foo: 1, latePeerRatio: "ignored", env: { NODE_ENV: "dev", PI_SWARM_DB: "/evil.db" } })),
     );
     assert.deepEqual(settings.env, { NODE_ENV: "dev" });
     assert.deepEqual(warnings, [
       'settings.json: unknown key "foo" ignored',
+      'settings.json: unknown key "latePeerRatio" ignored',
       "settings.json: env.PI_SWARM_DB ignored (reserved prefix)",
     ]);
     assert.ok(warnings.every((warning) => !warning.includes("/evil.db")));
@@ -160,12 +148,7 @@ describe("agent amount", () => {
   });
 
   it("describes the range", () => {
-    assert.equal(
-      describeAgentRange(settings),
-      "agent_amount: 2–8, default 5, including about 20% late agents (at least 1 from 2 agents) launched as the others go quiet",
-    );
-    assert.equal(describeAgentRange({ ...settings, latePeerRatio: 0 }), "agent_amount: 2–8, default 5");
-    assert.match(describeAgentRange({ ...settings, latePeerRatio: 0.5 }), /about 50% late agents/);
+    assert.equal(describeAgentRange(settings), "agent_amount: 2–8, default 5");
   });
 });
 

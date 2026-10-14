@@ -32,35 +32,42 @@
   list-style: none;
 }
 
-.form {
+.toolbar {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  max-width: 760px;
-  padding: var(--space-6);
-}
-
-.field {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-3);
-}
-
-.field > :first-child {
-  flex: 1;
-}
-
-/* One width for both counters keeps the title input and the body textarea flush on the right. */
-.counter {
   flex: none;
-  min-width: calc(2 * var(--space-8));
-  padding-bottom: var(--space-3);
-  text-align: right;
+  justify-content: flex-end;
+  padding: var(--space-3) var(--space-4);
 }
 
-.formFooter {
+.commentCount {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  white-space: nowrap;
+}
+
+.newPost {
+  flex: none;
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.postTitle {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: var(--space-3);
+  padding: var(--space-2) var(--space-4) 0;
+}
+
+.postTitle > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.postTitle input {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+.postTitle input:focus-visible {
+  box-shadow: none;
 }

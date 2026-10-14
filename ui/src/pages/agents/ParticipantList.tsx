@@ -1,15 +1,16 @@
+import { WATCHER_NAME } from "../../../../src/constants";
 import type { ParticipantView } from "../../../../src/api-types";
 import { AgentName } from "../../components/AgentName";
 import { CountBadge, StatusDot } from "../../components/Indicators";
 import { ListRow } from "../../components/ListRow";
-import { Panel, PanelBody, PanelHeader } from "../../components/Panel";
+import { Panel, PanelBody } from "../../components/Panel";
 import { Pill } from "../../components/Pill";
 import { RowList } from "../../components/RowList";
 import { ErrorBanner, SkeletonRows } from "../../components/States";
 import { agentDotStatus } from "../../lib/swarmStatus";
 
 interface ParticipantListProps {
-  /** Most recently active participants first. */
+  /** User and Watcher are pinned above the active agents. */
   participants: readonly ParticipantView[] | undefined;
   error: Error | undefined;
   selected: string | undefined;
@@ -17,16 +18,18 @@ interface ParticipantListProps {
 }
 
 export function ParticipantList({ participants, error, selected, onSelect }: ParticipantListProps) {
+  const rank = (participant: ParticipantView) =>
+    participant.kind === "user" ? 0 : participant.name === WATCHER_NAME ? 1 : 2;
+  const ordered = participants && [...participants].sort((a, b) => rank(a) - rank(b));
   return (
     <Panel aria-label="Agents">
-      <PanelHeader title="Agents" />
       {error && <ErrorBanner>{`Could not load agents: ${error.message}`}</ErrorBanner>}
       {participants === undefined ? (
         !error && <SkeletonRows avatar count={8} />
       ) : (
         <PanelBody>
           <RowList>
-            {participants.map((participant) =>
+            {ordered?.map((participant) =>
               participant.kind === "user" ? (
                 <ListRow
                   key={participant.name}
