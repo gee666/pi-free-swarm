@@ -132,6 +132,7 @@ export class AgentSupervisor {
     this.#quiescing = true;
     const life = this.#life;
     if (!life) return;
+    if (this.#status === "starting") return this.stop();
     try {
       const response = await life.proc.send({ type: "clear_queue" });
       if (response.success !== true && life === this.#life) await this.stop();
@@ -227,14 +228,14 @@ export class AgentSupervisor {
       void proc.stop();
       return;
     }
-    if (launch.prompt === null) {
+    const outcome = launch.prompt === null ? null : await this.#sendPrompt(life, launch.prompt);
+    if (this.#stopped || (!outcome && launch.prompt !== null)) return;
+    if (!outcome || (!outcome.accepted && outcome.withdrawn)) {
       watchdog.disarm();
       this.#setStatus("idle");
-      this.#settleLaunch({ accepted: true });
+      this.#settleLaunch(outcome ?? { accepted: true });
       return;
     }
-    const outcome = await this.#sendPrompt(life, launch.prompt);
-    if (!outcome || this.#stopped) return;
     if (outcome.accepted) {
       this.#settleLaunch(outcome);
       return;
@@ -250,9 +251,11 @@ export class AgentSupervisor {
   async #sendPrompt(life: Life, prompt: PromptPayload): Promise<DeliveryOutcome | null> {
     if (prompt.beforeSend) {
       const refreshed = prompt.beforeSend();
-      if (!refreshed) return { accepted: false, error: "The pending payload was withdrawn before sending." };
+      if (!refreshed)
+        return { accepted: false, withdrawn: true, error: "The pending payload was withdrawn before sending." };
       prompt = refreshed;
     }
+    if (life !== this.#life || this.#stopped || this.#quiescing) return null;
     life.promptsInFlight++;
     const runStarts = life.runStarts;
     const token = life.messages.sent(prompt.messageIds);

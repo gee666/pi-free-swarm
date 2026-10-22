@@ -1,0 +1,42 @@
+import type { PromptPayload } from "../agents/supervisor.js";
+import { formatDeliveredMessages } from "../message-format.js";
+import type { SwarmDb } from "../store/db.js";
+import { getMessages } from "../store/message-queries.js";
+
+/** Recheck cancellations at the actual transport boundary, after serialized sends have waited. */
+export function messagePrompt(
+  db: SwarmDb,
+  swarmId: number,
+  name: string,
+  messageIds: readonly number[],
+  render: (messages: string) => string | null = (messages) => messages || null,
+  onError?: (error: unknown) => void,
+): PromptPayload | null {
+  const refresh = (): PromptPayload | null => {
+    const messages = getMessages(db, messageIds).filter(
+      (message) =>
+        message.swarmId === swarmId &&
+        message.recipients.some(
+          (recipient) =>
+            recipient.name === name && (recipient.status === "pending" || recipient.status === "delivered"),
+        ),
+    );
+    const text = render(formatDeliveredMessages(messages, name));
+    return text === null ? null : { text, messageIds: messages.map((message) => message.id) };
+  };
+  const initial = refresh();
+  return initial === null
+    ? null
+    : {
+        ...initial,
+        beforeSend: () => {
+          try {
+            return refresh();
+          } catch (error) {
+            if (!onError) throw error;
+            onError(error);
+            return null;
+          }
+        },
+      };
+}

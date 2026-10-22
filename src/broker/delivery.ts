@@ -8,6 +8,7 @@ import { formatDeliveredMessages } from "../message-format.js";
 import type { SwarmDb } from "../store/db.js";
 import { getMessages, listInboxAfter, listOpenAgentRecipients } from "../store/message-queries.js";
 import { markDelivered } from "./delivery-state.js";
+import { messagePrompt } from "./message-prompt.js";
 import { onLocalMessage } from "./notify.js";
 import { guardRunAction } from "./run-failure.js";
 
@@ -120,11 +121,13 @@ export class DeliveryLoop {
 
   async #deliver(name: string, target: DeliveryTarget, messageIds: number[], recover: boolean): Promise<void> {
     this.#inFlight.add(name);
-    const text = formatDeliveredMessages(getMessages(this.#db, messageIds), name);
+    const prompt = messagePrompt(this.#db, this.#swarmId, name, messageIds, undefined, this.#onError);
+    if (prompt === null) {
+      this.#inFlight.delete(name);
+      return;
+    }
     const outcome = await (
-      recover && target.recoverUnread
-        ? target.recoverUnread({ text, messageIds })
-        : target.deliver({ text, messageIds })
+      recover && target.recoverUnread ? target.recoverUnread(prompt) : target.deliver(prompt)
     ).finally(() => this.#inFlight.delete(name));
     if (!this.#running || !outcome.accepted) return;
     markDelivered(this.#db, this.#swarmId, name, messageIds, this.#clock.now());

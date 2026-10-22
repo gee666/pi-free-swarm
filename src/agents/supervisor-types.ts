@@ -10,7 +10,7 @@ export interface PromptPayload {
   postIds?: readonly number[];
 }
 
-export type DeliveryOutcome = { accepted: true } | { accepted: false; error: string };
+export type DeliveryOutcome = { accepted: true } | { accepted: false; error: string; withdrawn?: true };
 
 export interface AgentCrash {
   reason:

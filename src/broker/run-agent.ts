@@ -15,6 +15,7 @@ import { bodyLimit } from "./body-limit.js";
 import { incrementReviveCount } from "./agent-state.js";
 import type { DeliveryTarget } from "./delivery.js";
 import { markDelivered } from "./delivery-state.js";
+import { messagePrompt } from "./message-prompt.js";
 import { guardRunAction } from "./run-failure.js";
 
 export interface RunAgentContext {
@@ -119,11 +120,11 @@ export class RunAgent implements DeliveryTarget {
   launchFirst(): Promise<void> {
     const { acceptanceCriteria } = this.#ctx;
     const messages = this.#ctx.collect(this.name, true);
-    if (this.name === WATCHER_NAME) return this.#launch(messages.text || null, messages.messageIds);
-    const text = hasSessionFile(this.#spec.sessionFile)
-      ? buildResumePrompt({ acceptanceCriteria, messages: messages.text })
-      : buildKickoffPrompt({ messages: messages.text });
-    return this.#launch(text, messages.messageIds);
+    if (this.name === WATCHER_NAME) return this.#launch(messages.messageIds, (text) => text || null);
+    const resumed = hasSessionFile(this.#spec.sessionFile);
+    return this.#launch(messages.messageIds, (text) =>
+      resumed ? buildResumePrompt({ acceptanceCriteria, messages: text }) : buildKickoffPrompt({ messages: text }),
+    );
   }
 
   scheduleRevive(delayMs: number): void {
@@ -152,18 +153,16 @@ export class RunAgent implements DeliveryTarget {
     // Published by the `starting` status update the launch emits right after.
     incrementReviveCount(db, swarmId, this.name);
     const messages = this.#ctx.collect(this.name, true);
-    return this.#launch(
-      buildRevivePrompt({ acceptanceCriteria: this.#ctx.acceptanceCriteria, messages: messages.text }),
-      messages.messageIds,
+    return this.#launch(messages.messageIds, (text) =>
+      buildRevivePrompt({ acceptanceCriteria: this.#ctx.acceptanceCriteria, messages: text }),
     );
   }
 
-  async #launch(text: string | null, messageIds: number[]): Promise<void> {
+  async #launch(messageIds: number[], render: (messages: string) => string | null): Promise<void> {
     if (messageIds.length) this.#ctx.onRealMessage(this.name);
     this.#launching = true;
-    const outcome = await this.#supervisor
-      .launch(this.#spec, text === null ? null : { text, messageIds })
-      .finally(() => (this.#launching = false));
+    const prompt = messagePrompt(this.#ctx.db, this.#ctx.swarmId, this.name, messageIds, render, this.#ctx.onError);
+    const outcome = await this.#supervisor.launch(this.#spec, prompt).finally(() => (this.#launching = false));
     const { db, swarmId, clock } = this.#ctx;
     if (outcome.accepted && !this.#ctx.isEnding()) markDelivered(db, swarmId, this.name, messageIds, clock.now());
   }
