@@ -5,6 +5,7 @@ import type { SwarmDb } from "../store/db.js";
 import { markPostsCovered } from "../store/wall-coverage.js";
 import { recordUsage, setAgentActivity, setAgentStatus } from "./agent-state.js";
 import { markRead } from "./delivery-state.js";
+import { coverCommentNotifications } from "./subscriptions.js";
 import { guardRunAction } from "./run-failure.js";
 
 export interface AgentHooksContext {
@@ -30,7 +31,10 @@ export function createAgentHooks(ctx: AgentHooksContext): SupervisorHooks {
     onActivity: (activity) => write(() => setAgentActivity(db, swarmId, name, activity, clock.now())),
     onMessagesRead: (ids) =>
       write(() => {
-        markRead(db, swarmId, name, ids, clock.now());
+        db.write(() => {
+          markRead(db, swarmId, name, ids, clock.now());
+          coverCommentNotifications(db, swarmId, name, ids);
+        });
       }),
     onPostsRead: (ids) => write(() => markPostsCovered(db, swarmId, name, ids)),
     onUsage: (sample) => write(() => recordUsage(db, swarmId, name, sample, clock.now())),

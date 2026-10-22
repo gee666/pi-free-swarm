@@ -6,6 +6,8 @@ import { commentOf, count, int } from "../store/rows.js";
 import { getPost, listPosts } from "../store/wall-queries.js";
 import { storedBody } from "./attachment.js";
 import { BrokerError } from "./errors.js";
+import { autoSubscribe, notifyComment } from "./subscriptions.js";
+import { notifyLocalMessage } from "./notify.js";
 import { actAs, checkPage, requireParticipant, requireSwarm, requireTitle } from "./validate.js";
 
 export function createPost(
@@ -34,6 +36,7 @@ export function createPost(
       commentCount: 0,
       createdAt: now,
     };
+    autoSubscribe(db, swarmId, postId, participant.name);
     insertEvent(db, swarmId, "post.created", { post }, now);
     return post;
   });
@@ -47,7 +50,7 @@ export function addComment(
   text: string,
   now: number,
 ): { comment: CommentView; commentCount: number } {
-  return db.write(() => {
+  const result = db.write(() => {
     requireSwarm(db, swarmId);
     const participant = actAs(db, swarmId, author, now);
     const post = getPost(db, swarmId, postId);
@@ -61,9 +64,13 @@ export function addComment(
     const row = db.sql.prepare("SELECT * FROM comments WHERE id = ?").get(commentId);
     if (row === undefined) throw new Error(`Comment #${commentId} vanished inside its transaction`);
     const result = { comment: commentOf(row), commentCount: post.commentCount + 1 };
+    autoSubscribe(db, swarmId, postId, participant.name);
+    notifyComment(db, result.comment, now);
     insertEvent(db, swarmId, "comment.created", result, now);
     return result;
   });
+  notifyLocalMessage(swarmId);
+  return result;
 }
 
 /**

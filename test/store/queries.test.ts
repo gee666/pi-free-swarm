@@ -98,7 +98,7 @@ describe("wall and stats", () => {
     ]);
     assert.deepEqual(
       stats && [stats.totals.posts, stats.totals.comments, stats.totals.messages, stats.totals.wallTimeMs],
-      [2, 1, 1, 3_000],
+      [2, 1, 2, 3_000],
     );
     assert.deepEqual(
       stats?.agents.map((a) => a.name),

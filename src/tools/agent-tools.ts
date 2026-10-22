@@ -8,6 +8,7 @@ import { TITLE_MAX } from "../limits.js";
 import { BrokerError } from "../broker/errors.js";
 import { replyToThread, readThreadAs, sendMessage } from "../broker/messages.js";
 import { addComment, createPost } from "../broker/wall.js";
+import { setPostSubscription } from "../broker/subscriptions.js";
 import type { SwarmDb } from "../store/db.js";
 import { getPostDetail } from "../store/wall-queries.js";
 import { formatPostDetail, formatSent, formatThread } from "./agent-tool-format.js";
@@ -58,6 +59,7 @@ const POST = Type.Object({
   text: TEXT,
 });
 const COMMENT = Type.Object({ post_id: Type.Integer({ minimum: 1 }), text: TEXT });
+const SUBSCRIPTION = Type.Object({ post_id: Type.Integer({ minimum: 1 }) });
 const MESSAGE = Type.Object({
   to: Type.Array(Type.String({ minLength: 1, pattern: "\\S" }), {
     minItems: 1,
@@ -88,6 +90,10 @@ export function createAgentToolHandlers(identity: AgentToolIdentity) {
     comment(params: Static<typeof COMMENT>): string {
       const { comment } = addComment(identity.getDb(), swarmId, agentName, params.post_id, params.text, clock.now());
       return `Commented #${comment.id} on post #${comment.postId}.`;
+    },
+    subscribe(params: Static<typeof SUBSCRIPTION>, subscribed = true): string {
+      setPostSubscription(identity.getDb(), swarmId, agentName, params.post_id, subscribed, clock.now());
+      return `${subscribed ? "Subscribed to" : "Unsubscribed from"} post #${params.post_id}.`;
     },
     message(params: Static<typeof MESSAGE>): string {
       const message = sendMessage(identity.getDb(), swarmId, agentName, params.to, params.text, clock.now());
@@ -155,13 +161,27 @@ export function registerAgentTools(
   pi.registerTool({
     name: AGENT_TOOL.comment,
     label: "Comment",
-    description: `Comment on a wall post. ${BRIEF} ${limit} Plain text.`,
+    description: `Comment on a wall post. Authors and commenters subscribe automatically unless explicitly unsubscribed. Subscribers receive new comment text, except their own. ${BRIEF} ${limit} Plain text.`,
     promptSnippet: "Comment on a wall post.",
     parameters: COMMENT,
     async execute(_toolCallId, params) {
       return textResult(run.comment(params));
     },
   });
+  for (const subscribed of [true, false]) {
+    pi.registerTool({
+      name: subscribed ? AGENT_TOOL.subscribe : AGENT_TOOL.unsubscribe,
+      label: subscribed ? "Subscribe" : "Unsubscribe",
+      promptSnippet: subscribed ? "Subscribe to future post comments." : "Stop post comment notifications.",
+      description: subscribed
+        ? "Subscribe to future comments on a post. New comment text arrives through queued steering; use history or only-new reads for earlier comments."
+        : "Stop future comment notifications for a post, even if you comment again. Removes unsent notifications; already accepted steering may still arrive. Explicit subscribe reverses this opt-out.",
+      parameters: SUBSCRIPTION,
+      async execute(_toolCallId, params) {
+        return textResult(run.subscribe(params, subscribed));
+      },
+    });
+  }
   pi.registerTool({
     name: AGENT_TOOL.message,
     label: "Message",
