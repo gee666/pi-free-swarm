@@ -79,6 +79,23 @@ it("retains assignments by identity across resume and reports changed requested 
   }
 });
 
+it("records effective watchdog overrides and surfaces recovery policy changes on resume", () => {
+  const f = fixture();
+  try {
+    const timing = { ...DEFAULT_TIMINGS, watchdog: { startupTimeoutMs: 321, idleTimeoutMs: 654, startupRetries: 1 } };
+    configureRun(f.env, f.swarm.id, 1, ["Maria", "John", "Liam"], timing);
+    const saved = getRunConfiguration(f.db, f.swarm.id, 1)?.effective.timing;
+    assert.equal(saved?.startupTimeoutMs, 321);
+    assert.equal(saved?.idleTimeoutMs, 654);
+    assert.equal(saved?.startupRetries, 1);
+    timing.watchdog.startupRetries = 2;
+    configureRun(f.env, f.swarm.id, 2, ["Maria", "John", "Liam"], timing);
+    assert.ok(getRunConfiguration(f.db, f.swarm.id, 2)?.changes.includes("timing"));
+  } finally {
+    f.cleanup();
+  }
+});
+
 it("fails clearly for missing inherited model or unavailable saved model without saving a new run", () => {
   const f = fixture();
   try {

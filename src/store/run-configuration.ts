@@ -26,6 +26,9 @@ function project(config: RunConfiguration): RunConfiguration {
       progressMs: config.timing.progressMs,
       resumeStaggerMs: config.timing.resumeStaggerMs,
       reviveBackoffMs: [...config.timing.reviveBackoffMs],
+      startupTimeoutMs: config.timing.startupTimeoutMs,
+      idleTimeoutMs: config.timing.idleTimeoutMs,
+      startupRetries: config.timing.startupRetries,
     },
     limits: { bodyMaxChars: config.limits.bodyMaxChars, maxRpcFrameBytes: config.limits.maxRpcFrameBytes },
     budget: {
@@ -112,6 +115,9 @@ function isConfiguration(value: unknown): value is RunConfiguration {
       "progressMs",
       "resumeStaggerMs",
     ].every((key) => finite(timing[key])) &&
+    ["startupTimeoutMs", "idleTimeoutMs", "startupRetries"].every(
+      (key) => timing[key] === undefined || finite(timing[key]),
+    ) &&
     Array.isArray(timing.reviveBackoffMs) &&
     timing.reviveBackoffMs.every(finite) &&
     record(limits) &&

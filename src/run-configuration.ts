@@ -24,6 +24,10 @@ export interface RunConfiguration {
     progressMs: number;
     resumeStaggerMs: number;
     reviveBackoffMs: number[];
+    /** Missing only on early configuration records. */
+    startupTimeoutMs?: number;
+    idleTimeoutMs?: number;
+    startupRetries?: number;
   };
   limits: { bodyMaxChars: number; maxRpcFrameBytes: number };
   budget: {

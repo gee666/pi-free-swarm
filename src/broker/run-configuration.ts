@@ -1,4 +1,5 @@
 import { DEFAULT_MAX_RPC_FRAME_BYTES } from "../agents/jsonl.js";
+import { watchdogConfigFromEnv } from "../agents/watchdog.js";
 import { WATCHER_NAME } from "../constants.js";
 import { resolveModelAssignments } from "../model-allocation.js";
 import type { RunConfiguration, WorkerAssignment } from "../run-configuration.js";
@@ -34,6 +35,7 @@ export function configureRun(
     );
   }
   validateRetainedModels(assignments, env);
+  const watchdog = timing.watchdog ?? watchdogConfigFromEnv();
   const configuration: RunConfiguration = {
     version: 1,
     workers: assignments,

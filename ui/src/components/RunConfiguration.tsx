@@ -13,6 +13,9 @@ const timingLabels = {
   progressMs: "Progress reporting, ms",
   resumeStaggerMs: "Resume stagger, ms",
   reviveBackoffMs: "Recovery backoff, ms",
+  startupTimeoutMs: "Startup watchdog, ms",
+  idleTimeoutMs: "Idle watchdog, ms",
+  startupRetries: "Startup retries",
 };
 
 export function RunConfiguration({ configuration }: { configuration?: SavedRunConfiguration | null }) {
@@ -66,7 +69,7 @@ export function RunConfiguration({ configuration }: { configuration?: SavedRunCo
                 const value = effective.timing[key as keyof typeof timingLabels];
                 return (
                   <li key={key}>
-                    {label}: {Array.isArray(value) ? value.join(", ") : value}
+                    {label}: {Array.isArray(value) ? value.join(", ") : (value ?? "not recorded")}
                   </li>
                 );
               })}

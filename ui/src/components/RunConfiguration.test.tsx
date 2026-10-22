@@ -38,6 +38,7 @@ it("renders saved assignments, budget, resume differences and effective launch s
   expect(screen.getByText("On exhaustion: interrupt immediately.")).toBeInTheDocument();
   expect(screen.getByText(/Project trusted: yes · extensions: disabled/)).toBeInTheDocument();
   expect(screen.getByText("Worker stagger, seconds: 1")).toBeInTheDocument();
+  expect(screen.getByText("Startup watchdog, ms: not recorded")).toBeInTheDocument();
 });
 
 it("does not invent historical metadata", async () => {
