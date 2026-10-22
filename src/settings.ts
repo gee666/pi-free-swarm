@@ -25,8 +25,10 @@ import {
 } from "./constants.js";
 
 import { BODY_SAFETY_MAX, BODY_STATED_MIN, TEXT_MAX } from "./limits.js";
+import { DEFAULT_MAX_RPC_FRAME_BYTES } from "./agents/jsonl.js";
 
 export interface SwarmSettings {
+  maxRpcFrameBytes?: number;
   /** From the file only; `null` = not set. */
   port: number | null;
   minAgents: number;
@@ -66,6 +68,7 @@ const KNOWN_KEYS = new Set([
   "idleReminderDelay",
   "idleReminderDigestSize",
   "bodyMaxChars",
+  "maxRpcFrameBytes",
   "env",
 ]);
 const PORT_MIN = 1;
@@ -90,16 +93,25 @@ export function loadSettings(cwd: string): { settings: SwarmSettings; warnings: 
   const bodyMaxChars = optionalInteger(
     parsed,
     "bodyMaxChars",
+    "maxRpcFrameBytes",
     `an integer ${BODY_STATED_MIN}–${BODY_SAFETY_MAX}`,
     BODY_STATED_MIN,
     BODY_SAFETY_MAX,
   );
   const idleReminderDelay = optionalInteger(parsed, "idleReminderDelay", "an integer >= 0", 0);
   const idleReminderDigestSize = optionalInteger(parsed, "idleReminderDigestSize", "an integer >= 1", 1);
+  const maxRpcFrameBytes = optionalInteger(
+    parsed,
+    "maxRpcFrameBytes",
+    "a positive safe integer",
+    1,
+    Number.MAX_SAFE_INTEGER,
+  );
   const env = parseEnv(parsed.env, warnings);
   return {
     settings: buildSettings(
       {
+        maxRpcFrameBytes,
         port,
         minAgents,
         maxAgents,
@@ -161,6 +173,7 @@ export function resolvePort(
 }
 
 interface ParsedNumbers {
+  maxRpcFrameBytes?: number;
   port?: number;
   minAgents?: number;
   maxAgents?: number;
@@ -178,6 +191,7 @@ function buildSettings(values: ParsedNumbers, env: Record<string, string>): Swar
   if (maxAgents < minAgents) throw new SettingsError(`maxAgents (${maxAgents}) must be >= minAgents (${minAgents})`);
   const defaultAgents = Math.min(Math.max(values.defaultAgents ?? DEFAULT_AGENTS, minAgents), maxAgents);
   return {
+    maxRpcFrameBytes: values.maxRpcFrameBytes ?? DEFAULT_MAX_RPC_FRAME_BYTES,
     port: values.port ?? null,
     minAgents,
     maxAgents,

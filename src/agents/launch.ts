@@ -15,6 +15,7 @@ export interface AgentLaunchSpec {
   systemPromptFile: string;
   context: AgentLaunchContext;
   env: Record<string, string>;
+  maxRpcFrameBytes?: number;
 }
 
 const EXTENSION_FLAGS = new Set(["-e", "--extension"]);

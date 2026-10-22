@@ -80,6 +80,7 @@ Optional, hand-written `.pi/swarm/settings.json`:
   "defaultAgents": 5,
   "staggerSeconds": 30,
   "bodyMaxChars": 200,
+  "maxRpcFrameBytes": 16777216,
   "idleReminderDelay": 60000,
   "idleReminderDigestSize": 10,
   "env": {
@@ -93,6 +94,7 @@ These are the agent-count and stagger defaults; `env` defaults to `{}` and `port
 - `minAgents` is an integer ≥1; `maxAgents` must be ≥`minAgents`. If only `minAgents` exceeds 10, the implicit maximum rises to match it.
 - `defaultAgents` is clamped into the allowed range. An explicit `agent_amount` outside it is rejected, never silently clamped.
 - `staggerSeconds` is the nonnegative interval between worker launches on a fresh swarm, default 30 seconds. The first worker starts immediately; every other worker starts at its scheduled interval regardless of agent activity. Resume uses a fixed 5-second interval.
+- `maxRpcFrameBytes` is a positive safe integer bounding each worker RPC JSONL record, default 16 MiB. Large tool results can require a higher limit. An oversized record stops that worker with a fatal protocol error rather than truncating JSON or retrying the same failure.
 - `bodyMaxChars` is an integer from 100 to 16,000: the limit stated to agents and shown in board counters. Main's resume feedback keeps its own 4,000-character limit.
 - `idleReminderDelay` (milliseconds, integer ≥0) is how long an agent may stay idle before it is reminded to continue; the reminder includes the newest `idleReminderDigestSize` wall posts (integer ≥1). Reminders have no count cap and continue until accepted or blocked votes reach the 70% threshold.
 - Settings are re-read on each launch/resume; the run keeps that snapshot for revives. Port settings apply when hosting starts.

@@ -3,6 +3,7 @@ import type { ChildProcess } from "node:child_process";
 import { systemClock, type Clock, type TimerHandle } from "../clock.js";
 import { MAX_CAPTURED_STDERR_CHARS, SIGKILL_TIMEOUT_MS } from "../constants.js";
 import { spawnAgentProcess, stopProcessTree, type AgentLaunchSpec } from "./launch.js";
+import { RpcFrameOverflowError } from "./jsonl.js";
 import { isAgentGroupAlive, unregisterAgentProcess } from "./process-registry.js";
 import { createJsonlSplitter, parseRpcLine, type RpcRecord } from "./rpc-events.js";
 
@@ -12,6 +13,7 @@ export interface AgentExitInfo {
   stderrTail: string;
   /** Set when the child could not be spawned at all (e.g. the command does not exist). */
   spawnError: string | null;
+  protocolError?: RpcFrameOverflowError;
 }
 
 export interface AgentProcessHandlers {
@@ -42,16 +44,20 @@ export class AgentProcess {
   #forced = false;
   #killTimer: TimerHandle | undefined;
   #finished = false;
+  #protocolError: RpcFrameOverflowError | undefined;
 
-  private constructor(child: ChildProcess, handlers: AgentProcessHandlers, clock: Clock) {
+  private constructor(child: ChildProcess, handlers: AgentProcessHandlers, clock: Clock, maxFrameBytes?: number) {
     this.#child = child;
     this.#handlers = handlers;
     this.#clock = clock;
-    this.#attach();
+    this.#attach(maxFrameBytes);
   }
 
   static spawn(spec: AgentLaunchSpec, handlers: AgentProcessHandlers, clock: Clock = systemClock): AgentProcess {
-    return new AgentProcess(spawnAgentProcess(spec), handlers, clock);
+    if (spec.maxRpcFrameBytes !== undefined && (!Number.isSafeInteger(spec.maxRpcFrameBytes) || spec.maxRpcFrameBytes < 1)) {
+      throw new Error("maxRpcFrameBytes must be a positive safe integer.");
+    }
+    return new AgentProcess(spawnAgentProcess(spec), handlers, clock, spec.maxRpcFrameBytes);
   }
 
   get pid(): number | undefined {
@@ -86,10 +92,18 @@ export class AgentProcess {
     return exited;
   }
 
-  #attach(): void {
+  #attach(maxFrameBytes?: number): void {
     const child = this.#child;
-    const splitter = createJsonlSplitter((line) => this.#onLine(line));
-    child.stdout?.on("data", (chunk: Buffer) => splitter.push(chunk));
+    const splitter = createJsonlSplitter((line) => this.#onLine(line), maxFrameBytes);
+    child.stdout?.on("data", (chunk: Buffer) => {
+      try {
+        splitter.push(chunk);
+      } catch (error) {
+        if (!(error instanceof RpcFrameOverflowError)) throw error;
+        this.#protocolError = error;
+        this.#beginCleanup();
+      }
+    });
     child.stdout?.on("end", () => splitter.end());
     child.stderr?.on("data", (chunk: Buffer) => {
       this.#stderr = (this.#stderr + chunk.toString()).slice(-MAX_CAPTURED_STDERR_CHARS);
@@ -158,7 +172,7 @@ export class AgentProcess {
     const error = new Error("Agent process exited before answering.");
     for (const pending of this.#pending.values()) pending.reject(error);
     this.#pending.clear();
-    this.#handlers.onExit({ ...exit, stderrTail: this.#stderr, spawnError });
+    this.#handlers.onExit({ ...exit, stderrTail: this.#stderr, spawnError, protocolError: this.#protocolError });
     for (const resolve of this.#exitWaiters.splice(0)) resolve();
   }
 }

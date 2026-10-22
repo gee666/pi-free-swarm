@@ -1,5 +1,5 @@
 // Pure readers for pi's RPC JSONL records (docs/pi-findings.md §2, §5, §8).
-import { StringDecoder } from "node:string_decoder";
+export { createJsonlSplitter } from "./jsonl.js";
 import type { AgentActivity } from "../api-types.js";
 import { AGENT_TOOL } from "../constants.js";
 import { findMessageIds } from "../message-format.js";
@@ -43,30 +43,6 @@ export function parseRpcLine(line: string): RpcRecord | undefined {
   } catch {
     return undefined;
   }
-}
-
-/** Splits on "\n" only: readline also splits on U+2028/U+2029, which JSON strings may contain. */
-export function createJsonlSplitter(onLine: (line: string) => void): { push(chunk: Buffer): void; end(): void } {
-  const decoder = new StringDecoder("utf8");
-  let buffer = "";
-  const emit = (line: string) => {
-    const clean = line.endsWith("\r") ? line.slice(0, -1) : line;
-    if (clean.length > 0) onLine(clean);
-  };
-  return {
-    push(chunk) {
-      buffer += decoder.write(chunk);
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-      for (const line of lines) emit(line);
-    },
-    end() {
-      buffer += decoder.end();
-      const rest = buffer;
-      buffer = "";
-      emit(rest);
-    },
-  };
 }
 
 function usageSample(kind: UsageSample["kind"], usage: RpcRecord, model: string | null): UsageSample {

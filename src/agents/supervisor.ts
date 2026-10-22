@@ -4,7 +4,8 @@ import type { AgentActivity, ParticipantStatus } from "../api-types.js";
 import { systemClock, type Clock, type TimerHandle } from "../clock.js";
 import { EXTENSION_LOAD_FAILURE_MARKER, STARTUP_RETRY_BASE_BACKOFF_MS } from "../constants.js";
 import type { UsageSample } from "../runtime-types.js";
-import { AgentProcess, type AgentExitInfo } from "./agent-process.js";
+import type { AgentExitInfo } from "./agent-process.js";
+import { spawnAgentTransport, type AgentTransport, type AgentTransportFactory } from "./transport.js";
 import type { AgentLaunchSpec } from "./launch.js";
 import { createProtocolHandler } from "./protocol.js";
 import { dialogRequestId, headerMessageIds, type RpcRecord } from "./rpc-events.js";
@@ -18,8 +19,15 @@ export interface PromptPayload {
 export type DeliveryOutcome = { accepted: true } | { accepted: false; error: string };
 
 export interface AgentCrash {
-  reason: "exit" | "startup_timeout" | "inactivity" | "spawn_error" | "extension_load_failed" | "prompt_rejected";
-  /** true for extension_load_failed and prompt_rejected: the caller must not revive. */
+  reason:
+    | "exit"
+    | "startup_timeout"
+    | "inactivity"
+    | "spawn_error"
+    | "extension_load_failed"
+    | "prompt_rejected"
+    | "protocol_overflow";
+  /** Deterministic failure: the caller must not revive without a configuration change. */
   fatal: boolean;
   message: string;
   exitCode: number | null;
@@ -40,7 +48,7 @@ export interface SupervisorHooks {
 
 /** One spawn of the agent's process and the state that dies with it. */
 interface Life {
-  proc: AgentProcess;
+  proc: AgentTransport;
   watchdog: StallWatchdog;
   handle(event: RpcRecord): void;
   stall: { kind: StallKind; message: string } | null;
@@ -54,6 +62,7 @@ export class AgentSupervisor {
   readonly #hooks: SupervisorHooks;
   readonly #clock: Clock;
   readonly #config: WatchdogConfig;
+  readonly #transportFactory: AgentTransportFactory;
   #status: ParticipantStatus = "pending";
   #life: Life | null = null;
   #launch: { spec: AgentLaunchSpec; prompt: PromptPayload | null; retriesUsed: number } | null = null;
@@ -64,11 +73,18 @@ export class AgentSupervisor {
   readonly #sentIds = new Set<number>();
   #stopped: Promise<void> | null = null;
 
-  constructor(options: { name: string; hooks: SupervisorHooks; clock?: Clock; watchdog?: WatchdogConfig }) {
+  constructor(options: {
+    name: string;
+    hooks: SupervisorHooks;
+    clock?: Clock;
+    watchdog?: WatchdogConfig;
+    transportFactory?: AgentTransportFactory;
+  }) {
     this.name = options.name;
     this.#hooks = options.hooks;
     this.#clock = options.clock ?? systemClock;
     this.#config = options.watchdog ?? watchdogConfigFromEnv();
+    this.#transportFactory = options.transportFactory ?? spawnAgentTransport;
   }
 
   get status(): ParticipantStatus {
@@ -153,9 +169,9 @@ export class AgentSupervisor {
     if (!launch || this.#stopped) return;
     // Events and exits only arrive asynchronously, after `life` is assigned below.
     let life: Life;
-    let proc: AgentProcess;
+    let proc: AgentTransport;
     try {
-      proc = AgentProcess.spawn(
+      proc = this.#transportFactory(
         launch.spec,
         { onEvent: (event) => this.#onEvent(life, event), onExit: (info) => this.#onExit(life, info) },
         this.#clock,
@@ -262,7 +278,9 @@ export class AgentSupervisor {
     if (this.#stopped || this.#status === "crashed") return;
     const launch = this.#launch;
     const common = { exitCode: info.code, signal: info.signal, stderrTail: info.stderrTail };
-    if (info.spawnError !== null) {
+    if (info.protocolError) {
+      this.#crash({ ...common, reason: "protocol_overflow", fatal: true, message: info.protocolError.message });
+    } else if (info.spawnError !== null) {
       this.#crash({ ...common, reason: "spawn_error", fatal: false, message: info.spawnError });
     } else if (this.#status === "starting" && info.stderrTail.includes(EXTENSION_LOAD_FAILURE_MARKER)) {
       const message = firstLineWith(info.stderrTail, EXTENSION_LOAD_FAILURE_MARKER);
