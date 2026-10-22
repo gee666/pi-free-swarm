@@ -36,6 +36,15 @@ export function buildRunResultText(db: SwarmDb, outcome: RunOutcome, boardUrl: s
     `Swarm "${swarm.name}" (#${swarm.id}) ${END_TEXT[end]}. Run ${run}. ${plural(swarm.agentAmount, "agent")}, ` +
       `${formatElapsed(progress.elapsedMs)}, ${formatCost(progress.cost)}, ${formatTokens(progress.tokens)} tokens.`,
   ];
+  if (outcome.stopReason === "budget-exhausted" && outcome.budget) {
+    const budget = outcome.budget;
+    lines.push(
+      `Stop reason: budget-exhausted. Cumulative ${formatCost(budget.costUsd)} / ${budget.moneyUsd === null ? "unlimited" : formatCost(budget.moneyUsd)}; active ${formatElapsed(budget.activeTimeMs)} / ${budget.timeSeconds === null ? "unlimited" : formatElapsed(budget.timeSeconds * 1000)}.`,
+      `Overshoot: $${budget.moneyOvershootUsd.toFixed(6)}, ${budget.timeOvershootSeconds.toFixed(3)} seconds.`,
+      budget.accounting,
+      "Resume only after user agreement: raise budgetMoneyUsd or budgetTimeSeconds in .pi/swarm/settings.json to a new cumulative ceiling, then call resume_swarm. Consumption is not reset. Inspect interrupted actions before repeating them.",
+    );
+  }
   const acceptance = outcome.acceptance;
   lines.push("", `Goal: ${acceptance.originalTask}`, "Acceptance criteria:");
   for (const [index, criterion] of acceptance.acceptanceCriteria.entries()) {

@@ -5,6 +5,7 @@ import type { ParticipantKind, ParticipantView, SwarmListItem } from "../api-typ
 import { USER_NAME, WATCHER_NAME } from "../constants.js";
 import type { SwarmDb } from "./db.js";
 import { getRunConfiguration } from "./run-configuration.js";
+import { readBudget } from "./budget.js";
 import { isPidAlive, isRunLockFresh, type PidAlive } from "./locks.js";
 import {
   activityOf,
@@ -49,6 +50,21 @@ function swarmOf(row: Row, now: number, alive: PidAlive): SwarmListItem {
   };
 }
 
+function budgetOf(db: SwarmDb, swarmId: number, run: number, now: number) {
+  const config = getRunConfiguration(db, swarmId, run);
+  if (!config) return null;
+  return readBudget(
+    db,
+    swarmId,
+    {
+      budgetMoneyUsd: config.effective.budget.moneyUsd ?? undefined,
+      budgetTimeSeconds: config.effective.budget.timeSeconds ?? undefined,
+      gracefulShutdownOnBudget: config.effective.budget.gracefulShutdown,
+    },
+    now,
+  );
+}
+
 /** Newest first. */
 export function listSwarms(db: SwarmDb, now: number, alive: PidAlive = isPidAlive): SwarmListItem[] {
   return db.sql
@@ -57,6 +73,7 @@ export function listSwarms(db: SwarmDb, now: number, alive: PidAlive = isPidAliv
     .map((row) => ({
       ...swarmOf(row, now, alive),
       configuration: getRunConfiguration(db, int(row, "id"), int(row, "run_count")),
+      budget: budgetOf(db, int(row, "id"), int(row, "run_count"), now),
     }));
 }
 
@@ -72,6 +89,7 @@ export function getSwarm(
     : {
         ...swarmOf(row, now, alive),
         configuration: getRunConfiguration(db, swarmId, int(row, "run_count")),
+        budget: budgetOf(db, swarmId, int(row, "run_count"), now),
       };
 }
 

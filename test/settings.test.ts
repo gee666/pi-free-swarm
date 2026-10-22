@@ -40,6 +40,9 @@ describe("loadSettings", () => {
     const { settings, warnings } = loadSettings(project());
     assert.deepEqual(settings, {
       port: null,
+      budgetMoneyUsd: undefined,
+      budgetTimeSeconds: undefined,
+      gracefulShutdownOnBudget: false,
       maxRpcFrameBytes: 16 * 1024 * 1024,
       minAgents: 1,
       maxAgents: 10,
@@ -65,6 +68,20 @@ describe("loadSettings", () => {
     for (const maxRpcFrameBytes of [0, -1, 1.5, "1024", Number.MAX_SAFE_INTEGER + 1]) {
       assert.match(loadError(JSON.stringify({ maxRpcFrameBytes })), /maxRpcFrameBytes must be a positive safe integer/);
     }
+  });
+
+  it("validates independent budget limits and immediate shutdown by default", () => {
+    for (const key of ["budgetMoneyUsd", "budgetTimeSeconds"]) {
+      for (const value of [0, -1, null, "10", false]) {
+        assert.match(
+          loadError(JSON.stringify({ [key]: value })),
+          new RegExp(`${key} must be a finite positive number`),
+        );
+      }
+      assert.equal(Reflect.get(loadSettings(project(JSON.stringify({ [key]: 0.25 }))).settings, key), 0.25);
+    }
+    assert.match(loadError('{"gracefulShutdownOnBudget":1}'), /must be a boolean/);
+    assert.equal(loadSettings(project('{"gracefulShutdownOnBudget":true}')).settings.gracefulShutdownOnBudget, true);
   });
 
   it("validates reminder delay and digest settings", () => {

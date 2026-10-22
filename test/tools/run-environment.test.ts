@@ -1,8 +1,61 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseArgs } from "@earendil-works/pi-coding-agent";
+import { getSupportedThinkingLevels, type Model } from "@earendil-works/pi-ai";
+import { createMainRuntime } from "../../src/main-runtime.js";
+import { loadSettings } from "../../src/settings.js";
+import { createTempDb } from "../helpers/temp-db.js";
 import { buildAgentArgs } from "../../src/agents/launch.js";
-import { captureLaunchContext, type LaunchSource } from "../../src/tools/run-environment.js";
+import { buildRunEnvironment, captureLaunchContext, type LaunchSource } from "../../src/tools/run-environment.js";
+
+test("captures authenticated catalog capability and conservative pricing metadata without credentials", () => {
+  const temp = createTempDb();
+  try {
+    const model: Model<"anthropic-messages"> = {
+      id: "fixture",
+      name: "Fixture",
+      provider: "anthropic",
+      api: "anthropic-messages",
+      baseUrl: "https://fixture.invalid",
+      reasoning: true,
+      input: ["text"],
+      cost: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 1.2 },
+      contextWindow: 1000,
+      maxTokens: 100,
+    };
+    const zeroPriced = { ...model, id: "unpriced", cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } };
+    const runtime = createMainRuntime({
+      cwd: temp.cwd,
+      extensionPath: "/extension.ts",
+      createHost: () => ({
+        start: () => {},
+        ensure: async () => "",
+        boardUrl: () => null,
+        stop: async () => {},
+        releaseSync: () => {},
+      }),
+    });
+    const env = buildRunEnvironment(runtime, temp.db, loadSettings(temp.cwd).settings, {
+      model,
+      thinkingLevel: "high",
+      isProjectTrusted: () => true,
+      modelRegistry: { getAvailable: () => [model, zeroPriced] },
+    });
+    assert.deepEqual(env.availableModels, [
+      { provider: model.provider, id: model.id, thinkingLevels: getSupportedThinkingLevels(model), pricingKnown: true },
+      {
+        provider: model.provider,
+        id: "unpriced",
+        thinkingLevels: getSupportedThinkingLevels(model),
+        pricingKnown: false,
+      },
+    ]);
+    assert.deepEqual(env.launch.model, { provider: model.provider, modelId: model.id, thinkingLevel: "high" });
+    assert.equal(JSON.stringify(env.availableModels).includes("apiKey"), false);
+  } finally {
+    temp.cleanup();
+  }
+});
 
 const extension = "/checkout/pi-free-swarm/index.ts";
 const limits = "npm:oira666_pi-limits-wait";

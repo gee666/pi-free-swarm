@@ -29,6 +29,9 @@ import { parseModelProfiles, type ModelProfile } from "./model-allocation.js";
 import { DEFAULT_MAX_RPC_FRAME_BYTES } from "./agents/jsonl.js";
 
 export interface SwarmSettings {
+  budgetMoneyUsd?: number;
+  budgetTimeSeconds?: number;
+  gracefulShutdownOnBudget?: boolean;
   models?: readonly ModelProfile[];
   maxRpcFrameBytes?: number;
   /** From the file only; `null` = not set. */
@@ -70,9 +73,12 @@ const KNOWN_KEYS = new Set([
   "idleReminderDelay",
   "idleReminderDigestSize",
   "bodyMaxChars",
-  "maxRpcFrameBytes",
   "env",
   "models",
+  "maxRpcFrameBytes",
+  "budgetMoneyUsd",
+  "budgetTimeSeconds",
+  "gracefulShutdownOnBudget",
 ]);
 const PORT_MIN = 1;
 const PORT_MAX = 65_535;
@@ -115,12 +121,21 @@ export function loadSettings(cwd: string): { settings: SwarmSettings; warnings: 
   } catch (error) {
     throw new SettingsError(error instanceof Error ? error.message : "models is invalid");
   }
+  const budgetMoneyUsd = positiveBudget(parsed, "budgetMoneyUsd");
+  const budgetTimeSeconds = positiveBudget(parsed, "budgetTimeSeconds");
+  if (parsed.gracefulShutdownOnBudget !== undefined && typeof parsed.gracefulShutdownOnBudget !== "boolean") {
+    throw new SettingsError("gracefulShutdownOnBudget must be a boolean");
+  }
+  const gracefulShutdownOnBudget = parsed.gracefulShutdownOnBudget === true;
   const env = parseEnv(parsed.env, warnings);
   return {
     settings: buildSettings(
       {
-        maxRpcFrameBytes,
         models,
+        budgetMoneyUsd,
+        budgetTimeSeconds,
+        gracefulShutdownOnBudget,
+        maxRpcFrameBytes,
         port,
         minAgents,
         maxAgents,
@@ -181,7 +196,19 @@ export function resolvePort(
   return { candidates, explicit: false };
 }
 
+function positiveBudget(parsed: Record<string, unknown>, key: string): number | undefined {
+  const value = parsed[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    throw new SettingsError(`${key} must be a finite positive number; omit it for unlimited`);
+  }
+  return value;
+}
+
 interface ParsedNumbers {
+  budgetMoneyUsd?: number;
+  budgetTimeSeconds?: number;
+  gracefulShutdownOnBudget?: boolean;
   models?: readonly ModelProfile[];
   maxRpcFrameBytes?: number;
   port?: number;
@@ -201,8 +228,11 @@ function buildSettings(values: ParsedNumbers, env: Record<string, string>): Swar
   if (maxAgents < minAgents) throw new SettingsError(`maxAgents (${maxAgents}) must be >= minAgents (${minAgents})`);
   const defaultAgents = Math.min(Math.max(values.defaultAgents ?? DEFAULT_AGENTS, minAgents), maxAgents);
   return {
-    maxRpcFrameBytes: values.maxRpcFrameBytes ?? DEFAULT_MAX_RPC_FRAME_BYTES,
     ...(values.models === undefined ? {} : { models: values.models }),
+    budgetMoneyUsd: values.budgetMoneyUsd,
+    budgetTimeSeconds: values.budgetTimeSeconds,
+    gracefulShutdownOnBudget: values.gracefulShutdownOnBudget ?? false,
+    maxRpcFrameBytes: values.maxRpcFrameBytes ?? DEFAULT_MAX_RPC_FRAME_BYTES,
     port: values.port ?? null,
     minAgents,
     maxAgents,

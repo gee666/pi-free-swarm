@@ -63,9 +63,9 @@ export function configureRun(
       maxRpcFrameBytes: env.settings.maxRpcFrameBytes ?? DEFAULT_MAX_RPC_FRAME_BYTES,
     },
     budget: {
-      moneyUsd: null,
-      timeSeconds: null,
-      gracefulShutdown: false,
+      moneyUsd: env.settings.budgetMoneyUsd ?? null,
+      timeSeconds: env.settings.budgetTimeSeconds ?? null,
+      gracefulShutdown: env.settings.gracefulShutdownOnBudget ?? false,
     },
   };
   const saved = saveRunConfiguration(env.db, swarmId, run, configuration, env.clock.now());

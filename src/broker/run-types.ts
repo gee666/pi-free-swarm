@@ -58,5 +58,7 @@ export interface RunOutcome {
   swarm: SwarmListItem;
   run: number;
   end: RunEndStatus;
+  stopReason?: "budget-exhausted";
+  budget?: import("../budget.js").BudgetStatus;
   acceptance: AcceptanceRecord;
 }
