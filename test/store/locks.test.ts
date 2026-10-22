@@ -13,6 +13,7 @@ import {
   releaseServerHost,
   setServerHostPort,
 } from "../../src/store/locks.js";
+import { beginResume } from "../../src/broker/swarms.js";
 import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
 
 const temp = createTempDb();
@@ -30,6 +31,18 @@ describe("isPidAlive", () => {
 });
 
 describe("run lock", () => {
+  it("rejects a stale run heartbeat even when the runner PID is reused", () => {
+    const swarm = seedSwarm(db);
+    const now = T0 + 1_000_000;
+    beginResume(db, swarm.id, process.pid, now);
+    assert.equal(heartbeatRunLock(db, swarm.id, process.pid, now + 1, 1), false);
+    assert.equal(
+      db.sql.prepare("SELECT runner_heartbeat_at FROM swarms WHERE id = ?").get(swarm.id)?.runner_heartbeat_at,
+      now,
+    );
+    assert.equal(heartbeatRunLock(db, swarm.id, process.pid, now + 2, 2), true);
+  });
+
   it("is fresh only with a pid, a recent heartbeat and a live process", () => {
     assert.equal(isRunLockFresh({ runnerPid: 7, runnerHeartbeatAt: T0 }, T0 + 20_000, alive), true);
     assert.equal(isRunLockFresh({ runnerPid: 7, runnerHeartbeatAt: T0 }, T0 + 20_001, alive), false);

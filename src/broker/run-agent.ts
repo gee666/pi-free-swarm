@@ -15,7 +15,6 @@ import { bodyLimit } from "./body-limit.js";
 import { incrementReviveCount } from "./agent-state.js";
 import type { DeliveryTarget } from "./delivery.js";
 import { markDelivered } from "./delivery-state.js";
-import type { AgentLiveness } from "./lifecycle.js";
 import { guardRunAction } from "./run-failure.js";
 
 export interface RunAgentContext {
@@ -23,12 +22,12 @@ export interface RunAgentContext {
   swarmId: number;
   swarmName: string;
   taskPrompt: string;
+  acceptanceCriteria: readonly string[];
   clock: Clock;
   watchdog: WatchdogConfig | undefined;
   /** DeliveryLoop.collect: open messages for a launch prompt. */
   collect(name: string, includeDeliveredUnread: boolean): { text: string; messageIds: number[] };
   isEnding(): boolean;
-  onWorking(): void;
   onStatus(name: string, status: ParticipantStatus): void;
   onRealMessage(name: string): void;
   onError(error: unknown): void;
@@ -43,7 +42,6 @@ export class RunAgent implements DeliveryTarget {
   #launching = false;
   #revivesThisRun = 0;
   #reviveTimer: TimerHandle | null = null;
-  #exhausted = false;
 
   constructor(spec: AgentLaunchSpec, ctx: RunAgentContext) {
     this.name = spec.name;
@@ -63,7 +61,6 @@ export class RunAgent implements DeliveryTarget {
       onStatus: (status: ParticipantStatus) => {
         hooks.onStatus(status);
         ctx.onStatus(this.name, status);
-        if (status === "working") ctx.onWorking();
       },
     };
     this.#supervisor = new AgentSupervisor({
@@ -81,14 +78,6 @@ export class RunAgent implements DeliveryTarget {
 
   get revivesThisRun(): number {
     return this.#revivesThisRun;
-  }
-
-  get exhausted(): boolean {
-    return this.#exhausted;
-  }
-
-  liveness(): AgentLiveness {
-    return { status: this.status, reviveScheduled: this.#reviveTimer !== null, revivesExhausted: this.#exhausted };
   }
 
   deliver(prompt: PromptPayload): Promise<DeliveryOutcome> {
@@ -112,19 +101,21 @@ export class RunAgent implements DeliveryTarget {
             agentName: this.name,
             swarmName: this.#ctx.swarmName,
             bodyMaxChars: bodyLimit(this.#ctx.db),
+            acceptanceCriteria: this.#ctx.acceptanceCriteria,
           }),
     );
   }
 
   /** Kickoff for a fresh session, the resume prompt when the session already has history. */
   launchFirst(): Promise<void> {
-    const { taskPrompt } = this.#ctx;
+    const { taskPrompt, acceptanceCriteria } = this.#ctx;
     const messages = this.#ctx.collect(this.name, false);
     if (this.name === WATCHER_NAME) return this.#launch(messages.text || null, messages.messageIds);
     const text = hasSessionFile(this.#spec.sessionFile)
-      ? buildResumePrompt({ messages: messages.text })
+      ? buildResumePrompt({ acceptanceCriteria, messages: messages.text })
       : buildKickoffPrompt({
           taskPrompt,
+          acceptanceCriteria,
           messages: messages.text,
         });
     return this.#launch(text, messages.messageIds);
@@ -138,11 +129,6 @@ export class RunAgent implements DeliveryTarget {
     });
   }
 
-  /** Crashed for good this run; completion no longer waits for it or its messages. */
-  giveUp(): void {
-    this.#exhausted = true;
-  }
-
   stop(): Promise<void> {
     this.#reviveTimer?.cancel();
     this.#reviveTimer = null;
@@ -154,7 +140,10 @@ export class RunAgent implements DeliveryTarget {
     // Published by the `starting` status update the launch emits right after.
     incrementReviveCount(db, swarmId, this.name);
     const messages = this.#ctx.collect(this.name, true);
-    return this.#launch(buildRevivePrompt({ messages: messages.text }), messages.messageIds);
+    return this.#launch(
+      buildRevivePrompt({ acceptanceCriteria: this.#ctx.acceptanceCriteria, messages: messages.text }),
+      messages.messageIds,
+    );
   }
 
   async #launch(text: string | null, messageIds: number[]): Promise<void> {

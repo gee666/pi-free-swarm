@@ -1,7 +1,6 @@
 // Esc on the swarm tool: the real runner with fake pi agents, aborted mid-run through the tool signal.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, it } from "node:test";
 import type { RunProgress } from "../../src/broker/run-progress.js";
@@ -12,7 +11,8 @@ import { createFakePiRun, SCENARIOS, useFakePi, waitFor } from "../fixtures/fake
 
 useFakePi();
 const fake = createFakePiRun(SCENARIOS.settle);
-const cwd = mkdtempSync(path.join(tmpdir(), "pi-free-swarm-abort-"));
+mkdirSync("tmp", { recursive: true });
+const cwd = mkdtempSync(path.resolve("tmp/pi-free-swarm-abort-"));
 after(() => {
   fake.cleanup();
   rmSync(cwd, { recursive: true, force: true });
@@ -37,7 +37,7 @@ it("aborting the tool signal stops every agent and returns the stopped result", 
   const abort = new AbortController();
   let latest: RunProgress | null = null;
   const pending = tools.swarm(
-    { swarm_name: "toy", task_prompt: "Create hello.txt", agent_amount: 2 },
+    { swarm_name: "toy", task_prompt: "Create hello.txt", acceptance_criteria: ["hello.txt exists"], agent_amount: 2 },
     abort.signal,
     (partial) => (latest = partial.details),
     { model: undefined, thinkingLevel: undefined, isProjectTrusted: () => false },

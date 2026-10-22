@@ -4,7 +4,7 @@ import { once } from "node:events";
 import { afterEach, describe, it } from "node:test";
 import { BrokerError } from "../../src/broker/errors.js";
 import { createSwarm, markSwarmRunning } from "../../src/broker/swarms.js";
-import { resumeSwarm, startSwarm } from "../../src/broker/swarm-run.js";
+import { resumeSwarm, startSwarm, stopAllRuns } from "../../src/broker/swarm-run.js";
 import { MAIN_FEEDBACK_POST_SUFFIX, MAIN_FEEDBACK_POST_TITLE, RESUME_PROMPT_HEADER } from "../../src/constants.js";
 import { bodyCeiling, charCount, TEXT_MAX } from "../../src/limits.js";
 import { getSwarm } from "../../src/store/swarm-queries.js";
@@ -17,11 +17,16 @@ import {
   promptTexts,
   recipientStatus,
   spawnsOf,
+  waitForWorkersIdle,
+  voteAll,
   type RunFixture,
 } from "./run-fixture.js";
 
 let fixture: RunFixture | undefined;
-afterEach(() => fixture?.cleanup());
+afterEach(async () => {
+  await stopAllRuns();
+  fixture?.cleanup();
+});
 
 const FEEDBACK = `The login form is still broken. ${"Fix the validation and add tests. ".repeat(10)}`;
 
@@ -40,13 +45,23 @@ describe("resume_swarm", () => {
       const run = createRunFixture(SCENARIOS.settle);
       fixture = run;
       const { db } = run;
-      const first = await startSwarm(run.env, { name: "resume", taskPrompt: "Build it.", agentAmount: 2 }, {});
+      const firstRun = startSwarm(
+        run.env,
+        { name: "resume", taskPrompt: "Build it.", acceptanceCriteria: ["Work is complete."], agentAmount: 2 },
+        {},
+      );
+      const swarmId = newestSwarmId(db);
+      await waitForWorkersIdle(run, swarmId);
+      voteAll(db, swarmId, "accepted", "Initial task checked.");
+      const first = await firstRun;
       assert.equal(first.end, "finished");
-      const swarmId = first.swarm.id;
       const names = agentNames(db, swarmId);
       const sessions = spawnsOf(run.fake).map((spawn) => spawn.session);
 
-      const second = await resumeSwarm(run.env, { swarmId, message: FEEDBACK }, {});
+      const secondRun = resumeSwarm(run.env, { swarmId, message: FEEDBACK }, {});
+      await waitForWorkersIdle(run, swarmId);
+      voteAll(db, swarmId, "accepted", "Feedback addressed and checked.");
+      const second = await secondRun;
       assert.equal(second.end, "finished");
       assert.equal(second.run, 2);
       assert.equal(second.swarm.runCount, 2);
@@ -77,6 +92,7 @@ describe("resume_swarm", () => {
       const swarm = createSwarm(run.db, {
         name: "busy",
         taskPrompt: "Work.",
+        acceptanceCriteria: ["Work is complete."],
         agentNames: ["Maria"],
         runnerPid: holderPid,
         now: Date.now(),
@@ -106,6 +122,7 @@ describe("resume_swarm", () => {
     const swarm = createSwarm(db, {
       name: "stale",
       taskPrompt: "Work.",
+      acceptanceCriteria: ["Work is complete."],
       agentNames: ["Maria", "John"],
       runnerPid: deadPid,
       now,
@@ -114,6 +131,8 @@ describe("resume_swarm", () => {
 
     const outcome = resumeSwarm(run.env, { swarmId: swarm.id, message: "Carry on." }, {});
     assert.equal(newestSwarmId(db), swarm.id);
+    await waitForWorkersIdle(run, swarm.id);
+    voteAll(db, swarm.id, "accepted", "Recovered workers completed the task.");
     const result = await outcome;
     assert.equal(result.end, "finished");
     assert.equal(result.run, 2);

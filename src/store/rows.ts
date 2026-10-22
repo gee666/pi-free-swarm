@@ -37,6 +37,14 @@ export function text(row: Row, key: string): string {
   throw new Error(`Column ${key} is not text`);
 }
 
+export function stringList(row: Row, key: string): string[] {
+  const value: unknown = JSON.parse(text(row, key));
+  if (!Array.isArray(value) || !value.every((item: unknown) => typeof item === "string")) {
+    throw new Error(`Column ${key} is not a string list`);
+  }
+  return value;
+}
+
 export function textOrNull(row: Row, key: string): string | null {
   return row[key] === null ? null : text(row, key);
 }

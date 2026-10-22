@@ -19,6 +19,7 @@ export const ROLE_ENV = "PI_SWARM_ROLE";
 export const AGENT_ROLE = "agent";
 export const DB_ENV = "PI_SWARM_DB";
 export const SWARM_ID_ENV = "PI_SWARM_ID";
+export const RUN_ENV = "PI_SWARM_RUN";
 export const AGENT_NAME_ENV = "PI_SWARM_AGENT";
 export const RUNNER_PID_ENV = "PI_SWARM_RUNNER_PID";
 export const RESERVED_ENV_PREFIX = "PI_SWARM_";
@@ -47,7 +48,6 @@ export const SERVER_HOST_STALE_MS = 15_000;
 export const STALE_SWEEP_INTERVAL_MS = 10_000;
 export const PARENT_WATCH_INTERVAL_MS = 5_000;
 export const COMPLETION_CHECK_MS = 1_000;
-export const COMPLETION_GRACE_MS = 15_000;
 export const PROGRESS_UPDATE_MS = 1_000;
 export const RESUME_STAGGER_MS = 5_000;
 /** Delay before revive 1, 2 and 3 of an agent within one run; its length is the revive budget. */
@@ -70,7 +70,6 @@ export const DEFAULT_MAX_AGENTS = 10;
 export const DEFAULT_AGENTS = 5;
 export const DEFAULT_STAGGER_SECONDS = 30;
 export const DEFAULT_IDLE_REMINDER_DELAY = 60_000;
-export const DEFAULT_IDLE_REMINDER_MAX = 5;
 export const DEFAULT_IDLE_REMINDER_DIGEST_SIZE = 10;
 
 // ── Board server ─────────────────────────────────────────────────────────────
@@ -88,7 +87,6 @@ export const SESSION_PAGE_MAX = 200;
 /** Tool results in the Work tab are cut here; the UI shows 4 KB and loads the rest on "Show more". */
 export const SESSION_TOOL_OUTPUT_MAX_CHARS = 64 * 1024;
 export const SESSION_WATCH_POLL_MS = 1_000;
-export const WALL_DIGEST_MAX_POSTS = 150;
 export const WATCHER_ACTIVITY_DEFAULT = 10;
 export const WATCHER_ACTIVITY_MAX = 50;
 export const WATCHER_TEXT_MAX = 400;
@@ -135,4 +133,4 @@ export const MAIN_FEEDBACK_POST_SUFFIX = "…see your messages";
 export const REVIVE_PROMPT_HEADER = "[swarm] You were restarted after a crash or stall.";
 export const RESUME_PROMPT_HEADER = "[swarm resumed by Main]";
 export const IDLE_REMINDER_HEADER =
-  "[swarm] Reminder: the shared task is not accepted yet. Keep working until it is: check what the others are doing and pick up the next useful piece of work. Do not sit idle.";
+  '[swarm] The goal is not reached: no 70% quorum has the same accepted or blocked verdict. Keep working, check the wall and pick up useful work. Use swarm_acceptance with action: "vote", verdict: "accepted", "incomplete" or "blocked", and a reason. Update your vote when the evidence changes.';

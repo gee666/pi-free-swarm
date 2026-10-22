@@ -58,9 +58,61 @@ describe("createSwarm", () => {
 
   it("validates the swarm name", () => {
     const create = (name: string) =>
-      createSwarm(db, { name, taskPrompt: "t", agentNames: ["A"], runnerPid: process.pid, now: T0 });
+      createSwarm(db, {
+        name,
+        taskPrompt: "t",
+        acceptanceCriteria: ["Works"],
+        agentNames: ["A"],
+        runnerPid: process.pid,
+        now: T0,
+      });
     assert.throws(() => create(" "), new BrokerError("validation", "swarm_name is empty.", "swarm_name"));
     assert.throws(() => create("n".repeat(72)), { message: "swarm_name too long: 72/60 characters." });
+  });
+
+  it("persists trimmed criteria across reads and resume", () => {
+    const criteria = ["  Tests pass. ", "The docs explain setup."];
+    const swarm = createSwarm(db, {
+      name: "criteria",
+      taskPrompt: "Build it",
+      acceptanceCriteria: criteria,
+      agentNames: ["A"],
+      runnerPid: process.pid,
+      now: T0,
+    });
+    const expected = ["Tests pass.", "The docs explain setup."];
+    assert.deepEqual(swarm.acceptanceCriteria, expected);
+    assert.deepEqual(getSwarm(db, swarm.id, T0)?.acceptanceCriteria, expected);
+    assert.deepEqual(listSwarms(db, T0).find((item) => item.id === swarm.id)?.acceptanceCriteria, expected);
+    endRun(db, swarm.id, process.pid, "stopped", T0 + 1);
+    assert.deepEqual(beginResume(db, swarm.id, process.pid, T0 + 2).swarm.acceptanceCriteria, expected);
+    assert.deepEqual(criteria, ["  Tests pass. ", "The docs explain setup."]);
+  });
+
+  it("rejects empty or blank criteria without storing a swarm", () => {
+    const before = listSwarms(db, T0).length;
+    for (const acceptanceCriteria of [[], [""], [" \n\t "], ["Good", " "]]) {
+      assert.throws(
+        () =>
+          createSwarm(db, {
+            name: "invalid-criteria",
+            taskPrompt: "Build it",
+            acceptanceCriteria,
+            agentNames: ["A"],
+            runnerPid: process.pid,
+            now: T0,
+          }),
+        (error: unknown) =>
+          error instanceof BrokerError && error.code === "validation" && error.field === "acceptance_criteria",
+      );
+    }
+    assert.equal(listSwarms(db, T0).length, before);
+  });
+
+  it("reads empty criteria for legacy swarms", () => {
+    const swarm = seedSwarm(db);
+    db.sql.prepare("UPDATE swarms SET acceptance_criteria = '[]' WHERE id = ?").run(swarm.id);
+    assert.deepEqual(getSwarm(db, swarm.id, T0)?.acceptanceCriteria, []);
   });
 
   it("resolves a stale lock as interrupted on read", () => {
@@ -84,6 +136,7 @@ describe("settings env", () => {
     const env = buildAgentEnv(settings, {
       dbPath: db.path,
       swarmId: swarm.id,
+      run: swarm.runCount,
       agentName: "Maria",
       runnerPid: process.pid,
     });
@@ -168,13 +221,13 @@ describe("runs", () => {
     assert.equal(open?.n, 0);
   });
 
-  it("keeps idle and crashed statuses when finished", () => {
+  it("stops live agents and preserves crashed statuses when finished", () => {
     const swarm = seedSwarm(db);
     setAgentStatus(db, swarm.id, "Maria", "idle", T0);
     setAgentStatus(db, swarm.id, "John", "crashed", T0);
     setAgentStatus(db, swarm.id, "Liam", "idle", T0);
     endRun(db, swarm.id, process.pid, "finished", T0 + 1);
-    assert.deepEqual(agents(swarm.id), { Maria: "idle", John: "crashed", Liam: "idle", Watcher: "stopped" });
+    assert.deepEqual(agents(swarm.id), { Maria: "stopped", John: "crashed", Liam: "stopped", Watcher: "stopped" });
   });
 
   it("refuses to resume a running swarm and resumes a finished one", () => {
@@ -205,6 +258,28 @@ describe("runs", () => {
     assert.equal(getMessages(db, [message.id])[0].recipients[0].status, "undeliverable");
     const run1 = db.sql.prepare("SELECT end_status FROM swarm_runs WHERE swarm_id = ? AND run = 1").get(swarm.id);
     assert.equal(run1?.end_status, "interrupted");
+  });
+
+  it("fences old-run mark and end attempts after a same-PID stale resume", () => {
+    const swarm = seedSwarm(db);
+    const now = T0 + 30_000;
+    const resumed = beginResume(db, swarm.id, process.pid, now);
+    assert.equal(resumed.run, 2);
+    const before = getSwarm(db, swarm.id, now);
+    const events = db.sql.prepare("SELECT COUNT(*) AS n FROM events").get()?.n;
+    markSwarmRunning(db, swarm.id, process.pid, now + 1, 1);
+    assert.equal(endRun(db, swarm.id, process.pid, "stopped", now + 1, 1), false);
+    assert.deepEqual(getSwarm(db, swarm.id, now + 1), before);
+    assert.equal(db.sql.prepare("SELECT COUNT(*) AS n FROM events").get()?.n, events);
+    assert.equal(
+      db.sql.prepare("SELECT ended_at FROM swarm_runs WHERE swarm_id = ? AND run = 2").get(swarm.id)?.ended_at,
+      null,
+    );
+    assert.deepEqual(agents(swarm.id), { Maria: "pending", John: "pending", Liam: "pending", Watcher: "pending" });
+    markSwarmRunning(db, swarm.id, process.pid, now + 2, resumed.run);
+    assert.equal(getSwarm(db, swarm.id, now + 2)?.status, "running");
+    assert.equal(endRun(db, swarm.id, process.pid, "finished", now + 3, resumed.run), true);
+    assert.equal(getSwarm(db, swarm.id, now + 3)?.status, "finished");
   });
 
   it("sweeps only stale runs", () => {

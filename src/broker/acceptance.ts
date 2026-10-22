@@ -1,5 +1,5 @@
-import { Value } from "typebox/value";
-import { AcceptancePayload, type AcceptanceRecord } from "../store/acceptance-types.js";
+import { SYSTEM_NAME, WATCHER_NAME } from "../constants.js";
+import type { AcceptanceRecord, AcceptanceVoteVerdict } from "../store/acceptance-types.js";
 import { getAcceptance, saveAcceptance } from "../store/acceptance-queries.js";
 import type { SwarmDb } from "../store/db.js";
 import { int } from "../store/rows.js";
@@ -7,15 +7,12 @@ import { insertEvent } from "../store/events.js";
 import { BrokerError } from "./errors.js";
 import { requireParticipant, requireSwarm } from "./validate.js";
 
-export type AcceptanceMutation =
-  | { action: "claim" | "release"; revision: number }
-  | {
-      action: "update";
-      revision: number;
-      verdict: "checking" | "accepted" | "incomplete" | "blocked";
-      payload: AcceptancePayload;
-    }
-  | { action: "challenge"; revision: number; finding: string };
+export interface AcceptanceMutation {
+  action: "vote";
+  revision?: number;
+  verdict: AcceptanceVoteVerdict;
+  reason: string;
+}
 
 export function inspectAcceptance(db: SwarmDb, swarmId: number): AcceptanceRecord {
   requireSwarm(db, swarmId);
@@ -57,100 +54,54 @@ export function mutateAcceptance(
   actor: string,
   mutation: AcceptanceMutation,
   now: number,
+  expectedRun?: number,
 ): AcceptanceRecord {
   return db.write(() => {
     const run = acceptanceRun(db, swarmId);
+    if (expectedRun !== undefined && (!Number.isSafeInteger(expectedRun) || expectedRun !== run))
+      throw new BrokerError("validation", "Agent belongs to a different swarm run; acceptance vote rejected.");
     const participant = requireParticipant(db, swarmId, actor);
-    if (participant.kind !== "agent")
-      throw new BrokerError("validation", "Acceptance mutations require a swarm agent.");
-    const record = inspectAcceptance(db, swarmId);
-    requireAcceptanceRevision(record, mutation.revision);
-    switch (mutation.action) {
-      case "claim":
-        if (record.claimant !== null)
-          throw new BrokerError("validation", `Acceptance is claimed by ${record.claimant}.`);
-        record.verdict = "checking";
-        record.claimant = participant.name;
-        record.claimRun = run;
-        break;
-      case "release":
-      case "update":
-        if (record.claimant !== participant.name || record.claimRun !== run) {
-          throw new BrokerError("validation", "Self-claim acceptance in this run before updating it.");
-        }
-        if (mutation.action === "release") record.verdict = "unchecked";
-        else if (mutation.action === "update") {
-          validateJudgment(mutation);
-          record.evidence = mutation.payload.evidence;
-          record.knownGaps = mutation.payload.knownGaps;
-          record.findings = mutation.payload.findings;
-          record.verdict = mutation.verdict;
-        }
-        break;
-      case "challenge": {
-        const finding = mutation.finding.trim();
-        if (!finding)
-          throw new BrokerError(
-            "validation",
-            "Challenge must name an unmet requirement and actionable evidence or decision needed.",
-          );
-        if (record.findings.includes(finding))
-          throw new BrokerError("validation", "This finding is already unresolved.");
-        record.findings = [...record.findings, finding];
-        record.knownGaps = [...record.knownGaps, finding];
-        record.verdict = "incomplete";
-        break;
-      }
+    if (participant.kind !== "agent" || participant.name.toLowerCase() === WATCHER_NAME.toLowerCase())
+      throw new BrokerError("validation", "Acceptance votes require a worker agent.");
+    const record = getAcceptance(db, swarmId);
+    if (mutation.revision !== undefined) requireAcceptanceRevision(record, mutation.revision);
+    if (
+      mutation.action !== "vote" ||
+      !["accepted", "incomplete", "blocked"].includes(mutation.verdict) ||
+      typeof mutation.reason !== "string" ||
+      !mutation.reason.trim()
+    ) {
+      throw new BrokerError("validation", "Supply an accepted, incomplete or blocked vote and a nonempty reason.");
     }
-    if (record.verdict !== "checking") {
-      record.claimant = null;
-      record.claimRun = null;
-    }
-    record.revision++;
-    record.updatedBy = participant.name;
-    record.updatedAt = now;
-    saveAcceptance(db, record);
-    insertEvent(db, swarmId, "acceptance.updated", { revision: record.revision }, now);
-    return record;
+    db.sql
+      .prepare(
+        `INSERT INTO acceptance_votes (swarm_id, agent, run, verdict, reason, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (swarm_id, agent) DO UPDATE SET
+        run = excluded.run, verdict = excluded.verdict, reason = excluded.reason, updated_at = excluded.updated_at`,
+      )
+      .run(swarmId, participant.name, run, mutation.verdict, mutation.reason.trim(), now);
+    recordChange(db, record, participant.name, now);
+    return getAcceptance(db, swarmId);
   });
 }
 
-function validateJudgment(mutation: Extract<AcceptanceMutation, { action: "update" }>): void {
-  if (!Value.Check(AcceptancePayload, mutation.payload))
-    throw new BrokerError("validation", "Supply evidence, knownGaps and findings arrays.");
-  const { evidence, findings, knownGaps } = mutation.payload;
-  if (mutation.verdict !== "checking" && evidence.length === 0) {
-    throw new BrokerError(
-      "validation",
-      "Final judgments require inspectable evidence, including failed checks or blocker references.",
-    );
-  }
-  if (evidence.some((item) => (item.command === undefined) !== (item.cwd === undefined))) {
-    throw new BrokerError("validation", "Command evidence requires both command and cwd.");
-  }
-  if (mutation.verdict === "accepted" && (findings.length > 0 || knownGaps.length > 0)) {
-    throw new BrokerError(
-      "validation",
-      "Accepted requires no unresolved findings or known gaps against the original task.",
-    );
-  }
-  if (["incomplete", "blocked"].includes(mutation.verdict) && (findings.length === 0 || knownGaps.length === 0)) {
-    throw new BrokerError("validation", "Incomplete/blocked requires concrete findings and known gaps.");
-  }
-}
-
-/** Rejects subsequent acceptance writes before asynchronous shutdown. Does not close message admission. */
+/** Seals admission before shutdown; cleanup may repeat the same seal after the run ends. */
 export function sealAcceptance(db: SwarmDb, swarmId: number, run: number, revision: number): void {
   db.write(() => {
-    if (acceptanceRun(db, swarmId) !== run)
+    const row = db.sql
+      .prepare("SELECT s.run_count, a.closed_run FROM swarms s JOIN acceptance a ON a.swarm_id = s.id WHERE s.id = ?")
+      .get(swarmId);
+    if (!row || int(row, "run_count") !== run)
       throw new BrokerError("validation", "Run changed before acceptance closure.");
     requireAcceptanceRevision(getAcceptance(db, swarmId), revision);
+    if (row.closed_run === run) return;
+    acceptanceRun(db, swarmId);
     db.sql.prepare("UPDATE acceptance SET closed_run = ? WHERE swarm_id = ?").run(run, swarmId);
   });
 }
 
-/** Runner-only: invoke on checker death, or with its old claimRun before resuming. Never reassigns work. */
-export function invalidateAcceptanceClaim(
+/** A dead agent's vote must not survive its process, but sealed results cannot change. */
+export function invalidateAgentVote(
   db: SwarmDb,
   swarmId: number,
   run: number,
@@ -159,21 +110,39 @@ export function invalidateAcceptanceClaim(
   now: number,
 ): boolean {
   return db.write(() => {
+    const vote = db.sql
+      .prepare(
+        `SELECT 1 FROM acceptance_votes v JOIN acceptance a ON a.swarm_id = v.swarm_id
+        JOIN swarms s ON s.id = v.swarm_id
+        WHERE v.swarm_id = ? AND v.agent = ? AND v.run = ? AND s.run_count = ?
+        AND (a.closed_run IS NULL OR a.closed_run != ?)`,
+      )
+      .get(swarmId, agent, run, run, run);
+    if (!vote) return false;
+    if (!reason.trim()) throw new BrokerError("validation", "Vote invalidation requires a reason.");
     const record = getAcceptance(db, swarmId);
-    if (record.claimRun !== run || record.claimant !== agent) return false;
-    const finding = reason.trim();
-    if (!finding) throw new BrokerError("validation", "Claim invalidation requires a reason.");
-    record.verdict = "incomplete";
-    record.claimant = null;
-    record.claimRun = null;
-    record.findings.push(finding);
-    record.knownGaps.push("Acceptance check did not finish.");
-    record.evidence.push({ reference: `run:${run}/agent:${agent}`, result: finding });
-    record.revision++;
-    record.updatedBy = "System";
-    record.updatedAt = now;
-    saveAcceptance(db, record);
-    insertEvent(db, swarmId, "acceptance.updated", { revision: record.revision }, now);
+    db.sql
+      .prepare("DELETE FROM acceptance_votes WHERE swarm_id = ? AND agent = ? AND run = ?")
+      .run(swarmId, agent, run);
+    recordChange(db, record, SYSTEM_NAME, now);
     return true;
   });
+}
+
+/** Resume clears judgments from the previous run; reopening admission belongs to the runner. */
+export function resetAcceptanceVotes(db: SwarmDb, swarmId: number, now: number): AcceptanceRecord {
+  return db.write(() => {
+    const record = inspectAcceptance(db, swarmId);
+    db.sql.prepare("DELETE FROM acceptance_votes WHERE swarm_id = ?").run(swarmId);
+    recordChange(db, record, SYSTEM_NAME, now);
+    return getAcceptance(db, swarmId);
+  });
+}
+
+function recordChange(db: SwarmDb, record: AcceptanceRecord, actor: string, now: number): void {
+  record.revision++;
+  record.updatedBy = actor;
+  record.updatedAt = now;
+  saveAcceptance(db, record);
+  insertEvent(db, record.swarmId, "acceptance.updated", { revision: record.revision }, now);
 }

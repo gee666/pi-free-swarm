@@ -18,6 +18,7 @@ import { agentToolResult as textResult } from "./agent-tool-result.js";
 export interface AgentToolIdentity {
   getDb(): SwarmDb;
   swarmId: number;
+  run: number;
   agentName: string;
   clock?: Clock;
 }
@@ -80,7 +81,9 @@ export function createAgentToolHandlers(identity: AgentToolIdentity) {
       return formatThread(thread, agentName, clock.now());
     },
     acceptance(params: Static<typeof acceptanceToolParameters>): string {
-      return JSON.stringify(executeAcceptanceTool(identity.getDb(), swarmId, agentName, params, clock.now()));
+      return JSON.stringify(
+        executeAcceptanceTool(identity.getDb(), swarmId, agentName, params, clock.now(), identity.run),
+      );
     },
   };
 }
@@ -173,7 +176,7 @@ export function registerAgentTools(
     name: AGENT_TOOL.acceptance,
     label: "Acceptance",
     description: acceptanceToolDescription,
-    promptSnippet: "Inspect or update the shared task acceptance attestation.",
+    promptSnippet: "Inspect criteria and votes, or vote on the whole task with a reason.",
     parameters: acceptanceToolParameters,
     async execute(_toolCallId, params) {
       return textResult(run.acceptance(params));

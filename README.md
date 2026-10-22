@@ -28,10 +28,10 @@ Start enabled pi in the project you want to work on. Write requirements to a fil
 
 The main agent gets:
 
-- `swarm(swarm_name, task_prompt, agent_amount?)`: start a swarm; default **5 agents**, launched **30 seconds apart**. Use a short name (≤60 characters) and a concise task prompt pointing to requirements files.
+- `swarm(swarm_name, task_prompt, acceptance_criteria, agent_amount?)`: start a swarm; default **5 agents**, launched **30 seconds apart**. Use a short name (≤60 characters), a concise task prompt pointing to requirements files, and a required nonempty list of acceptance criteria strings. Main supplies these criteria before launch, deriving them from the task if the human did not provide them. Blank entries are rejected. Criteria persist across resume and revive and appear in every worker's system and launch prompts.
 - `resume_swarm(swarm_id, message)`: resume with feedback (up to 4,000 characters), reusing each agent's session. Agents restart **5 seconds apart**. A fresh run lock prevents another process from resuming the same swarm concurrently.
 
-Both tools block and stream agent counts, activity, elapsed time, cost and a board URL. Completion requires all agents to have launched, every agent to be idle or permanently crashed, and no outstanding deliverable agent messages, continuously for **15 seconds**. Finished means the agents stopped working—not that their work is correct. The result includes a wall digest (at most 150 posts) and asks the main agent to review files, diffs and tests.
+Both tools block and stream agent counts, activity, elapsed time, cost and a board URL. A run finishes when at least **70% of all workers** vote the same terminal verdict, `accepted` or `blocked`, rounded up to a whole worker. The votes must agree: accepted and blocked votes do not combine, and `incomplete` votes do not finish a run. Crashed workers still count in the total; Main, User and Watcher do not vote. A terminal vote finishes the run regardless of agent activity or pending messages. The result is one deterministic status document with the goal, acceptance criteria, verdict, tally and every worker's vote reason, including dissent. It asks Main to review files, diffs and tests before summarising.
 
 **Esc aborts the run** and stops its agents (SIGTERM, then SIGKILL after 5 seconds if needed). Finished, stopped and interrupted swarms can be resumed by any enabled main pi session in the same project.
 
@@ -46,13 +46,13 @@ Every peer gets the same coordination tools, not `swarm` or `resume_swarm`:
 | `swarm_message` | Start a direct or group thread |
 | `swarm_reply_to` | Reply to other members of a thread |
 | `swarm_read_thread` | Read a thread's history |
-| `swarm_acceptance` | Inspect, self-claim, record or challenge the whole task's acceptance judgment |
+| `swarm_acceptance` | Inspect criteria and votes, or vote on the whole task with a reason |
 
 Posts, comments and messages are told to stay within `bodyMaxChars` (default 200 characters) and to put longer material in files. Up to twice that is stored as-is to absorb miscounting; anything longer is not rejected: the full text is saved under `.pi/swarm/attachments/<swarm>/` and the stored body ends with its path. Titles allow 60 characters. Wall lists show stored bodies whole; complete posts remain readable. Messages wake idle agents; wall posts do not. Agents may message `User`, with terminal notifications when UI is available.
 
-Acceptance is separate from execution status. Any peer can volunteer to check the original task and record evidence, gaps and an accepted, incomplete or blocked verdict. Revision checks prevent conflicting updates; no roles or reviewer quorum are imposed. At quiescence, an unchecked task triggers at most one targeted checkpoint notice per run. Unresolved work may still finish execution; it is not reported as task success.
+Workers use `swarm_acceptance({action: "inspect"})` to read criteria, votes, counts, threshold and totalAgents. Each worker casts or replaces its own whole-task vote with `swarm_acceptance({action: "vote", verdict: "accepted", reason: "evidence or unresolved gaps"})`. The verdict can be `accepted`, `incomplete` or `blocked`; reasons must be nonempty. Criteria guide the agents' judgment; the broker does not enforce a criterion-by-criterion assessment.
 
-**Accepted means peer-attested, not independently verified.** Later artifact changes are not detected automatically. Peers may challenge the judgment; resuming resets it. Main results are bounded, with full oversized output saved to a readable file.
+**Accepted means peer-attested, not independently verified.** Later artifact changes are not detected automatically. Resuming resets votes but preserves criteria. Main results are bounded, with full oversized output saved to a readable file.
 
 ## Board
 
@@ -81,7 +81,6 @@ Optional, hand-written `.pi/swarm/settings.json`:
   "staggerSeconds": 30,
   "bodyMaxChars": 200,
   "idleReminderDelay": 60000,
-  "idleReminderMax": 5,
   "idleReminderDigestSize": 10,
   "env": {
     "NODE_ENV": "development"
@@ -95,7 +94,7 @@ These are the agent-count and stagger defaults; `env` defaults to `{}` and `port
 - `defaultAgents` is clamped into the allowed range. An explicit `agent_amount` outside it is rejected, never silently clamped.
 - `staggerSeconds` is the nonnegative interval between worker launches on a fresh swarm, default 30 seconds. The first worker starts immediately; every other worker starts at its scheduled interval regardless of agent activity. Resume uses a fixed 5-second interval.
 - `bodyMaxChars` is an integer from 100 to 16,000: the limit stated to agents and shown in board counters. Main's resume feedback keeps its own 4,000-character limit.
-- `idleReminderDelay` (milliseconds, integer ≥0) is how long an agent may stay idle before it is reminded that the task is not accepted yet; the reminder includes the newest `idleReminderDigestSize` wall posts (integer ≥1). `idleReminderMax` (integer ≥0) caps reminders per agent in a row; a real message or the agent's own wall post resets the count, and `0` disables reminders. No reminders are sent once the acceptance verdict is accepted or blocked.
+- `idleReminderDelay` (milliseconds, integer ≥0) is how long an agent may stay idle before it is reminded to continue; the reminder includes the newest `idleReminderDigestSize` wall posts (integer ≥1). Reminders have no count cap and continue until accepted or blocked votes reach the 70% threshold.
 - Settings are re-read on each launch/resume; the run keeps that snapshot for revives. Port settings apply when hosting starts.
 - Invalid settings fail the tool. Unknown keys produce warnings.
 - `env` values must be strings. They override inherited environment values. Keys starting with **`PI_SWARM_` are reserved** and ignored with a warning in `env`; the extension sets agent identity itself.

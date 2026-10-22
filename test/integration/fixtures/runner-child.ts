@@ -23,7 +23,6 @@ await startSwarm(
       bodyMaxChars: 4000,
       staggerSeconds: 60,
       idleReminderDelay: 60_000,
-      idleReminderMax: 0,
       idleReminderDigestSize: 10,
       env,
     },
@@ -32,6 +31,6 @@ await startSwarm(
     notifyUser: () => undefined,
     timings: FAST,
   },
-  { name: "elsewhere", taskPrompt: "Work.", agentAmount: 2 },
+  { name: "elsewhere", taskPrompt: "Work.", acceptanceCriteria: ["Work is complete."], agentAmount: 2 },
   {},
 );

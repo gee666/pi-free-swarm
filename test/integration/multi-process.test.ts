@@ -19,6 +19,8 @@ import {
   spawnsOf,
   systemReplies,
   waitFor,
+  waitForWorkersIdle,
+  voteAll,
 } from "./run-fixture.js";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
@@ -67,7 +69,10 @@ describe("a runner in another process", () => {
         assert.equal(recipientStatus(db, waiting.id, second), "undeliverable");
         assert.deepEqual(systemReplies(db, waiting.threadId), [UNDELIVERABLE_REPLY_TEXT]);
 
-        const resumed = await resumeSwarm(run.env, { swarmId, message: "Pick it up from here." }, {});
+        const outcome = resumeSwarm(run.env, { swarmId, message: "Pick it up from here." }, {});
+        await waitForWorkersIdle(run, swarmId);
+        voteAll(db, swarmId, "accepted", "Resumed workers finished the interrupted task.");
+        const resumed = await outcome;
         assert.equal(resumed.end, "finished");
         assert.equal(resumed.run, 2);
         const texts = promptTexts(run.fake);

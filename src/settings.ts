@@ -8,7 +8,6 @@ import {
   DB_ENV,
   DEFAULT_AGENTS,
   DEFAULT_IDLE_REMINDER_DELAY,
-  DEFAULT_IDLE_REMINDER_MAX,
   DEFAULT_IDLE_REMINDER_DIGEST_SIZE,
   DEFAULT_MAX_AGENTS,
   DEFAULT_MIN_AGENTS,
@@ -19,6 +18,7 @@ import {
   RESERVED_ENV_PREFIX,
   ROLE_ENV,
   RUNNER_PID_ENV,
+  RUN_ENV,
   SETTINGS_FILE,
   SWARM_DIR,
   SWARM_ID_ENV,
@@ -36,7 +36,6 @@ export interface SwarmSettings {
   staggerSeconds: number;
   /** Milliseconds of idle time before a reminder. */
   idleReminderDelay: number;
-  idleReminderMax: number;
   idleReminderDigestSize: number;
   bodyMaxChars: number;
   /** `PI_SWARM_*` keys already dropped. */
@@ -46,6 +45,7 @@ export interface SwarmSettings {
 export interface AgentIdentity {
   dbPath: string;
   swarmId: number;
+  run: number;
   agentName: string;
   runnerPid: number;
 }
@@ -64,7 +64,6 @@ const KNOWN_KEYS = new Set([
   "defaultAgents",
   "staggerSeconds",
   "idleReminderDelay",
-  "idleReminderMax",
   "idleReminderDigestSize",
   "bodyMaxChars",
   "env",
@@ -96,7 +95,6 @@ export function loadSettings(cwd: string): { settings: SwarmSettings; warnings: 
     BODY_SAFETY_MAX,
   );
   const idleReminderDelay = optionalInteger(parsed, "idleReminderDelay", "an integer >= 0", 0);
-  const idleReminderMax = optionalInteger(parsed, "idleReminderMax", "an integer >= 0", 0);
   const idleReminderDigestSize = optionalInteger(parsed, "idleReminderDigestSize", "an integer >= 1", 1);
   const env = parseEnv(parsed.env, warnings);
   return {
@@ -109,7 +107,6 @@ export function loadSettings(cwd: string): { settings: SwarmSettings; warnings: 
         staggerSeconds,
         bodyMaxChars,
         idleReminderDelay,
-        idleReminderMax,
         idleReminderDigestSize,
       },
       env,
@@ -138,6 +135,7 @@ export function buildAgentEnv(settings: SwarmSettings, identity: AgentIdentity):
     [ROLE_ENV]: AGENT_ROLE,
     [DB_ENV]: identity.dbPath,
     [SWARM_ID_ENV]: String(identity.swarmId),
+    [RUN_ENV]: String(identity.run),
     [AGENT_NAME_ENV]: identity.agentName,
     [RUNNER_PID_ENV]: String(identity.runnerPid),
   };
@@ -169,7 +167,6 @@ interface ParsedNumbers {
   defaultAgents?: number;
   staggerSeconds?: number;
   idleReminderDelay?: number;
-  idleReminderMax?: number;
   idleReminderDigestSize?: number;
   bodyMaxChars?: number;
 }
@@ -187,7 +184,6 @@ function buildSettings(values: ParsedNumbers, env: Record<string, string>): Swar
     defaultAgents,
     staggerSeconds: values.staggerSeconds ?? DEFAULT_STAGGER_SECONDS,
     idleReminderDelay: values.idleReminderDelay ?? DEFAULT_IDLE_REMINDER_DELAY,
-    idleReminderMax: values.idleReminderMax ?? DEFAULT_IDLE_REMINDER_MAX,
     idleReminderDigestSize: values.idleReminderDigestSize ?? DEFAULT_IDLE_REMINDER_DIGEST_SIZE,
     bodyMaxChars: values.bodyMaxChars ?? TEXT_MAX,
     env,

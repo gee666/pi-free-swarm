@@ -17,11 +17,16 @@ import {
   spawnsOf,
   systemReplies,
   waitFor,
+  waitForWorkersIdle,
+  voteAll,
   type RunFixture,
 } from "./run-fixture.js";
 
 let fixture: RunFixture | undefined;
-afterEach(() => fixture?.cleanup());
+afterEach(async () => {
+  await stopAllRuns();
+  fixture?.cleanup();
+});
 
 describe("the end of a run", () => {
   it("launches every worker on its stagger while earlier workers remain working", { timeout: 20_000 }, async () => {
@@ -30,7 +35,7 @@ describe("the end of a run", () => {
     const controller = new AbortController();
     const outcome = startSwarm(
       run.env,
-      { name: "stagger", taskPrompt: "Work.", agentAmount: 5 },
+      { name: "stagger", taskPrompt: "Work.", acceptanceCriteria: ["Work is complete."], agentAmount: 5 },
       { signal: controller.signal },
     );
     try {
@@ -49,28 +54,29 @@ describe("the end of a run", () => {
     }
   });
 
-  it("finishes only after a full grace of quiet, restarted by a late message", { timeout: 20_000 }, async () => {
-    const graceMs = 800;
-    const run = createRunFixture(SCENARIOS.settle, { timings: { completionGraceMs: graceMs } });
+  it("keeps quiet workers available for late messages until an explicit quorum", { timeout: 20_000 }, async () => {
+    const run = createRunFixture(SCENARIOS.settle);
     fixture = run;
     const { db } = run;
     const outcome = startSwarm(
       run.env,
-      { name: "grace", taskPrompt: "Work.", agentAmount: 1 },
+      { name: "grace", taskPrompt: "Work.", acceptanceCriteria: ["Work is complete."], agentAmount: 1 },
       { onProgress: (progress) => run.progress.push(progress) },
     );
     const swarmId = newestSwarmId(db);
     const [name] = agentNames(db, swarmId);
     await waitFor(() => agentStatus(db, swarmId, name) === "idle", "agent idle");
-    await new Promise((resolve) => setTimeout(resolve, graceMs / 2));
-    const lateAt = Date.now();
-    const late = sendMessage(db, swarmId, "User", [name], "one more thing", lateAt).id;
+    const snapshots = run.progress.length;
+    await waitFor(() => run.progress.length >= snapshots + 3, "progress while idle without votes");
+    assert.equal(getSwarm(db, swarmId, Date.now())?.status, "running");
+    const late = sendMessage(db, swarmId, "User", [name], "one more thing", Date.now()).id;
+    await waitFor(() => recipientStatus(db, late, name) === "read", "late message read");
+    await waitForWorkersIdle(run, swarmId);
+    voteAll(db, swarmId, "accepted", "Late request was handled and the goal checked.");
 
     const result = await outcome;
     assert.equal(result.end, "finished");
     assert.equal(recipientStatus(db, late, name), "read");
-    const finishedAt = result.swarm.finishedAt ?? 0;
-    assert.ok(finishedAt - lateAt >= graceMs, `finished ${finishedAt - lateAt} ms after the late message`);
 
     const [firstSnapshot] = run.progress;
     assert.equal(firstSnapshot.swarmId, swarmId);
@@ -78,10 +84,39 @@ describe("the end of a run", () => {
     assert.equal(firstSnapshot.agents.pending + firstSnapshot.agents.starting, 1);
     const last = run.progress.at(-1);
     assert.equal(last?.status, "finished");
-    assert.equal(last?.agents.idle, 1);
-    assert.equal(last?.messages, 2, "late request plus one bounded acceptance notice");
+    assert.equal(last?.agents.stopped, 1);
+    assert.equal(last?.messages, 1, "only the late request, no automatic acceptance notice");
     assert.ok((last?.cost ?? 0) > 0 && (last?.tokens ?? 0) > 0);
   });
+
+  it(
+    "quorum stops an active tool and abandons unread steering without waiting for quiet",
+    { timeout: 10_000 },
+    async () => {
+      const run = createRunFixture(SCENARIOS.longTool(60_000));
+      fixture = run;
+      const outcome = startSwarm(
+        run.env,
+        { name: "active quorum", taskPrompt: "Work.", acceptanceCriteria: ["Work is complete."], agentAmount: 1 },
+        {},
+      );
+      const swarmId = newestSwarmId(run.db);
+      const [name] = agentNames(run.db, swarmId);
+      await waitFor(() => agentStatus(run.db, swarmId, name) === "working", "worker running tool");
+      const steering = sendMessage(run.db, swarmId, "User", [name], "still queued in pi", Date.now());
+      await waitFor(() => recipientStatus(run.db, steering.id, name) === "delivered", "unread steering queued");
+      assert.equal(agentStatus(run.db, swarmId, name), "working");
+
+      voteAll(run.db, swarmId, "accepted", "Goal checked; the remaining tool is unnecessary.");
+      const result = await outcome;
+      assert.equal(result.end, "finished");
+      assert.equal(result.acceptance.verdict, "accepted");
+      assert.equal(agentStatus(run.db, swarmId, name), "stopped");
+      assert.equal(recipientStatus(run.db, steering.id, name), "undeliverable");
+      assert.deepEqual(systemReplies(run.db, steering.threadId), [UNDELIVERABLE_REPLY_TEXT]);
+      assert.ok(spawnsOf(run.fake).every((child) => !isAlive(child.pid)));
+    },
+  );
 
   it("abort stops every agent's process group and makes open messages undeliverable", { timeout: 20_000 }, async () => {
     const run = createRunFixture({ startup: [{ type: "grandchild" }] }, { staggerSeconds: 60 });
@@ -90,7 +125,7 @@ describe("the end of a run", () => {
     const controller = new AbortController();
     const outcome = startSwarm(
       run.env,
-      { name: "abort", taskPrompt: "Work.", agentAmount: 2 },
+      { name: "abort", taskPrompt: "Work.", acceptanceCriteria: ["Work is complete."], agentAmount: 2 },
       { signal: controller.signal },
     );
     const swarmId = newestSwarmId(db);
@@ -120,7 +155,11 @@ describe("the end of a run", () => {
   it("stopAllRuns stops a run for session_shutdown", { timeout: 20_000 }, async () => {
     const run = createRunFixture(SCENARIOS.settle);
     fixture = run;
-    const outcome = startSwarm(run.env, { name: "shutdown", taskPrompt: "Work.", agentAmount: 1 }, {});
+    const outcome = startSwarm(
+      run.env,
+      { name: "shutdown", taskPrompt: "Work.", acceptanceCriteria: ["Work is complete."], agentAmount: 1 },
+      {},
+    );
     const swarmId = newestSwarmId(run.db);
     await waitFor(() => agentStatus(run.db, swarmId, agentNames(run.db, swarmId)[0]) === "idle", "agent idle");
     await stopAllRuns();
@@ -128,10 +167,14 @@ describe("the end of a run", () => {
   });
 
   it("ends as interrupted without writing when a sweep took the lock", { timeout: 20_000 }, async () => {
-    const run = createRunFixture(SCENARIOS.settle, { timings: { completionGraceMs: 60_000 } });
+    const run = createRunFixture(SCENARIOS.settle);
     fixture = run;
     const { db } = run;
-    const outcome = startSwarm(run.env, { name: "lost", taskPrompt: "Work.", agentAmount: 1 }, {});
+    const outcome = startSwarm(
+      run.env,
+      { name: "lost", taskPrompt: "Work.", acceptanceCriteria: ["Work is complete."], agentAmount: 1 },
+      {},
+    );
     const swarmId = newestSwarmId(db);
     const [name] = agentNames(db, swarmId);
     await waitFor(() => agentStatus(db, swarmId, name) === "idle", "agent idle");

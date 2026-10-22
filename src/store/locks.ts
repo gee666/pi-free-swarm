@@ -55,10 +55,12 @@ export function claimRunLock(
 }
 
 /** `false` = the lock is no longer ours (released or taken over after going stale). */
-export function heartbeatRunLock(db: SwarmDb, swarmId: number, pid: number, now: number): boolean {
+export function heartbeatRunLock(db: SwarmDb, swarmId: number, pid: number, now: number, run?: number): boolean {
   const result = db.sql
-    .prepare("UPDATE swarms SET runner_heartbeat_at = ? WHERE id = ? AND runner_pid = ?")
-    .run(now, swarmId, pid);
+    .prepare(
+      "UPDATE swarms SET runner_heartbeat_at = ? WHERE id = ? AND runner_pid = ? AND (? IS NULL OR run_count = ?)",
+    )
+    .run(now, swarmId, pid, run ?? null, run ?? null);
   return count(result.changes) > 0;
 }
 

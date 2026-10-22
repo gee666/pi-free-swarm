@@ -18,7 +18,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("separates finished execution from agent-attested acceptance and refreshes evidence on events", async () => {
+it("separates finished execution from acceptance and refreshes vote counts and reasons on events", async () => {
   const source = installFakeEventSource();
   const api = installFakeApi();
   let snapshot = detail({ status: "finished" });
@@ -34,36 +34,48 @@ it("separates finished execution from agent-attested acceptance and refreshes ev
   expect(screen.queryByText(/Execution:/)).not.toBeInTheDocument();
   await userEvent.click(pill);
   expect(await screen.findByText(/Execution: finished · Task verdict: unchecked/)).toBeInTheDocument();
+  expect(screen.getByText("Quorum: 3 of 3 agents")).toBeInTheDocument();
+  expect(screen.getByText("No votes recorded.")).toBeInTheDocument();
+  expect(screen.getByText("OAuth login works.")).toBeInTheDocument();
   snapshot = {
     ...snapshot,
     acceptance: {
       ...snapshot.acceptance,
       verdict: "accepted",
-      revision: 1,
-      evidence: [
-        { reference: "test report", result: "passed", command: "npm test", cwd: "/project", fingerprint: "supplied" },
-      ],
+      revision: 3,
+      counts: { accepted: 3, incomplete: 0, blocked: 0 },
+      votes: ["Maria", "John", "Liam"].map((agent) => ({
+        agent,
+        run: 1,
+        verdict: "accepted",
+        reason: `${agent} checked OAuth login.`,
+        updatedAt: 1,
+      })),
     },
   };
-  act(() => source().emit({ ...eventBase, type: "acceptance.updated", payload: { revision: 1 } }));
+  act(() => source().emit({ ...eventBase, type: "acceptance.updated", payload: { revision: 3 } }));
   expect(await screen.findByText(/Task verdict: accepted \(agent-attested\)/)).toBeInTheDocument();
-  expect(screen.getByText("test report: passed")).toBeInTheDocument();
-  expect(screen.getByText(/Supplied fingerprint \(not verified\)/)).toBeInTheDocument();
+  expect(screen.getByText("Accepted: 3 · Incomplete: 0 · Blocked: 0")).toBeInTheDocument();
+  expect(screen.getByText("Maria checked OAuth login.")).toBeInTheDocument();
+  expect(screen.queryByText("No votes recorded.")).not.toBeInTheDocument();
   snapshot = {
     ...snapshot,
     acceptance: {
       ...snapshot.acceptance,
       verdict: "incomplete",
-      revision: 2,
-      knownGaps: ["Missing browser check"],
-      findings: ["Check the sign-in flow"],
+      revision: 4,
+      counts: { accepted: 2, incomplete: 0, blocked: 1 },
+      votes: snapshot.acceptance.votes.map((vote) =>
+        vote.agent === "Maria" ? { ...vote, verdict: "blocked", reason: "OAuth provider unavailable." } : vote,
+      ),
     },
   };
-  act(() => source().emit({ ...eventBase, type: "acceptance.updated", payload: { revision: 2 } }));
-  expect(await screen.findByText("Missing browser check")).toBeInTheDocument();
-  expect(screen.getByText("Check the sign-in flow")).toBeInTheDocument();
+  act(() => source().emit({ ...eventBase, type: "acceptance.updated", payload: { revision: 4 } }));
+  expect(await screen.findByText("OAuth provider unavailable.")).toBeInTheDocument();
+  expect(screen.getByText("Accepted: 2 · Incomplete: 0 · Blocked: 1")).toBeInTheDocument();
+  expect(screen.queryByText("Maria checked OAuth login.")).not.toBeInTheDocument();
   await userEvent.keyboard("{Escape}");
-  expect(screen.queryByText("Check the sign-in flow")).not.toBeInTheDocument();
+  expect(screen.queryByText("OAuth provider unavailable.")).not.toBeInTheDocument();
   expect(pill).toHaveAttribute("aria-expanded", "false");
   expect(pill).toHaveFocus();
 });

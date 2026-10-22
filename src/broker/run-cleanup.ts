@@ -7,13 +7,13 @@ import { count, int, intOrNull, jsonList, text, textOrNull } from "../store/rows
 import { releaseRunLock } from "../store/locks.js";
 import { emitParticipantUpdated, emitRecipientStatus, emitSwarmUpdated } from "./emit.js";
 import { addUndeliverableReply } from "./message-insert.js";
-import { failPendingAcceptance } from "./run-acceptance.js";
+import { freezeRunAcceptance } from "./run-acceptance.js";
 
 export type RunEndStatus = "finished" | "stopped" | "interrupted";
 
 export function cleanupRun(db: SwarmDb, swarmId: number, end: RunEndStatus, now: number): void {
   db.write(() => {
-    failPendingAcceptance(db, swarmId, `Run ${end} before the acceptance check completed.`, now);
+    freezeRunAcceptance(db, swarmId);
     const before = new Map(
       db.sql
         .prepare("SELECT name, status, activity FROM participants WHERE swarm_id = ? AND kind = 'agent'")
@@ -30,14 +30,13 @@ export function cleanupRun(db: SwarmDb, swarmId: number, end: RunEndStatus, now:
     db.sql
       .prepare("UPDATE agent_runs SET ended_at = ?, reason = 'stopped' WHERE swarm_id = ? AND ended_at IS NULL")
       .run(now, swarmId);
-    // A finished swarm keeps idle/crashed; a stopped or interrupted one stops everything but crashed agents.
     db.sql
       .prepare(
         `UPDATE participants SET activity = NULL,
-           status = CASE WHEN (? <> 'finished' OR name = ?) AND status <> 'crashed' THEN 'stopped' ELSE status END
+           status = CASE WHEN status <> 'crashed' THEN 'stopped' ELSE status END
          WHERE swarm_id = ? AND kind = 'agent'`,
       )
-      .run(end, WATCHER_NAME, swarmId);
+      .run(swarmId);
     for (const row of db.sql
       .prepare("SELECT name, status, activity FROM participants WHERE swarm_id = ? AND kind = 'agent'")
       .all(swarmId)) {

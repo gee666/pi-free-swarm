@@ -3,12 +3,14 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, it } from "node:test";
 import { sendMessage } from "../../src/broker/messages.js";
-import { startSwarm } from "../../src/broker/swarm-run.js";
+import { startSwarm, stopAllRuns } from "../../src/broker/swarm-run.js";
 import { SYSTEM_PROMPT_FILE, WATCHER_NAME, WATCHER_TOOLS } from "../../src/constants.js";
 import { agentSessionFile } from "../../src/store/db.js";
 import { getStats } from "../../src/store/stats-queries.js";
 import {
   agentStatus,
+  voteAll,
+  waitForWorkersIdle,
   createRunFixture,
   newestSwarmId,
   recipientStatus,
@@ -18,7 +20,10 @@ import {
 } from "./run-fixture.js";
 
 let fixture: RunFixture | undefined;
-afterEach(() => fixture?.cleanup());
+afterEach(async () => {
+  await stopAllRuns();
+  fixture?.cleanup();
+});
 
 it("launches Watcher idle without kickoff, uses the tool allowlist, and stops it without waiting for its turn", async () => {
   const run = createRunFixture({
@@ -26,7 +31,11 @@ it("launches Watcher idle without kickoff, uses the tool allowlist, and stops it
     agents: { [WATCHER_NAME]: { runs: [[{ type: "tool", ms: 5000 }]] } },
   });
   fixture = run;
-  const outcome = startSwarm(run.env, { name: "watched", taskPrompt: "WORKER TASK ONLY", agentAmount: 1 }, {});
+  const outcome = startSwarm(
+    run.env,
+    { name: "watched", taskPrompt: "WORKER TASK ONLY", acceptanceCriteria: ["Work is complete."], agentAmount: 1 },
+    {},
+  );
   const swarmId = newestSwarmId(run.db);
   await waitFor(() => agentStatus(run.db, swarmId, WATCHER_NAME) === "idle", "Watcher idle");
   assert.equal(run.fake.log().filter((record) => record.agent === WATCHER_NAME && record.type === "prompt").length, 0);
@@ -44,6 +53,8 @@ it("launches Watcher idle without kickoff, uses the tool allowlist, and stops it
   const prompt = run.fake.log().find((record) => record.agent === WATCHER_NAME && record.type === "prompt");
   assert.match(String(prompt?.message), /What are they doing/);
   assert.doesNotMatch(String(prompt?.message), /WORKER TASK ONLY|Task for the swarm/);
+  await waitForWorkersIdle(run, swarmId);
+  voteAll(run.db, swarmId, "accepted", "Worker completed the task while Watcher was busy.");
   assert.equal((await outcome).end, "finished");
   assert.equal(agentStatus(run.db, swarmId, WATCHER_NAME), "stopped");
   assert.equal(reviveCount(run.db, swarmId, WATCHER_NAME), 0);
@@ -56,7 +67,16 @@ it("does not revive Watcher crashes or let them block worker completion", async 
     agents: { [WATCHER_NAME]: { startup: [{ type: "exit", code: 3 }] } },
   });
   fixture = run;
-  const result = await startSwarm(run.env, { name: "crashed watcher", taskPrompt: "Work.", agentAmount: 1 }, {});
+  const outcome = startSwarm(
+    run.env,
+    { name: "crashed watcher", taskPrompt: "Work.", acceptanceCriteria: ["Work is complete."], agentAmount: 1 },
+    {},
+  );
+  const swarmId = newestSwarmId(run.db);
+  await waitForWorkersIdle(run, swarmId);
+  await waitFor(() => agentStatus(run.db, swarmId, WATCHER_NAME) === "crashed", "Watcher crashed");
+  voteAll(run.db, swarmId, "accepted", "Worker verified the task despite Watcher failure.");
+  const result = await outcome;
   assert.equal(result.end, "finished");
   assert.equal(agentStatus(run.db, result.swarm.id, WATCHER_NAME), "crashed");
   assert.equal(reviveCount(run.db, result.swarm.id, WATCHER_NAME), 0);

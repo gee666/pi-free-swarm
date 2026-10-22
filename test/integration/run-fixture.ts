@@ -2,7 +2,9 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import path from "node:path";
 import type { ParticipantStatus, RecipientStatus } from "../../src/api-types.js";
+import { mutateAcceptance } from "../../src/broker/acceptance.js";
 import type { RunProgress } from "../../src/broker/run-progress.js";
+import type { AcceptanceVoteVerdict } from "../../src/store/acceptance-types.js";
 import type { RunEnvironment, RunTimings } from "../../src/broker/swarm-run.js";
 import { WATCHER_NAME } from "../../src/constants.js";
 import { systemClock } from "../../src/clock.js";
@@ -10,7 +12,13 @@ import type { SwarmSettings } from "../../src/settings.js";
 import { openSwarmDb, swarmDbPath, type SwarmDb } from "../../src/store/db.js";
 import { getMessages } from "../../src/store/message-queries.js";
 import { getParticipant, listAgentSessions, listSwarms } from "../../src/store/swarm-queries.js";
-import { createFakePiRun, useFakePi, type FakePiRun, type FakePiScenario } from "../fixtures/fake-pi/harness.js";
+import {
+  createFakePiRun,
+  useFakePi,
+  waitFor,
+  type FakePiRun,
+  type FakePiScenario,
+} from "../fixtures/fake-pi/harness.js";
 
 export { waitFor } from "../fixtures/fake-pi/harness.js";
 
@@ -20,7 +28,6 @@ export const FAST: RunTimings = {
   heartbeatMs: 200,
   deliveryPollMs: 50,
   completionCheckMs: 25,
-  completionGraceMs: 300,
   progressMs: 50,
   resumeStaggerMs: 50,
   reviveBackoffMs: [40, 40, 40],
@@ -45,7 +52,7 @@ export function createRunFixture(
     staggerSeconds?: number;
     timings?: Partial<RunTimings>;
     settingsEnv?: Record<string, string>;
-    reminders?: Pick<SwarmSettings, "idleReminderDelay" | "idleReminderMax" | "idleReminderDigestSize">;
+    reminders?: Pick<SwarmSettings, "idleReminderDelay" | "idleReminderDigestSize">;
   } = {},
 ): RunFixture {
   mkdirSync("tmp", { recursive: true });
@@ -60,7 +67,6 @@ export function createRunFixture(
     bodyMaxChars: 4000,
     staggerSeconds: options.staggerSeconds ?? 0,
     idleReminderDelay: 60_000,
-    idleReminderMax: 0,
     idleReminderDigestSize: 10,
     ...options.reminders,
     env: { ...fake.env, ...options.settingsEnv },
@@ -103,6 +109,17 @@ export function agentNames(db: SwarmDb, swarmId: number): string[] {
   return listAgentSessions(db, swarmId)
     .filter((agent) => agent.name !== WATCHER_NAME)
     .map((agent) => agent.name);
+}
+
+export function voteAll(db: SwarmDb, swarmId: number, verdict: AcceptanceVoteVerdict, reason: string): void {
+  for (const agent of agentNames(db, swarmId)) {
+    mutateAcceptance(db, swarmId, agent, { action: "vote", verdict, reason }, Date.now());
+  }
+}
+
+export async function waitForWorkersIdle(run: RunFixture, swarmId: number): Promise<void> {
+  const names = agentNames(run.db, swarmId);
+  await waitFor(() => names.every((name) => agentStatus(run.db, swarmId, name) === "idle"), "workers idle", 10_000);
 }
 
 export function agentStatus(db: SwarmDb, swarmId: number, name: string): ParticipantStatus | null {

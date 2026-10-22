@@ -13,6 +13,26 @@ export function requireText(raw: string, max: number = TEXT_MAX, field = "text")
   return check.value;
 }
 
+export function requireAcceptanceCriteria(raw: unknown): string[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new BrokerError(
+      "validation",
+      "acceptance_criteria must be a nonempty list of strings.",
+      "acceptance_criteria",
+    );
+  }
+  return raw.map((criterion: unknown) => {
+    if (typeof criterion !== "string" || criterion.trim().length === 0) {
+      throw new BrokerError(
+        "validation",
+        "acceptance_criteria entries must be nonempty strings.",
+        "acceptance_criteria",
+      );
+    }
+    return criterion.trim();
+  });
+}
+
 export function requireTitle(raw: string): string {
   const check = checkTitle(raw);
   if (!check.ok) throw new BrokerError("validation", check.error, "title");

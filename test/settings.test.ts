@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, describe, it } from "node:test";
 import {
@@ -16,7 +15,8 @@ const dirs: string[] = [];
 after(() => dirs.forEach((dir) => rmSync(dir, { recursive: true, force: true })));
 
 function project(content?: string): string {
-  const cwd = mkdtempSync(path.join(tmpdir(), "pi-free-swarm-settings-"));
+  mkdirSync("tmp", { recursive: true });
+  const cwd = mkdtempSync(path.resolve("tmp/pi-free-swarm-settings-"));
   dirs.push(cwd);
   if (content !== undefined) {
     mkdirSync(path.join(cwd, ".pi/swarm"), { recursive: true });
@@ -45,7 +45,6 @@ describe("loadSettings", () => {
       defaultAgents: 5,
       staggerSeconds: 30,
       idleReminderDelay: 60_000,
-      idleReminderMax: 5,
       idleReminderDigestSize: 10,
       bodyMaxChars: 200,
       env: {},
@@ -53,8 +52,8 @@ describe("loadSettings", () => {
     assert.deepEqual(warnings, []);
   });
 
-  it("validates reminder settings and permits disabling reminders", () => {
-    const configured = { idleReminderDelay: 25, idleReminderMax: 0, idleReminderDigestSize: 3 };
+  it("validates reminder delay and digest settings", () => {
+    const configured = { idleReminderDelay: 25, idleReminderDigestSize: 3 };
     const { settings, warnings } = loadSettings(project(JSON.stringify(configured)));
     for (const [key, value] of Object.entries(configured)) {
       assert.equal(Reflect.get(settings, key), value);
@@ -62,8 +61,15 @@ describe("loadSettings", () => {
         assert.match(loadError(JSON.stringify({ [key]: invalid })), new RegExp(`${key} must be an integer`));
       }
     }
+    assert.equal(loadSettings(project('{"idleReminderDelay": 0}')).settings.idleReminderDelay, 0);
     assert.match(loadError('{"idleReminderDigestSize": 0}'), /idleReminderDigestSize must be an integer >= 1/);
     assert.deepEqual(warnings, []);
+  });
+
+  it("ignores the removed reminder cap as an unknown setting", () => {
+    const { settings, warnings } = loadSettings(project('{"idleReminderMax": 0}'));
+    assert.equal(Object.hasOwn(settings, "idleReminderMax"), false);
+    assert.deepEqual(warnings, ['settings.json: unknown key "idleReminderMax" ignored']);
   });
 
   it("bounds the configurable body allowance", () => {
@@ -161,6 +167,7 @@ describe("agent env", () => {
     const env = buildAgentEnv(settings, {
       dbPath: "/p/.pi/swarm/swarm.db",
       swarmId: 3,
+      run: 2,
       agentName: "Maria",
       runnerPid: 42,
     });
@@ -170,6 +177,7 @@ describe("agent env", () => {
       PI_SWARM_ROLE: "agent",
       PI_SWARM_DB: "/p/.pi/swarm/swarm.db",
       PI_SWARM_ID: "3",
+      PI_SWARM_RUN: "2",
       PI_SWARM_AGENT: "Maria",
       PI_SWARM_RUNNER_PID: "42",
     });

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { afterEach, describe, it } from "node:test";
 import { sendMessage } from "../../src/broker/messages.js";
-import { startSwarm } from "../../src/broker/swarm-run.js";
+import { startSwarm, stopAllRuns } from "../../src/broker/swarm-run.js";
 import { RUNNER_PID_ENV, UNDELIVERABLE_REPLY_TEXT } from "../../src/constants.js";
 import { SCENARIOS } from "../fixtures/fake-pi/harness.js";
 import {
@@ -15,11 +15,16 @@ import {
   spawnsOf,
   systemReplies,
   waitFor,
+  waitForWorkersIdle,
+  voteAll,
   type RunFixture,
 } from "./run-fixture.js";
 
 let fixture: RunFixture | undefined;
-afterEach(() => fixture?.cleanup());
+afterEach(async () => {
+  await stopAllRuns();
+  fixture?.cleanup();
+});
 
 function readEnviron(pid: number): Map<string, string> {
   const raw = readFileSync(`/proc/${pid}/environ`, "utf8");
@@ -36,7 +41,11 @@ describe("delivery during a run", () => {
     const run = createRunFixture(SCENARIOS.settle, { staggerSeconds: 1, settingsEnv: { PROJECT_TOKEN: "s3cret" } });
     fixture = run;
     const { db } = run;
-    const outcome = startSwarm(run.env, { name: "demo", taskPrompt: "Build it.", agentAmount: 2 }, {});
+    const outcome = startSwarm(
+      run.env,
+      { name: "demo", taskPrompt: "Build it.", acceptanceCriteria: ["Work is complete."], agentAmount: 2 },
+      {},
+    );
     const swarmId = newestSwarmId(db);
     const [first, second] = agentNames(db, swarmId);
 
@@ -68,10 +77,12 @@ describe("delivery during a run", () => {
     const wakePrompt = promptTexts(run.fake).find((text) => text.includes(`[swarm message #${wake}]`));
     assert.match(wakePrompt ?? "", new RegExp(`^\\[swarm message #${wake}\\] thread #\\d+ · from ${second} · to: You`));
 
+    await waitForWorkersIdle(run, swarmId);
+    voteAll(db, swarmId, "accepted", "Kickoff and wake messages were processed.");
     const result = await outcome;
     assert.equal(result.end, "finished");
     assert.equal(result.swarm.status, "finished");
-    assert.deepEqual([agentStatus(db, swarmId, first), agentStatus(db, swarmId, second)], ["idle", "idle"]);
+    assert.deepEqual([agentStatus(db, swarmId, first), agentStatus(db, swarmId, second)], ["stopped", "stopped"]);
     const outbox = String(db.sql.prepare("SELECT group_concat(payload) AS p FROM events").get()?.p ?? "");
     assert.ok(!outbox.includes("s3cret"), "settings env values never reach the DB");
 
@@ -88,7 +99,11 @@ describe("delivery during a run", () => {
     const run = createRunFixture(SCENARIOS.steer);
     fixture = run;
     const { db } = run;
-    const outcome = startSwarm(run.env, { name: "steer", taskPrompt: "Work.", agentAmount: 1 }, {});
+    const outcome = startSwarm(
+      run.env,
+      { name: "steer", taskPrompt: "Work.", acceptanceCriteria: ["Work is complete."], agentAmount: 1 },
+      {},
+    );
     const swarmId = newestSwarmId(db);
     const [name] = agentNames(db, swarmId);
     await waitFor(() => agentStatus(db, swarmId, name) === "working", "agent working");
@@ -96,6 +111,8 @@ describe("delivery during a run", () => {
     await waitFor(() => recipientStatus(db, id, name) === "delivered", "steer delivered");
     assert.equal(agentStatus(db, swarmId, name), "working", "delivered as steering, the run goes on");
     await waitFor(() => recipientStatus(db, id, name) === "read", "steer read");
+    await waitForWorkersIdle(run, swarmId);
+    voteAll(db, swarmId, "accepted", "Steering was processed on the next turn.");
     assert.equal((await outcome).end, "finished");
     assert.equal(spawnsOf(run.fake).length, 1);
     const statuses = db.sql

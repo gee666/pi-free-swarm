@@ -25,58 +25,33 @@ export function AcceptanceSummary({ detail }: { detail: SwarmDetailResponse }) {
           Execution: {detail.swarm.status} · Task verdict: {record.verdict}
           {record.verdict === "accepted" && " (agent-attested)"}
         </p>
-        <p>
-          Agent attestation against the original task, not independent verification. Later edits are not detected
-          automatically.
-        </p>
+        <p>Agent votes against the original task, not independent verification.</p>
         <p>Original task: {record.originalTask}</p>
+        <h3>Acceptance criteria</h3>
+        <ul>
+          {record.acceptanceCriteria.map((criterion, index) => (
+            <li key={index}>{criterion}</li>
+          ))}
+        </ul>
         <p>
           Revision {record.revision} · Updated by {record.updatedBy ? <AgentName name={record.updatedBy} /> : "nobody"}
-          {record.claimant && (
-            <>
-              {" "}
-              · Checking: <AgentName name={record.claimant} />
-            </>
-          )}
         </p>
-        <h3>Evidence</h3>
-        {record.evidence.length === 0 ? (
-          <p>No evidence recorded.</p>
+        <p>
+          Quorum: {record.threshold} of {record.totalAgents} agents
+        </p>
+        <p>
+          Accepted: {record.counts.accepted} · Incomplete: {record.counts.incomplete} · Blocked: {record.counts.blocked}
+        </p>
+        <h3>Votes</h3>
+        {record.votes.length === 0 ? (
+          <p>No votes recorded.</p>
         ) : (
           <ul>
-            {record.evidence.map((item, index) => (
-              <li key={index}>
-                <p>
-                  {item.reference}: {item.result}
-                </p>
-                {item.command && (
-                  <pre>
-                    {item.command}
-                    {"\n"}cwd: {item.cwd}
-                  </pre>
-                )}
-                {item.fingerprint && <p>Supplied fingerprint (not verified): {item.fingerprint}</p>}
+            {record.votes.map((vote) => (
+              <li key={vote.agent}>
+                <AgentName name={vote.agent} />: {vote.verdict}
+                <p>{vote.reason}</p>
               </li>
-            ))}
-          </ul>
-        )}
-        <h3>Known gaps</h3>
-        {record.knownGaps.length === 0 ? (
-          <p>None recorded.</p>
-        ) : (
-          <ul>
-            {record.knownGaps.map((gap, index) => (
-              <li key={index}>{gap}</li>
-            ))}
-          </ul>
-        )}
-        <h3>Findings</h3>
-        {record.findings.length === 0 ? (
-          <p>None recorded.</p>
-        ) : (
-          <ul>
-            {record.findings.map((finding, index) => (
-              <li key={index}>{finding}</li>
             ))}
           </ul>
         )}

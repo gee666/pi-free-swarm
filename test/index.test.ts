@@ -13,6 +13,7 @@ import {
   MAIN_TOOL,
   ROLE_ENV,
   RUNNER_PID_ENV,
+  RUN_ENV,
   SWARM_ID_ENV,
   WATCHER_NAME,
   WATCHER_TOOLS,
@@ -73,7 +74,14 @@ describe("role detection", () => {
     it(`main mode stays disabled with env ${String(enabled)}, even with existing data`, async () => {
       const cwd = project();
       const db = openSwarmDb(swarmDbPath(cwd), { create: true });
-      createSwarm(db, { name: "old", taskPrompt: "t", agentNames: ["Maria"], runnerPid: 2 ** 22 + 1, now: Date.now() });
+      createSwarm(db, {
+        name: "old",
+        taskPrompt: "t",
+        acceptanceCriteria: ["Task complete."],
+        agentNames: ["Maria"],
+        runnerPid: 2 ** 22 + 1,
+        now: Date.now(),
+      });
       const pi = new FakeExtensionApi();
       const before = process.listenerCount("exit");
       try {
@@ -116,7 +124,14 @@ describe("role detection", () => {
     const cwd = project();
     assert.notEqual(cwd, process.cwd());
     const db = openSwarmDb(swarmDbPath(cwd), { create: true });
-    createSwarm(db, { name: "old", taskPrompt: "t", agentNames: ["Maria"], runnerPid: 2 ** 22 + 1, now: Date.now() });
+    createSwarm(db, {
+      name: "old",
+      taskPrompt: "t",
+      acceptanceCriteria: ["Task complete."],
+      agentNames: ["Maria"],
+      runnerPid: 2 ** 22 + 1,
+      now: Date.now(),
+    });
     const pi = new FakeExtensionApi();
     try {
       withEnv({ [ROLE_ENV]: undefined, [ENABLED_ENV]: "true" }, () => {
@@ -139,6 +154,7 @@ describe("role detection", () => {
       [SWARM_ID_ENV]: "3",
       [AGENT_NAME_ENV]: "Maria",
       [RUNNER_PID_ENV]: String(process.pid),
+      [RUN_ENV]: "1",
     };
     withEnv(agentEnv, () => piFreeSwarm(pi));
     assert.deepEqual(pi.toolNames(), Object.values(AGENT_TOOL));
@@ -155,6 +171,7 @@ describe("role detection", () => {
         [SWARM_ID_ENV]: "3",
         [AGENT_NAME_ENV]: WATCHER_NAME,
         [RUNNER_PID_ENV]: String(process.pid),
+        [RUN_ENV]: "1",
       },
       () => piFreeSwarm(pi),
     );
@@ -171,7 +188,7 @@ describe("role detection", () => {
     const parsed = readAgentEnv({ [DB_ENV]: "/x.db", [SWARM_ID_ENV]: "0", [RUNNER_PID_ENV]: "12" });
     assert.deepEqual(parsed, {
       ok: false,
-      error: `pi-free-swarm agent mode: missing or invalid ${SWARM_ID_ENV}, ${AGENT_NAME_ENV}; swarm tools disabled.`,
+      error: `pi-free-swarm agent mode: missing or invalid ${SWARM_ID_ENV}, ${AGENT_NAME_ENV}, ${RUN_ENV}; swarm tools disabled.`,
     });
   });
 });
@@ -224,7 +241,13 @@ describe("main mode lifecycle", () => {
     const runtime = createMainRuntime({ cwd, extensionPath: "/abs/index.ts", createHost: () => host });
     const db = runtime.getDb(true);
     assert.ok(db);
-    const input = { taskPrompt: "t", agentNames: ["Maria"], runnerPid: process.pid, now: Date.now() - 60_000 };
+    const input = {
+      taskPrompt: "t",
+      acceptanceCriteria: ["Task complete."],
+      agentNames: ["Maria"],
+      runnerPid: process.pid,
+      now: Date.now() - 60_000,
+    };
     const active = createSwarm(db, { ...input, name: "active" });
     const abandoned = createSwarm(db, { ...input, name: "abandoned" });
     const unregister = registerActiveRun(db, active.id, process.pid);
@@ -253,7 +276,14 @@ describe("main mode lifecycle", () => {
     const cwd = project();
     const seed = openSwarmDb(swarmDbPath(cwd), { create: true });
     // A runner pid that cannot be alive: its run is stale.
-    createSwarm(seed, { name: "old", taskPrompt: "t", agentNames: ["Maria"], runnerPid: 2 ** 22 + 1, now: Date.now() });
+    createSwarm(seed, {
+      name: "old",
+      taskPrompt: "t",
+      acceptanceCriteria: ["Task complete."],
+      agentNames: ["Maria"],
+      runnerPid: 2 ** 22 + 1,
+      now: Date.now(),
+    });
     seed.close();
 
     const { host, calls } = recordingHost();

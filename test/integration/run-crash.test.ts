@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { sendMessage } from "../../src/broker/messages.js";
-import { startSwarm } from "../../src/broker/swarm-run.js";
+import { startSwarm, stopAllRuns } from "../../src/broker/swarm-run.js";
 import { REVIVE_PROMPT_HEADER, WATCHER_NAME } from "../../src/constants.js";
 import { listPosts } from "../../src/store/wall-queries.js";
 import { SCENARIOS, type FakePiScenario } from "../fixtures/fake-pi/harness.js";
@@ -16,18 +16,27 @@ import {
   reviveCount,
   spawnsOf,
   waitFor,
+  waitForWorkersIdle,
+  voteAll,
   type RunFixture,
 } from "./run-fixture.js";
 
 let fixture: RunFixture | undefined;
-afterEach(() => fixture?.cleanup());
+afterEach(async () => {
+  await stopAllRuns();
+  fixture?.cleanup();
+});
 
 const QUICK_WATCHDOG = { startupTimeoutMs: 10_000, idleTimeoutMs: 300, startupRetries: 0 };
 
 function startOne(scenario: FakePiScenario, timings = {}) {
   const run = createRunFixture(scenario, { timings });
   fixture = run;
-  const outcome = startSwarm(run.env, { name: "crashy", taskPrompt: "Work.", agentAmount: 1 }, {});
+  const outcome = startSwarm(
+    run.env,
+    { name: "crashy", taskPrompt: "Work.", acceptanceCriteria: ["Work is complete."], agentAmount: 1 },
+    {},
+  );
   const swarmId = newestSwarmId(run.db);
   const [name] = agentNames(run.db, swarmId);
   return { run, db: run.db, outcome, swarmId, name };
@@ -56,6 +65,8 @@ describe("crash recovery", () => {
       await waitFor(() => recipientStatus(db, id, name) === "delivered", "steer queued in pi");
       await waitFor(() => recipientStatus(db, id, name) === "read", "read after the revive", 10_000);
 
+      await waitForWorkersIdle(run, swarmId);
+      voteAll(db, swarmId, "accepted", "Revived worker read the recovered message.");
       assert.equal((await outcome).end, "finished");
       assert.equal(reviveCount(db, swarmId, name), 1);
       const spawns = spawnsOf(run.fake);
@@ -70,6 +81,11 @@ describe("crash recovery", () => {
   it("revives after a watchdog inactivity kill", { timeout: 20_000 }, async () => {
     const scenario = { spawns: [SCENARIOS.inactivityStall, SCENARIOS.settle] };
     const { run, db, outcome, swarmId, name } = startOne(scenario, { watchdog: QUICK_WATCHDOG });
+    await waitFor(
+      () => reviveCount(db, swarmId, name) === 1 && agentStatus(db, swarmId, name) === "idle",
+      "revived worker idle",
+    );
+    voteAll(db, swarmId, "accepted", "Worker recovered after watchdog restart.");
     assert.equal((await outcome).end, "finished");
     assert.equal(reviveCount(db, swarmId, name), 1);
     assert.equal(spawnsOf(run.fake).length, 2);
@@ -81,22 +97,27 @@ describe("crash recovery", () => {
   it("never kills a long tool call or a long idle", { timeout: 20_000 }, async () => {
     const { run, db, outcome, swarmId, name } = startOne(SCENARIOS.longTool(1_200), {
       watchdog: QUICK_WATCHDOG,
-      completionGraceMs: 1_000,
     });
     await waitFor(() => agentStatus(db, swarmId, name) === "idle", "tool finished", 10_000);
-    assert.equal((await outcome).end, "finished", "a second of idle is three watchdog windows");
+    const idleAt = Date.now();
+    await waitFor(() => Date.now() - idleAt >= 1_000, "idle across three watchdog windows");
+    assert.equal(agentStatus(db, swarmId, name), "idle");
+    voteAll(db, swarmId, "accepted", "Long tool finished and idle worker remained healthy.");
+    assert.equal((await outcome).end, "finished");
     assert.equal(reviveCount(db, swarmId, name), 0);
     assert.equal(spawnsOf(run.fake).length, 1);
   });
 
-  it("stops reviving after the budget, posts on the wall as Main and still finishes", { timeout: 20_000 }, async () => {
-    const { run, db, outcome, swarmId, name } = startOne(SCENARIOS.crash, { completionGraceMs: 1_000 });
+  it("exhausts revives, reports the crash and waits for an explicit stop", { timeout: 20_000 }, async () => {
+    const { run, db, outcome, swarmId, name } = startOne(SCENARIOS.crash);
     await waitFor(() => crashedPosts(run, swarmId).length > 0, "revives exhausted", 10_000);
-    // Completion no longer waits for messages to an agent that is gone for good.
     const id = sendMessage(db, swarmId, "User", [name], "you will not read this", Date.now()).id;
     assert.equal(recipientStatus(db, id, name), "pending");
+    await stopAllRuns();
     const result = await outcome;
-    assert.equal(result.end, "finished");
+    assert.equal(result.end, "stopped");
+    assert.equal(result.acceptance.verdict, "unchecked");
+    assert.deepEqual(result.acceptance.votes, []);
     assert.equal(agentStatus(db, swarmId, name), "crashed");
     assert.equal(reviveCount(db, swarmId, name), FAST.reviveBackoffMs.length);
     assert.equal(spawnsOf(run.fake).length, FAST.reviveBackoffMs.length + 1);
@@ -109,7 +130,11 @@ describe("crash recovery", () => {
 
   it("never revives a fatal extension-load failure and tells the user", { timeout: 20_000 }, async () => {
     const { run, db, outcome, swarmId, name } = startOne(SCENARIOS.extensionLoadFailure);
-    assert.equal((await outcome).end, "finished");
+    await waitFor(() => crashedPosts(run, swarmId).length === 1, "fatal failure reported");
+    await stopAllRuns();
+    const result = await outcome;
+    assert.equal(result.end, "stopped");
+    assert.equal(result.acceptance.verdict, "unchecked");
     assert.equal(agentStatus(db, swarmId, name), "crashed");
     assert.equal(reviveCount(db, swarmId, name), 0);
     assert.equal(spawnsOf(run.fake).length, 1);

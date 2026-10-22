@@ -5,7 +5,18 @@ import type { ParticipantKind, ParticipantView, SwarmListItem } from "../api-typ
 import { USER_NAME, WATCHER_NAME } from "../constants.js";
 import type { SwarmDb } from "./db.js";
 import { isPidAlive, isRunLockFresh, type PidAlive } from "./locks.js";
-import { activityOf, agentStatusOf, int, intOrNull, kindOf, real, swarmStatusOf, text, type Row } from "./rows.js";
+import {
+  activityOf,
+  agentStatusOf,
+  int,
+  intOrNull,
+  kindOf,
+  real,
+  stringList,
+  swarmStatusOf,
+  text,
+  type Row,
+} from "./rows.js";
 
 const SWARM_SELECT = `
   SELECT s.*,
@@ -24,6 +35,7 @@ function swarmOf(row: Row, now: number, alive: PidAlive): SwarmListItem {
     id: int(row, "id"),
     name: text(row, "name"),
     taskPrompt: text(row, "task_prompt"),
+    acceptanceCriteria: stringList(row, "acceptance_criteria"),
     status: wantsLive && !live ? "interrupted" : stored,
     acceptsMessages: live && row.admission_closed !== 1,
     agentAmount: int(row, "agent_amount"),

@@ -17,6 +17,8 @@ import {
   isAlive,
   waitFor,
   promptTexts,
+  waitForWorkersIdle,
+  voteAll,
 } from "./run-fixture.js";
 
 test("terminal error leaving accepted steering unread recovers once and finishes", { timeout: 15_000 }, async (t) => {
@@ -25,12 +27,19 @@ test("terminal error leaving accepted steering unread recovers once and finishes
     await stopAllRuns();
     run.cleanup();
   });
-  const result = startSwarm(run.env, { name: "unread", taskPrompt: "Work.", agentAmount: 1 }, {});
+  const result = startSwarm(
+    run.env,
+    { name: "unread", taskPrompt: "Work.", acceptanceCriteria: ["Work is complete."], agentAmount: 1 },
+    {},
+  );
   const id = newestSwarmId(run.db);
   const [name] = agentNames(run.db, id);
   await waitFor(() => agentStatus(run.db, id, name) === "working", "working");
   const message = sendMessage(run.db, id, "User", [name], "must not be lost", Date.now());
   await waitFor(() => recipientStatus(run.db, message.id, name) === "delivered", "accepted steer");
+  await waitFor(() => recipientStatus(run.db, message.id, name) === "read", "recovered steering read");
+  await waitForWorkersIdle(run, id);
+  voteAll(run.db, id, "accepted", "Recovered steering completed without losing the message.");
   assert.equal((await result).end, "finished");
   assert.equal(recipientStatus(run.db, message.id, name), "read");
   assert.equal(run.fake.log().filter((record) => record.type === "clear_queue").length, 1);
@@ -39,14 +48,18 @@ test("terminal error leaving accepted steering unread recovers once and finishes
 });
 
 test("closed DB in a timer stops processes and rejects the run, not the host", { timeout: 15_000 }, async (t) => {
-  const run = createRunFixture(SCENARIOS.settle, { timings: { completionGraceMs: 60_000 } });
+  const run = createRunFixture(SCENARIOS.settle);
   const handle = openSwarmDb(run.db.path, { create: false });
   run.env.db = handle;
   t.after(async () => {
     await stopAllRuns();
     run.cleanup();
   });
-  const result = startSwarm(run.env, { name: "closed", taskPrompt: "Work.", agentAmount: 1 }, {});
+  const result = startSwarm(
+    run.env,
+    { name: "closed", taskPrompt: "Work.", acceptanceCriteria: ["Work is complete."], agentAmount: 1 },
+    {},
+  );
   const rejected = assert.rejects(result);
   const id = newestSwarmId(run.db);
   const [name] = agentNames(run.db, id);
@@ -61,7 +74,7 @@ test("closed DB in a timer stops processes and rejects the run, not the host", {
 
 test("write failure in supervisor callbacks stops processes and cleans up once", { timeout: 15_000 }, async (t) => {
   const run = createRunFixture(SCENARIOS.longTool(700), {
-    timings: { completionGraceMs: 60_000, heartbeatMs: 60_000 },
+    timings: { heartbeatMs: 60_000 },
   });
   const original = run.db.write;
   t.after(async () => {
@@ -69,7 +82,11 @@ test("write failure in supervisor callbacks stops processes and cleans up once",
     await stopAllRuns();
     run.cleanup();
   });
-  const result = startSwarm(run.env, { name: "write", taskPrompt: "Work.", agentAmount: 1 }, {});
+  const result = startSwarm(
+    run.env,
+    { name: "write", taskPrompt: "Work.", acceptanceCriteria: ["Work is complete."], agentAmount: 1 },
+    {},
+  );
   const rejected = assert.rejects(result, /injected write failure/);
   const id = newestSwarmId(run.db);
   const [name] = agentNames(run.db, id);
@@ -92,7 +109,11 @@ test("revive timer persistence failure settles instead of escaping its promise",
     await stopAllRuns();
     run.cleanup();
   });
-  const result = startSwarm(run.env, { name: "revive failure", taskPrompt: "Work.", agentAmount: 1 }, {});
+  const result = startSwarm(
+    run.env,
+    { name: "revive failure", taskPrompt: "Work.", acceptanceCriteria: ["Work is complete."], agentAmount: 1 },
+    {},
+  );
   const rejected = assert.rejects(result, /revive write failed/);
   const id = newestSwarmId(run.db);
   const [name] = agentNames(run.db, id);
@@ -115,7 +136,11 @@ test("constructor failure after createSwarm releases the run lock", async (t) =>
     },
   };
   await assert.rejects(
-    startSwarm(env, { name: "broken", taskPrompt: "Work.", agentAmount: 1 }, {}),
+    startSwarm(
+      env,
+      { name: "broken", taskPrompt: "Work.", acceptanceCriteria: ["Work is complete."], agentAmount: 1 },
+      {},
+    ),
     /constructor failure/,
   );
   const id = newestSwarmId(run.db);
@@ -125,12 +150,16 @@ test("constructor failure after createSwarm releases the run lock", async (t) =>
 });
 
 test("owned active run survives a self-stale sweep after suspension", { timeout: 15_000 }, async (t) => {
-  const run = createRunFixture(SCENARIOS.settle, { timings: { completionGraceMs: 60_000 } });
+  const run = createRunFixture(SCENARIOS.settle);
   t.after(async () => {
     await stopAllRuns();
     run.cleanup();
   });
-  const result = startSwarm(run.env, { name: "paused", taskPrompt: "Work.", agentAmount: 1 }, {});
+  const result = startSwarm(
+    run.env,
+    { name: "paused", taskPrompt: "Work.", acceptanceCriteria: ["Work is complete."], agentAmount: 1 },
+    {},
+  );
   const id = newestSwarmId(run.db);
   assert.equal(ownsActiveRun(run.db, id, process.pid), true);
   assert.deepEqual(

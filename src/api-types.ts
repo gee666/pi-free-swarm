@@ -35,11 +35,11 @@ export type MailboxKind = "inbox" | "sent";
 export type AgentActivity = { kind: "thinking" } | { kind: "writing" } | { kind: "tool"; toolName: string };
 
 // ── Records (what src/store returns, reused by the API) ───────────────────────
-
 export interface SwarmListItem {
   id: number;
   name: string;
   taskPrompt: string;
+  acceptanceCriteria: string[];
   /** Already resolved: `starting`/`running` with a stale run lock is reported as `interrupted`. */
   status: SwarmStatus;
   /** Server-side answer to "can messages be sent now" (status is starting/running and the lock is fresh). */

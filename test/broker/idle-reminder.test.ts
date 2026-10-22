@@ -14,7 +14,7 @@ import { createTempDb, seedSwarm, T0, type TempDb } from "../helpers/temp-db.js"
 let temp: TempDb | undefined;
 afterEach(() => temp?.cleanup());
 
-function setup(max = 2) {
+function setup(delay = 100) {
   temp = createTempDb();
   const { db } = temp;
   const clock = new FakeClock(T0 + 1);
@@ -34,7 +34,7 @@ function setup(max = 2) {
     swarmId: swarm.id,
     clock,
     agents: new Map([["Maria", agent]]),
-    settings: { idleReminderDelay: 100, idleReminderMax: max, idleReminderDigestSize: 2 },
+    settings: { idleReminderDelay: delay, idleReminderDigestSize: 2 },
     onError: (error) => assert.fail(String(error)),
   });
   const settle = () => {
@@ -43,13 +43,15 @@ function setup(max = 2) {
     return reminders.update();
   };
   const fire = async () => {
-    clock.advance(100);
+    clock.advance(delay);
     await Promise.resolve();
   };
-  return { db, clock, swarm, agent, reminders, prompts, settle, fire };
+  const vote = (name: string, verdict: "accepted" | "incomplete" | "blocked") =>
+    mutateAcceptance(db, swarm.id, name, { action: "vote", verdict, reason: "Checked the task." }, clock.now());
+  return { db, clock, swarm, agent, reminders, prompts, settle, fire, vote };
 }
 
-it("schedules after idle delay and delivers a bounded latest-wall digest without messages or read marks", async () => {
+it("delivers a bounded latest-wall digest and vote instructions without messages or read marks", async () => {
   const { db, swarm, reminders, clock, prompts } = setup();
   for (const title of ["old", "middle", "latest"]) {
     createPost(db, swarm.id, "John", { title, text: "x".repeat(1000) }, clock.now());
@@ -65,10 +67,15 @@ it("schedules after idle delay and delivers a bounded latest-wall digest without
   assert.equal(prompts.length, 1);
   assert.deepEqual(prompts[0].messageIds, []);
   assert.ok(prompts[0].text.startsWith(IDLE_REMINDER_HEADER + "\n\n"));
+  assert.match(prompts[0].text, /goal is not reached/);
+  assert.match(prompts[0].text, /70% quorum.*same accepted or blocked/);
+  assert.match(prompts[0].text, /Keep working/);
+  assert.match(prompts[0].text, /swarm_acceptance.*action: "vote".*verdict:.*reason/);
+  assert.match(prompts[0].text, /Votes: 0 accepted, 0 incomplete, 0 blocked\. Quorum: 2\/2/);
   assert.match(prompts[0].text, /John · 0s ago · latest/);
   assert.match(prompts[0].text, /middle/);
-  assert.doesNotMatch(prompts[0].text, /· old|\(new\)|swarm message/);
-  assert.ok(prompts[0].text.length < 1000);
+  assert.doesNotMatch(prompts[0].text, /· old|\(new\)|swarm message|claim|challenge/);
+  assert.ok(prompts[0].text.length < 1400);
   for (const table of ["messages", "threads", "read_marks"]) {
     assert.equal(db.sql.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get()?.n, 0);
   }
@@ -105,119 +112,120 @@ it("pending deliveries cancel timers and are checked again at timer expiry", asy
   assert.equal(prompts.length, 0, "a message arriving between polls wins");
 });
 
-it("bounds consecutive reminders; ordinary turns do not reset the budget", async () => {
-  const { reminders, agent, prompts, settle, fire } = setup();
-  reminders.update();
-  await fire();
+it("keeps reminding through repeated idle turns without a cap or wall activity", async () => {
+  const { reminders, prompts, settle, fire } = setup();
+  for (let turn = 0; turn < 12; turn++) {
+    assert.equal(settle(), true);
+    await fire();
+    assert.equal(prompts.length, turn + 1);
+  }
   assert.equal(settle(), true);
-  await fire();
-  assert.equal(prompts.length, 2);
-  assert.equal(settle(), false);
-  agent.status = "working";
-  reminders.statusChanged("Maria", "working");
-  assert.equal(settle(), false);
-  await fire();
-  assert.equal(prompts.length, 2);
+  reminders.stop();
 });
 
-it("real messages, own posts and own comments reset the budget, but others' wall activity does not", async () => {
-  const { db, swarm, reminders, clock, prompts, settle, fire } = setup(1);
+it("supports zero delay without scheduling a timer loop", async () => {
+  const { reminders, clock, prompts, settle, fire } = setup(0);
+  for (let turn = 0; turn < 3; turn++) {
+    assert.equal(settle(), true);
+    await fire();
+    assert.equal(prompts.length, turn + 1);
+    assert.equal(clock.pending, 0);
+  }
+  reminders.stop();
+});
+
+it("wall posts and comments do not restart an idle delay", async () => {
+  const { db, swarm, reminders, clock, prompts } = setup();
   reminders.update();
-  await fire();
-  assert.equal(settle(), false);
+  clock.advance(50);
   const post = createPost(db, swarm.id, "John", { title: "Work", text: "done" }, clock.now());
-  assert.equal(reminders.update(), false);
   createPost(db, swarm.id, "Maria", { title: "Progress", text: "done" }, clock.now());
-  assert.equal(reminders.update(), true);
-  await fire();
-  assert.equal(settle(), false);
   addComment(db, swarm.id, "Maria", post.id, "Verified.", clock.now());
   assert.equal(reminders.update(), true);
-  await fire();
-  assert.equal(settle(), false);
+  assert.equal(clock.nextDelay(), 50);
+  clock.advance(50);
+  await Promise.resolve();
+  assert.equal(prompts.length, 1);
+});
+
+it("real delivery cancels an outstanding timer and the next idle period gets a full delay", async () => {
+  const { reminders, clock, prompts, settle } = setup();
+  reminders.update();
+  clock.advance(50);
   reminders.realMessage("Maria");
+  assert.equal(clock.pending, 0);
   assert.equal(settle(), true);
-  assert.equal(clock.pending, 1);
-  reminders.realMessage("Maria");
-  assert.equal(clock.pending, 0, "real delivery cancels an outstanding timer");
-  settle();
-  await fire();
-  assert.equal(prompts.length, 4);
+  assert.equal(clock.nextDelay(), 100);
+  clock.advance(99);
+  assert.equal(prompts.length, 0);
+  clock.advance(1);
+  await Promise.resolve();
+  assert.equal(prompts.length, 1);
 });
 
 for (const verdict of ["accepted", "blocked"] as const) {
-  it(`skips ${verdict} at expiry and cancels scheduled reminders when polled`, async () => {
-    const { db, swarm, reminders, clock, prompts } = setup();
+  it(`requires ${verdict} quorum at expiry and cancels timers when polled`, async () => {
+    const { reminders, clock, prompts, settle, fire, vote } = setup();
     reminders.update();
-    mutateAcceptance(db, swarm.id, "Maria", { action: "claim", revision: 0 }, clock.now());
-    mutateAcceptance(
-      db,
-      swarm.id,
-      "Maria",
-      {
-        action: "update",
-        revision: 1,
-        verdict,
-        payload: {
-          evidence: [{ reference: "checks", result: verdict }],
-          knownGaps: verdict === "blocked" ? ["Need input"] : [],
-          findings: verdict === "blocked" ? ["Supply input"] : [],
-        },
-      },
-      clock.now(),
-    );
-    clock.advance(100);
-    await Promise.resolve();
-    assert.equal(prompts.length, 0);
+    vote("Maria", verdict);
+    await fire();
+    assert.equal(prompts.length, 1, "a single vote is not a quorum");
+    assert.match(prompts[0].text, new RegExp(verdict === "accepted" ? "1 accepted" : "1 blocked"));
+    settle();
+    vote("John", verdict);
+    await fire();
+    assert.equal(prompts.length, 1, "quorum arriving between polls wins");
+    assert.equal(reminders.update(), false);
+    assert.equal(clock.pending, 0);
+    vote("John", "incomplete");
+    assert.equal(reminders.update(), true);
+    vote("John", verdict);
     assert.equal(reminders.update(), false);
     assert.equal(clock.pending, 0);
   });
 }
 
-it("an in-flight prompt keeps completion pending even after the budget is spent", async () => {
-  const { reminders, clock, agent } = setup(1);
+for (const second of ["incomplete", "blocked"] as const) {
+  it(`continues waking with accepted and ${second} votes`, async () => {
+    const { reminders, prompts, settle, fire, vote } = setup();
+    vote("Maria", "accepted");
+    vote("John", second);
+    for (let turn = 0; turn < 7; turn++) {
+      assert.equal(settle(), true);
+      await fire();
+    }
+    assert.equal(prompts.length, 7);
+    reminders.stop();
+  });
+}
+
+it("keeps in-flight delivery pending without scheduling duplicate prompts", async () => {
+  const { reminders, clock, agent, vote } = setup();
   let finish: ((outcome: DeliveryOutcome) => void) | undefined;
-  agent.deliver = () =>
-    new Promise((resolve) => {
+  let deliveries = 0;
+  agent.deliver = () => {
+    deliveries++;
+    return new Promise((resolve) => {
       finish = resolve;
     });
+  };
   reminders.update();
   clock.advance(100);
   assert.equal(clock.pending, 0);
   assert.equal(reminders.update(), true);
+  clock.advance(1000);
+  assert.equal(deliveries, 1);
+  assert.equal(clock.pending, 0);
+  vote("Maria", "accepted");
+  vote("John", "accepted");
+  assert.equal(reminders.update(), true, "quorum does not hide outstanding delivery");
   assert.ok(finish);
   finish({ accepted: true });
   await Promise.resolve();
   assert.equal(reminders.update(), false);
 });
 
-it("accepted polling and run shutdown cancel outstanding timers", () => {
-  const { db, swarm, reminders, clock } = setup();
-  reminders.update();
-  mutateAcceptance(db, swarm.id, "Maria", { action: "claim", revision: 0 }, clock.now());
-  mutateAcceptance(
-    db,
-    swarm.id,
-    "Maria",
-    {
-      action: "update",
-      revision: 1,
-      verdict: "accepted",
-      payload: { evidence: [{ reference: "checks", result: "passed" }], knownGaps: [], findings: [] },
-    },
-    clock.now(),
-  );
-  assert.equal(reminders.update(), false);
-  assert.equal(clock.pending, 0);
-  mutateAcceptance(db, swarm.id, "John", { action: "challenge", revision: 2, finding: "Output missing" }, clock.now());
-  assert.equal(reminders.update(), true);
-  reminders.stop();
-  assert.equal(clock.pending, 0);
-  clock.advance(100);
-  assert.equal(reminders.update(), false);
-});
-
-it("budgets are independent for each agent", async () => {
+it("schedules reminders independently for each idle agent", async () => {
   const { db, swarm, clock } = setup();
   const counts = new Map<string, number>();
   const agents = new Map(
@@ -237,38 +245,41 @@ it("budgets are independent for each agent", async () => {
     swarmId: swarm.id,
     clock,
     agents,
-    settings: { idleReminderDelay: 100, idleReminderMax: 1, idleReminderDigestSize: 1 },
+    settings: { idleReminderDelay: 100, idleReminderDigestSize: 1 },
     onError: (error) => assert.fail(String(error)),
   });
+  for (let turn = 1; turn <= 3; turn++) {
+    reminders.update();
+    reminders.realMessage("Maria");
+    clock.advance(100);
+    await Promise.resolve();
+    assert.equal(counts.get("John"), turn);
+    assert.equal(counts.has("Maria"), false);
+  }
   reminders.update();
   clock.advance(100);
   await Promise.resolve();
-  assert.deepEqual([...counts.values()], [1, 1]);
-  assert.equal(reminders.update(), false);
-  reminders.realMessage("Maria");
-  reminders.update();
-  clock.advance(100);
-  await Promise.resolve();
-  assert.equal(counts.get("Maria"), 2);
-  assert.equal(counts.get("John"), 1);
+  assert.equal(counts.get("Maria"), 1);
+  assert.equal(counts.get("John"), 4);
+  reminders.stop();
 });
 
-it("unavailable agents cancel reminders", () => {
-  const { reminders, agent, clock } = setup();
+it("unavailable agents and stopped runs cancel reminders", async () => {
+  const { reminders, agent, clock, prompts, settle } = setup();
   reminders.update();
   agent.status = "crashed";
   reminders.statusChanged("Maria", "crashed");
   assert.equal(clock.pending, 0);
   assert.equal(reminders.update(), false);
-});
-
-it("disabled budgets, unavailable agents and stopped runs schedule nothing", () => {
-  const { reminders, clock, agent } = setup(0);
-  assert.equal(reminders.update(), false);
-  assert.equal(clock.pending, 0);
-  agent.status = "crashed";
-  assert.equal(reminders.update(), false);
+  settle();
+  agent.status = "stopped";
+  clock.advance(100);
+  await Promise.resolve();
+  assert.equal(prompts.length, 0, "availability is rechecked at expiry");
+  settle();
   reminders.stop();
-  agent.status = "idle";
+  assert.equal(clock.pending, 0);
+  clock.advance(100);
   assert.equal(reminders.update(), false);
+  assert.equal(prompts.length, 0);
 });

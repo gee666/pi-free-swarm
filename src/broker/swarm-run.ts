@@ -6,14 +6,13 @@ import { MAIN_NAME, RESUME_STAGGER_MS, WATCHER_NAME } from "../constants.js";
 import { pickAgentNames } from "../names.js";
 import { buildRunSpec } from "./run-spec.js";
 import { heartbeatRunLock } from "../store/locks.js";
-import { listOpenAgentRecipients } from "../store/message-queries.js";
 import { getSwarm, listAgentSessions } from "../store/swarm-queries.js";
 import { DeliveryLoop } from "./delivery.js";
 import { IdleReminders } from "./idle-reminder.js";
-import { inspectAcceptance, invalidateAcceptanceClaim } from "./acceptance.js";
+import { inspectAcceptance, invalidateAgentVote } from "./acceptance.js";
 import { closeRunAdmission, prepareRunCompletion } from "./run-acceptance.js";
 import type { AcceptanceRecord } from "../store/acceptance-types.js";
-import { CompletionTracker, reviveDelayMs } from "./lifecycle.js";
+import { reviveDelayMs } from "./lifecycle.js";
 import { sendMainFeedback } from "./messages.js";
 import { RunAgent } from "./run-agent.js";
 import { readRunProgress } from "./run-progress.js";
@@ -41,14 +40,12 @@ class SwarmRun {
   readonly #agents = new Map<string, RunAgent>();
   readonly #delivery: DeliveryLoop;
   readonly #reminders: IdleReminders;
-  readonly #tracker: CompletionTracker;
   readonly #done: Promise<RunOutcome>;
   #settle: { resolve(outcome: RunOutcome): void; reject(error: unknown): void } = {
     resolve: () => undefined,
     reject: () => undefined,
   };
   #timers: TimerHandle[] = [];
-  #allLaunched = false;
   #releaseOwnership: (() => void) | undefined;
   #failure: { error: unknown } | undefined;
   #acceptance: AcceptanceRecord | undefined;
@@ -75,19 +72,17 @@ class SwarmRun {
     this.#done = new Promise((resolve, reject) => (this.#settle = { resolve, reject }));
     const { db, clock, settings } = env;
     for (const { name, sessionFile } of listAgentSessions(db, swarm.id)) {
-      const spec = buildRunSpec(env, swarm.id, name, sessionFile);
+      const spec = buildRunSpec(env, swarm.id, name, sessionFile, run);
       const agent = new RunAgent(spec, {
         db,
         swarmId: swarm.id,
         swarmName: swarm.name,
         taskPrompt: swarm.taskPrompt,
+        acceptanceCriteria: swarm.acceptanceCriteria,
         clock,
         watchdog: this.#timings.watchdog,
         collect: (agentName, includeDeliveredUnread) => this.#delivery.collect(agentName, includeDeliveredUnread),
         isEnding: () => this.#isEnding,
-        onWorking: () => {
-          if (name !== WATCHER_NAME) this.#tracker.reset();
-        },
         onStatus: (name, status) => this.#reminders.statusChanged(name, status),
         onRealMessage: (name) => this.#reminders.realMessage(name),
         onError: this.#fail,
@@ -112,7 +107,6 @@ class SwarmRun {
       agents: this.#agents,
       onError: this.#fail,
     });
-    this.#tracker = new CompletionTracker(clock, this.#timings.completionGraceMs);
   }
 
   #workers(): RunAgent[] {
@@ -155,32 +149,30 @@ class SwarmRun {
     if (this.#isEnding) return;
     this.#guard(() => agent.launchFirst());
     if (!isLast) return;
-    this.#allLaunched = true;
-    markSwarmRunning(this.#env.db, this.#swarm.id, this.#env.runnerPid, this.#env.clock.now());
+    markSwarmRunning(this.#env.db, this.#swarm.id, this.#env.runnerPid, this.#env.clock.now(), this.#run);
   }
 
   #onCrash(agent: RunAgent, crash: AgentCrash): void {
-    if (agent.name === WATCHER_NAME) return agent.giveUp();
-    invalidateAcceptanceClaim(
+    if (agent.name === WATCHER_NAME) return;
+    invalidateAgentVote(
       this.#env.db,
       this.#swarm.id,
       this.#run,
       agent.name,
-      `Checker crashed: ${crash.message}`,
+      `Voter crashed: ${crash.message}`,
       this.#env.clock.now(),
     );
     if (crash.fatal) {
       this.#env.notifyUser(`Swarm "${this.#swarm.name}": ${agent.name} could not start. ${crash.message}`);
-      this.#giveUp(agent);
+      this.#reportCrash(agent);
       return;
     }
     const delayMs = reviveDelayMs(agent.revivesThisRun, this.#timings.reviveBackoffMs);
-    if (delayMs === null) this.#giveUp(agent);
+    if (delayMs === null) this.#reportCrash(agent);
     else agent.scheduleRevive(delayMs);
   }
 
-  #giveUp(agent: RunAgent): void {
-    agent.giveUp();
+  #reportCrash(agent: RunAgent): void {
     const text = `${agent.name} crashed and was not revived`;
     createPost(
       this.#env.db,
@@ -199,37 +191,23 @@ class SwarmRun {
   #heartbeat(): void {
     const { db, runnerPid, clock } = this.#env;
     // Lost = a sweep already ended this run as interrupted; only the processes are left to stop.
-    if (!heartbeatRunLock(db, this.#swarm.id, runnerPid, clock.now())) void this.#end("interrupted", true);
+    if (!heartbeatRunLock(db, this.#swarm.id, runnerPid, clock.now(), this.#run)) void this.#end("interrupted", true);
   }
 
   #checkCompletion(): void {
     if (this.#isEnding) return;
-    const agents = this.#workers();
-    const givenUp = new Set(agents.filter((agent) => agent.exhausted).map((agent) => agent.name));
-    const openRecipients = listOpenAgentRecipients(this.#env.db, this.#swarm.id).filter(
-      (open) => open.name !== WATCHER_NAME && !givenUp.has(open.name),
-    ).length;
-    const remindersPending = this.#reminders.update();
-    const quiet = this.#tracker.update({
-      allLaunched: this.#allLaunched,
-      agents: agents.map((agent) => agent.liveness()),
-      openRecipients,
-    });
-    if (!quiet || remindersPending) return;
+    this.#reminders.update();
     const { db, runnerPid, clock } = this.#env;
     const decision = prepareRunCompletion(db, {
       swarmId: this.#swarm.id,
       run: this.#run,
       runnerPid,
       now: clock.now(),
-      exhausted: givenUp,
-      available: agents.filter((agent) => agent.status === "idle" && !agent.exhausted).map((agent) => agent.name),
     });
     if (decision.kind === "closed") {
       this.#acceptance = decision.acceptance;
       void this.#end("finished");
     } else if (decision.kind === "lost") void this.#end("interrupted", true);
-    else this.#tracker.reset();
   }
 
   #reportProgress(): void {
@@ -244,7 +222,7 @@ class SwarmRun {
       (outcome) => (this.#failure ? this.#settle.reject(this.#failure.error) : this.#settle.resolve(outcome)),
       (error: unknown) => {
         if (!this.#failure) reportRunFailure(this.#env, this.#swarm.id);
-        bestEffortEnd(this.#env, this.#swarm.id);
+        bestEffortEnd(this.#env, this.#swarm.id, this.#run);
         this.#settle.reject(this.#failure?.error ?? error);
       },
     );
@@ -262,21 +240,17 @@ class SwarmRun {
       try {
         this.#acceptance ??=
           (!lockLost &&
-            closeRunAdmission(
-              db,
-              {
-                swarmId: this.#swarm.id,
-                run: this.#run,
-                runnerPid,
-                now: clock.now(),
-              },
-              `Run ${end} before the acceptance check completed.`,
-            )) ||
+            closeRunAdmission(db, {
+              swarmId: this.#swarm.id,
+              run: this.#run,
+              runnerPid,
+              now: clock.now(),
+            })) ||
           inspectAcceptance(db, this.#swarm.id);
       } finally {
         await Promise.allSettled([...this.#agents.values()].map((agent) => agent.stop()));
       }
-      const ended = !lockLost && endRun(db, this.#swarm.id, runnerPid, end, clock.now());
+      const ended = !lockLost && endRun(db, this.#swarm.id, runnerPid, end, clock.now(), this.#run);
       this.#reportProgress();
       const swarm = getSwarm(db, this.#swarm.id, clock.now()) ?? this.#swarm;
       return { swarm, run: this.#run, end: ended ? end : "interrupted", acceptance: this.#acceptance };
@@ -290,7 +264,7 @@ class SwarmRun {
 /** Creates the swarm (claiming its run lock in the same transaction) and blocks until the run ends. */
 export async function startSwarm(
   env: RunEnvironment,
-  input: { name: string; taskPrompt: string; agentAmount: number },
+  input: { name: string; taskPrompt: string; acceptanceCriteria: readonly string[]; agentAmount: number },
   options: RunOptions,
 ): Promise<RunOutcome> {
   const agentNames = pickAgentNames(input.agentAmount);
@@ -298,6 +272,7 @@ export async function startSwarm(
   const swarm = createSwarm(db, {
     name: input.name,
     taskPrompt: input.taskPrompt,
+    acceptanceCriteria: input.acceptanceCriteria,
     agentNames,
     runnerPid,
     now: clock.now(),
@@ -333,7 +308,7 @@ function executeRun(
   try {
     return new SwarmRun(env, swarm, run, options).execute(stagger);
   } catch (error) {
-    bestEffortEnd(env, swarm.id);
+    bestEffortEnd(env, swarm.id, run);
     reportRunFailure(env, swarm.id);
     return Promise.reject(error);
   }

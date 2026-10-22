@@ -1,27 +1,24 @@
-import { Type, type Static } from "typebox";
+export type AcceptanceVoteVerdict = "accepted" | "incomplete" | "blocked";
+export type AcceptanceVerdict = "unchecked" | AcceptanceVoteVerdict;
 
-const text = Type.String({ minLength: 1, pattern: "\\S" });
-export const AcceptanceEvidence = Type.Object({
-  reference: text,
-  result: text,
-  command: Type.Optional(text),
-  cwd: Type.Optional(text),
-  fingerprint: Type.Optional(text),
-});
-export const AcceptancePayload = Type.Object({
-  evidence: Type.Array(AcceptanceEvidence),
-  knownGaps: Type.Array(text),
-  findings: Type.Array(text),
-});
-export type AcceptancePayload = Static<typeof AcceptancePayload>;
-export type AcceptanceVerdict = "unchecked" | "checking" | "accepted" | "incomplete" | "blocked";
-export interface AcceptanceRecord extends AcceptancePayload {
+export interface AcceptanceVote {
+  agent: string;
+  run: number;
+  verdict: AcceptanceVoteVerdict;
+  reason: string;
+  updatedAt: number;
+}
+
+export interface AcceptanceRecord {
   swarmId: number;
   originalTask: string;
+  acceptanceCriteria: string[];
   revision: number;
   verdict: AcceptanceVerdict;
-  claimant: string | null;
-  claimRun: number | null;
+  votes: AcceptanceVote[];
+  counts: Record<AcceptanceVoteVerdict, number>;
+  threshold: number;
+  totalAgents: number;
   updatedBy: string | null;
   updatedAt: number | null;
 }

@@ -20,9 +20,9 @@ export function reportRunFailure(env: RunEnvironment, swarmId: number): void {
   }
 }
 
-export function bestEffortEnd(env: RunEnvironment, swarmId: number): void {
+export function bestEffortEnd(env: RunEnvironment, swarmId: number, run: number): void {
   try {
-    endRun(env.db, swarmId, env.runnerPid, "stopped", env.clock.now());
+    endRun(env.db, swarmId, env.runnerPid, "stopped", env.clock.now(), run);
   } catch {
     // A closed or unwritable DB cannot be repaired here. A later stale sweep owns recovery.
   }

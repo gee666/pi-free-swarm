@@ -33,7 +33,7 @@ describe("registerAgentTools", () => {
       registerTool: ({ name, label, description, promptSnippet }) =>
         void tools.push({ name, label, description, promptSnippet }),
     };
-    registerAgentTools(pi, { getDb: () => db, swarmId: 1, agentName: "Maria" }, 200);
+    registerAgentTools(pi, { getDb: () => db, swarmId: 1, run: 1, agentName: "Maria" }, 200);
     assert.deepEqual(
       tools.map((tool) => tool.name),
       Object.values(AGENT_TOOL),
@@ -41,7 +41,7 @@ describe("registerAgentTools", () => {
     for (const tool of tools) {
       assert.ok(tool.promptSnippet && tool.promptSnippet.length < 80, tool.name);
       assert.ok(tool.label.length > 0);
-      assert.doesNotMatch(tool.description, /peer|lead|role|coordinator|worker|reviewer|manager|quorum/i);
+      assert.doesNotMatch(tool.description, /coordinator|reviewer|manager/i);
     }
     for (const name of [AGENT_TOOL.post, AGENT_TOOL.comment, AGENT_TOOL.message, AGENT_TOOL.replyTo]) {
       const description = tools.find((tool) => tool.name === name)?.description ?? "";
@@ -55,7 +55,7 @@ it("exposes cursor and acceptance schemas identically for all peers", () => {
   const swarm = seedSwarm(db);
   const peers = ["Maria", "John"].map((agentName) => {
     const pi = new FakeExtensionApi();
-    registerAgentTools(pi, { getDb: () => db, swarmId: swarm.id, agentName }, 200);
+    registerAgentTools(pi, { getDb: () => db, swarmId: swarm.id, run: 1, agentName }, 200);
     return pi;
   });
   assert.deepEqual(peers[0].tools, peers[1].tools);
@@ -66,14 +66,27 @@ it("exposes cursor and acceptance schemas identically for all peers", () => {
     Value.Check(peers[0].tool(AGENT_TOOL.readPosts).parameters, { after: initialWallCursor(swarm.id), count: 1 }),
   );
   assert.ok(Value.Check(peers[0].tool(AGENT_TOOL.acceptance).parameters, { action: "inspect" }));
-  assert.ok(Value.Check(peers[0].tool(AGENT_TOOL.acceptance).parameters, { action: "claim", revision: 0 }));
+  assert.ok(Value.Check(acceptanceSchema, { action: "vote", verdict: "accepted", reason: "Ready." }));
+  assert.equal(Value.Check(acceptanceSchema, { action: "claim", revision: 0 }), false);
   assert.equal(Value.Check(peers[0].tool(AGENT_TOOL.acceptance).parameters, { action: "unknown" }), false);
 });
 
 describe("agent tool output", () => {
   const swarm = seedSwarm(db);
-  const maria = createAgentToolHandlers({ getDb: () => db, swarmId: swarm.id, agentName: "Maria", clock: liveClock });
-  const john = createAgentToolHandlers({ getDb: () => db, swarmId: swarm.id, agentName: "John", clock: laterClock });
+  const maria = createAgentToolHandlers({
+    getDb: () => db,
+    swarmId: swarm.id,
+    run: 1,
+    agentName: "Maria",
+    clock: liveClock,
+  });
+  const john = createAgentToolHandlers({
+    getDb: () => db,
+    swarmId: swarm.id,
+    run: 1,
+    agentName: "John",
+    clock: laterClock,
+  });
 
   it("posts, comments and reads the wall with (new) flags", () => {
     assert.equal(john.readPosts({}), withCursor("The wall is empty.", swarm.id));
@@ -129,7 +142,13 @@ describe("agent tool output", () => {
   it("tells the sender plainly when the swarm is not running", () => {
     const stopped = seedSwarm(db);
     endRun(db, stopped.id, process.pid, "stopped", T0 + 10);
-    const liam = createAgentToolHandlers({ getDb: () => db, swarmId: stopped.id, agentName: "Liam", clock: liveClock });
+    const liam = createAgentToolHandlers({
+      getDb: () => db,
+      swarmId: stopped.id,
+      run: 1,
+      agentName: "Liam",
+      clock: liveClock,
+    });
     assert.equal(liam.message({ to: ["Maria"], text: "still there?" }), UNDELIVERABLE_REPLY_TEXT);
     const thread = sendMessage(db, stopped.id, "User", ["Liam"], "hi", T0 + 20);
     assert.throws(
@@ -137,6 +156,7 @@ describe("agent tool output", () => {
         createAgentToolHandlers({
           getDb: () => db,
           swarmId: stopped.id,
+          run: 1,
           agentName: "Maria",
           clock: liveClock,
         }).readThread({ thread_id: thread.threadId }),

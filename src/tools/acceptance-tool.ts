@@ -3,59 +3,38 @@ import { Value } from "typebox/value";
 import { inspectAcceptance, mutateAcceptance } from "../broker/acceptance.js";
 import { BrokerError } from "../broker/errors.js";
 import { requireParticipant } from "../broker/validate.js";
-import { AcceptancePayload } from "../store/acceptance-types.js";
 import type { SwarmDb } from "../store/db.js";
 
 const revision = Type.Integer({
   minimum: 0,
-  description: "Required for every mutation; use the current record revision.",
+  description: "Optional optimistic concurrency check against the current shared revision.",
 });
-const verdict = Type.Union([
-  Type.Literal("checking"),
-  Type.Literal("accepted"),
-  Type.Literal("incomplete"),
-  Type.Literal("blocked"),
-]);
-const finding = Type.String({
+const verdict = Type.Union([Type.Literal("accepted"), Type.Literal("incomplete"), Type.Literal("blocked")]);
+const reason = Type.String({
   minLength: 1,
-  description: "Required for challenge: unmet requirement and actionable evidence or decision needed.",
+  pattern: "\\S",
+  description: "Free-form explanation of your vote against the whole original task.",
 });
-const acceptanceOperation = Type.Union([
-  Type.Object({ action: Type.Literal("inspect") }),
-  Type.Object({ action: Type.Union([Type.Literal("claim"), Type.Literal("release")]), revision }),
-  Type.Object({
-    action: Type.Literal("update"),
-    revision,
-    verdict,
-    payload: AcceptancePayload,
-  }),
-  Type.Object({
-    action: Type.Literal("challenge"),
-    revision,
-    finding,
-  }),
-]);
+const voteOperation = Type.Object({
+  action: Type.Literal("vote"),
+  revision: Type.Optional(revision),
+  verdict,
+  reason,
+});
 // Providers require an object at the root; action-specific requirements are checked below.
 export const acceptanceToolParameters = Type.Object({
-  action: Type.Union([
-    Type.Literal("inspect"),
-    Type.Literal("claim"),
-    Type.Literal("release"),
-    Type.Literal("update"),
-    Type.Literal("challenge"),
-  ]),
+  action: Type.Union([Type.Literal("inspect"), Type.Literal("vote")]),
   revision: Type.Optional(revision),
   verdict: Type.Optional(verdict),
-  payload: Type.Optional(AcceptancePayload),
-  finding: Type.Optional(finding),
+  reason: Type.Optional(reason),
 });
 
 export const acceptanceToolDescription =
-  "Inspect or self-claim the shared acceptance check against the whole original task. Keep working until the whole task is accepted. " +
-  "Mutations require the current revision; update/release require your own claim. Final judgments require evidence, knownGaps and findings " +
-  "(empty arrays explicitly mean none). Incomplete/blocked require concrete gaps/findings. Evidence is agent attestation, not exhaustive proof: " +
-  "record reference/result, command with cwd when applicable, and optional supplied artifact/input fingerprint. No automatic artifact validation " +
-  "or checksum monitoring occurs. Challenge adds a new actionable finding and invalidates acceptance. Release declines a check without assigning anyone.";
+  "Inspect acceptance votes or submit your own accepted, incomplete or blocked vote with a free-form reason. " +
+  "Your latest vote replaces your previous vote. Judge the whole original task, not just your own work. " +
+  "Accepted or blocked requires matching votes from at least ceil(registered worker agents * 0.70); Watcher does not vote. Incomplete is not terminal. " +
+  "Inspect returns the original task, acceptance criteria, individual votes, counts and threshold. " +
+  "Reasons need no structured evidence or criterion-by-criterion assessment.";
 
 /** Pi-independent handler; the registering adapter owns tool result/error formatting. */
 export function executeAcceptanceTool(
@@ -64,8 +43,12 @@ export function executeAcceptanceTool(
   agent: string,
   input: Static<typeof acceptanceToolParameters>,
   now: number,
+  expectedRun: number,
 ) {
-  if (!Value.Check(acceptanceOperation, input)) throw new BrokerError("validation", "Invalid acceptance operation.");
   requireParticipant(db, swarmId, agent);
-  return input.action === "inspect" ? inspectAcceptance(db, swarmId) : mutateAcceptance(db, swarmId, agent, input, now);
+  if (input.action === "inspect") return inspectAcceptance(db, swarmId);
+  if (!Value.Check(voteOperation, input)) throw new BrokerError("validation", "Invalid acceptance operation.");
+  if (!Number.isSafeInteger(expectedRun) || expectedRun < 1)
+    throw new BrokerError("validation", "Acceptance votes require a valid agent run identity.");
+  return mutateAcceptance(db, swarmId, agent, input, now, expectedRun);
 }

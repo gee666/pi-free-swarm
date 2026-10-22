@@ -10,6 +10,7 @@ import { count, int, intOrNull, swarmStatusOf, text } from "../store/rows.js";
 import { getSwarm } from "../store/swarm-queries.js";
 import { emitParticipantUpdated, emitSwarmUpdated } from "./emit.js";
 import { BrokerError } from "./errors.js";
+import { requireAcceptanceCriteria } from "./validate.js";
 import { cleanupRun, type RunEndStatus } from "./run-cleanup.js";
 import { reopenAcceptance } from "./run-acceptance.js";
 
@@ -34,9 +35,17 @@ function swarmOrThrow(db: SwarmDb, swarmId: number, now: number): SwarmListItem 
 /** Status `starting`, run 1, run lock held by `runnerPid`, participants User/Main/System + agents. */
 export function createSwarm(
   db: SwarmDb,
-  input: { name: string; taskPrompt: string; agentNames: readonly string[]; runnerPid: number; now: number },
+  input: {
+    name: string;
+    taskPrompt: string;
+    acceptanceCriteria: readonly string[];
+    agentNames: readonly string[];
+    runnerPid: number;
+    now: number;
+  },
 ): SwarmListItem {
   const { runnerPid, now } = input;
+  const acceptanceCriteria = requireAcceptanceCriteria(input.acceptanceCriteria);
   if (
     input.agentNames.some((name) => RESERVED_NAMES.some((reserved) => reserved.toLowerCase() === name.toLowerCase()))
   ) {
@@ -49,11 +58,12 @@ export function createSwarm(
     const swarmId = count(
       db.sql
         .prepare(
-          `INSERT INTO swarms (name, task_prompt, agent_amount, status, runner_pid, runner_heartbeat_at,
+          `INSERT INTO swarms (name, task_prompt, acceptance_criteria, agent_amount, status, runner_pid, runner_heartbeat_at,
              created_at, started_at, run_count)
-           VALUES (?, ?, ?, 'starting', ?, ?, ?, ?, 1)`,
+           VALUES (?, ?, ?, ?, 'starting', ?, ?, ?, ?, 1)`,
         )
-        .run(name, taskPrompt, input.agentNames.length, runnerPid, now, now, now).lastInsertRowid,
+        .run(name, taskPrompt, JSON.stringify(acceptanceCriteria), input.agentNames.length, runnerPid, now, now, now)
+        .lastInsertRowid,
     );
     db.sql.prepare("INSERT INTO swarm_runs (swarm_id, run, started_at) VALUES (?, 1, ?)").run(swarmId, now);
     const reserved = db.sql.prepare("INSERT INTO participants (swarm_id, name, kind) VALUES (?, ?, ?)");
@@ -131,21 +141,38 @@ export function beginResume(
 }
 
 /** `starting → running` once the last agent of the stagger has been launched. */
-export function markSwarmRunning(db: SwarmDb, swarmId: number, runnerPid: number, now: number): void {
+export function markSwarmRunning(
+  db: SwarmDb,
+  swarmId: number,
+  runnerPid: number,
+  now: number,
+  expectedRun?: number,
+): void {
   db.write(() => {
     const changed = db.sql
-      .prepare("UPDATE swarms SET status = 'running' WHERE id = ? AND runner_pid = ? AND status = 'starting'")
-      .run(swarmId, runnerPid);
+      .prepare(
+        `UPDATE swarms SET status = 'running'
+         WHERE id = ? AND runner_pid = ? AND status = 'starting' AND (? IS NULL OR run_count = ?)`,
+      )
+      .run(swarmId, runnerPid, expectedRun ?? null, expectedRun ?? null);
     if (count(changed.changes) > 0) emitSwarmUpdated(db, swarmId, now);
   });
 }
 
-/** `false` = the lock is not ours (the sweep already ended the run); nothing is written then. */
-export function endRun(db: SwarmDb, swarmId: number, runnerPid: number, end: RunEndStatus, now: number): boolean {
+/** Returns false without writes if the runner or expected run no longer owns the swarm. */
+export function endRun(
+  db: SwarmDb,
+  swarmId: number,
+  runnerPid: number,
+  end: RunEndStatus,
+  now: number,
+  expectedRun?: number,
+): boolean {
   return db.write(() => {
-    const row = db.sql.prepare("SELECT runner_pid FROM swarms WHERE id = ?").get(swarmId);
+    const row = db.sql.prepare("SELECT runner_pid, run_count FROM swarms WHERE id = ?").get(swarmId);
     if (row === undefined) throw new BrokerError("not_found", `Swarm #${swarmId} not found.`);
     if (intOrNull(row, "runner_pid") !== runnerPid) return false;
+    if (expectedRun !== undefined && int(row, "run_count") !== expectedRun) return false;
     cleanupRun(db, swarmId, end, now);
     return true;
   });

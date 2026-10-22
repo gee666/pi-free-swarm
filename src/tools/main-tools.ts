@@ -6,6 +6,7 @@ import { systemClock } from "../clock.js";
 import { MAIN_TOOL, SETTINGS_FILE, SWARM_DIR } from "../constants.js";
 import { checkText, checkTitle, MAIN_FEEDBACK_MAX, TITLE_MAX } from "../limits.js";
 import { BrokerError } from "../broker/errors.js";
+import { requireAcceptanceCriteria } from "../broker/validate.js";
 import { readRunProgress, type RunProgress } from "../broker/run-progress.js";
 import { resumeSwarm, startSwarm, type RunEnvironment, type RunOptions, type RunOutcome } from "../broker/swarm-run.js";
 import type { MainRuntime } from "../main-runtime.js";
@@ -35,6 +36,11 @@ export const SWARM_PARAMS = Type.Object({
   task_prompt: Type.String({
     description:
       "The whole task for the agents. Include the paths of the requirements/plan files you wrote; agents read them.",
+  }),
+  acceptance_criteria: Type.Array(Type.String({ minLength: 1, pattern: "\\S" }), {
+    minItems: 1,
+    description:
+      "Required completion criteria supplied by Main. Derive them from the task if the user did not provide them. Each entry must be a nonempty string.",
   }),
   agent_amount: Type.Optional(Type.Integer({ description: "Number of agents; omit for the default." })),
 });
@@ -67,7 +73,8 @@ export function swarmDescription(cwd: string): string {
     "Launch a swarm of pi agents on ONE task in this project; they self-organise on a shared wall.",
     "Use it when the user asks for a swarm, after the requirements are written to files.",
     `Keep task_prompt concise and point to those files. ${range}.`,
-    "Blocks until every agent is idle, then returns the wall digest; review the real work before summarising.",
+    "Supply acceptance_criteria as a nonempty list of strings describing when the shared task is done. If the user did not provide criteria, derive them from the task before launching.",
+    "Blocks until at least 70% of all workers vote the same accepted or blocked verdict. Returns one deterministic status document with the goal, criteria, verdict, tally and every vote reason, including dissent; review the real work before summarising.",
   ].join(" ");
 }
 
@@ -111,13 +118,14 @@ export function createMainToolHandlers(runtime: MainRuntime, runner: SwarmRunner
       if (!name.ok) throw new BrokerError("validation", `swarm_name: ${name.error}`, "swarm_name");
       const taskPrompt = checkText(params.task_prompt, Infinity);
       if (!taskPrompt.ok) throw new BrokerError("validation", `task_prompt: ${taskPrompt.error}`, "task_prompt");
+      const acceptanceCriteria = requireAcceptanceCriteria(params.acceptance_criteria);
       const settings = readSettings(runtime);
       const agentAmount = resolveAgentAmount(settings, params.agent_amount);
       // The first swarm of a project creates .pi/swarm/: the one moment to suggest ignoring it.
       const firstSwarm = runtime.getDb(false) === null;
       const db = runtime.getDb(true);
       if (db === null) throw new Error("Could not create the swarm database.");
-      const input = { name: name.value, taskPrompt: taskPrompt.value, agentAmount };
+      const input = { name: name.value, taskPrompt: taskPrompt.value, acceptanceCriteria, agentAmount };
       const result = await run({
         db,
         settings,

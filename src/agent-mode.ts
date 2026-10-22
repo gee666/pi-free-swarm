@@ -3,7 +3,7 @@
 import path from "node:path";
 import type { TimerHandle } from "./clock.js";
 import type { SwarmExtensionApi } from "./extension-api.js";
-import { AGENT_NAME_ENV, DB_ENV, RUNNER_PID_ENV, SWARM_ID_ENV, WATCHER_NAME } from "./constants.js";
+import { AGENT_NAME_ENV, DB_ENV, RUNNER_PID_ENV, RUN_ENV, SWARM_ID_ENV, WATCHER_NAME } from "./constants.js";
 import { startParentWatch } from "./agents/parent-watch.js";
 import { bodyLimitIn } from "./broker/body-limit.js";
 import { openSwarmDb, type SwarmDb } from "./store/db.js";
@@ -13,13 +13,14 @@ import { registerAgentTools } from "./tools/agent-tools.js";
 export interface AgentEnv {
   dbPath: string;
   swarmId: number;
+  run: number;
   agentName: string;
   runnerPid: number;
 }
 
 function positiveInteger(raw: string | undefined): number | null {
   const value = Number(raw);
-  return raw !== undefined && Number.isInteger(value) && value > 0 ? value : null;
+  return raw !== undefined && Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
 /** The error names what is missing, so a broken spawn is visible instead of a silently tool-less agent. */
@@ -28,14 +29,16 @@ export function readAgentEnv(env: NodeJS.ProcessEnv): { ok: true; value: AgentEn
   const agentName = env[AGENT_NAME_ENV] ?? "";
   const swarmId = positiveInteger(env[SWARM_ID_ENV]);
   const runnerPid = positiveInteger(env[RUNNER_PID_ENV]);
-  if (dbPath !== "" && agentName !== "" && swarmId !== null && runnerPid !== null) {
-    return { ok: true, value: { dbPath, swarmId, agentName, runnerPid } };
+  const run = positiveInteger(env[RUN_ENV]);
+  if (dbPath !== "" && agentName !== "" && swarmId !== null && runnerPid !== null && run !== null) {
+    return { ok: true, value: { dbPath, swarmId, run, agentName, runnerPid } };
   }
   const missing = [
     dbPath === "" ? DB_ENV : null,
     swarmId === null ? SWARM_ID_ENV : null,
     agentName === "" ? AGENT_NAME_ENV : null,
     runnerPid === null ? RUNNER_PID_ENV : null,
+    run === null ? RUN_ENV : null,
   ].filter((name) => name !== null);
   return {
     ok: false,
@@ -59,6 +62,7 @@ export function registerAgentMode(pi: SwarmExtensionApi, env: NodeJS.ProcessEnv)
     {
       getDb: () => (db ??= openSwarmDb(identity.dbPath, { create: false })),
       swarmId: identity.swarmId,
+      run: identity.run,
       agentName: identity.agentName,
     },
     bodyLimitIn(path.dirname(identity.dbPath)),
@@ -67,6 +71,7 @@ export function registerAgentMode(pi: SwarmExtensionApi, env: NodeJS.ProcessEnv)
     registerWatcherTools(pi, {
       getDb: () => (db ??= openSwarmDb(identity.dbPath, { create: false })),
       swarmId: identity.swarmId,
+      run: identity.run,
       agentName: identity.agentName,
     });
   pi.on("session_start", (_event, ctx) => {

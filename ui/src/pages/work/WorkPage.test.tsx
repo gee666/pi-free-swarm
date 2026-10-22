@@ -31,6 +31,7 @@ const detail: SwarmDetailResponse = {
     id: 3,
     name: "auth-refactor",
     taskPrompt: "Implement OAuth",
+    acceptanceCriteria: ["OAuth login works."],
     status: "running",
     acceptsMessages: true,
     agentAmount: 2,

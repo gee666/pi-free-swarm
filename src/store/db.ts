@@ -20,6 +20,7 @@ const MIGRATIONS: readonly { version: number; file: string }[] = [
   { version: 1, file: "schema.sql" },
   { version: 2, file: "002-communication.sql" },
   { version: 3, file: "acceptance.sql" },
+  { version: 4, file: "004-acceptance-votes.sql" },
 ];
 const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 

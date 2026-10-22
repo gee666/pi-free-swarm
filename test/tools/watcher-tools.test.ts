@@ -29,11 +29,12 @@ const clock = new FakeClock(Date.parse("2026-09-24T09:00:05.000Z"));
 const swarm = createSwarm(db, {
   name: "observed",
   taskPrompt: "Improve login.",
+  acceptanceCriteria: ["Login improvements pass the checks."],
   agentNames: ["Maria", "John"],
   runnerPid: process.pid,
   now: clock.now(),
 });
-const identity = { getDb: () => db, swarmId: swarm.id, agentName: WATCHER_NAME, clock };
+const identity = { getDb: () => db, swarmId: swarm.id, run: 1, agentName: WATCHER_NAME, clock };
 const run = createWatcherToolHandlers(identity);
 const maria = listAgentSessions(db, swarm.id).find((agent) => agent.name === "Maria");
 assert.ok(maria);

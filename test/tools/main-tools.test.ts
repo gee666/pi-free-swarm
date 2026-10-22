@@ -71,6 +71,7 @@ function stoppingRunner(seen: { env?: RunEnvironment; options?: RunOptions }): S
       const swarm = createSwarm(env.db, {
         name: input.name,
         taskPrompt: input.taskPrompt,
+        acceptanceCriteria: input.acceptanceCriteria,
         agentNames: pickAgentNames(input.agentAmount),
         runnerPid: env.runnerPid,
         now: Date.now(),
@@ -98,6 +99,12 @@ describe("registerMainTools", () => {
     assert.match(swarm.description, /agent_amount: 2–8, default 5/);
     assert.match(swarm.description, /concise/);
     assert.match(swarm.description, /requirements/);
+    assert.match(swarm.description, /If the user did not provide criteria, derive them from the task before launching/);
+    assert.match(
+      swarm.description,
+      /one deterministic status document with the goal, criteria, verdict, tally and every vote reason, including dissent/,
+    );
+    assert.doesNotMatch(swarm.description, /wall digest/);
     for (const tool of pi.tools) assert.ok(tool.promptSnippet);
   });
 
@@ -111,10 +118,24 @@ describe("registerMainTools", () => {
     const pi = new FakeExtensionApi();
     registerMainTools(pi, runtimeFor(project()).runtime);
     const swarm = pi.tool(MAIN_TOOL.swarm).parameters;
-    assert.ok(Value.Check(swarm, { swarm_name: "x", task_prompt: "Read docs/req.md" }));
-    assert.ok(Value.Check(swarm, { swarm_name: "x", task_prompt: "y", agent_amount: 3 }));
-    assert.ok(!Value.Check(swarm, { swarm_name: "x", task_prompt: "y", agent_amount: 2.5 }));
+    assert.ok(
+      Value.Check(swarm, { swarm_name: "x", acceptance_criteria: ["Build works."], task_prompt: "Read docs/req.md" }),
+    );
+    assert.ok(
+      Value.Check(swarm, { swarm_name: "x", acceptance_criteria: ["Build works."], task_prompt: "y", agent_amount: 3 }),
+    );
+    assert.ok(
+      !Value.Check(swarm, {
+        swarm_name: "x",
+        acceptance_criteria: ["Build works."],
+        task_prompt: "y",
+        agent_amount: 2.5,
+      }),
+    );
     assert.ok(!Value.Check(swarm, { swarm_name: "x" }));
+    for (const acceptance_criteria of [undefined, [], [""], [" \n\t "], [42], "done"]) {
+      assert.ok(!Value.Check(swarm, { swarm_name: "x", task_prompt: "y", acceptance_criteria }));
+    }
     const resume = pi.tool(MAIN_TOOL.resumeSwarm).parameters;
     assert.ok(Value.Check(resume, { swarm_id: 3, message: "fix the tests" }));
     assert.ok(!Value.Check(resume, { swarm_id: "3", message: "fix" }));
@@ -123,9 +144,14 @@ describe("registerMainTools", () => {
 
 describe("swarm tool", () => {
   for (const input of [
-    { swarm_name: "  ", task_prompt: "Build it", field: "swarm_name" },
-    { swarm_name: "🦋".repeat(61), task_prompt: "Build it", field: "swarm_name" },
-    { swarm_name: "valid", task_prompt: " \n\t ", field: "task_prompt" },
+    { swarm_name: "  ", acceptance_criteria: ["Build works."], task_prompt: "Build it", field: "swarm_name" },
+    {
+      swarm_name: "🦋".repeat(61),
+      acceptance_criteria: ["Build works."],
+      task_prompt: "Build it",
+      field: "swarm_name",
+    },
+    { swarm_name: "valid", acceptance_criteria: ["Build works."], task_prompt: " \n\t ", field: "task_prompt" },
   ]) {
     it(`rejects invalid ${input.field} before creating runtime data or starting the host`, async () => {
       const cwd = project();
@@ -138,12 +164,36 @@ describe("swarm tool", () => {
     });
   }
 
+  it("rejects empty or blank criteria before creating runtime data", async () => {
+    for (const acceptance_criteria of [[], [""], [" \n\t "], ["Valid", "  "]]) {
+      const cwd = project();
+      const { runtime, host } = runtimeFor(cwd);
+      await assert.rejects(
+        createMainToolHandlers(runtime).swarm(
+          { swarm_name: "valid", task_prompt: "Build it", acceptance_criteria },
+          undefined,
+          undefined,
+          ctx,
+        ),
+        /acceptance_criteria/,
+      );
+      assert.equal(host.starts, 0);
+      assert.equal(runtime.getDb(false), null);
+      assert.equal(existsSync(path.join(cwd, ".pi/swarm")), false);
+    }
+  });
+
   it("rejects an agent_amount outside the settings range without creating anything", async () => {
     const cwd = project('{"minAgents": 2, "maxAgents": 8}');
     const { runtime } = runtimeFor(cwd);
     const tools = createMainToolHandlers(runtime);
     await assert.rejects(
-      tools.swarm({ swarm_name: "x", task_prompt: "y", agent_amount: 12 }, undefined, undefined, ctx),
+      tools.swarm(
+        { swarm_name: "x", acceptance_criteria: ["Build works."], task_prompt: "y", agent_amount: 12 },
+        undefined,
+        undefined,
+        ctx,
+      ),
       { message: "agent_amount must be between 2 and 8 (got 12)." },
     );
     assert.equal(runtime.getDb(false), null);
@@ -151,13 +201,21 @@ describe("swarm tool", () => {
 
   it("fails with the settings error and shows settings warnings", async () => {
     const tools = createMainToolHandlers(runtimeFor(project('{"maxAgents": 1, "minAgents": 3}')).runtime);
-    await assert.rejects(tools.swarm({ swarm_name: "x", task_prompt: "y" }, undefined, undefined, ctx), {
-      message: "settings.json: maxAgents (1) must be >= minAgents (3)",
-    });
+    await assert.rejects(
+      tools.swarm(
+        { swarm_name: "x", acceptance_criteria: ["Build works."], task_prompt: "y" },
+        undefined,
+        undefined,
+        ctx,
+      ),
+      {
+        message: "settings.json: maxAgents (1) must be >= minAgents (3)",
+      },
+    );
     const warned = runtimeFor(project('{"colour": "blue", "maxAgents": 1}'));
     await assert.rejects(
       createMainToolHandlers(warned.runtime).swarm(
-        { swarm_name: "x", task_prompt: "y", agent_amount: 5 },
+        { swarm_name: "x", acceptance_criteria: ["Build works."], task_prompt: "y", agent_amount: 5 },
         undefined,
         undefined,
         ctx,
@@ -180,7 +238,12 @@ describe("swarm tool", () => {
       isProjectTrusted: () => true,
     };
     const pending = tools.swarm(
-      { swarm_name: "toy", task_prompt: "Read docs/req.md", agent_amount: 2 },
+      {
+        swarm_name: "toy",
+        acceptance_criteria: ["  Build works. ", "Examples pass."],
+        task_prompt: "Read docs/req.md",
+        agent_amount: 2,
+      },
       abort.signal,
       (partial) => updates.push(partial.details),
       trusted,
@@ -193,6 +256,7 @@ describe("swarm tool", () => {
     assert.equal(seen.options?.signal, abort.signal);
     assert.deepEqual(seen.env?.launch, { extensionArgs: [EXTENSION], projectTrusted: true, model: null });
     assert.equal(seen.env?.settings.minAgents, 1);
+    assert.deepEqual(getSwarm(seen.env.db, 1, Date.now())?.acceptanceCriteria, ["Build works.", "Examples pass."]);
     assert.equal(updates[0].agents.pending, 2);
     assert.equal(result.details.status, "stopped");
     const [summary, hint] = texts(result.content);
@@ -203,7 +267,7 @@ describe("swarm tool", () => {
     // Only the swarm that created .pi/swarm/ suggests the .gitignore entry.
     const again = new AbortController();
     const second = tools.swarm(
-      { swarm_name: "toy2", task_prompt: "t", agent_amount: 1 },
+      { swarm_name: "toy2", acceptance_criteria: ["Build works."], task_prompt: "t", agent_amount: 1 },
       again.signal,
       () => again.abort(),
       trusted,
@@ -226,7 +290,14 @@ describe("resume_swarm tool", () => {
     const db = runtime.getDb(true);
     assert.ok(db);
     // The parent process is alive, so its run lock is fresh.
-    createSwarm(db, { name: "busy", taskPrompt: "t", agentNames: ["Maria"], runnerPid: process.ppid, now: Date.now() });
+    createSwarm(db, {
+      name: "busy",
+      taskPrompt: "t",
+      acceptanceCriteria: ["Build works."],
+      agentNames: ["Maria"],
+      runnerPid: process.ppid,
+      now: Date.now(),
+    });
     const tools = createMainToolHandlers(runtime);
     await assert.rejects(tools.resume({ swarm_id: 9, message: "more" }, undefined, undefined, ctx), {
       message: "Swarm #9 not found.",

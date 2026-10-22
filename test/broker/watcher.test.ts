@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { after, it } from "node:test";
+import { inspectAcceptance, mutateAcceptance } from "../../src/broker/acceptance.js";
 import { recordUsage, setAgentStatus } from "../../src/broker/agent-state.js";
 import { IdleReminders } from "../../src/broker/idle-reminder.js";
 import { sendMainFeedback, sendMessage } from "../../src/broker/messages.js";
@@ -21,6 +22,7 @@ const create = () =>
   createSwarm(db, {
     name: "watched",
     taskPrompt: "Work.",
+    acceptanceCriteria: ["Work is complete."],
     agentNames: ["Maria"],
     runnerPid: process.pid,
     now: clock.now(),
@@ -32,6 +34,7 @@ it("reserves Watcher for the human assistant", () => {
       createSwarm(db, {
         name: "invalid",
         taskPrompt: "Work.",
+        acceptanceCriteria: ["Work is complete."],
         agentNames: ["watcher"],
         runnerPid: process.pid,
         now: clock.now(),
@@ -80,7 +83,7 @@ it("does not schedule an idle reminder for Watcher even when it is in the delive
     db,
     swarmId: swarm.id,
     clock,
-    settings: { idleReminderDelay: 1, idleReminderMax: 1, idleReminderDigestSize: 1 },
+    settings: { idleReminderDelay: 1, idleReminderDigestSize: 1 },
     agents: new Map([
       [
         WATCHER_NAME,
@@ -101,9 +104,55 @@ it("does not schedule an idle reminder for Watcher even when it is in the delive
   reminders.stop();
 });
 
+it("excludes Watcher from acceptance votes and waits for worker quorum", () => {
+  const swarm = create();
+  const input = { swarmId: swarm.id, run: 1, runnerPid: process.pid, now: clock.now() };
+  const initial = inspectAcceptance(db, swarm.id);
+  assert.equal(initial.totalAgents, 1);
+  assert.equal(initial.threshold, 1);
+  assert.deepEqual(initial.votes, []);
+  assert.throws(
+    () =>
+      mutateAcceptance(
+        db,
+        swarm.id,
+        WATCHER_NAME,
+        { action: "vote", verdict: "accepted", reason: "Reviewed." },
+        clock.now(),
+      ),
+    /require a worker agent/,
+  );
+  assert.equal(prepareRunCompletion(db, input).kind, "pending");
+  mutateAcceptance(
+    db,
+    swarm.id,
+    "Maria",
+    { action: "vote", verdict: "incomplete", reason: "Still testing." },
+    clock.now(),
+  );
+  assert.equal(prepareRunCompletion(db, input).kind, "pending");
+  mutateAcceptance(
+    db,
+    swarm.id,
+    "Maria",
+    { action: "vote", verdict: "blocked", reason: "Missing credentials." },
+    clock.now(),
+  );
+  const decision = prepareRunCompletion(db, input);
+  assert.equal(decision.kind, "closed");
+  if (decision.kind === "closed") assert.equal(decision.acceptance.verdict, "blocked");
+});
+
 it("finishes despite busy Watcher and unread questions, retaining the queue across resume", () => {
   const swarm = create();
-  setAgentStatus(db, swarm.id, "Maria", "crashed", clock.now());
+  mutateAcceptance(
+    db,
+    swarm.id,
+    "Maria",
+    { action: "vote", verdict: "accepted", reason: "Work is complete." },
+    clock.now(),
+  );
+  setAgentStatus(db, swarm.id, "Maria", "working", clock.now());
   setAgentStatus(db, swarm.id, WATCHER_NAME, "working", clock.now());
   const question = sendMessage(db, swarm.id, "User", [WATCHER_NAME], "What happened?", clock.now());
   const decision = prepareRunCompletion(db, {
@@ -111,11 +160,25 @@ it("finishes despite busy Watcher and unread questions, retaining the queue acro
     run: 1,
     runnerPid: process.pid,
     now: clock.now(),
-    available: [],
-    exhausted: new Set(["Maria"]),
   });
   assert.equal(decision.kind, "closed");
   endRun(db, swarm.id, process.pid, "finished", clock.now());
+  assert.deepEqual(
+    db.sql
+      .prepare("SELECT name, status FROM participants WHERE swarm_id = ? AND kind = 'agent' ORDER BY launch_order")
+      .all(swarm.id)
+      .map((row) => ({ name: row.name, status: row.status })),
+    [
+      { name: "Maria", status: "stopped" },
+      { name: WATCHER_NAME, status: "stopped" },
+    ],
+  );
+  assert.equal(inspectAcceptance(db, swarm.id).verdict, "accepted");
+  assert.throws(
+    () =>
+      mutateAcceptance(db, swarm.id, "Maria", { action: "vote", verdict: "blocked", reason: "Too late." }, clock.now()),
+    /admission is closed/,
+  );
   assert.equal(getMessages(db, [question.id])[0].recipients[0].status, "pending");
   const queued = sendMessage(db, swarm.id, "User", [WATCHER_NAME], "Explain the result.", clock.now());
   assert.equal(queued.recipients[0].status, "pending");

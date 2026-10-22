@@ -36,6 +36,7 @@ export function seedSwarm(
   return createSwarm(db, {
     name: options.name ?? "demo",
     taskPrompt: "Build the thing. Requirements: docs/req.md",
+    acceptanceCriteria: ["The requirements in docs/req.md are satisfied."],
     agentNames: options.agents ?? ["Maria", "John", "Liam"],
     runnerPid: options.runnerPid ?? process.pid,
     now: options.now ?? T0,

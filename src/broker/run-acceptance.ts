@@ -1,12 +1,7 @@
-import { WATCHER_NAME } from "../constants.js";
 import type { AcceptanceRecord } from "../store/acceptance-types.js";
-import { getAcceptance, saveAcceptance } from "../store/acceptance-queries.js";
+import { getAcceptance } from "../store/acceptance-queries.js";
 import type { SwarmDb } from "../store/db.js";
-import { listOpenAgentRecipients } from "../store/message-queries.js";
-import { text } from "../store/rows.js";
-import { invalidateAcceptanceClaim, sealAcceptance } from "./acceptance.js";
-import { queuePendingAcceptance } from "./acceptance-checkpoint.js";
-import { notifyLocalMessage } from "./notify.js";
+import { resetAcceptanceVotes, sealAcceptance } from "./acceptance.js";
 
 interface RunIdentity {
   swarmId: number;
@@ -15,7 +10,7 @@ interface RunIdentity {
   now: number;
 }
 
-type CompletionDecision = { kind: "pending" | "notified" | "lost" } | { kind: "closed"; acceptance: AcceptanceRecord };
+type CompletionDecision = { kind: "pending" | "lost" } | { kind: "closed"; acceptance: AcceptanceRecord };
 
 function ownsRun(db: SwarmDb, input: RunIdentity): boolean {
   return (
@@ -28,72 +23,37 @@ function ownsRun(db: SwarmDb, input: RunIdentity): boolean {
   );
 }
 
-/** Rechecks DB work and acceptance under the same lock that closes message/acceptance admission. */
-export function prepareRunCompletion(
-  db: SwarmDb,
-  input: RunIdentity & { available: readonly string[]; exhausted: ReadonlySet<string> },
-): CompletionDecision {
-  const decision = db.write((): CompletionDecision => {
+/** Freeze votes under the same lock that closes message and vote admission. */
+export function prepareRunCompletion(db: SwarmDb, input: RunIdentity): CompletionDecision {
+  return db.write(() => {
     if (!ownsRun(db, input)) return { kind: "lost" };
-    const busy = db.sql
-      .prepare(`SELECT name, status FROM participants WHERE swarm_id = ? AND kind = 'agent' AND name <> ?`)
-      .all(input.swarmId, WATCHER_NAME)
-      .some((row) => row.status !== "idle" && !(row.status === "crashed" && input.exhausted.has(text(row, "name"))));
-    const open = listOpenAgentRecipients(db, input.swarmId).some(
-      (row) => row.name !== WATCHER_NAME && !input.exhausted.has(row.name),
-    );
-    if (busy || open) return { kind: "pending" };
-    if (queuePendingAcceptance(db, input.swarmId, input.run, input.available, input.now)) return { kind: "notified" };
-    return {
-      kind: "closed",
-      acceptance: sealCurrentAcceptance(db, input, "Acceptance check settled without a final judgment."),
-    };
+    const acceptance = getAcceptance(db, input.swarmId);
+    if (acceptance.verdict !== "accepted" && acceptance.verdict !== "blocked") return { kind: "pending" };
+    sealAcceptance(db, input.swarmId, input.run, acceptance.revision);
+    return { kind: "closed", acceptance };
   });
-  if (decision.kind === "notified") notifyLocalMessage(input.swarmId);
-  return decision;
 }
 
-/** Stop/failure closes admission immediately, without waiting for quiescence or scheduling a check. */
-export function closeRunAdmission(db: SwarmDb, input: RunIdentity, reason: string): AcceptanceRecord | null {
-  return db.write(() => (ownsRun(db, input) ? sealCurrentAcceptance(db, input, reason) : null));
+/** Cancellation freezes the actual votes without manufacturing a consensus. */
+export function closeRunAdmission(db: SwarmDb, input: RunIdentity): AcceptanceRecord | null {
+  return db.write(() => {
+    if (!ownsRun(db, input)) return null;
+    const acceptance = getAcceptance(db, input.swarmId);
+    sealAcceptance(db, input.swarmId, input.run, acceptance.revision);
+    return acceptance;
+  });
 }
 
-function sealCurrentAcceptance(db: SwarmDb, input: RunIdentity, reason: string): AcceptanceRecord {
-  failPendingAcceptance(db, input.swarmId, reason, input.now);
-  const record = getAcceptance(db, input.swarmId);
-  sealAcceptance(db, input.swarmId, input.run, record.revision);
-  return record;
-}
-
-/** Also used by stale-lock cleanup, where no live runner remains to report a checker failure. */
-export function failPendingAcceptance(db: SwarmDb, swarmId: number, reason: string, now: number): void {
+/** Stale-run cleanup freezes votes so a surviving worker cannot keep voting. */
+export function freezeRunAcceptance(db: SwarmDb, swarmId: number): void {
   db.write(() => {
-    const record = getAcceptance(db, swarmId);
-    if (record.claimant !== null && record.claimRun !== null) {
-      invalidateAcceptanceClaim(db, swarmId, record.claimRun, record.claimant, reason, now);
-    }
+    const swarm = db.sql.prepare("SELECT run_count FROM swarms WHERE id = ?").get(swarmId);
+    if (!swarm || typeof swarm.run_count !== "number") return;
+    const acceptance = getAcceptance(db, swarmId);
+    sealAcceptance(db, swarmId, swarm.run_count, acceptance.revision);
   });
 }
 
-/** New work invalidates prior acceptance; an interrupted check retains an explicit failure verdict. */
 export function reopenAcceptance(db: SwarmDb, swarmId: number, now: number): void {
-  db.write(() => {
-    const record = getAcceptance(db, swarmId);
-    if (record.claimant !== null && record.claimRun !== null) {
-      invalidateAcceptanceClaim(
-        db,
-        swarmId,
-        record.claimRun,
-        record.claimant,
-        "Previous run ended before its acceptance check completed.",
-        now,
-      );
-      return;
-    }
-    record.verdict = "unchecked";
-    record.revision++;
-    record.updatedBy = "System";
-    record.updatedAt = now;
-    saveAcceptance(db, record);
-  });
+  resetAcceptanceVotes(db, swarmId, now);
 }
