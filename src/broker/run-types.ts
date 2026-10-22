@@ -11,6 +11,7 @@ import {
 } from "../constants.js";
 import type { AgentLaunchContext } from "../runtime-types.js";
 import type { SwarmSettings } from "../settings.js";
+import type { AvailableModel } from "../model-allocation.js";
 import type { SwarmDb } from "../store/db.js";
 import type { AcceptanceRecord } from "../store/acceptance-types.js";
 import type { RunProgress } from "./run-progress.js";
@@ -42,6 +43,7 @@ export interface RunEnvironment {
   clock: Clock;
   settings: SwarmSettings;
   launch: AgentLaunchContext;
+  availableModels?: readonly AvailableModel[];
   boardUrl(): string | null;
   notifyUser(text: string): void;
   timings?: Partial<RunTimings>;

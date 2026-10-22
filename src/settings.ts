@@ -25,9 +25,11 @@ import {
 } from "./constants.js";
 
 import { BODY_SAFETY_MAX, BODY_STATED_MIN, TEXT_MAX } from "./limits.js";
+import { parseModelProfiles, type ModelProfile } from "./model-allocation.js";
 import { DEFAULT_MAX_RPC_FRAME_BYTES } from "./agents/jsonl.js";
 
 export interface SwarmSettings {
+  models?: readonly ModelProfile[];
   maxRpcFrameBytes?: number;
   /** From the file only; `null` = not set. */
   port: number | null;
@@ -70,6 +72,7 @@ const KNOWN_KEYS = new Set([
   "bodyMaxChars",
   "maxRpcFrameBytes",
   "env",
+  "models",
 ]);
 const PORT_MIN = 1;
 const PORT_MAX = 65_535;
@@ -106,11 +109,18 @@ export function loadSettings(cwd: string): { settings: SwarmSettings; warnings: 
     1,
     Number.MAX_SAFE_INTEGER,
   );
+  let models: readonly ModelProfile[] | undefined;
+  try {
+    models = parseModelProfiles(parsed.models);
+  } catch (error) {
+    throw new SettingsError(error instanceof Error ? error.message : "models is invalid");
+  }
   const env = parseEnv(parsed.env, warnings);
   return {
     settings: buildSettings(
       {
         maxRpcFrameBytes,
+        models,
         port,
         minAgents,
         maxAgents,
@@ -172,6 +182,7 @@ export function resolvePort(
 }
 
 interface ParsedNumbers {
+  models?: readonly ModelProfile[];
   maxRpcFrameBytes?: number;
   port?: number;
   minAgents?: number;
@@ -191,6 +202,7 @@ function buildSettings(values: ParsedNumbers, env: Record<string, string>): Swar
   const defaultAgents = Math.min(Math.max(values.defaultAgents ?? DEFAULT_AGENTS, minAgents), maxAgents);
   return {
     maxRpcFrameBytes: values.maxRpcFrameBytes ?? DEFAULT_MAX_RPC_FRAME_BYTES,
+    ...(values.models === undefined ? {} : { models: values.models }),
     port: values.port ?? null,
     minAgents,
     maxAgents,

@@ -40,6 +40,7 @@ describe("loadSettings", () => {
     const { settings, warnings } = loadSettings(project());
     assert.deepEqual(settings, {
       port: null,
+      maxRpcFrameBytes: 16 * 1024 * 1024,
       minAgents: 1,
       maxAgents: 10,
       defaultAgents: 5,
@@ -50,6 +51,20 @@ describe("loadSettings", () => {
       env: {},
     });
     assert.deepEqual(warnings, []);
+  });
+
+  it("reads model profiles and rejects invalid settings without silently ignoring them", () => {
+    const models = [{ provider: "configured", model: "worker", thinkingLevel: "high", count_proportional: 3 }];
+    assert.deepEqual(loadSettings(project(JSON.stringify({ models }))).settings.models, models);
+    assert.equal(loadSettings(project('{"maxRpcFrameBytes": 1024}')).settings.maxRpcFrameBytes, 1024);
+    assert.match(loadError('{"models": []}'), /models must be a nonempty array/);
+    assert.match(
+      loadError('{"models": [{"provider":"a","model":"b","thinkingLevel":"high","count_proportional":0}]}'),
+      /models\[0\]\.count_proportional/,
+    );
+    for (const maxRpcFrameBytes of [0, -1, 1.5, "1024", Number.MAX_SAFE_INTEGER + 1]) {
+      assert.match(loadError(JSON.stringify({ maxRpcFrameBytes })), /maxRpcFrameBytes must be a positive safe integer/);
+    }
   });
 
   it("validates reminder delay and digest settings", () => {

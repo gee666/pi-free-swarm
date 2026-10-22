@@ -1,6 +1,7 @@
 // Everything a swarm run inherits from the main session, captured when `swarm`/`resume_swarm` executes:
 // the live model and thinking level follow `/model`, so they are read now and reused for every revive.
 import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import path from "node:path";
 import { parseArgs, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { systemClock } from "../clock.js";
@@ -13,7 +14,9 @@ import type { SwarmSettings } from "../settings.js";
 import type { SwarmDb } from "../store/db.js";
 
 /** The parts of the tool context a run inherits. */
-export type LaunchSource = Pick<ExtensionContext, "model" | "thinkingLevel" | "isProjectTrusted">;
+export type LaunchSource = Pick<ExtensionContext, "model" | "thinkingLevel" | "isProjectTrusted"> & {
+  modelRegistry?: Pick<ExtensionContext["modelRegistry"], "getAvailable">;
+};
 
 export function captureLaunchContext(
   ctx: LaunchSource,
@@ -65,6 +68,16 @@ export function buildRunEnvironment(
     clock: systemClock,
     settings,
     launch: captureLaunchContext(ctx, runtime.extensionPath),
+    availableModels: ctx.modelRegistry?.getAvailable().map((model) => ({
+      provider: model.provider,
+      id: model.id,
+      thinkingLevels: getSupportedThinkingLevels(model),
+      // Pi defaults omitted custom-model prices to zero, so all-zero rates cannot prove known pricing.
+      pricingKnown:
+        [model.cost.input, model.cost.output, model.cost.cacheRead, model.cost.cacheWrite].every(
+          (price) => Number.isFinite(price) && price >= 0,
+        ) && Object.values(model.cost).some((price) => typeof price === "number" && price > 0),
+    })),
     boardUrl: () => runtime.host.boardUrl(),
     notifyUser: (text) => runtime.notify(text, "info"),
   };
