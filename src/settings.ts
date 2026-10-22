@@ -93,7 +93,6 @@ export function loadSettings(cwd: string): { settings: SwarmSettings; warnings: 
   const bodyMaxChars = optionalInteger(
     parsed,
     "bodyMaxChars",
-    "maxRpcFrameBytes",
     `an integer ${BODY_STATED_MIN}–${BODY_SAFETY_MAX}`,
     BODY_STATED_MIN,
     BODY_SAFETY_MAX,
