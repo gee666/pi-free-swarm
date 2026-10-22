@@ -5,6 +5,7 @@ import type { TimerHandle } from "../clock.js";
 import { MAIN_NAME, RESUME_STAGGER_MS, WATCHER_NAME } from "../constants.js";
 import { pickAgentNames } from "../names.js";
 import { buildRunSpec } from "./run-spec.js";
+import { configureRun } from "./run-configuration.js";
 import { heartbeatRunLock } from "../store/locks.js";
 import { getSwarm, listAgentSessions } from "../store/swarm-queries.js";
 import { DeliveryLoop } from "./delivery.js";
@@ -71,8 +72,16 @@ class SwarmRun {
     this.#timings = { ...DEFAULT_TIMINGS, ...env.timings };
     this.#done = new Promise((resolve, reject) => (this.#settle = { resolve, reject }));
     const { db, clock, settings } = env;
-    for (const { name, sessionFile } of listAgentSessions(db, swarm.id)) {
-      const spec = buildRunSpec(env, swarm.id, name, sessionFile, run);
+    const sessions = listAgentSessions(db, swarm.id);
+    const assignments = configureRun(
+      env,
+      swarm.id,
+      run,
+      sessions.map(({ name }) => name),
+      this.#timings,
+    );
+    for (const { name, sessionFile } of sessions) {
+      const spec = buildRunSpec(env, swarm.id, name, sessionFile, run, assignments.get(name));
       const agent = new RunAgent(spec, {
         db,
         swarmId: swarm.id,

@@ -78,7 +78,11 @@ export function createRunFixture(
     runnerPid: process.pid,
     clock: systemClock,
     settings,
-    launch: { extensionArgs: [], projectTrusted: false, model: null },
+    launch: {
+      extensionArgs: [],
+      projectTrusted: false,
+      model: { provider: "fixture", modelId: "test", thinkingLevel: "off" },
+    },
     boardUrl: () => BOARD_URL,
     notifyUser: (text) => notes.push(text),
     timings: { ...FAST, ...options.timings },

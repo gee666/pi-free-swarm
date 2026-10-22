@@ -26,7 +26,11 @@ await startSwarm(
       idleReminderDigestSize: 10,
       env,
     },
-    launch: { extensionArgs: [], projectTrusted: false, model: null },
+    launch: {
+      extensionArgs: [],
+      projectTrusted: false,
+      model: { provider: "fixture", modelId: "test", thinkingLevel: "off" },
+    },
     boardUrl: () => null,
     notifyUser: () => undefined,
     timings: FAST,
