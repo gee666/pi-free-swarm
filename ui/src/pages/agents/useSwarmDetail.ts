@@ -16,7 +16,9 @@ export function useSwarmDetail(swarmId: string): AsyncState<SwarmDetailResponse>
     [swarmId, stream.openCount],
   );
   useStreamListener(stream, (event) => {
-    if (event.type === "acceptance.updated" || event.type === "swarm.updated") detail.reload();
+    if (event.type === "acceptance.updated" || event.type === "swarm.updated" || event.type === "usage.updated") {
+      detail.reload();
+    }
     detail.update((current) => {
       if (!current) return current;
       if (event.type === "swarm.updated") {

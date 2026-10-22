@@ -1,6 +1,7 @@
 import { FileText } from "lucide-react";
 import { AcceptanceSummary } from "../components/AcceptanceSummary";
 import { RunConfiguration } from "../components/RunConfiguration";
+import { BudgetSummary } from "../components/BudgetSummary";
 import type { SwarmDetailResponse, SwarmListItem } from "../../../src/api-types";
 import { Icon } from "../components/Icon";
 import { StatusDot } from "../components/Indicators";
@@ -46,6 +47,7 @@ function CurrentSwarm({ swarm, detail }: { swarm: SwarmListItem; detail?: SwarmD
         <span aria-hidden="true">{status}</span>
         {detail && <AcceptanceSummary detail={detail} />}
         {detail && <RunConfiguration configuration={detail.swarm.configuration} />}
+        {detail && <BudgetSummary budget={detail.swarm.budget} />}
       </div>
     </>
   );
