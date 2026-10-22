@@ -115,7 +115,10 @@ test("quiescing during startup settles launch and joins cleanup without another 
   const fixture = createFakePiRun({});
   const fake = fakeTransportFactory();
   const supervisor = new AgentSupervisor({
-    name: "Maria", hooks: recordingHooks([]), transportFactory: fake.factory, watchdog: RELAXED_WATCHDOG,
+    name: "Maria",
+    hooks: recordingHooks([]),
+    transportFactory: fake.factory,
+    watchdog: RELAXED_WATCHDOG,
   });
   try {
     const launching = supervisor.launch(fixture.spec(), { text: "go", messageIds: [] });
@@ -125,7 +128,10 @@ test("quiescing during startup settles launch and joins cleanup without another 
     assert.equal((await launching).accepted, false);
     assert.equal(supervisor.status, "stopped");
     assert.equal(process.stopped, true);
-    assert.deepEqual(process.commands.map((command) => command.type), ["set_steering_mode"]);
+    assert.deepEqual(
+      process.commands.map((command) => command.type),
+      ["set_steering_mode"],
+    );
     assert.equal(process.pending.length, 0);
   } finally {
     await supervisor.stop();
