@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { after, it } from "node:test";
 import { Value } from "typebox/value";
-import { AGENT_TOOL, PAGE_MAX_COUNT } from "../../src/constants.js";
+import { AGENT_TOOL, PAGE_MAX_COUNT, WATCHER_TOOL } from "../../src/constants.js";
 import { BrokerError } from "../../src/broker/errors.js";
 import { TITLE_MAX } from "../../src/limits.js";
 import { createAgentToolHandlers, registerAgentTools } from "../../src/tools/agent-tools.js";
 import { RESUME_PARAMS, SWARM_PARAMS, swarmDescription } from "../../src/tools/main-tools.js";
+import { registerWatcherTools } from "../../src/tools/watcher-tools.js";
 import { FakeExtensionApi } from "../helpers/fake-extension-api.js";
 import { createTempDb, seedSwarm } from "../helpers/temp-db.js";
 
@@ -40,6 +41,15 @@ it("expresses shared bounds in provider-compatible object schemas", () => {
   assert.equal(Value.Check(pi.tool(AGENT_TOOL.message).parameters, { to: [], text: "hi" }), false);
   assert.equal(Value.Check(RESUME_PARAMS, { swarm_id: 0, message: "Feedback" }), false);
   assert.ok(Value.Check(SWARM_PARAMS, { swarm_name: "work", task_prompt: "Task", acceptance_criteria: ["Done"] }));
+});
+
+it("bounds Watcher thread pagination with the same broker limits", () => {
+  const watcher = new FakeExtensionApi();
+  registerWatcherTools(watcher, { ...identity, agentName: "Watcher" });
+  const schema = watcher.tool(WATCHER_TOOL.threads).parameters;
+  assert.ok(Value.Check(schema, { count: PAGE_MAX_COUNT, offset: 0 }));
+  for (const input of [{ count: PAGE_MAX_COUNT + 1 }, { count: 0 }, { offset: -1 }, { thread_id: 0 }])
+    assert.equal(Value.Check(schema, input), false);
 });
 
 it("identifies invalid pagination and missing vote fields without unsafe write retry advice", () => {

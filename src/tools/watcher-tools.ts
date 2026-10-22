@@ -1,7 +1,13 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { systemClock } from "../clock.js";
-import { WATCHER_ACTIVITY_DEFAULT, WATCHER_ACTIVITY_MAX, WATCHER_OVERVIEW_POSTS, WATCHER_TOOL } from "../constants.js";
+import {
+  PAGE_MAX_COUNT,
+  WATCHER_ACTIVITY_DEFAULT,
+  WATCHER_ACTIVITY_MAX,
+  WATCHER_OVERVIEW_POSTS,
+  WATCHER_TOOL,
+} from "../constants.js";
 import { BrokerError } from "../broker/errors.js";
 import { checkPage, requireSwarm } from "../broker/validate.js";
 import { SessionReader } from "../server/sessions.js";
@@ -113,9 +119,9 @@ export function registerWatcherTools(pi: Pick<ExtensionAPI, "registerTool">, ide
     description:
       "Newest-first assistant texts, tool call one-liners and errors, never tool outputs. Count is session entries; pass Next cursor as before.",
     parameters: Type.Object({
-      agent: Type.String(),
+      agent: Type.String({ minLength: 1, pattern: "\\S" }),
       count: Type.Optional(Type.Integer({ minimum: 1, maximum: WATCHER_ACTIVITY_MAX })),
-      before: Type.Optional(Type.String()),
+      before: Type.Optional(Type.String({ minLength: 1 })),
     }),
     async execute(_id, params) {
       return agentToolResult(await run.activity(params));
@@ -125,11 +131,11 @@ export function registerWatcherTools(pi: Pick<ExtensionAPI, "registerTool">, ide
     name: WATCHER_TOOL.threads,
     label: "Swarm threads",
     description:
-      "List all swarm threads newest first, including agent-to-agent. Supply thread_id to read one. Read-only.",
+      "List all swarm threads newest first, including agent-to-agent. Supply thread_id to read one; it takes precedence over count/offset. Read-only.",
     parameters: Type.Object({
-      thread_id: Type.Optional(Type.Integer()),
-      count: Type.Optional(Type.Integer()),
-      offset: Type.Optional(Type.Integer()),
+      thread_id: Type.Optional(Type.Integer({ minimum: 1 })),
+      count: Type.Optional(Type.Integer({ minimum: 1, maximum: PAGE_MAX_COUNT })),
+      offset: Type.Optional(Type.Integer({ minimum: 0 })),
     }),
     async execute(_id, params) {
       return agentToolResult(run.threads(params));
