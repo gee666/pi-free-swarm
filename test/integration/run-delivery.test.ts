@@ -68,7 +68,10 @@ describe("delivery during a run", () => {
 
     await waitFor(() => recipientStatus(db, early, second) === "read", "kickoff message read", 10_000);
     const kickoff = promptTexts(run.fake).find((text) => text.includes(`[swarm message #${early}]`));
-    assert.ok(kickoff?.startsWith("Begin the shared task in your system instructions."), "the message rode in the kickoff prompt");
+    assert.ok(
+      kickoff?.startsWith("Begin the shared task in your system instructions."),
+      "the message rode in the kickoff prompt",
+    );
 
     // Idle → wake: a message from one agent to the other starts a new run.
     await waitFor(() => agentStatus(db, swarmId, first) === "idle", "first agent idle again");

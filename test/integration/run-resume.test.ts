@@ -145,7 +145,9 @@ describe("resume_swarm", () => {
       [2, "finished"],
     ]);
     // Never persisted a session: they start with the kickoff, the feedback among their messages.
-    const kickoffs = promptTexts(run.fake).filter((text) => text.startsWith("Begin the shared task in your system instructions."));
+    const kickoffs = promptTexts(run.fake).filter((text) =>
+      text.startsWith("Begin the shared task in your system instructions."),
+    );
     assert.equal(kickoffs.length, 2);
     for (const text of kickoffs) assert.ok(text.includes('"Carry on."'));
   });
