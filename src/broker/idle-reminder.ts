@@ -1,6 +1,6 @@
 import type { ParticipantStatus } from "../api-types.js";
 import type { Clock, TimerHandle } from "../clock.js";
-import { IDLE_REMINDER_HEADER, WATCHER_NAME } from "../constants.js";
+import { IDLE_REMINDER_HEADER, PAGE_MAX_COUNT, WATCHER_NAME } from "../constants.js";
 import type { SwarmSettings } from "../settings.js";
 import type { SwarmDb } from "../store/db.js";
 import { listOpenAgentRecipients } from "../store/message-queries.js";
@@ -94,7 +94,7 @@ export class IdleReminders {
       return;
     const acceptance = inspectAcceptance(db, swarmId);
     if (acceptance.verdict === "accepted" || acceptance.verdict === "blocked") return;
-    const page = listFreshPosts(db, swarmId, name, settings.idleReminderDigestSize);
+    const page = listFreshPosts(db, swarmId, name, Math.min(settings.idleReminderDigestSize, PAGE_MAX_COUNT));
     // Send canonical stored bodies, not previews. Only context observation may cover these IDs.
     const digest = page.posts
       .map((post) => `[swarm post #${post.id}] ${post.author}: ${post.title}\n${post.text}`)

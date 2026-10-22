@@ -7,7 +7,7 @@ import { IdleReminders } from "../../src/broker/idle-reminder.js";
 import { sendMessage } from "../../src/broker/messages.js";
 import { markRead } from "../../src/broker/delivery-state.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
-import { IDLE_REMINDER_HEADER } from "../../src/constants.js";
+import { IDLE_REMINDER_HEADER, PAGE_MAX_COUNT } from "../../src/constants.js";
 import { markPostsCovered } from "../../src/store/wall-coverage.js";
 import { FakeClock } from "../agents/fake-clock.js";
 import { createTempDb, seedSwarm, T0, type TempDb } from "../helpers/temp-db.js";
@@ -15,7 +15,7 @@ import { createTempDb, seedSwarm, T0, type TempDb } from "../helpers/temp-db.js"
 let temp: TempDb | undefined;
 afterEach(() => temp?.cleanup());
 
-function setup(delay = 100) {
+function setup(delay = 100, digestSize = 2) {
   temp = createTempDb();
   const { db } = temp;
   const clock = new FakeClock(T0 + 1);
@@ -37,7 +37,7 @@ function setup(delay = 100) {
     swarmId: swarm.id,
     clock,
     agents: new Map([["Maria", agent]]),
-    settings: { idleReminderDelay: delay, idleReminderDigestSize: 2 },
+    settings: { idleReminderDelay: delay, idleReminderDigestSize: digestSize },
     onError: (error) => assert.fail(String(error)),
   });
   const settle = () => {
@@ -118,6 +118,19 @@ it("queue acceptance and rejection alone never cover fresh reminder posts", asyn
   }
   assert.equal(prompts.length, 3);
   for (const payload of prompts) assert.match(payload.text, /Must remain retrievable/);
+});
+
+it("bounds legacy oversized digest settings and leaves overflow for the next reminder", async () => {
+  const { db, swarm, clock, prompts, settle, fire } = setup(100, PAGE_MAX_COUNT + 1);
+  for (let index = 0; index <= PAGE_MAX_COUNT; index++)
+    createPost(db, swarm.id, "John", { title: `Post ${index}`, text: "Full body" }, clock.now());
+  settle();
+  await fire();
+  assert.equal(prompts[0].postIds?.length, PAGE_MAX_COUNT);
+  settle();
+  await fire();
+  assert.equal(prompts[1].postIds?.length, 1);
+  assert.ok(!prompts[0].postIds?.includes(prompts[1].postIds?.[0] ?? -1));
 });
 
 it("busy transitions cancel immediately and a fresh idle period gets the full delay", async () => {
