@@ -70,8 +70,16 @@ it(
     const other = await openSse(`http://127.0.0.1:${server.port}/events?swarm=${b.id}`);
     t.after(() => other.close());
     insertEvent(temp.db, a.id, "session.appended", { agent: "Maria", newestCursor: "1" }, T0);
-    pruneEvents(temp.db, T0 + 1);
     insertEvent(temp.db, b.id, "session.appended", { agent: "John", newestCursor: "2" }, T0 + 2);
+    const prepare = temp.db.sql.prepare.bind(temp.db.sql);
+    let pruned = false;
+    temp.db.sql.prepare = (sql) => {
+      if (!pruned && sql.startsWith("SELECT * FROM events WHERE id >")) {
+        pruned = true;
+        pruneEvents(temp.db, T0 + 1);
+      }
+      return prepare(sql);
+    };
     clock.advance(EVENTS_TAIL_MS);
     assert.equal((await reader.read()).done, true);
     const live = await other.next(isType("session.appended"));

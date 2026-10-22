@@ -122,17 +122,26 @@ export class SseHub {
     if (gap !== null) {
       // Opening already triggers the UI's snapshot refresh. This named control event is
       // metadata only, so older clients ignore it and no second refresh loop is needed.
-      client.res.write(
-        `event: retention-gap\ndata: ${JSON.stringify({ after, prunedThrough: gap, recovery: "snapshot" })}\n\n`,
-      );
+      this.retentionGap(client, after, gap);
       return;
     }
     while (after < this.lastSeen) {
       const page = scanEventsAfter(this.db, after, TAIL_BATCH, this.lastSeen);
+      const prunedDuringScan = eventRetentionGap(this.db, client.swarmId, after);
+      if (prunedDuringScan !== null) {
+        this.retentionGap(client, after, prunedDuringScan);
+        return;
+      }
       for (const event of page.events) if (wants(client, event)) client.res.write(frame(event));
       after = page.scannedThrough;
       if (!page.hasMore) return;
     }
+  }
+
+  private retentionGap(client: Client, after: number, prunedThrough: number): void {
+    client.res.write(
+      `event: retention-gap\ndata: ${JSON.stringify({ after, prunedThrough, recovery: "snapshot" })}\n\n`,
+    );
   }
 
   private remove(client: Client): void {
@@ -182,17 +191,17 @@ export class SseHub {
       this.lastSeen = latestEventId(this.db);
       return;
     }
-    for (const client of [...this.clients]) {
-      if (eventRetentionGap(this.db, client.swarmId, this.lastSeen) !== null) {
-        // A live client missed pruned events. Its existing reconnect/open refresh
-        // obtains a new snapshot, just as after a disconnected retention gap.
-        this.remove(client);
-        client.res.end();
-      }
-    }
     const through = latestEventId(this.db);
     for (;;) {
       const page = scanEventsAfter(this.db, this.lastSeen, TAIL_BATCH, through);
+      // Recheck after reading: another process may prune between our prior tick
+      // and this page. Rows deleted after the read are already safely in memory.
+      for (const client of [...this.clients]) {
+        if (eventRetentionGap(this.db, client.swarmId, this.lastSeen) !== null) {
+          this.remove(client);
+          client.res.end();
+        }
+      }
       for (const event of page.events) this.broadcast(event);
       this.lastSeen = page.scannedThrough;
       if (!page.hasMore) return;
