@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { after, describe, it } from "node:test";
+import { readBudget } from "../../src/store/budget.js";
 import { inspectAcceptance, mutateAcceptance } from "../../src/broker/acceptance.js";
 import { sendMessage } from "../../src/broker/messages.js";
 import { readRunProgress } from "../../src/broker/run-progress.js";
@@ -40,6 +41,26 @@ function outcomeOf(swarmId: number, end: "finished" | "stopped" | "interrupted")
 }
 
 describe("buildRunResultText", () => {
+  it("reports budget exhaustion honestly for graceful stops and explains cumulative resume", () => {
+    const swarm = fixture("budget-summary");
+    const text = buildRunResultText(
+      db,
+      {
+        ...outcomeOf(swarm.id, "stopped"),
+        stopReason: "budget-exhausted",
+        budget: readBudget(db, swarm.id, { budgetTimeSeconds: 1, gracefulShutdownOnBudget: true }, END),
+      },
+      BOARD,
+      END,
+    );
+    assert.match(text, /stopped on budget exhaustion/);
+    assert.doesNotMatch(text, /tool aborted, all agents killed/);
+    assert.match(text, /Stop reason: budget-exhausted/);
+    assert.match(text, /Consumption is not reset/);
+    assert.match(text, /after user agreement/);
+    assert.match(text, /external effects are uncertain/);
+    assert.match(text, /No completion verdict was finalized/);
+  });
   it("renders the closure snapshot with every vote reason, including dissent", () => {
     const swarm = fixture();
     for (const agent of AGENTS.slice(0, 4)) vote(swarm.id, agent, "accepted", `${agent} checked the whole task.`);
