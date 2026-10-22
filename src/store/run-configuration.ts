@@ -1,5 +1,6 @@
 import type { RunConfiguration, SavedRunConfiguration, WorkerAssignment } from "../run-configuration.js";
 import type { SwarmDb } from "./db.js";
+import { safeExtensionReference } from "./configuration-references.js";
 
 /** Explicit projection prevents credentials attached to runtime objects reaching the database/API. */
 function project(config: RunConfiguration): RunConfiguration {
@@ -14,7 +15,7 @@ function project(config: RunConfiguration): RunConfiguration {
     launch: {
       projectTrusted: config.launch.projectTrusted,
       noExtensions: config.launch.noExtensions,
-      extensionArgs: [...config.launch.extensionArgs],
+      extensionArgs: config.launch.extensionArgs.map(safeExtensionReference),
     },
     timing: {
       staggerSeconds: config.timing.staggerSeconds,

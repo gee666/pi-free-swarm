@@ -12,6 +12,7 @@ export interface RunConfiguration {
   launch: {
     projectTrusted: boolean;
     noExtensions: boolean;
+    /** Source references only; URL authorization/query/fragment data is removed. */
     extensionArgs: string[];
   };
   timing: {

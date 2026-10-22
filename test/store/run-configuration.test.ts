@@ -77,6 +77,31 @@ describe("saved effective run configuration", () => {
     }
   });
 
+  it("redacts extension URL credentials and keeps credential rotation out of resume differences", () => {
+    const swarm = seedSwarm(temp.db);
+    const input = config();
+    input.launch.extensionArgs = [
+      "-e",
+      "git:https://alice:first-secret@example.test/team/pkg?token=private#private-fragment",
+      "/safe/local/index.ts",
+    ];
+    const saved = saveRunConfiguration(temp.db, swarm.id, 1, input, T0);
+    assert.deepEqual(saved.effective.launch.extensionArgs, [
+      "-e",
+      "git:https://example.test/team/pkg",
+      "/safe/local/index.ts",
+    ]);
+    input.launch.extensionArgs[1] = "git:https://alice:rotated-secret@example.test/team/pkg?token=rotated";
+    const resumed = saveRunConfiguration(temp.db, swarm.id, 2, input, T0 + 1);
+    assert.deepEqual(resumed.changes, []);
+    const raw = temp.db.sql.prepare("SELECT configuration FROM run_configurations WHERE swarm_id = ?").all(swarm.id);
+    const api = JSON.stringify(getSwarm(temp.db, swarm.id, T0)?.configuration);
+    assert.equal(JSON.stringify(raw).includes("secret"), false);
+    assert.equal(JSON.stringify(raw).includes("private"), false);
+    assert.equal(api.includes("first-secret"), false);
+    assert.equal(api.includes("alice"), false);
+  });
+
   it("joins outer rollback and does not overwrite provenance for an existing run", () => {
     const swarm = seedSwarm(temp.db);
     assert.throws(
