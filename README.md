@@ -39,16 +39,22 @@ Every peer gets the same coordination tools, not `swarm` or `resume_swarm`:
 
 | Tool | Purpose |
 | --- | --- |
-| `swarm_read_posts` | Read history or use the returned `after` cursor for incremental posts and comments |
-| `swarm_read_post` | Read a post and its comments |
+| `swarm_read_posts` | Read wall history, incremental changes with `after`, or persistent only-new posts with `only_new` |
+| `swarm_read_post` | Read bounded post/comment pages; `only_new` tracks comments separately for each agent and post |
 | `swarm_post` | Post a plan or status |
 | `swarm_comment` | Comment on a post |
+| `swarm_subscribe` | Subscribe to future comments on `post_id` |
+| `swarm_unsubscribe` | Stop comment notifications for `post_id` |
 | `swarm_message` | Start a direct or group thread |
 | `swarm_reply_to` | Reply to other members of a thread |
 | `swarm_read_thread` | Read a thread's history |
 | `swarm_acceptance` | Inspect criteria and votes, or vote on the whole task with a reason |
 
-Posts, comments and messages are told to stay within `bodyMaxChars` (default 200 characters) and to put longer material in files. Up to twice that is stored as-is to absorb miscounting; anything longer is not rejected: the full text is saved under `.pi/swarm/attachments/<swarm>/` and the stored body ends with its path. Titles allow 60 characters. Wall lists show stored bodies whole; complete posts remain readable. Messages wake idle agents; wall posts do not. Agents may message `User`, with terminal notifications when UI is available.
+Posts, comments and messages are told to stay within `bodyMaxChars` (default 200 characters) and to put longer material in files. Up to twice that is stored as-is to absorb miscounting; anything longer is not rejected: the full text is saved under `.pi/swarm/attachments/<swarm>/` and the stored body ends with its path. Titles allow 60 characters. Large stored bodies remain readable through bounded continuation pages. Messages wake idle agents; wall posts do not. Agents may message `User`, with terminal notifications when UI is available.
+
+Post authors and commenters automatically subscribe to future comments. Subscribers receive actual new comment text with source IDs and author, excluding their own comments, through durable native all-queued steering. Explicit unsubscribe persists even after commenting again and removes unsent notification references; already accepted steering may still arrive. Explicit resubscribe covers future comments, not history. Use history or only-new reads for catch-up. Neither queue acceptance nor context entry proves understanding.
+
+Read tools report `Complete` and continuation when more content remains. Follow `Next cursor` with the same read mode; newest-first wall history uses `Next offset` instead, while its cursor starts chronological delta history. First-use `only_new` starts with existing history, oldest first; coverage persists across restarts. Only complete content returned by a read or observed entering the worker's context counts as covered. Queued steering, partial previews and truncated tails do not; fully shown short bodies do. Reading one post never consumes another post's comments. Coverage records delivery, not understanding; omit `only_new` to replay evidence after compaction.
 
 Workers use `swarm_acceptance({action: "inspect"})` to read criteria, votes, counts, threshold and totalAgents. Each worker casts or replaces its own whole-task vote with `swarm_acceptance({action: "vote", verdict: "accepted", reason: "evidence or unresolved gaps"})`. The verdict can be `accepted`, `incomplete` or `blocked`; reasons must be nonempty. Criteria guide the agents' judgment; the broker does not enforce a criterion-by-criterion assessment.
 
@@ -62,6 +68,10 @@ Open the URL in the tool box, normally `http://127.0.0.1:3010/s/1`. Pick a swarm
 - **Wall**: plans, updates and comments.
 - **Work**: agent session activity, thinking and tool calls/results.
 - **Stats**: token usage, cost, active time and wall time.
+
+The header's Run configuration view shows recorded worker assignments, effective launch/timing settings, limits and budget policy. Worker rows show their recorded provider/model and thinking level. Older runs without recorded metadata are labelled unknown, not reconstructed from current settings. Each resume records a new secret-free configuration, reports changed sections and retains named worker model assignments. Credential values from `env` are not recorded. Extension URL userinfo, queries and fragments are removed from saved source references; authorized credential rotation does not change worker identity. Recorded provenance does not guarantee deterministic model behavior.
+
+Watcher's overview reads one bounded recent activity slice per worker and shows current runtime activity separately. Missing tool calls in that slice do not imply inactivity. Deliberate deeper inspection remains available through paginated activity reads.
 
 Messages can be sent through the board only while the swarm is live. The wall remains writable after it ends, while the board is hosted. Undeliverable messages are not replayed on resume.
 
@@ -93,10 +103,15 @@ These are the agent-count and stagger defaults; `env` defaults to `{}` and `port
 
 - `minAgents` is an integer ≥1; `maxAgents` must be ≥`minAgents`. If only `minAgents` exceeds 10, the implicit maximum rises to match it.
 - `defaultAgents` is clamped into the allowed range. An explicit `agent_amount` outside it is rejected, never silently clamped.
-- `staggerSeconds` is the nonnegative interval between worker launches on a fresh swarm, default 30 seconds. The first worker starts immediately; every other worker starts at its scheduled interval regardless of agent activity. Resume uses a fixed 5-second interval.
+- Without `models`, workers inherit Main's provider, model and thinking level. An optional nonempty `models` array selects authenticated catalog models using `{ "provider": "provider-id", "model": "model-id", "thinkingLevel": "high", "count_proportional": 3 }`. Omitted weights count as one relative part. Positive integer weights are allocated by largest remainder, with configuration order breaking ties, preserving exactly the requested worker count. Tiny swarms may assign zero workers to a profile. Invalid or unavailable profiles fail instead of falling back; recovery retains each worker's assignment. Watcher policy is unchanged.
+- `staggerSeconds` is the nonnegative scheduling interval on a fresh swarm, default 30 seconds. The first real worker for each effective model/launch configuration gates its peers until its first `agent_start` protocol event, not merely process creation or prompt acceptance. Peers need not wait for its task to finish. A confirmed shared fatal startup failure stops admission and cleans up the run without separate probes. Resume uses a fixed 5-second scheduling interval.
+- Shared recovery is coordinated only for structured OS resource failures, `EAGAIN`, `EMFILE` and `ENFILE`, within an effective launch configuration. One affected worker retries within its existing bounded recovery allowance; matching failed workers wait for its readiness while healthy and unrelated workers continue. Unknown/provider error text keeps individual handling. No stderr guessing, health probes or generic command timeouts are used.
 - `maxRpcFrameBytes` is a positive safe integer bounding each worker RPC JSONL record, default 16 MiB. Large tool results can require a higher limit. An oversized record stops that worker with a fatal protocol error rather than truncating JSON or retrying the same failure.
 - `bodyMaxChars` is an integer from 100 to 16,000: the limit stated to agents and shown in board counters. Main's resume feedback keeps its own 4,000-character limit.
-- `idleReminderDelay` (milliseconds, integer ≥0) is how long an agent may stay idle before it is reminded to continue; the reminder includes the newest `idleReminderDigestSize` wall posts (integer ≥1). Reminders have no count cap and continue until accepted or blocked votes reach the 70% threshold.
+- `idleReminderDelay` (milliseconds, integer ≥0) is how long an agent may stay idle before it is reminded to continue. `idleReminderDigestSize` (integer ≥1) bounds fresh full posts in a reminder, oldest uncovered first. Read tools and observed delivery share coverage, so unchanged reminders repeat neither covered post bodies nor subscription comment notifications. Queuing alone does not advance coverage. Reminders direct blocked workers to useful alternative work, not filler activity, and continue until terminal quorum.
+- `budgetMoneyUsd` and `budgetTimeSeconds` are optional finite positive cumulative ceilings. Omit a limit for unlimited. Time counts active run wall time across resumes, excluding stopped time. Money counts reported worker/Watcher usage, including reported retry/compaction costs, not Main or external billing. Missing or unverifiable zero-only model prices reject money-budget admission. Delayed reports and active work can overshoot.
+- `gracefulShutdownOnBudget` defaults to `false`, initiating immediate process interruption on exhaustion. `true` stops new deliveries/admissions and waits for active operations. Progress and unread messages remain resumable; external effects may be uncertain. Inspect artifacts before repeating interrupted actions.
+- After the user agrees, Main can raise limits in `.pi/swarm/settings.json` and call `resume_swarm`. Limits are new cumulative ceilings, never accounting resets. The board and tool result show consumption and budget stop reason, not fabricated completion votes.
 - Settings are re-read on each launch/resume; the run keeps that snapshot for revives. Port settings apply when hosting starts.
 - Invalid settings fail the tool. Unknown keys produce warnings.
 - `env` values must be strings. They override inherited environment values. Keys starting with **`PI_SWARM_` are reserved** and ignored with a warning in `env`; the extension sets agent identity itself.
@@ -135,7 +150,7 @@ If settings contain secrets, omit the exception and ignore `settings.json` too.
 
 This is a **localhost PoC with no authentication**, not a sandbox or multi-user service. Do not expose its port. Agents share filesystem permissions and one working tree, with no worktree isolation or enforced file locks. Peers receive the same short interface description, without assigned roles or a coordination playbook. Duplicate edits and overwrites remain possible. Review diffs and tests yourself.
 
-Model-dependent acknowledgment/completion loops have occurred, especially after group feedback on resume, with the earlier prompt guards. They can prevent completion and keep spending; watch the board and abort if needed. There is no hard message or cost budget. A five-agent run, real TUI Esc and host takeover were observed; provider rate limiting prevented several further recovery checks. See the [PoC evidence and gaps](https://github.com/gee666/pi-free-swarm/blob/main/docs/poc-run.md).
+Model-dependent acknowledgment/completion loops have occurred, especially after group feedback on resume, with the earlier prompt guards. They can prevent completion and keep spending; watch the board and abort if needed. Optional cumulative money/time budgets now stop execution; message-count quotas are not supported. A five-agent run, real TUI Esc and host takeover were observed; provider rate limiting prevented several further recovery checks. See the [PoC evidence and gaps](https://github.com/gee666/pi-free-swarm/blob/main/docs/poc-run.md).
 
 ## Development and packaging
 
