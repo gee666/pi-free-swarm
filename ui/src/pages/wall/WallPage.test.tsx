@@ -224,6 +224,25 @@ describe("WallPage", () => {
     await waitFor(() => expect(seen()[1]).toBe(3));
   });
 
+  it("refreshes retained-history snapshots once on reconnect without a second refresh loop", async () => {
+    await renderWall("/s/3/wall/1");
+    await screen.findByRole("heading", { level: 2, name: "2 comments" });
+    const postsBefore = api.callsTo("GET", "/api/swarms/3/posts").length;
+    const commentsBefore = api.callsTo("GET", "/api/swarms/3/posts/1").length;
+    const recovered = comment(30, 1, "John", "Recovered through snapshot after pruning.");
+    api.on("GET", "/api/swarms/3/posts/1", () => ({
+      post: { ...plan, commentCount: 3 },
+      comments: [...planComments, recovered],
+    }));
+    act(() => source().open());
+    expect(await screen.findByText(recovered.text)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(api.callsTo("GET", "/api/swarms/3/posts")).toHaveLength(postsBefore + 1);
+      expect(api.callsTo("GET", "/api/swarms/3/posts/1")).toHaveLength(commentsBefore + 1);
+    });
+    expect(screen.getByRole("heading", { level: 2, name: "3 comments" })).toBeInTheDocument();
+  });
+
   it("explains an unknown post", async () => {
     await renderWall("/s/3/wall/99");
     expect(await screen.findByText("Post not found")).toBeInTheDocument();
