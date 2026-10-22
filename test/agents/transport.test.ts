@@ -72,6 +72,18 @@ test("fake transport conforms to real fixture event/hook trace", async () => {
   }
 });
 
+test("real child adapter preserves a large valid Unicode record below the configured cap", async () => {
+  const agent = superviseFake({ runs: [[{ type: "reply", text: "🙂漢字".repeat(200_000) }]] });
+  try {
+    assert.deepEqual(await agent.supervisor.launch(agent.fake.spec(), prompt("start")), { accepted: true });
+    await agent.waitStatus("idle");
+    assert.deepEqual(agent.recorded.crashes, []);
+    assert.equal(agent.recorded.usage.length, 1);
+  } finally {
+    await agent.cleanup();
+  }
+});
+
 test("oversized real child RPC frame is isolated and fatal without deterministic retry", async () => {
   const bad = superviseFake({ runs: [[{ type: "reply", text: "x".repeat(10_000) }]] });
   const healthy = superviseFake({});
