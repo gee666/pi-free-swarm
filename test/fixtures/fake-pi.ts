@@ -70,7 +70,8 @@ function isJson(value: unknown): value is Json {
 
 const logFile = process.env.FAKE_PI_LOG;
 const log = (record: Json) => {
-  if (logFile) fs.appendFileSync(logFile, `${JSON.stringify({ agent: process.env.PI_SWARM_AGENT, ...record })}\n`);
+  if (logFile)
+    fs.appendFileSync(logFile, `${JSON.stringify({ agent: process.env.PI_SWARM_AGENT || undefined, ...record })}\n`);
 };
 let outputBatch: string[] | null = null;
 const emit = (record: Json) => {

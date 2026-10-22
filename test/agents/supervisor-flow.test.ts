@@ -2,9 +2,26 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import { test } from "node:test";
 import { hasSessionFile } from "../../src/agents/launch.js";
+import { AGENT_NAME_ENV } from "../../src/constants.js";
 import { SCENARIOS, waitFor } from "../fixtures/fake-pi/harness.js";
 import { prompt, superviseFake } from "./supervisor-helpers.js";
 import { FakeClock } from "./fake-clock.js";
+
+test("standalone fake children do not inherit the parent swarm identity", async () => {
+  const previous = process.env[AGENT_NAME_ENV];
+  process.env[AGENT_NAME_ENV] = "ParentWorker";
+  const agent = superviseFake(SCENARIOS.settle);
+  try {
+    assert.deepEqual(await agent.supervisor.launch(agent.fake.spec(), prompt("isolated")), { accepted: true });
+    await agent.waitStatus("idle");
+    assert.ok(agent.fake.log().length > 0);
+    assert.ok(agent.fake.log().every((record) => record.agent === undefined));
+  } finally {
+    await agent.cleanup();
+    if (previous === undefined) delete process.env[AGENT_NAME_ENV];
+    else process.env[AGENT_NAME_ENV] = previous;
+  }
+});
 
 test("launch → starting → working → idle, with usage, activity, read markers and a session file", async () => {
   const agent = superviseFake(SCENARIOS.settle);

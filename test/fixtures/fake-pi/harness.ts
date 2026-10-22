@@ -2,7 +2,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import { PI_ARGS_PREFIX_ENV, PI_COMMAND_ENV } from "../../../src/constants.js";
+import { AGENT_NAME_ENV, PI_ARGS_PREFIX_ENV, PI_COMMAND_ENV } from "../../../src/constants.js";
 import type { AgentLaunchSpec } from "../../../src/agents/launch.js";
 import type { FakePiScenario } from "../fake-pi.js";
 
@@ -77,7 +77,8 @@ export function createFakePiRun(scenario: FakePiScenario): FakePiRun {
   fs.writeFileSync(scenarioFile, JSON.stringify(scenario));
   const systemPromptFile = path.join(dir, "system-prompt.md");
   fs.writeFileSync(systemPromptFile, "You are a test agent.\n");
-  const env = { FAKE_PI_SCENARIO: scenarioFile, FAKE_PI_LOG: logFile };
+  // Standalone transport fixtures must not inherit the implementation swarm's identity.
+  const env = { [AGENT_NAME_ENV]: "", FAKE_PI_SCENARIO: scenarioFile, FAKE_PI_LOG: logFile };
   return {
     dir,
     logFile,
