@@ -58,7 +58,7 @@ it("shows graceful policy and unlimited dimensions honestly", async () => {
   );
   await userEvent.click(screen.getByRole("button", { name: "Budget accounting" }));
   expect(screen.getByText("Reported spend: $10.5000 USD / unlimited")).toBeInTheDocument();
-  expect(screen.getByText("Shutdown policy: finish active operations without starting new work")).toBeInTheDocument();
+  expect(screen.getByText("Shutdown policy: finish active pi turn without admitting new work")).toBeInTheDocument();
 });
 
 it("does not fabricate accounting for historical records", () => {

@@ -29,7 +29,7 @@ export function BudgetSummary({ budget }: { budget?: BudgetStatus | null }) {
         </p>
         <p>
           Shutdown policy:{" "}
-          {budget.gracefulShutdown ? "finish active operations without starting new work" : "interrupt immediately"}
+          {budget.gracefulShutdown ? "finish active pi turn without admitting new work" : "interrupt immediately"}
         </p>
         <p>{budget.accounting}</p>
         <p>

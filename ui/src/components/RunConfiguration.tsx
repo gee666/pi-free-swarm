@@ -51,7 +51,7 @@ export function RunConfiguration({ configuration }: { configuration?: SavedRunCo
               time: {effective.budget.timeSeconds === null ? "unlimited" : `${effective.budget.timeSeconds} seconds`}
             </p>
             <p>
-              On exhaustion: {effective.budget.gracefulShutdown ? "finish active operations" : "interrupt immediately"}.
+              On exhaustion: {effective.budget.gracefulShutdown ? "finish active pi turn" : "interrupt immediately"}.
             </p>
             <h3>Launch and limits</h3>
             <p>
