@@ -1,4 +1,3 @@
-import type { SessionAssistantTextItem, SessionToolCallItem } from "../api-types.js";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { systemClock } from "../clock.js";
@@ -6,6 +5,7 @@ import { WATCHER_ACTIVITY_DEFAULT, WATCHER_ACTIVITY_MAX, WATCHER_OVERVIEW_POSTS,
 import { BrokerError } from "../broker/errors.js";
 import { checkPage, requireSwarm } from "../broker/validate.js";
 import { SessionReader } from "../server/sessions.js";
+import { readRecentActivity } from "../server/session-recent.js";
 import { getAcceptance } from "../store/acceptance-queries.js";
 import { getThread, listThreads } from "../store/message-queries.js";
 import { getStats } from "../store/stats-queries.js";
@@ -16,21 +16,6 @@ import { formatThread } from "./agent-tool-format.js";
 import { agentToolResult } from "./agent-tool-result.js";
 import type { AgentToolIdentity } from "./agent-tools.js";
 import { activityLine, compactText, formatActivity } from "./watcher-digest.js";
-
-async function lastActivity(reader: SessionReader, agent: { name: string; sessionFile: string }) {
-  let text: SessionAssistantTextItem | undefined;
-  let tool: SessionToolCallItem | undefined;
-  let before: string | undefined;
-  let timestamp = 0;
-  do {
-    const page = await reader.readPage(agent.name, agent.sessionFile, { before, limit: WATCHER_ACTIVITY_MAX });
-    timestamp = Math.max(timestamp, page.items[0]?.timestamp ?? 0);
-    text ??= page.items.find((item) => item.kind === "assistant_text");
-    tool ??= page.items.find((item) => item.kind === "tool_call");
-    before = page.olderCursor ?? undefined;
-  } while (before !== undefined && (!text || !tool));
-  return { text, tool, timestamp };
-}
 
 export function createWatcherToolHandlers(identity: AgentToolIdentity) {
   const reader = new SessionReader({ maxToolOutputChars: 0 });
@@ -52,7 +37,10 @@ export function createWatcherToolHandlers(identity: AgentToolIdentity) {
       const participants = listParticipants(db, swarm.id);
       const blocks = await Promise.all(
         listAgentSessions(db, swarm.id).map(async (agent) => {
-          const { text, tool, timestamp } = await lastActivity(reader, agent);
+          const recent = await readRecentActivity(agent.sessionFile);
+          const text = recent.items.find((item) => item.kind === "assistant_text");
+          const tool = recent.items.find((item) => item.kind === "tool_call");
+          const timestamp = recent.items[0]?.timestamp ?? 0;
           const participant = participants.find((item) => item.name === agent.name);
           const usage = stats?.agents.find((item) => item.name === agent.name);
           const rawStatus = participant?.kind === "agent" ? participant.status : "stopped";
@@ -66,10 +54,10 @@ export function createWatcherToolHandlers(identity: AgentToolIdentity) {
               : null;
           return [
             `${agent.name}: ${status}; activity ${latest ? timeAgo(latest, now) : "none"}; turns ${usage?.turns ?? 0}; cost $${(usage?.cost ?? 0).toFixed(4)}`,
-            tool?.kind === "tool_call" && (!current || tool.name === current)
-              ? activityLine(tool)
-              : `tool: ${current ?? "none"}`,
-            `assistant: ${text?.kind === "assistant_text" ? compactText(text.text) : "none"}`,
+            `current tool: ${current ?? "none"}`,
+            tool ? `recent ${activityLine(tool)}` : "recent tool: not in inspected slice",
+            `assistant: ${text ? compactText(text.text) : "not in inspected slice"}`,
+            `Recent slice: ${recent.scannedEntries} entries, ${recent.scannedBytes} bytes${recent.limited ? "; older history omitted, use swarm_agent_activity" : ""}.`,
           ].join("\n");
         }),
       );
@@ -112,7 +100,8 @@ export function registerWatcherTools(pi: Pick<ExtensionAPI, "registerTool">, ide
   pi.registerTool({
     name: WATCHER_TOOL.overview,
     label: "Swarm overview",
-    description: "Compact states, activity, costs, acceptance and newest wall titles. Start here.",
+    description:
+      "Compact states, current runtime tools, costs, acceptance and newest wall titles. One bounded recent session slice per agent, not lifetime activity. Use swarm_agent_activity for deep history. Start here.",
     parameters: Type.Object({}),
     async execute() {
       return agentToolResult(await run.overview());

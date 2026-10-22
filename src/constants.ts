@@ -89,6 +89,8 @@ export const SESSION_TOOL_OUTPUT_MAX_CHARS = 64 * 1024;
 export const SESSION_WATCH_POLL_MS = 1_000;
 export const WATCHER_ACTIVITY_DEFAULT = 10;
 export const WATCHER_ACTIVITY_MAX = 50;
+// Overview reads at most a 256 KiB tail, even when invisible or unfinished records dominate it.
+export const WATCHER_OVERVIEW_BYTES = 256 * 1024;
 export const WATCHER_TEXT_MAX = 400;
 export const WATCHER_ARGS_MAX = 160;
 export const WATCHER_OVERVIEW_POSTS = 3;

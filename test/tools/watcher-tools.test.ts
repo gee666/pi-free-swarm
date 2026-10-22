@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { after, it } from "node:test";
-import { recordUsage, setAgentStatus } from "../../src/broker/agent-state.js";
+import { recordUsage, setAgentActivity, setAgentStatus } from "../../src/broker/agent-state.js";
 import { sendMessage } from "../../src/broker/messages.js";
 import { createSwarm } from "../../src/broker/swarms.js";
 import { createPost } from "../../src/broker/wall.js";
@@ -112,7 +112,7 @@ it("can read agent-to-agent threads without joining or marking them read", () =>
   );
 });
 
-it("finds the last assistant snippet even after a long sequence of tool calls", async () => {
+it("does not hunt backwards for assistant text outside the recent slice", async () => {
   for (let index = 0; index <= WATCHER_ACTIVITY_MAX; index++) {
     appendFileSync(
       maria.sessionFile,
@@ -120,8 +120,24 @@ it("finds the last assistant snippet even after a long sequence of tool calls", 
     );
   }
   const overview = await run.overview();
-  assert.match(overview, /Newest plan/);
+  assert.doesNotMatch(overview, /Newest plan/);
+  assert.match(overview, /assistant: not in inspected slice/);
+  assert.match(overview, /older history omitted/);
   assert.match(overview, /read src\/tail.ts/);
+  assert.match(
+    await run.activity({
+      agent: "Maria",
+      before: /Next cursor: (\d+)/.exec(await run.activity({ agent: "Maria", count: WATCHER_ACTIVITY_MAX }))?.[1],
+    }),
+    /Newest plan/,
+  );
+});
+
+it("shows the actual runtime tool separately from a different historical tool", async () => {
+  setAgentActivity(db, swarm.id, "Maria", { kind: "tool", toolName: "bash" }, clock.now());
+  const overview = await run.overview();
+  assert.match(overview, /current tool: bash/);
+  assert.match(overview, /recent tool: read src\/tail.ts/);
 });
 
 it("registers exactly the Watcher allowlist, without acceptance or built-in tools", () => {
