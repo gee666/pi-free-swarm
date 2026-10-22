@@ -1,5 +1,7 @@
 import type { BudgetStatus } from "../budget.js";
 import type { SwarmSettings } from "../settings.js";
+import type { UsageSample } from "../runtime-types.js";
+import { getRunConfiguration } from "./run-configuration.js";
 import type { SwarmDb } from "./db.js";
 import { getStats } from "./stats-queries.js";
 
@@ -35,8 +37,41 @@ export function readBudget(db: SwarmDb, swarmId: number, settings: BudgetPolicy,
     stopReason: stopped ? "budget-exhausted" : null,
     moneyOvershootUsd: moneyUsd === null ? 0 : Math.max(0, costUsd - moneyUsd),
     timeOvershootSeconds: timeSeconds === null ? 0 : Math.max(0, activeTimeMs / 1000 - timeSeconds),
-    accounting: BUDGET_ACCOUNTING,
+    accounting:
+      BUDGET_ACCOUNTING +
+      (hasBudgetAccountingGap(db, swarmId)
+        ? " Accounting is incomplete: usage lacked a valid cost or reported an unexpected model. A money-budget resume is refused; missing cost is not free usage."
+        : ""),
   };
+}
+
+export function hasBudgetAccountingGap(db: SwarmDb, swarmId: number): boolean {
+  return db.sql.prepare("SELECT 1 FROM budget_accounting_gaps WHERE swarm_id = ? LIMIT 1").get(swarmId) !== undefined;
+}
+
+/** Preserve known usage before callers stop a money-limited run on incomplete attribution. */
+export function checkUsageAccounting(
+  db: SwarmDb,
+  swarmId: number,
+  agent: string,
+  sample: UsageSample,
+  now: number,
+): void {
+  const config = getRunConfiguration(db, swarmId);
+  const assigned = config?.effective.workers.find((worker) => worker.name === agent);
+  const unexpectedModel = assigned && sample.model !== null && sample.model !== assigned.modelId;
+  if (sample.costKnown !== false && !unexpectedModel) return;
+  const reason = unexpectedModel ? "unexpected model" : "missing USD usage total";
+  db.write(() =>
+    db.sql
+      .prepare("INSERT OR IGNORE INTO budget_accounting_gaps (swarm_id, agent, reason, created_at) VALUES (?, ?, ?, ?)")
+      .run(swarmId, agent, reason, now),
+  );
+  if (config && config.effective.budget.moneyUsd !== null) {
+    throw new Error(
+      `Money budget accounting is incomplete for ${agent}: ${reason}. Execution stopped; costs are not zero. Inspect usage and pricing before resuming without a money limit.`,
+    );
+  }
 }
 
 export function recordBudgetStop(

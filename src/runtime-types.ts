@@ -11,6 +11,8 @@ export interface UsageSample {
   cacheRead: number;
   cacheWrite: number;
   cost: number;
+  /** False when the protocol supplied no valid attributable USD total. */
+  costKnown?: boolean;
   model: string | null;
 }
 

@@ -46,13 +46,16 @@ export function parseRpcLine(line: string): RpcRecord | undefined {
 }
 
 function usageSample(kind: UsageSample["kind"], usage: RpcRecord, model: string | null): UsageSample {
+  const total = isRecord(usage.cost) ? usage.cost.total : undefined;
+  const costKnown = typeof total === "number" && Number.isFinite(total) && total >= 0;
   return {
+    ...(!costKnown ? { costKnown: false } : {}),
     kind,
     input: numberOrZero(usage.input),
     output: numberOrZero(usage.output),
     cacheRead: numberOrZero(usage.cacheRead),
     cacheWrite: numberOrZero(usage.cacheWrite),
-    cost: numberOrZero(isRecord(usage.cost) ? usage.cost.total : undefined),
+    cost: costKnown ? total : 0,
     model,
   };
 }
@@ -61,11 +64,14 @@ function usageSample(kind: UsageSample["kind"], usage: RpcRecord, model: string 
 export function extractUsage(event: RpcRecord): UsageSample | null {
   if (event.type === "message_end" && isRecord(event.message) && event.message.role === "assistant") {
     const { usage, model } = event.message;
-    if (!isRecord(usage)) return null;
-    return usageSample("message", usage, typeof model === "string" && model.length > 0 ? model : null);
+    return usageSample(
+      "message",
+      isRecord(usage) ? usage : {},
+      typeof model === "string" && model.length > 0 ? model : null,
+    );
   }
-  if (event.type === "compaction_end" && isRecord(event.result) && isRecord(event.result.usage)) {
-    return usageSample("compaction", event.result.usage, null);
+  if (event.type === "compaction_end" && isRecord(event.result)) {
+    return usageSample("compaction", isRecord(event.result.usage) ? event.result.usage : {}, null);
   }
   return null;
 }

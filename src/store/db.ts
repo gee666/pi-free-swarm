@@ -31,6 +31,7 @@ const MIGRATIONS: readonly { version: number; file: string }[] = [
   { version: 7, file: "007-run-configuration.sql" },
   { version: 8, file: "008-subscriptions.sql" },
   { version: 9, file: "009-budget.sql" },
+  { version: 10, file: "010-budget-accounting.sql" },
 ];
 const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 

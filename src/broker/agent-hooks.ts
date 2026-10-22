@@ -3,6 +3,7 @@ import type { AgentCrash, SupervisorHooks } from "../agents/supervisor.js";
 import type { Clock } from "../clock.js";
 import type { SwarmDb } from "../store/db.js";
 import { markPostsCovered } from "../store/wall-coverage.js";
+import { checkUsageAccounting } from "../store/budget.js";
 import { recordUsage, setAgentActivity, setAgentStatus } from "./agent-state.js";
 import { markRead } from "./delivery-state.js";
 import { coverCommentNotifications } from "./subscriptions.js";
@@ -37,7 +38,11 @@ export function createAgentHooks(ctx: AgentHooksContext): SupervisorHooks {
         });
       }),
     onPostsRead: (ids) => write(() => markPostsCovered(db, swarmId, name, ids)),
-    onUsage: (sample) => write(() => recordUsage(db, swarmId, name, sample, clock.now())),
+    onUsage: (sample) =>
+      write(() => {
+        recordUsage(db, swarmId, name, sample, clock.now());
+        checkUsageAccounting(db, swarmId, name, sample, clock.now());
+      }),
     onCrash: (crash) => write(() => ctx.onCrash(crash)),
   };
 }
