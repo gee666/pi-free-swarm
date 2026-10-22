@@ -101,6 +101,7 @@ export class RunAgent implements DeliveryTarget {
             agentName: this.name,
             swarmName: this.#ctx.swarmName,
             bodyMaxChars: bodyLimit(this.#ctx.db),
+            taskPrompt: this.#ctx.taskPrompt,
             acceptanceCriteria: this.#ctx.acceptanceCriteria,
           }),
     );
@@ -108,16 +109,12 @@ export class RunAgent implements DeliveryTarget {
 
   /** Kickoff for a fresh session, the resume prompt when the session already has history. */
   launchFirst(): Promise<void> {
-    const { taskPrompt, acceptanceCriteria } = this.#ctx;
+    const { acceptanceCriteria } = this.#ctx;
     const messages = this.#ctx.collect(this.name, false);
     if (this.name === WATCHER_NAME) return this.#launch(messages.text || null, messages.messageIds);
     const text = hasSessionFile(this.#spec.sessionFile)
       ? buildResumePrompt({ acceptanceCriteria, messages: messages.text })
-      : buildKickoffPrompt({
-          taskPrompt,
-          acceptanceCriteria,
-          messages: messages.text,
-        });
+      : buildKickoffPrompt({ messages: messages.text });
     return this.#launch(text, messages.messageIds);
   }
 

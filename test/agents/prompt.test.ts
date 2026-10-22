@@ -9,6 +9,7 @@ import {
 import { AGENT_TOOL, RESUME_PROMPT_HEADER, REVIVE_PROMPT_HEADER } from "../../src/constants.js";
 
 const MESSAGES = '[swarm message #3] thread #1 · from Main · to: Maria, You\n"Fix the tests"';
+const taskPrompt = "Review docs only.\nDo not edit files.";
 const acceptanceCriteria = ["Docs cover installation.", "Examples pass."];
 const CRITERIA_TEXT = "Main's acceptance criteria:\n1. Docs cover installation.\n2. Examples pass.";
 
@@ -17,9 +18,14 @@ test("agents receive shared facts, criteria and whole-task voting instructions",
     agentName: "Maria",
     swarmName: "Docs sprint",
     bodyMaxChars: 200,
+    taskPrompt,
     acceptanceCriteria,
   });
-  assert.match(text, /^You are Maria, one of the agents in swarm "Docs sprint"/);
+  assert.match(text, /^You are one of the agents working on one shared task/);
+  assert.ok(text.endsWith('You are Maria, one of the agents in swarm "Docs sprint".'));
+  assert.ok(text.includes(`<swarm-task>\n${taskPrompt}\n</swarm-task>`));
+  assert.equal(text.split(taskPrompt).length - 1, 1);
+  assert.equal(text.split(CRITERIA_TEXT).length - 1, 1);
   assert.ok(text.includes("All agents share the working directory"));
   assert.ok(text.includes("Then check the wall and what the others are doing"));
   assert.ok(text.includes("Do not sit idle while the goal is unmet."));
@@ -39,29 +45,50 @@ test("agents receive shared facts, criteria and whole-task voting instructions",
   assert.ok(text.includes("at most 200 characters; put longer material in a file and share its path"));
   assert.equal(
     text.replaceAll("Maria", "You"),
-    buildSystemPrompt({ agentName: "You", swarmName: "Docs sprint", bodyMaxChars: 200, acceptanceCriteria }),
+    buildSystemPrompt({
+      agentName: "You",
+      swarmName: "Docs sprint",
+      bodyMaxChars: 200,
+      taskPrompt,
+      acceptanceCriteria,
+    }),
   );
 });
 
-test("kickoff preserves the task and supplies Main's criteria", () => {
-  const taskPrompt = "Write docs.\nKeep exact formatting.";
-  assert.equal(
-    buildKickoffPrompt({ taskPrompt, acceptanceCriteria, messages: "" }),
-    `Task for the swarm:\n${taskPrompt}\n\n${CRITERIA_TEXT}`,
-  );
-  assert.equal(
-    buildKickoffPrompt({ taskPrompt, acceptanceCriteria, messages: MESSAGES }),
-    `Task for the swarm:\n${taskPrompt}\n\n${CRITERIA_TEXT}\n\n${MESSAGES}`,
-  );
+test("kickoff starts work without duplicating the task or criteria", () => {
+  const kickoff = buildKickoffPrompt({ messages: "" });
+  assert.match(kickoff, /Begin the shared task in your system instructions/);
+  assert.ok(!kickoff.includes(taskPrompt));
+  assert.ok(!kickoff.includes(CRITERIA_TEXT));
+  assert.equal(buildKickoffPrompt({ messages: MESSAGES }), `${kickoff}\n\n${MESSAGES}`);
+});
+
+test("common prefix preserves restrictions and advisory ownership before identity", () => {
+  const prompt = (agentName: string) =>
+    buildSystemPrompt({ agentName, swarmName: "Docs sprint", bodyMaxChars: 200, taskPrompt, acceptanceCriteria });
+  const maria = prompt("Maria");
+  const lee = prompt("Lee");
+  assert.equal(maria.slice(0, maria.lastIndexOf("You are Maria")), lee.slice(0, lee.lastIndexOf("You are Lee")));
+  assert.ok(maria.includes("Ownership is advisory, not an exclusive lock"));
+  assert.ok(maria.includes("A review-only task does not authorize edits"));
+  assert.ok(maria.includes("raise actual conflicts rather than weakening restrictions"));
+  assert.ok(maria.includes("leave it pending and take other useful work"));
+  assert.ok(maria.includes("do not invent work solely because quorum has not formed"));
 });
 
 test("resume and revive supply criteria and preserve routing headers and messages", () => {
   const resume = buildResumePrompt({ acceptanceCriteria, messages: MESSAGES });
   assert.ok(resume.startsWith(RESUME_PROMPT_HEADER));
   assert.ok(resume.includes(CRITERIA_TEXT));
+  assert.ok(resume.includes("last available handoff/result post"));
+  assert.ok(resume.includes("never automatically replay writes or actions whose effects are uncertain"));
   assert.ok(resume.endsWith(`\n\n${MESSAGES}`));
   const revive = buildRevivePrompt({ acceptanceCriteria, messages: MESSAGES });
   assert.ok(revive.startsWith(REVIVE_PROMPT_HEADER));
   assert.ok(revive.includes(CRITERIA_TEXT));
+  assert.ok(revive.includes("last available handoff/result post"));
+  assert.ok(revive.includes("Verify that they still match current files and requirements"));
+  assert.ok(revive.includes("If the handoff is missing or stale, inspect original history and evidence"));
+  assert.ok(revive.includes("never automatically replay writes or actions whose effects are uncertain"));
   assert.ok(revive.endsWith(`\n\n${MESSAGES}`));
 });
