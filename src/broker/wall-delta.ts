@@ -34,10 +34,10 @@ export interface WallDelta {
 
 /** Start at the beginning, independently of legacy read marks or the newest history page. */
 export function initialWallCursor(swarmId: number): string {
-  return encodeCursor(swarmId, 0);
+  return encodeWallCursor(swarmId, 0);
 }
 
-function encodeCursor(swarmId: number, revision: number): string {
+export function encodeWallCursor(swarmId: number, revision: number): string {
   return Buffer.from(`wall:1:${swarmId}:${revision}`).toString("base64url");
 }
 
@@ -50,7 +50,7 @@ function decodeCursor(cursor: string, swarmId: number): number {
       if (
         Number(match[1]) === swarmId &&
         Number.isSafeInteger(revision) &&
-        encodeCursor(swarmId, revision) === cursor
+        encodeWallCursor(swarmId, revision) === cursor
       ) {
         return revision;
       }
@@ -104,7 +104,7 @@ export function readWallDeltaAs(
     }));
     return {
       changes,
-      nextCursor: encodeCursor(swarmId, changes.at(-1)?.revision ?? revision),
+      nextCursor: encodeWallCursor(swarmId, changes.at(-1)?.revision ?? revision),
       hasMore: rows.length > count,
     };
   });

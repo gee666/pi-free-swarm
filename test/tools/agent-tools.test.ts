@@ -17,8 +17,8 @@ const temp = createTempDb();
 after(() => temp.cleanup());
 const { db } = temp;
 
-function withCursor(text: string, swarmId: number): string {
-  return `${text}\nNext cursor: ${initialWallCursor(swarmId)} (delta history starts at the beginning)`;
+function withCursor(text: string, swarmId: number, nextOffset?: number): string {
+  return `${text}\nComplete: ${nextOffset === undefined}${nextOffset === undefined ? "" : ` · Next offset: ${nextOffset}`}\nNext cursor: ${initialWallCursor(swarmId)} (delta history starts at the beginning)`;
 }
 
 const NOW = T0 + 5 * 60_000;
@@ -103,6 +103,7 @@ describe("agent tool output", () => {
       withCursor(
         "Posts 1–1 of 2, newest first:\n#2 Liam · 4m ago · Tests — I take tests. (0 comments) (new)",
         swarm.id,
+        1,
       ),
     );
     assert.equal(john.readPosts({ offset: 5 }), withCursor("No posts at offset 5 (2 total).", swarm.id));
@@ -113,7 +114,7 @@ describe("agent tool output", () => {
     addComment(db, swarm.id, "User", 1, "thanks", T0 + 3_000);
     assert.equal(
       john.readPost({ post_id: 1 }),
-      "#1 Maria · 4m ago · Kickoff\nI take the API.\n2 comments:\n#1 John · 0s ago: UI is mine\n#2 User · 4m ago: thanks",
+      'Post #1 · Kickoff\n#1 Maria · Kickoff: "I take the API."\n#1 John: "UI is mine"\n#2 User: "thanks"\nComplete: true · snapshot #2. Omit after to replay or include newer content.',
     );
     assert.throws(() => john.readPost({ post_id: 99 }), { message: "Post #99 not found." });
   });
@@ -122,6 +123,7 @@ describe("agent tool output", () => {
     const sent = maria.message({ to: ["john", "User"], text: "API done?" });
     assert.match(sent, /^Sent message #(\d+) in thread #(\d+) to John, User\.$/);
     const threadId = Number(/thread #(\d+)/.exec(sent)?.[1]);
+    const firstMessageId = Number(/message #(\d+)/.exec(sent)?.[1]);
     assert.match(
       maria.replyTo({ thread_id: threadId, text: "Also docs." }),
       /^Replied message #\d+ in thread #\d+ to John, User\.$/,
@@ -130,8 +132,9 @@ describe("agent tool output", () => {
       john.readThread({ thread_id: threadId }),
       [
         `Thread #${threadId} · members: Maria, John, User`,
-        `#1 Maria → You, User · 4m ago: API done?`,
-        `#2 Maria → You, User · 4m ago: Also docs.`,
+        `#${firstMessageId} Maria: "API done?"`,
+        `#${firstMessageId + 1} Maria: "Also docs."`,
+        `Complete: true · snapshot #${firstMessageId + 1}. Omit after to replay or include newer content.`,
       ].join("\n"),
     );
     assert.throws(() => maria.message({ to: ["Bob"], text: "hi" }), {

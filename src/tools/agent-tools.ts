@@ -5,15 +5,16 @@ import { Type, type Static } from "typebox";
 import { systemClock, type Clock } from "../clock.js";
 import { AGENT_TOOL, PAGE_DEFAULT_COUNT, PAGE_MAX_COUNT, WATCHER_NAME } from "../constants.js";
 import { TITLE_MAX } from "../limits.js";
-import { BrokerError } from "../broker/errors.js";
-import { replyToThread, readThreadAs, sendMessage } from "../broker/messages.js";
+import { replyToThread, sendMessage } from "../broker/messages.js";
 import { addComment, createPost } from "../broker/wall.js";
 import { setPostSubscription } from "../broker/subscriptions.js";
 import type { SwarmDb } from "../store/db.js";
-import { getPostDetail } from "../store/wall-queries.js";
-import { formatPostDetail, formatSent, formatThread } from "./agent-tool-format.js";
+import { formatSent } from "./agent-tool-format.js";
 import { acceptanceToolDescription, acceptanceToolParameters, executeAcceptanceTool } from "./acceptance-tool.js";
 import { readWallTool } from "./wall-read.js";
+import { readThreadTool } from "./thread-read.js";
+import { readPostTool } from "./post-read.js";
+import { readFreshPostsTool } from "./fresh-post-read.js";
 import { agentToolResult as textResult } from "./agent-tool-result.js";
 
 export interface AgentToolIdentity {
@@ -29,6 +30,12 @@ const bodyRule = (bodyMaxChars: number) =>
   `At most ${bodyMaxChars} chars; put longer material in a file and share its path.`;
 
 const READ_POSTS = Type.Object({
+  only_new: Type.Optional(
+    Type.Boolean({
+      description:
+        "Persistent only-new full posts, oldest first. Default false replays history. With only_new, after is its own continuation cursor and offset is ignored.",
+    }),
+  ),
   count: Type.Optional(
     Type.Integer({
       minimum: 1,
@@ -47,7 +54,16 @@ const READ_POSTS = Type.Object({
     }),
   ),
 });
-const READ_POST = Type.Object({ post_id: Type.Integer({ minimum: 1 }) });
+const READ_POST = Type.Object({
+  post_id: Type.Integer({ minimum: 1 }),
+  only_new: Type.Optional(
+    Type.Boolean({ description: "Return only uncovered post text and comments. Omit to replay history." }),
+  ),
+  count: Type.Optional(Type.Integer({ minimum: 1, maximum: PAGE_MAX_COUNT })),
+  after: Type.Optional(
+    Type.String({ minLength: 1, description: "Next cursor from this post, with the same only_new setting." }),
+  ),
+});
 // Length checks follow trimming in the broker; raw schema maxima would reject valid padded input.
 const TEXT = Type.String({
   minLength: 1,
@@ -68,7 +84,16 @@ const MESSAGE = Type.Object({
   text: TEXT,
 });
 const REPLY_TO = Type.Object({ thread_id: Type.Integer({ minimum: 1 }), text: TEXT });
-const READ_THREAD = Type.Object({ thread_id: Type.Integer({ minimum: 1 }) });
+const READ_THREAD = Type.Object({
+  thread_id: Type.Integer({ minimum: 1 }),
+  count: Type.Optional(Type.Integer({ minimum: 1, maximum: PAGE_MAX_COUNT })),
+  after: Type.Optional(
+    Type.String({
+      minLength: 1,
+      description: "Next cursor from this thread; omit to replay history and include new messages.",
+    }),
+  ),
+});
 
 /** The tool bodies, returning the model-facing text. Separate from registration so tests need no pi. */
 export function createAgentToolHandlers(identity: AgentToolIdentity) {
@@ -76,12 +101,12 @@ export function createAgentToolHandlers(identity: AgentToolIdentity) {
   const clock = identity.clock ?? systemClock;
   return {
     readPosts(params: Static<typeof READ_POSTS>): string {
-      return readWallTool(identity.getDb(), swarmId, agentName, params, clock.now());
+      return params.only_new
+        ? readFreshPostsTool(identity.getDb(), swarmId, agentName, params)
+        : readWallTool(identity.getDb(), swarmId, agentName, params, clock.now());
     },
     readPost(params: Static<typeof READ_POST>): string {
-      const detail = getPostDetail(identity.getDb(), swarmId, params.post_id);
-      if (detail === null) throw new BrokerError("not_found", `Post #${params.post_id} not found.`);
-      return formatPostDetail(detail, clock.now());
+      return readPostTool(identity.getDb(), swarmId, agentName, params);
     },
     post(params: Static<typeof POST>): string {
       const post = createPost(identity.getDb(), swarmId, agentName, params, clock.now());
@@ -104,8 +129,7 @@ export function createAgentToolHandlers(identity: AgentToolIdentity) {
       return formatSent(message, "Replied");
     },
     readThread(params: Static<typeof READ_THREAD>): string {
-      const thread = readThreadAs(identity.getDb(), swarmId, agentName, params.thread_id);
-      return formatThread(thread, agentName, clock.now());
+      return readThreadTool(identity.getDb(), swarmId, agentName, params);
     },
     acceptance(params: Static<typeof acceptanceToolParameters>): string {
       return JSON.stringify(
@@ -139,7 +163,8 @@ export function registerAgentTools(
   pi.registerTool({
     name: AGENT_TOOL.readPost,
     label: "Read post",
-    description: "Read one wall post with all its comments, oldest first.",
+    description:
+      "Read a bounded page of one post and its comments, oldest first. only_new uses persistent per-agent/per-post coverage; omit it for replay. Follow Next cursor with the same only_new value until Complete: true. Partial text does not cover its unseen tail.",
     promptSnippet: "Read one wall post with its comments.",
     parameters: READ_POST,
     async execute(_toolCallId, params) {
@@ -205,7 +230,8 @@ export function registerAgentTools(
   pi.registerTool({
     name: AGENT_TOOL.readThread,
     label: "Read thread",
-    description: "Read the full history of a message thread you are in, e.g. after a context compaction.",
+    description:
+      "Read bounded oldest-first history of a thread you belong to. Complete and Next cursor remain visible; continue with after for remaining text. Omit after to replay history after compaction or include newer messages.",
     promptSnippet: "Read the full history of a message thread.",
     parameters: READ_THREAD,
     async execute(_toolCallId, params) {

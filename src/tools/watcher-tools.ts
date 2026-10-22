@@ -13,12 +13,12 @@ import { checkPage, requireSwarm } from "../broker/validate.js";
 import { SessionReader } from "../server/sessions.js";
 import { readRecentActivity } from "../server/session-recent.js";
 import { getAcceptance } from "../store/acceptance-queries.js";
-import { getThread, listThreads } from "../store/message-queries.js";
+import { listThreads } from "../store/message-queries.js";
 import { getStats } from "../store/stats-queries.js";
 import { getSwarm, listAgentSessions, listParticipants } from "../store/swarm-queries.js";
 import { listPosts } from "../store/wall-queries.js";
 import { timeAgo } from "../wall-format.js";
-import { formatThread } from "./agent-tool-format.js";
+import { readThreadTool } from "./thread-read.js";
 import { agentToolResult } from "./agent-tool-result.js";
 import type { AgentToolIdentity } from "./agent-tools.js";
 import { activityLine, compactText, formatActivity } from "./watcher-digest.js";
@@ -83,13 +83,17 @@ export function createWatcherToolHandlers(identity: AgentToolIdentity) {
       const page = await reader.readPage(agent.name, agent.sessionFile, { limit: count, before: params.before });
       return `${agent.name}, newest first:\n${formatActivity(page.items)}\nNext cursor: ${page.olderCursor ?? "none"}`;
     },
-    threads(params: { thread_id?: number; count?: number; offset?: number }): string {
+    threads(params: { thread_id?: number; count?: number; offset?: number; after?: string }): string {
       const db = identity.getDb();
       requireSwarm(db, identity.swarmId);
       if (params.thread_id !== undefined) {
-        const thread = getThread(db, identity.swarmId, params.thread_id);
-        if (!thread) throw new BrokerError("not_found", `Thread #${params.thread_id} not found.`);
-        return formatThread(thread, identity.agentName, clock.now());
+        return readThreadTool(
+          db,
+          identity.swarmId,
+          identity.agentName,
+          { ...params, thread_id: params.thread_id },
+          "watcher",
+        );
       }
       const page = { count: params.count ?? WATCHER_ACTIVITY_DEFAULT, offset: params.offset ?? 0 };
       checkPage(page);
@@ -131,11 +135,12 @@ export function registerWatcherTools(pi: Pick<ExtensionAPI, "registerTool">, ide
     name: WATCHER_TOOL.threads,
     label: "Swarm threads",
     description:
-      "List all swarm threads newest first, including agent-to-agent. Supply thread_id to read one; it takes precedence over count/offset. Read-only.",
+      "List all swarm threads newest first, including agent-to-agent. Supply thread_id to read bounded history; count bounds messages, after continues its Next cursor and offset is ignored. Read-only.",
     parameters: Type.Object({
       thread_id: Type.Optional(Type.Integer({ minimum: 1 })),
       count: Type.Optional(Type.Integer({ minimum: 1, maximum: PAGE_MAX_COUNT })),
       offset: Type.Optional(Type.Integer({ minimum: 0 })),
+      after: Type.Optional(Type.String({ minLength: 1, description: "Next cursor from this thread_id read." })),
     }),
     async execute(_id, params) {
       return agentToolResult(run.threads(params));
