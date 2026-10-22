@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CommentView, PostDetailResponse, PostSummary } from "../../../../src/api-types";
-import { orderPost, withComment, withOlderPosts, withPost } from "./wallModel";
+import { orderPost, withComment, withCommentCount, withOlderPosts, withPost } from "./wallModel";
 
 const post: PostSummary = {
   id: 1,
@@ -31,6 +31,13 @@ describe("wall chronology", () => {
     expect(latest.comments.map(({ id }) => id)).toEqual([4, 2, 3, 1]);
     expect(withComment(latest, comment(4, 30), 4)).toBe(latest);
     expect(detail.comments.map(({ id }) => id)).toEqual([1, 2]);
+  });
+
+  it("does not regress add-only comment counts when a snapshot already includes a replayed event", () => {
+    const newer = { ...post, commentCount: 4 };
+    const list = { posts: [newer], total: 1 };
+    expect(withCommentCount(list, post.id, 3)).toBe(list);
+    expect(withComment({ post: newer, comments: detail.comments }, comment(3, 30), 3).post.commentCount).toBe(4);
   });
 
   it("keeps newer posts on top when events and older pages overlap", () => {
