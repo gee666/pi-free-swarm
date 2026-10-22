@@ -2,6 +2,7 @@ import type { AgentParticipantView } from "../../../../src/api-types";
 import { StatusDot } from "../../components/Indicators";
 import { ListRow } from "../../components/ListRow";
 import { AgentName } from "../../components/AgentName";
+import { WorkerModel } from "../../components/WorkerModel";
 import { PanelBody } from "../../components/Panel";
 import { RowList } from "../../components/RowList";
 import { formatCost } from "../../lib/format";
@@ -25,7 +26,13 @@ export function WorkAgentList({ agents, selected, onSelect }: WorkAgentListProps
             key={agent.name}
             avatar={agent.name}
             title={<AgentName name={agent.name} />}
-            subtitle={activityLabel(agent)}
+            subtitle={
+              <>
+                <WorkerModel model={agent.model} />
+                <br />
+                {activityLabel(agent)}
+              </>
+            }
             selected={agent.name === selected}
             onSelect={() => onSelect(agent.name)}
             trailing={

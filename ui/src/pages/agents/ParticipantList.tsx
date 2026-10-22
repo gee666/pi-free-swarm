@@ -1,6 +1,7 @@
 import { WATCHER_NAME } from "../../../../src/constants";
 import type { ParticipantView } from "../../../../src/api-types";
 import { AgentName } from "../../components/AgentName";
+import { WorkerModel } from "../../components/WorkerModel";
 import { CountBadge, StatusDot } from "../../components/Indicators";
 import { ListRow } from "../../components/ListRow";
 import { Panel, PanelBody } from "../../components/Panel";
@@ -45,6 +46,7 @@ export function ParticipantList({ participants, error, selected, onSelect }: Par
                   key={participant.name}
                   avatar={participant.name}
                   title={<AgentName name={participant.name} />}
+                  subtitle={<WorkerModel model={participant.model} />}
                   selected={participant.name === selected}
                   onSelect={() => onSelect(participant.name)}
                   trailing={
