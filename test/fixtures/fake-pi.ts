@@ -33,6 +33,8 @@ export type FakeStep =
   | { type: "turn" }
   | { type: "compaction"; usage?: FakeUsage }
   | { type: "wait"; ms: number }
+  /** Explicit test barrier, released by creating the named file. */
+  | { type: "waitForFile"; file: string }
   /** Never continues: a startup or inactivity stall. */
   | { type: "silence" }
   | { type: "exit"; code?: number; stderr?: string }
@@ -208,6 +210,16 @@ async function runStep(step: FakeStep): Promise<void> {
     }
     case "wait":
       return sleep(step.ms);
+    case "waitForFile":
+      return new Promise<void>((resolve) => {
+        const watcher = fs.watch(path.dirname(step.file), () => check());
+        const check = () => {
+          if (!fs.existsSync(step.file)) return;
+          watcher.close();
+          resolve();
+        };
+        check();
+      });
     case "silence":
       return forever();
     case "exit":
