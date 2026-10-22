@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -31,12 +31,14 @@ function serve(running = true, busy = false) {
   });
   const older = message(9, "User", [[WATCHER_NAME, "read"]], "Old question", { id: 100 });
   const newer = message(9, WATCHER_NAME, [["User", "delivered"]], "**Newest answer**", { id: 101 });
+  const messages = [newer, older];
   api.on("GET", "/api/swarms/3/watcher", () => ({
     thread: thread(9, ["User", WATCHER_NAME]),
-    messages: [older, newer],
+    messages,
   }));
   api.on("POST", "/api/swarms/3/participants/User/read", () => ({ updated: 1, unread: 0 }));
   api.on("POST", "/api/swarms/3/watcher", () => ({ message: older }));
+  return messages;
 }
 
 function mount() {
@@ -53,25 +55,25 @@ function mount() {
   act(() => source().open());
 }
 
-it("pins compose below newest-first messages, renders markdown and shows thinking above replies", async () => {
+it("pins compose below oldest-first messages, renders markdown and shows thinking after replies", async () => {
   serve(true, true);
   mount();
   expect(screen.getByRole("link", { name: WATCHER_NAME })).toHaveAttribute("href", "/s/3/watcher");
-  const messages = await screen.findByRole("list", { name: "Messages, newest first" });
+  const messages = await screen.findByRole("list", { name: "Messages, oldest first" });
   await screen.findByText("Newest answer");
   const entries = within(messages)
     .getAllByRole("listitem")
     .filter((entry) => entry.getAttribute("role") !== "status");
-  expect(entries[0]).toHaveTextContent("Newest answer");
-  expect(entries[1]).toHaveTextContent("Old question");
+  expect(entries[0]).toHaveTextContent("Old question");
+  expect(entries[1]).toHaveTextContent("Newest answer");
   expect(screen.getByText("Newest answer").tagName).toBe("STRONG");
-  expect(entries[1].className).toMatch(/userMessage/);
-  expect(entries[0].className).not.toMatch(/userMessage/);
+  expect(entries[0].className).toMatch(/userMessage/);
+  expect(entries[1].className).not.toMatch(/userMessage/);
   expect(within(messages).queryByText(/Read|Delivered/)).not.toBeInTheDocument();
   const composer = screen.getByRole("textbox", { name: "Ask about the swarm…" });
   expect(messages.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(screen.getByRole("status")).toHaveTextContent("thinking…");
-  expect(messages.firstElementChild).toBe(screen.getByRole("status"));
+  expect(messages.lastElementChild).toBe(screen.getByRole("status"));
   const user = userEvent.setup();
   await user.type(composer, "What is Maria doing?");
   await user.click(screen.getByRole("button", { name: "Send" }));
@@ -80,6 +82,41 @@ it("pins compose below newest-first messages, renders markdown and shows thinkin
   );
   await waitFor(() => expect(composer).toHaveValue(""));
   expect(api.callsTo("POST", "/api/swarms/3/participants/User/read")[0]?.body).toEqual({ messageIds: [101] });
+});
+
+it("opens at the bottom, follows new replies, and preserves the position while reading older messages", async () => {
+  let height = 600;
+  vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(() => height);
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(200);
+  const history = serve();
+  mount();
+  await screen.findByText("Newest answer");
+  const list = screen.getByRole("list", { name: "Messages, oldest first" });
+  expect(list.scrollTop).toBe(600);
+
+  async function reply(id: number) {
+    const update = message(9, WATCHER_NAME, [["User", "delivered"]], `Reply ${id}`, { id });
+    history.push(update);
+    act(() =>
+      source().emit({ ...eventBase, type: "message.created", payload: { message: update, unread: { User: 1 } } }),
+    );
+    await screen.findByText(`Reply ${id}`);
+  }
+
+  height = 800;
+  await reply(102);
+  expect(list.scrollTop).toBe(800);
+  list.scrollTop = 100;
+  fireEvent.scroll(list);
+  height = 1000;
+  await reply(103);
+  expect(list.scrollTop).toBe(100);
+  list.scrollTop = 800;
+  fireEvent.scroll(list);
+  height = 1200;
+  await reply(104);
+  expect(list.scrollTop).toBe(1200);
+  expect(within(list).getAllByRole("listitem").at(-1)).toHaveTextContent("Reply 104");
 });
 
 it("shows availability only in the placeholder, queues questions and reloads on new messages", async () => {

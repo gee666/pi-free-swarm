@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { WATCHER_NAME } from "../../../../src/constants";
 import { displayName, USER_NAME } from "../../api/agents";
@@ -27,17 +28,28 @@ function WatcherChat({ swarmId }: { swarmId: string }) {
     watcher.status !== "stopped";
   const busy = available && watcher?.kind === "agent" && watcher.status === "working";
   const failure = error ?? chat.error?.message ?? detail.error?.message;
-  const messages = [...(chat.data?.messages ?? [])].sort((a, b) => b.id - a.id);
+  const messages = [...(chat.data?.messages ?? [])].sort((a, b) => a.id - b.id);
+  const messageList = useRef<HTMLOListElement>(null);
+  const following = useRef(true);
+  const latestMessageId = messages.at(-1)?.id;
+  useLayoutEffect(() => {
+    const list = messageList.current;
+    if (list && following.current) list.scrollTop = list.scrollHeight;
+  }, [latestMessageId, busy]);
   return (
     <section className={styles.page} aria-label="Watcher chat">
       {failure && <ErrorBanner>{failure}</ErrorBanner>}
       {chat.loading && !chat.data && <SkeletonRows />}
-      <ol className={styles.messages} aria-label="Messages, newest first" aria-busy={busy}>
-        {busy && (
-          <li className={styles.thinking} role="status">
-            thinking<span className={styles.dots}>…</span>
-          </li>
-        )}
+      <ol
+        ref={messageList}
+        className={styles.messages}
+        aria-label="Messages, oldest first"
+        aria-busy={busy}
+        onScroll={(event) => {
+          const list = event.currentTarget;
+          following.current = Math.ceil(list.scrollTop + list.clientHeight) >= list.scrollHeight;
+        }}
+      >
         {messages.map((message) => (
           <AuthoredEntry
             key={message.id}
@@ -49,6 +61,11 @@ function WatcherChat({ swarmId }: { swarmId: string }) {
             <Markdown source={message.text} />
           </AuthoredEntry>
         ))}
+        {busy && (
+          <li className={styles.thinking} role="status">
+            thinking<span className={styles.dots}>…</span>
+          </li>
+        )}
       </ol>
       <ComposeBox
         text={text}
