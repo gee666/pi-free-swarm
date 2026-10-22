@@ -51,13 +51,11 @@ export function readPostTool(
           : [swarmId, post.id, position.id, position.snapshot, count + 1]),
       );
     items.push(
-      ...rows
-        .map(commentOf)
-        .map((comment) => ({
-          id: comment.id,
-          label: `#${comment.id} ${comment.author} · ${timeAgo(comment.createdAt, now)}`,
-          text: comment.text,
-        })),
+      ...rows.map(commentOf).map((comment) => ({
+        id: comment.id,
+        label: `#${comment.id} ${comment.author} · ${timeAgo(comment.createdAt, now)}`,
+        text: comment.text,
+      })),
     );
     const page = renderReadPage(`Post #${post.id} · ${post.title}`, items, position, count);
     if (page.completeIds.includes(0)) markPostsCovered(db, swarmId, reader, [post.id]);
