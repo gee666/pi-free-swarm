@@ -33,6 +33,7 @@ export function insertMessage(
     sender: string;
     text: string;
     recipients: readonly RecipientInput[];
+    commentSource?: { postId: number; commentId: number };
     now: number;
   },
 ): MessageView {
@@ -56,6 +57,11 @@ export function insertMessage(
       recipient.status === "delivered" ? now : null,
     ),
   );
+  if (input.commentSource) {
+    db.sql
+      .prepare("INSERT INTO comment_notifications (message_id, post_id, comment_id) VALUES (?, ?, ?)")
+      .run(messageId, input.commentSource.postId, input.commentSource.commentId);
+  }
   const [message] = getMessages(db, [messageId]);
   const names = input.recipients.map((recipient) => recipient.name);
   insertEvent(db, swarmId, "message.created", { message, unread: unreadCounts(db, swarmId, names) }, now);

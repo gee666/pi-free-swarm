@@ -72,20 +72,18 @@ export function notifyComment(db: SwarmDb, comment: CommentView, now: number): v
     );
   if (recipients.length === 0) return;
   const threadId = createThread(db, swarmId, [SYSTEM_NAME, ...recipients.map((person) => person.name)], now);
-  const message = insertMessage(db, {
+  insertMessage(db, {
     swarmId,
     threadId,
     sender: SYSTEM_NAME,
     text: comment.text,
+    commentSource: { postId, commentId: comment.id },
     recipients: recipients.map((person) => ({
       name: person.name,
       status: person.kind === "user" ? "delivered" : "pending",
     })),
     now,
   });
-  db.sql
-    .prepare("INSERT INTO comment_notifications (message_id, post_id, comment_id) VALUES (?, ?, ?)")
-    .run(message.id, postId, comment.id);
 }
 
 /** Called only when the current worker generation observed the complete durable message. */
