@@ -9,7 +9,7 @@ import { SCENARIOS } from "../fixtures/fake-pi/harness.js";
 import { agentNames, agentStatus, createRunFixture, newestSwarmId, promptTexts, waitFor } from "./run-fixture.js";
 
 it(
-  "supplies persisted launch criteria in worker system, kickoff, revive and resume prompts",
+  "supplies task and criteria once before identity, with current criteria on revive and resume",
   { timeout: 20_000 },
   async () => {
     const run = createRunFixture({ spawns: [SCENARIOS.crash, SCENARIOS.settle] });
@@ -33,13 +33,23 @@ it(
       const worker = listAgentSessions(run.db, swarmId).find((agent) => agent.name === name);
       assert.ok(worker);
       const systemPrompt = readFileSync(path.join(path.dirname(worker.sessionFile), SYSTEM_PROMPT_FILE), "utf8");
-      for (const criterion of acceptanceCriteria) assert.ok(systemPrompt.includes(criterion));
-      const prompts = promptTexts(run.fake);
-      for (const header of ["Task for the swarm:", REVIVE_PROMPT_HEADER]) {
-        const prompt = prompts.find((text) => text.startsWith(header));
-        assert.ok(prompt);
-        for (const criterion of acceptanceCriteria) assert.ok(prompt.includes(criterion));
+      const identity = systemPrompt.lastIndexOf(`You are ${name},`);
+      assert.ok(identity > 0);
+      assert.equal(systemPrompt.split("Fix login.").length - 1, 1);
+      assert.ok(systemPrompt.indexOf("Fix login.") < identity);
+      for (const criterion of acceptanceCriteria) {
+        assert.equal(systemPrompt.split(criterion).length - 1, 1);
+        assert.ok(systemPrompt.indexOf(criterion) < identity);
       }
+      const prompts = promptTexts(run.fake);
+      const kickoff = prompts.find((text) => text.startsWith("Begin the shared task"));
+      assert.ok(kickoff);
+      assert.ok(!kickoff.includes("Fix login."));
+      for (const criterion of acceptanceCriteria) assert.ok(!kickoff.includes(criterion));
+      const revived = prompts.find((text) => text.startsWith(REVIVE_PROMPT_HEADER));
+      assert.ok(revived);
+      for (const criterion of acceptanceCriteria) assert.ok(revived.includes(criterion));
+      assert.ok(revived.includes("never automatically replay writes or actions whose effects are uncertain"));
       firstAbort.abort();
       const stopped = await first;
       assert.deepEqual(stopped.swarm.acceptanceCriteria, acceptanceCriteria);
