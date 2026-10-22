@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, it } from "node:test";
 import { createAgentToolHandlers } from "../../src/tools/agent-tools.js";
 import { createWatcherToolHandlers } from "../../src/tools/watcher-tools.js";
+import { agentToolResult } from "../../src/tools/agent-tool-result.js";
 import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
 
 const temp = createTempDb();
@@ -17,6 +18,18 @@ function next(text: string): string | undefined {
 function id(text: string): number {
   return Number(/#(\d+)/.exec(text)?.[1]);
 }
+
+it("valid multiline titles cannot push covered bodies beyond pi's line limit", async () => {
+  const swarm = seedSwarm(db);
+  const maria = tools(swarm.id);
+  for (let i = 0; i < 100; i++) maria.post({ title: "x\n".repeat(29) + "x", text: `body ${i}` });
+  const page = maria.readPosts({ only_new: true, count: 100 });
+  const result = await agentToolResult(page);
+  assert.equal(result.details, undefined, "the exact covered output must reach context without outer truncation");
+  assert.ok(page.split("\n").length < 2000);
+  assert.match(page, /body 99/);
+  assert.doesNotMatch(maria.readPosts({ only_new: true }), /body/);
+});
 
 it("first only-new read catches history oldest-first and isolates agents", () => {
   const swarm = seedSwarm(db);
