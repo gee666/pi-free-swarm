@@ -8,12 +8,15 @@ import type { AgentExitInfo } from "./agent-process.js";
 import { spawnAgentTransport, type AgentTransport, type AgentTransportFactory } from "./transport.js";
 import type { AgentLaunchSpec } from "./launch.js";
 import { createProtocolHandler } from "./protocol.js";
+import { PostObservation } from "./post-observation.js";
 import { dialogRequestId, headerMessageIds, type RpcRecord } from "./rpc-events.js";
 import { StallWatchdog, watchdogConfigFromEnv, type StallKind, type WatchdogConfig } from "./watchdog.js";
 
 export interface PromptPayload {
   text: string;
   messageIds: readonly number[];
+  /** Full wall posts in this payload, covered only after its text enters context. */
+  postIds?: readonly number[];
 }
 
 export type DeliveryOutcome = { accepted: true } | { accepted: false; error: string };
@@ -40,6 +43,7 @@ export interface SupervisorHooks {
   onStatus(status: ParticipantStatus): void;
   /** `[swarm message #id]` markers in a user message_start. */
   onMessagesRead(messageIds: number[]): void;
+  onPostsRead?(postIds: number[]): void;
   onUsage(sample: UsageSample): void;
   onActivity(activity: AgentActivity | null): void;
   /** After onStatus("crashed"); never for stop(). */
@@ -55,6 +59,7 @@ interface Life {
   promptsInFlight: number;
   deferredSettle: boolean;
   runStarts: number;
+  posts: PostObservation;
 }
 
 export class AgentSupervisor {
@@ -200,11 +205,22 @@ export class AgentSupervisor {
       onUserMessage: (text) => {
         const ids = headerMessageIds(text).filter((id) => this.#sentIds.has(id));
         if (ids.length > 0) this.#hooks.onMessagesRead(ids);
+        const postIds = life.posts.observed(text);
+        if (postIds.length) this.#hooks.onPostsRead?.(postIds);
       },
       onUsage: (sample) => this.#hooks.onUsage(sample),
       onActivity: (activity) => this.#setActivity(activity),
     });
-    life = { proc, watchdog, handle, stall: null, promptsInFlight: 0, deferredSettle: false, runStarts: 0 };
+    life = {
+      proc,
+      watchdog,
+      handle,
+      stall: null,
+      promptsInFlight: 0,
+      deferredSettle: false,
+      runStarts: 0,
+      posts: new PostObservation(),
+    };
     this.#life = life;
     watchdog.armStartup();
 
@@ -235,10 +251,12 @@ export class AgentSupervisor {
     life.promptsInFlight++;
     const runStarts = life.runStarts;
     for (const id of prompt.messageIds) this.#sentIds.add(id);
+    life.posts.sent(prompt.text, prompt.postIds);
     try {
       const response = await life.proc.send({ type: "prompt", message: prompt.text, streamingBehavior: "steer" });
       if (life !== this.#life || this.#stopped) return null;
       if (response.success !== true) {
+        life.posts.rejected(prompt.text);
         return { accepted: false, error: typeof response.error === "string" ? response.error : "Prompt rejected." };
       }
       // A fast new turn can settle in the same batch as its prompt response.

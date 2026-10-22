@@ -8,6 +8,7 @@ import { sendMessage } from "../../src/broker/messages.js";
 import { markRead } from "../../src/broker/delivery-state.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
 import { IDLE_REMINDER_HEADER } from "../../src/constants.js";
+import { markPostsCovered } from "../../src/store/wall-coverage.js";
 import { FakeClock } from "../agents/fake-clock.js";
 import { createTempDb, seedSwarm, T0, type TempDb } from "../helpers/temp-db.js";
 
@@ -24,6 +25,8 @@ function setup(delay = 100) {
     status: "idle",
     async deliver(prompt: PromptPayload) {
       prompts.push(prompt);
+      // This fake models context observation before the queue acknowledgment.
+      markPostsCovered(db, swarm.id, "Maria", prompt.postIds ?? []);
       agent.status = "working";
       reminders.statusChanged("Maria", "working");
       return { accepted: true };
@@ -51,10 +54,10 @@ function setup(delay = 100) {
   return { db, clock, swarm, agent, reminders, prompts, settle, fire, vote };
 }
 
-it("delivers a bounded latest-wall digest and vote instructions without messages or read marks", async () => {
+it("delivers bounded oldest-uncovered full posts and productive alternative-work instructions", async () => {
   const { db, swarm, reminders, clock, prompts } = setup();
   for (const title of ["old", "middle", "latest"]) {
-    createPost(db, swarm.id, "John", { title, text: "x".repeat(1000) }, clock.now());
+    createPost(db, swarm.id, "John", { title, text: "Complete fresh body." }, clock.now());
   }
   assert.equal(reminders.update(), true);
   assert.equal(clock.pending, 1);
@@ -67,18 +70,54 @@ it("delivers a bounded latest-wall digest and vote instructions without messages
   assert.equal(prompts.length, 1);
   assert.deepEqual(prompts[0].messageIds, []);
   assert.ok(prompts[0].text.startsWith(IDLE_REMINDER_HEADER + "\n\n"));
-  assert.match(prompts[0].text, /goal is not reached/);
-  assert.match(prompts[0].text, /70% quorum.*same accepted or blocked/);
-  assert.match(prompts[0].text, /Keep working/);
-  assert.match(prompts[0].text, /swarm_acceptance.*action: "vote".*verdict:.*reason/);
+  assert.match(prompts[0].text, /leave that dependency pending and take another useful piece of work/);
+  assert.match(prompts[0].text, /Do not invent extra work solely because quorum has not formed/);
+  assert.match(prompts[0].text, /evidence, a correction, or a decision to advance/);
+  assert.match(prompts[0].text, /whole-task vote with swarm_acceptance/);
   assert.match(prompts[0].text, /Votes: 0 accepted, 0 incomplete, 0 blocked\. Quorum: 2\/2/);
-  assert.match(prompts[0].text, /John · 0s ago · latest/);
+  assert.match(prompts[0].text, /\[swarm post #\d+\] John: old\nComplete fresh body\./);
   assert.match(prompts[0].text, /middle/);
-  assert.doesNotMatch(prompts[0].text, /· old|\(new\)|swarm message|claim|challenge/);
+  assert.doesNotMatch(prompts[0].text, /John: latest|\(new\)|swarm message|challenge/);
   assert.ok(prompts[0].text.length < 1400);
   for (const table of ["messages", "threads", "read_marks"]) {
     assert.equal(db.sql.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get()?.n, 0);
   }
+});
+
+it("unchanged reminders repeat no covered post bodies; later fresh posts still arrive", async () => {
+  const { db, swarm, clock, prompts, settle, fire } = setup();
+  const old = createPost(db, swarm.id, "John", { title: "Already fetched", text: "Tool-covered body" }, clock.now());
+  markPostsCovered(db, swarm.id, "Maria", [old.id]);
+  const fresh = createPost(db, swarm.id, "John", { title: "Fresh", text: "Fresh full body" }, clock.now());
+  addComment(db, swarm.id, "John", fresh.id, "Comment notification body", clock.now());
+  settle();
+  await fire();
+  assert.match(prompts[0].text, /Fresh full body/);
+  assert.doesNotMatch(prompts[0].text, /Tool-covered body|Comment notification body/);
+  settle();
+  await fire();
+  assert.doesNotMatch(prompts[1].text, /Fresh full body|Tool-covered body|Comment notification body/);
+  createPost(db, swarm.id, "John", { title: "Later", text: "Later full body" }, clock.now());
+  settle();
+  await fire();
+  assert.match(prompts[2].text, /Later full body/);
+});
+
+it("queue acceptance and rejection alone never cover fresh reminder posts", async () => {
+  const { db, swarm, clock, prompts, agent, settle, fire } = setup();
+  createPost(db, swarm.id, "John", { title: "Unobserved", text: "Must remain retrievable" }, clock.now());
+  let accepted = false;
+  agent.deliver = async (payload) => {
+    prompts.push(payload);
+    return accepted ? { accepted: true } : { accepted: false, error: "Not delivered" };
+  };
+  for (const value of [false, true, true]) {
+    accepted = value;
+    settle();
+    await fire();
+  }
+  assert.equal(prompts.length, 3);
+  for (const payload of prompts) assert.match(payload.text, /Must remain retrievable/);
 });
 
 it("busy transitions cancel immediately and a fresh idle period gets the full delay", async () => {

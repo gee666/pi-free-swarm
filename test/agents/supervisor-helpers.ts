@@ -17,6 +17,7 @@ export const RELAXED_WATCHDOG: WatchdogConfig = { startupTimeoutMs: 10_000, idle
 export interface Recorded {
   statuses: ParticipantStatus[];
   reads: number[][];
+  postReads: number[][];
   usage: UsageSample[];
   activity: (AgentActivity | null)[];
   crashes: AgentCrash[];
@@ -37,7 +38,7 @@ export function superviseFake(
 ): SupervisedAgent {
   useFakePi();
   const fake = createFakePiRun(scenario);
-  const recorded: Recorded = { statuses: [], reads: [], usage: [], activity: [], crashes: [] };
+  const recorded: Recorded = { statuses: [], reads: [], postReads: [], usage: [], activity: [], crashes: [] };
   const supervisor = new AgentSupervisor({
     name: "Maria",
     watchdog: options.watchdog ?? RELAXED_WATCHDOG,
@@ -45,6 +46,7 @@ export function superviseFake(
     hooks: {
       onStatus: (status) => recorded.statuses.push(status),
       onMessagesRead: (ids) => recorded.reads.push(ids),
+      onPostsRead: (ids) => recorded.postReads.push(ids),
       onUsage: (sample) => recorded.usage.push(sample),
       onActivity: (activity) => recorded.activity.push(activity),
       onCrash: (crash) => recorded.crashes.push(crash),

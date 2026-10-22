@@ -2,15 +2,12 @@ import type { ParticipantStatus } from "../api-types.js";
 import type { Clock, TimerHandle } from "../clock.js";
 import { IDLE_REMINDER_HEADER, WATCHER_NAME } from "../constants.js";
 import type { SwarmSettings } from "../settings.js";
-import { TEXT_MAX } from "../limits.js";
 import type { SwarmDb } from "../store/db.js";
 import { listOpenAgentRecipients } from "../store/message-queries.js";
-import { listPosts } from "../store/wall-queries.js";
-import { formatPostList } from "../wall-format.js";
+import { listFreshPosts } from "../store/wall-coverage.js";
 import { inspectAcceptance } from "./acceptance.js";
 import type { DeliveryTarget } from "./delivery.js";
 import { guardRunAction } from "./run-failure.js";
-import { wallPreviewChars } from "./wall-delta.js";
 
 interface ReminderState {
   timer: TimerHandle | null;
@@ -91,19 +88,26 @@ export class IdleReminders {
   }
 
   async #send(name: string, state: ReminderState): Promise<void> {
-    const { db, swarmId, agents, settings, clock } = this.#options;
+    const { db, swarmId, agents, settings } = this.#options;
     const agent = agents.get(name);
     if (this.#stopped || state.inFlight || !agent || agent.status !== "idle" || this.#openRecipients().has(name))
       return;
     const acceptance = inspectAcceptance(db, swarmId);
     if (acceptance.verdict === "accepted" || acceptance.verdict === "blocked") return;
-    const page = listPosts(db, swarmId, { count: settings.idleReminderDigestSize, offset: 0 });
-    const digest = formatPostList(page, [], 0, clock.now(), Math.min(TEXT_MAX, wallPreviewChars(db)));
+    const page = listFreshPosts(db, swarmId, name, settings.idleReminderDigestSize);
+    // Send canonical stored bodies, not previews. Only context observation may cover these IDs.
+    const digest = page.posts
+      .map((post) => `[swarm post #${post.id}] ${post.author}: ${post.title}\n${post.text}`)
+      .join("\n\n");
     state.inFlight = true;
     try {
       const { counts, threshold, totalAgents } = acceptance;
       const tally = `Votes: ${counts.accepted} accepted, ${counts.incomplete} incomplete, ${counts.blocked} blocked. Quorum: ${threshold}/${totalAgents} for the same accepted or blocked verdict.`;
-      await agent.deliver({ text: `${IDLE_REMINDER_HEADER}\n\n${tally}\n\n${digest}`, messageIds: [] });
+      await agent.deliver({
+        text: [IDLE_REMINDER_HEADER, tally, digest].filter(Boolean).join("\n\n"),
+        messageIds: [],
+        postIds: page.posts.map((post) => post.id),
+      });
     } finally {
       state.inFlight = false;
     }
