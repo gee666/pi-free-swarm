@@ -1,20 +1,23 @@
 // One SwarmRun per tool call holds the run lock until launch, delivery and completion finish.
-import type { MessageView, SwarmListItem } from "../api-types.js";
+import type { SwarmListItem } from "../api-types.js";
+import { announceUserMessage } from "./messages.js";
 import type { AgentCrash } from "../agents/supervisor.js";
 import type { TimerHandle } from "../clock.js";
-import { MAIN_NAME, RESUME_STAGGER_MS, WATCHER_NAME } from "../constants.js";
-import { pickAgentNames } from "../names.js";
+import { MAIN_NAME, WATCHER_NAME } from "../constants.js";
 import { buildRunSpec } from "./run-spec.js";
 import { configureRun } from "./run-configuration.js";
 import { heartbeatRunLock } from "../store/locks.js";
 import { getSwarm, listAgentSessions } from "../store/swarm-queries.js";
 import { DeliveryLoop } from "./delivery.js";
+import { RunResources } from "./run-resources.js";
+import { RunLifecycle } from "./run-lifecycle.js";
+import { readBudget, assertBudgetPricing } from "./budget.js";
+import { RunBudget } from "./run-budget.js";
 import { IdleReminders } from "./idle-reminder.js";
 import { inspectAcceptance, invalidateAgentVote } from "./acceptance.js";
 import { closeRunAdmission, prepareRunCompletion } from "./run-acceptance.js";
 import type { AcceptanceRecord } from "../store/acceptance-types.js";
 import { reviveDelayMs } from "./lifecycle.js";
-import { sendMainFeedback } from "./messages.js";
 import { RunAgent } from "./run-agent.js";
 import { readRunProgress } from "./run-progress.js";
 import { registerActiveRun } from "./active-ownership.js";
@@ -27,20 +30,33 @@ import {
   type RunTimings,
 } from "./run-types.js";
 export type { RunEnvironment, RunOptions, RunOutcome, RunTimings } from "./run-types.js";
-import { beginResume, createSwarm, endRun, markSwarmRunning, type RunEndStatus } from "./swarms.js";
+import { endRun, markSwarmRunning, type RunEndStatus } from "./swarms.js";
+export { startSwarm, resumeSwarm } from "./run-entry.js";
 import { createPost } from "./wall.js";
+import { StartupAdmission } from "./startup-admission.js";
+import { SharedRecovery } from "./shared-recovery.js";
 
-const activeRuns = new Set<SwarmRun>();
+import { registerRun, unregisterRun } from "./run-registry.js";
+export { stopAllRuns } from "./run-registry.js";
 
-class SwarmRun {
+export class SwarmRun {
   readonly #env: RunEnvironment;
   readonly #swarm: SwarmListItem;
   readonly #run: number;
   readonly #options: RunOptions;
   readonly #timings: RunTimings;
   readonly #agents = new Map<string, RunAgent>();
+  readonly #resources = new RunResources();
+  readonly #lifecycle = new RunLifecycle();
+  readonly #budget: RunBudget;
+  get #budgetStop(): boolean {
+    return this.#budget.stopped;
+  }
   readonly #delivery: DeliveryLoop;
   readonly #reminders: IdleReminders;
+  readonly #admission: StartupAdmission;
+  readonly #recovery = new SharedRecovery();
+  #admittedWorkers = 0;
   readonly #done: Promise<RunOutcome>;
   #settle: { resolve(outcome: RunOutcome): void; reject(error: unknown): void } = {
     resolve: () => undefined,
@@ -60,7 +76,9 @@ class SwarmRun {
     if (!this.#isEnding) guardRunAction(action, this.#fail);
   }
   /** Set before stopping so supervisor shutdown transitions do not overwrite final statuses. */
-  #isEnding = false;
+  get #isEnding(): boolean {
+    return this.#lifecycle.ending;
+  }
   #ending: Promise<void> | null = null;
   readonly #onAbort = () => void this.stop();
 
@@ -71,6 +89,10 @@ class SwarmRun {
     this.#options = options;
     this.#timings = { ...DEFAULT_TIMINGS, ...env.timings };
     this.#done = new Promise((resolve, reject) => (this.#settle = { resolve, reject }));
+    this.#admission = new StartupAdmission((candidate) => {
+      const agent = this.#agents.get(candidate.name);
+      if (agent) this.#launchFirst(agent);
+    }, this.#fail);
     const { db, clock, settings } = env;
     const sessions = listAgentSessions(db, swarm.id);
     const assignments = configureRun(
@@ -80,6 +102,7 @@ class SwarmRun {
       sessions.map(({ name }) => name),
       this.#timings,
     );
+    assertBudgetPricing(env, assignments, swarm.id);
     for (const { name, sessionFile } of sessions) {
       const spec = buildRunSpec(env, swarm.id, name, sessionFile, run, assignments.get(name));
       const agent = new RunAgent(spec, {
@@ -92,7 +115,13 @@ class SwarmRun {
         watchdog: this.#timings.watchdog,
         collect: (agentName, includeDeliveredUnread) => this.#delivery.collect(agentName, includeDeliveredUnread),
         isEnding: () => this.#isEnding,
+        canContinue: () => this.#lifecycle.admitsWork,
         onStatus: (name, status) => this.#reminders.statusChanged(name, status),
+        onReady: (name) => {
+          const agent = this.#agents.get(name);
+          if (agent) this.#admission.ready(agent);
+          this.#recovery.ready(name);
+        },
         onRealMessage: (name) => this.#reminders.realMessage(name),
         onError: this.#fail,
         onCrash: (crashed, crash) => this.#onCrash(crashed, crash),
@@ -106,8 +135,28 @@ class SwarmRun {
       clock,
       pollMs: this.#timings.deliveryPollMs,
       onError: this.#fail,
-      onUserMessage: (message) => this.#announce(message),
+      onUserMessage: (message) => announceUserMessage(swarm.name, message, env.notifyUser),
     });
+    this.#budget = new RunBudget(
+      env,
+      swarm.id,
+      run,
+      () => {
+        this.#lifecycle.drain();
+        this.#delivery.stop();
+        this.#reminders.stop();
+        if (env.settings.gracefulShutdownOnBudget) {
+          for (const agent of this.#agents.values()) {
+            const quiesced = agent.quiesce();
+            this.#resources.add("join", () => quiesced);
+          }
+        }
+      },
+      () => [...this.#agents.values()].some((agent) => agent.status === "working" || agent.status === "starting"),
+      () => {
+        void this.#end("stopped");
+      },
+    );
     this.#reminders = new IdleReminders({
       db,
       swarmId: swarm.id,
@@ -123,9 +172,20 @@ class SwarmRun {
   }
 
   execute(staggerMs: number): Promise<RunOutcome> {
-    activeRuns.add(this);
+    this.#lifecycle.activate();
+    registerRun(this);
     this.#releaseOwnership = registerActiveRun(this.#env.db, this.#swarm.id, this.#env.runnerPid);
-    this.#guard(() => this.#start(staggerMs));
+    this.#resources.add("quiesce", () => {
+      for (const timer of this.#timers) timer.cancel();
+      this.#timers = [];
+      this.#delivery.stop();
+      this.#reminders.stop();
+      this.#options.signal?.removeEventListener("abort", this.#onAbort);
+    });
+    for (const agent of this.#agents.values()) this.#resources.add("join", () => agent.stop());
+    this.#guard(() => {
+      if (!this.#budget.check()) this.#start(staggerMs);
+    });
     return this.#done;
   }
 
@@ -139,8 +199,7 @@ class SwarmRun {
     if (watcher) this.#guard(() => watcher.launchFirst());
     const agents = this.#workers();
     agents.forEach((agent, index) => {
-      const isLast = index === agents.length - 1;
-      this.#timers.push(clock.after(index * staggerMs, () => this.#guard(() => this.#launchFirst(agent, isLast))));
+      this.#timers.push(clock.after(index * staggerMs, () => this.#guard(() => this.#admission.admit(agent))));
     });
     this.#timers.push(clock.every(timings.completionCheckMs, () => this.#guard(() => this.#checkCompletion())));
     this.#timers.push(clock.every(timings.progressMs, () => this.#guard(() => this.#reportProgress())));
@@ -154,15 +213,16 @@ class SwarmRun {
     return this.#end("stopped");
   }
 
-  #launchFirst(agent: RunAgent, isLast: boolean): void {
-    if (this.#isEnding) return;
+  #launchFirst(agent: RunAgent): void {
+    if (this.#isEnding || this.#budgetStop) return;
     this.#guard(() => agent.launchFirst());
-    if (!isLast) return;
+    this.#admittedWorkers++;
+    if (this.#admittedWorkers !== this.#workers().length) return;
     markSwarmRunning(this.#env.db, this.#swarm.id, this.#env.runnerPid, this.#env.clock.now(), this.#run);
   }
 
   #onCrash(agent: RunAgent, crash: AgentCrash): void {
-    if (agent.name === WATCHER_NAME) return;
+    if (agent.name === WATCHER_NAME || this.#budgetStop) return;
     invalidateAgentVote(
       this.#env.db,
       this.#swarm.id,
@@ -171,17 +231,34 @@ class SwarmRun {
       `Voter crashed: ${crash.message}`,
       this.#env.clock.now(),
     );
+    if (this.#admission.crashed(agent, crash)) return;
     if (crash.fatal) {
       this.#env.notifyUser(`Swarm "${this.#swarm.name}": ${agent.name} could not start. ${crash.message}`);
       this.#reportCrash(agent);
       return;
     }
     const delayMs = reviveDelayMs(agent.revivesThisRun, this.#timings.reviveBackoffMs);
-    if (delayMs === null) this.#reportCrash(agent);
-    else agent.scheduleRevive(delayMs);
+    if (delayMs === null) {
+      this.#reportCrash(agent);
+    } else if (crash.sharedFailure) {
+      this.#env.notifyUser(
+        `Swarm "${this.#swarm.name}": coordinating ${crash.sharedFailure} recovery for ${agent.name}.`,
+      );
+      this.#recovery.recover(`${agent.launchKey}:${crash.sharedFailure}`, agent.name, () => {
+        if (!this.#isEnding) agent.scheduleRevive(delayMs);
+      });
+    } else {
+      // Unknown failures keep individual retries; an existing shared group still waits for readiness.
+      agent.scheduleRevive(delayMs);
+    }
   }
 
   #reportCrash(agent: RunAgent): void {
+    this.#admission.isolatedFailure(agent);
+    for (const name of this.#recovery.failed(agent.name)) {
+      const waiting = this.#agents.get(name);
+      if (waiting) this.#reportCrash(waiting);
+    }
     const text = `${agent.name} crashed and was not revived`;
     createPost(
       this.#env.db,
@@ -192,11 +269,6 @@ class SwarmRun {
     );
   }
 
-  #announce(message: MessageView): void {
-    if (message.senderKind !== "agent") return;
-    this.#env.notifyUser(`Swarm "${this.#swarm.name}": ${message.sender} → User: ${message.text}`);
-  }
-
   #heartbeat(): void {
     const { db, runnerPid, clock } = this.#env;
     // Lost = a sweep already ended this run as interrupted; only the processes are left to stop.
@@ -204,7 +276,7 @@ class SwarmRun {
   }
 
   #checkCompletion(): void {
-    if (this.#isEnding) return;
+    if (this.#isEnding || this.#budget.check()) return;
     this.#reminders.update();
     const { db, runnerPid, clock } = this.#env;
     const decision = prepareRunCompletion(db, {
@@ -226,7 +298,7 @@ class SwarmRun {
 
   #end(end: RunEndStatus, lockLost = false): Promise<void> {
     if (this.#ending) return this.#ending;
-    this.#isEnding = true;
+    this.#lifecycle.end();
     this.#ending = this.#shutDown(end, lockLost).then(
       (outcome) => (this.#failure ? this.#settle.reject(this.#failure.error) : this.#settle.resolve(outcome)),
       (error: unknown) => {
@@ -239,11 +311,8 @@ class SwarmRun {
   }
 
   async #shutDown(end: RunEndStatus, lockLost: boolean): Promise<RunOutcome> {
-    for (const timer of this.#timers) timer.cancel();
-    this.#timers = [];
-    this.#delivery.stop();
-    this.#reminders.stop();
-    this.#options.signal?.removeEventListener("abort", this.#onAbort);
+    this.#admission.close();
+    this.#recovery.close();
     try {
       const { db, runnerPid, clock } = this.#env;
       try {
@@ -257,73 +326,23 @@ class SwarmRun {
             })) ||
           inspectAcceptance(db, this.#swarm.id);
       } finally {
-        await Promise.allSettled([...this.#agents.values()].map((agent) => agent.stop()));
+        await this.#resources.close();
       }
       const ended = !lockLost && endRun(db, this.#swarm.id, runnerPid, end, clock.now(), this.#run);
       this.#reportProgress();
       const swarm = getSwarm(db, this.#swarm.id, clock.now()) ?? this.#swarm;
-      return { swarm, run: this.#run, end: ended ? end : "interrupted", acceptance: this.#acceptance };
+      return {
+        swarm,
+        run: this.#run,
+        end: ended ? end : "interrupted",
+        acceptance: this.#acceptance,
+        ...(this.#budgetStop ? { stopReason: "budget-exhausted" as const } : {}),
+        budget: readBudget(db, this.#swarm.id, this.#env.settings, clock.now()),
+      };
     } finally {
-      activeRuns.delete(this);
+      unregisterRun(this);
       this.#releaseOwnership?.();
+      this.#lifecycle.close();
     }
   }
-}
-
-/** Creates the swarm (claiming its run lock in the same transaction) and blocks until the run ends. */
-export async function startSwarm(
-  env: RunEnvironment,
-  input: { name: string; taskPrompt: string; acceptanceCriteria: readonly string[]; agentAmount: number },
-  options: RunOptions,
-): Promise<RunOutcome> {
-  const agentNames = pickAgentNames(input.agentAmount);
-  const { db, runnerPid, clock } = env;
-  const swarm = createSwarm(db, {
-    name: input.name,
-    taskPrompt: input.taskPrompt,
-    acceptanceCriteria: input.acceptanceCriteria,
-    agentNames,
-    runnerPid,
-    now: clock.now(),
-  });
-  return executeRun(env, swarm, 1, options, env.settings.staggerSeconds * 1000);
-}
-
-/**
- * Claims the lock, posts Main's feedback and relaunches every agent on its own session. Throws
- * `swarm_running` while another fresh lock holds it; the feedback is validated in the same transaction.
- */
-export async function resumeSwarm(
-  env: RunEnvironment,
-  input: { swarmId: number; message: string },
-  options: RunOptions,
-): Promise<RunOutcome> {
-  const { db, runnerPid, clock } = env;
-  const { swarm, run } = db.write(() => {
-    const resumed = beginResume(db, input.swarmId, runnerPid, clock.now());
-    sendMainFeedback(db, input.swarmId, input.message, clock.now());
-    return resumed;
-  });
-  return executeRun(env, swarm, run, options, env.timings?.resumeStaggerMs ?? RESUME_STAGGER_MS);
-}
-
-function executeRun(
-  env: RunEnvironment,
-  swarm: SwarmListItem,
-  run: number,
-  options: RunOptions,
-  stagger: number,
-): Promise<RunOutcome> {
-  try {
-    return new SwarmRun(env, swarm, run, options).execute(stagger);
-  } catch (error) {
-    bestEffortEnd(env, swarm.id, run);
-    reportRunFailure(env, swarm.id);
-    return Promise.reject(error);
-  }
-}
-
-/** For session_shutdown: stops every run of this process. */
-export async function stopAllRuns(): Promise<void> {
-  await Promise.all([...activeRuns].map((run) => run.stop()));
 }

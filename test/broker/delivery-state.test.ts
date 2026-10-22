@@ -52,8 +52,8 @@ describe("recipient status", () => {
 
   it("keeps undeliverable final", () => {
     const swarm = seedSwarm(db);
-    const message = sendMessage(db, swarm.id, "Maria", ["John"], "hi", T0 + 1);
-    endRun(db, swarm.id, process.pid, "stopped", T0 + 2);
+    endRun(db, swarm.id, process.pid, "stopped", T0 + 1);
+    const message = sendMessage(db, swarm.id, "Maria", ["John"], "hi", T0 + 2);
     assert.equal(markDelivered(db, swarm.id, "John", [message.id], T0 + 3), 0);
     assert.equal(markRead(db, swarm.id, "John", [message.id], T0 + 3), 0);
     assert.equal(recipient(message.id, "John")?.status, "undeliverable");

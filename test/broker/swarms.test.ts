@@ -8,7 +8,6 @@ import { markDelivered } from "../../src/broker/delivery-state.js";
 import { BrokerError } from "../../src/broker/errors.js";
 import { sendMessage } from "../../src/broker/messages.js";
 import { beginResume, createSwarm, endRun, markSwarmRunning, sweepStaleRuns } from "../../src/broker/swarms.js";
-import { UNDELIVERABLE_REPLY_TEXT } from "../../src/constants.js";
 import { buildAgentEnv, loadSettings } from "../../src/settings.js";
 import { getMessages, getThread } from "../../src/store/message-queries.js";
 import { getStats } from "../../src/store/stats-queries.js";
@@ -190,7 +189,7 @@ describe("agent state", () => {
 });
 
 describe("runs", () => {
-  it("ends a stopped run: statuses, spans, lock, undeliverable and User notices", () => {
+  it("ends a stopped run while preserving pending and accepted-but-unobserved messages", () => {
     const swarm = seedSwarm(db);
     setAgentStatus(db, swarm.id, "Maria", "working", T0);
     setAgentStatus(db, swarm.id, "John", "crashed", T0);
@@ -205,14 +204,11 @@ describe("runs", () => {
     assert.deepEqual([ended?.status, ended?.runnerPid, ended?.finishedAt], ["stopped", null, T0 + 3]);
     assert.deepEqual(agents(swarm.id), { Maria: "stopped", John: "crashed", Liam: "stopped", Watcher: "stopped" });
     const statuses = getMessages(db, [fromUser.id, fromAgent.id]).flatMap((m) => m.recipients.map((r) => r.status));
-    assert.deepEqual(statuses, ["undeliverable", "undeliverable", "undeliverable"]);
+    assert.deepEqual(statuses, ["pending", "pending", "delivered"]);
     const userThread = getThread(db, swarm.id, fromUser.threadId)?.messages ?? [];
     assert.deepEqual(
       userThread.map((m) => [m.sender, m.text]),
-      [
-        ["User", "status?"],
-        ["System", UNDELIVERABLE_REPLY_TEXT],
-      ],
+      [["User", "status?"]],
     );
     assert.equal(getThread(db, swarm.id, fromAgent.threadId)?.messages.length, 1, "agents get no notice");
     const open = db.sql
@@ -255,7 +251,7 @@ describe("runs", () => {
     assert.equal(getMessages(db, [message.id])[0].recipients[0].status, "pending");
     const resumed = beginResume(db, swarm.id, OTHER_PID, T0 + 30_000);
     assert.equal(resumed.swarm.status, "starting");
-    assert.equal(getMessages(db, [message.id])[0].recipients[0].status, "undeliverable");
+    assert.equal(getMessages(db, [message.id])[0].recipients[0].status, "pending");
     const run1 = db.sql.prepare("SELECT end_status FROM swarm_runs WHERE swarm_id = ? AND run = 1").get(swarm.id);
     assert.equal(run1?.end_status, "interrupted");
   });

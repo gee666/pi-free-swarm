@@ -125,21 +125,15 @@ describe("crash recovery", () => {
       crashedPosts(run, swarmId).map((post) => [post.title, post.text]),
       [[`${name} crashed`, `${name} crashed and was not revived`]],
     );
-    assert.equal(recipientStatus(db, id, name), "undeliverable");
+    assert.equal(recipientStatus(db, id, name), "pending");
   });
 
   it("never revives a fatal extension-load failure and tells the user", { timeout: 20_000 }, async () => {
     const { run, db, outcome, swarmId, name } = startOne(SCENARIOS.extensionLoadFailure);
-    await waitFor(() => crashedPosts(run, swarmId).length === 1, "fatal failure reported");
-    await stopAllRuns();
-    const result = await outcome;
-    assert.equal(result.end, "stopped");
-    assert.equal(result.acceptance.verdict, "unchecked");
+    await assert.rejects(outcome, /failed shared startup: Error: Failed to load extension "\/x\/index\.ts"/);
     assert.equal(agentStatus(db, swarmId, name), "crashed");
     assert.equal(reviveCount(db, swarmId, name), 0);
     assert.equal(spawnsOf(run.fake).length, 1);
     assert.equal(run.notes.length, 1);
-    assert.match(run.notes[0], /could not start\. Error: Failed to load extension "\/x\/index\.ts"/);
-    assert.equal(crashedPosts(run, swarmId).length, 1);
   });
 });

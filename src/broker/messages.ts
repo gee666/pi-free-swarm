@@ -1,4 +1,4 @@
-// Message writes: new threads, replies, Main's feedback and the User's read marks.
+// Message writes and notifications for Main and User.
 import type { MarkReadResponse, MessageView, ThreadResponse } from "../api-types.js";
 import {
   MAIN_FEEDBACK_POST_SUFFIX,
@@ -23,6 +23,10 @@ import { BrokerError } from "./errors.js";
 import { createThread, sendToThread } from "./message-insert.js";
 import { notifyLocalMessage } from "./notify.js";
 import { actAs, requireParticipant, requireSwarm, requireText } from "./validate.js";
+
+export function announceUserMessage(swarmName: string, message: MessageView, notifyUser: (text: string) => void): void {
+  if (message.senderKind === "agent") notifyUser(`Swarm "${swarmName}": ${message.sender} → User: ${message.text}`);
+}
 import { createPost } from "./wall.js";
 
 type SendResult = { message: MessageView; pending: boolean };

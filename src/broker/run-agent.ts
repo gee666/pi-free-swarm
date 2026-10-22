@@ -28,7 +28,9 @@ export interface RunAgentContext {
   /** DeliveryLoop.collect: open messages for a launch prompt. */
   collect(name: string, includeDeliveredUnread: boolean): { text: string; messageIds: number[] };
   isEnding(): boolean;
+  canContinue?(): boolean;
   onStatus(name: string, status: ParticipantStatus): void;
+  onReady?(name: string): void;
   onRealMessage(name: string): void;
   onError(error: unknown): void;
   onCrash(agent: RunAgent, crash: AgentCrash): void;
@@ -58,6 +60,7 @@ export class RunAgent implements DeliveryTarget {
     });
     const observed = {
       ...hooks,
+      onReady: () => ctx.onReady?.(this.name),
       onStatus: (status: ParticipantStatus) => {
         hooks.onStatus(status);
         ctx.onStatus(this.name, status);
@@ -74,6 +77,11 @@ export class RunAgent implements DeliveryTarget {
   /** A launch prompt counts as `starting` until pi accepts it, so the delivery loop can't send its messages twice. */
   get status(): ParticipantStatus {
     return this.#launching ? "starting" : this.#supervisor.status;
+  }
+
+  /** Effective shared launch configuration, excluding worker/session identity and credentials. */
+  get launchKey(): string {
+    return JSON.stringify([this.#spec.cwd, this.#spec.context, this.#spec.maxRpcFrameBytes]);
   }
 
   get revivesThisRun(): number {
@@ -110,7 +118,7 @@ export class RunAgent implements DeliveryTarget {
   /** Kickoff for a fresh session, the resume prompt when the session already has history. */
   launchFirst(): Promise<void> {
     const { acceptanceCriteria } = this.#ctx;
-    const messages = this.#ctx.collect(this.name, false);
+    const messages = this.#ctx.collect(this.name, true);
     if (this.name === WATCHER_NAME) return this.#launch(messages.text || null, messages.messageIds);
     const text = hasSessionFile(this.#spec.sessionFile)
       ? buildResumePrompt({ acceptanceCriteria, messages: messages.text })
@@ -122,8 +130,15 @@ export class RunAgent implements DeliveryTarget {
     this.#revivesThisRun++;
     this.#reviveTimer = this.#ctx.clock.after(delayMs, () => {
       this.#reviveTimer = null;
-      if (!this.#ctx.isEnding()) guardRunAction(() => this.#revive(), this.#ctx.onError);
+      if (!this.#ctx.isEnding() && this.#ctx.canContinue?.() !== false)
+        guardRunAction(() => this.#revive(), this.#ctx.onError);
     });
+  }
+
+  quiesce(): Promise<void> {
+    this.#reviveTimer?.cancel();
+    this.#reviveTimer = null;
+    return this.#supervisor.quiesce();
   }
 
   stop(): Promise<void> {

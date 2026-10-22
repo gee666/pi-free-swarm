@@ -13,6 +13,7 @@ export interface AgentExitInfo {
   stderrTail: string;
   /** Set when the child could not be spawned at all (e.g. the command does not exist). */
   spawnError: string | null;
+  spawnErrorCode?: string;
   protocolError?: RpcFrameOverflowError;
 }
 
@@ -45,6 +46,7 @@ export class AgentProcess {
   #killTimer: TimerHandle | undefined;
   #finished = false;
   #protocolError: RpcFrameOverflowError | undefined;
+  #spawnErrorCode: string | undefined;
 
   private constructor(child: ChildProcess, handlers: AgentProcessHandlers, clock: Clock, maxFrameBytes?: number) {
     this.#child = child;
@@ -54,7 +56,10 @@ export class AgentProcess {
   }
 
   static spawn(spec: AgentLaunchSpec, handlers: AgentProcessHandlers, clock: Clock = systemClock): AgentProcess {
-    if (spec.maxRpcFrameBytes !== undefined && (!Number.isSafeInteger(spec.maxRpcFrameBytes) || spec.maxRpcFrameBytes < 1)) {
+    if (
+      spec.maxRpcFrameBytes !== undefined &&
+      (!Number.isSafeInteger(spec.maxRpcFrameBytes) || spec.maxRpcFrameBytes < 1)
+    ) {
       throw new Error("maxRpcFrameBytes must be a positive safe integer.");
     }
     return new AgentProcess(spawnAgentProcess(spec), handlers, clock, spec.maxRpcFrameBytes);
@@ -111,7 +116,10 @@ export class AgentProcess {
     // EPIPE after the child died: the exit path reports it.
     child.stdin?.on("error", () => undefined);
     child.on("error", (error) => {
-      if (child.pid === undefined) this.#finish({ code: null, signal: null }, error.message);
+      if (child.pid === undefined) {
+        if ("code" in error && typeof error.code === "string") this.#spawnErrorCode = error.code;
+        this.#finish({ code: null, signal: null }, error.message);
+      }
     });
     child.on("exit", (code, signal) => {
       this.#exit = { code, signal };
@@ -172,7 +180,13 @@ export class AgentProcess {
     const error = new Error("Agent process exited before answering.");
     for (const pending of this.#pending.values()) pending.reject(error);
     this.#pending.clear();
-    this.#handlers.onExit({ ...exit, stderrTail: this.#stderr, spawnError, protocolError: this.#protocolError });
+    this.#handlers.onExit({
+      ...exit,
+      stderrTail: this.#stderr,
+      spawnError,
+      spawnErrorCode: this.#spawnErrorCode,
+      protocolError: this.#protocolError,
+    });
     for (const resolve of this.#exitWaiters.splice(0)) resolve();
   }
 }
