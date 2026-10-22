@@ -54,6 +54,9 @@ export function configureRun(
       progressMs: timing.progressMs,
       resumeStaggerMs: timing.resumeStaggerMs,
       reviveBackoffMs: [...timing.reviveBackoffMs],
+      startupTimeoutMs: watchdog.startupTimeoutMs,
+      idleTimeoutMs: watchdog.idleTimeoutMs,
+      startupRetries: watchdog.startupRetries,
     },
     limits: {
       bodyMaxChars: env.settings.bodyMaxChars,
