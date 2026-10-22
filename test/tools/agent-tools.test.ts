@@ -114,7 +114,7 @@ describe("agent tool output", () => {
     addComment(db, swarm.id, "User", 1, "thanks", T0 + 3_000);
     assert.equal(
       john.readPost({ post_id: 1 }),
-      'Post #1 · Kickoff\n#1 Maria · Kickoff: "I take the API."\n#1 John: "UI is mine"\n#2 User: "thanks"\nComplete: true · snapshot #2. Omit after to replay or include newer content.',
+      'Post #1 · Kickoff\n#1 Maria · 4m ago · Kickoff: "I take the API."\n#1 John · 0s ago: "UI is mine"\n#2 User · 4m ago: "thanks"\nComplete: true · snapshot #2. Omit after to replay or include newer content.',
     );
     assert.throws(() => john.readPost({ post_id: 99 }), { message: "Post #99 not found." });
   });
@@ -132,8 +132,8 @@ describe("agent tool output", () => {
       john.readThread({ thread_id: threadId }),
       [
         `Thread #${threadId} · members: Maria, John, User`,
-        `#${firstMessageId} Maria: "API done?"`,
-        `#${firstMessageId + 1} Maria: "Also docs."`,
+        `#${firstMessageId} Maria → You, User · 4m ago: "API done?"`,
+        `#${firstMessageId + 1} Maria → You, User · 4m ago: "Also docs."`,
         `Complete: true · snapshot #${firstMessageId + 1}. Omit after to replay or include newer content.`,
       ].join("\n"),
     );

@@ -106,7 +106,7 @@ export function createAgentToolHandlers(identity: AgentToolIdentity) {
         : readWallTool(identity.getDb(), swarmId, agentName, params, clock.now());
     },
     readPost(params: Static<typeof READ_POST>): string {
-      return readPostTool(identity.getDb(), swarmId, agentName, params);
+      return readPostTool(identity.getDb(), swarmId, agentName, params, clock.now());
     },
     post(params: Static<typeof POST>): string {
       const post = createPost(identity.getDb(), swarmId, agentName, params, clock.now());
@@ -129,7 +129,7 @@ export function createAgentToolHandlers(identity: AgentToolIdentity) {
       return formatSent(message, "Replied");
     },
     readThread(params: Static<typeof READ_THREAD>): string {
-      return readThreadTool(identity.getDb(), swarmId, agentName, params);
+      return readThreadTool(identity.getDb(), swarmId, agentName, params, clock.now());
     },
     acceptance(params: Static<typeof acceptanceToolParameters>): string {
       return JSON.stringify(

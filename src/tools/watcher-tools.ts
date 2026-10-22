@@ -92,6 +92,7 @@ export function createWatcherToolHandlers(identity: AgentToolIdentity) {
           identity.swarmId,
           identity.agentName,
           { ...params, thread_id: params.thread_id },
+          clock.now(),
           "watcher",
         );
       }

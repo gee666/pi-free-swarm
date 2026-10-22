@@ -5,6 +5,7 @@ import type { SwarmDb } from "../store/db.js";
 import { commentOf, int } from "../store/rows.js";
 import { getPost } from "../store/wall-queries.js";
 import { markCommentsCovered, markPostsCovered } from "../store/wall-coverage.js";
+import { timeAgo } from "../wall-format.js";
 import { readPosition, renderReadPage, type ReadItem } from "./read-page.js";
 
 export function readPostTool(
@@ -12,6 +13,7 @@ export function readPostTool(
   swarmId: number,
   reader: string,
   input: { post_id: number; count?: number; after?: string; only_new?: boolean },
+  now = Date.now(),
 ): string {
   const count = input.count ?? PAGE_DEFAULT_COUNT;
   checkPage({ count, offset: 0 });
@@ -31,7 +33,11 @@ export function readPostTool(
       .get(swarmId, reader, post.id);
     const items: ReadItem[] = [];
     if (position.id === 0 && (!input.only_new || covered === undefined)) {
-      items.push({ id: 0, label: `#${post.id} ${post.author} · ${post.title}`, text: post.text });
+      items.push({
+        id: 0,
+        label: `#${post.id} ${post.author} · ${timeAgo(post.createdAt, now)} · ${post.title}`,
+        text: post.text,
+      });
     }
     const rows = db.sql
       .prepare(
@@ -47,7 +53,11 @@ export function readPostTool(
     items.push(
       ...rows
         .map(commentOf)
-        .map((comment) => ({ id: comment.id, label: `#${comment.id} ${comment.author}`, text: comment.text })),
+        .map((comment) => ({
+          id: comment.id,
+          label: `#${comment.id} ${comment.author} · ${timeAgo(comment.createdAt, now)}`,
+          text: comment.text,
+        })),
     );
     const page = renderReadPage(`Post #${post.id} · ${post.title}`, items, position, count);
     if (page.completeIds.includes(0)) markPostsCovered(db, swarmId, reader, [post.id]);

@@ -5,6 +5,7 @@ import { coverCommentNotifications } from "../broker/subscriptions.js";
 import type { SwarmDb } from "../store/db.js";
 import { getMessages, getThreadView } from "../store/message-queries.js";
 import { int } from "../store/rows.js";
+import { timeAgo } from "../wall-format.js";
 import { readPosition, renderReadPage } from "./read-page.js";
 
 /** Authorization happens before bounded message retrieval, without loading the full thread. */
@@ -13,6 +14,7 @@ export function readThreadTool(
   swarmId: number,
   reader: string,
   input: { thread_id: number; count?: number; after?: string },
+  now = Date.now(),
   access: "member" | "watcher" = "member",
 ): string {
   const count = input.count ?? PAGE_DEFAULT_COUNT;
@@ -33,7 +35,7 @@ export function readThreadTool(
     rows.map((item) => int(item, "id")),
   ).map((message) => ({
     id: message.id,
-    label: `#${message.id} ${message.sender}`,
+    label: `#${message.id} ${message.sender === reader ? "You" : message.sender} → ${message.recipients.map((recipient) => (recipient.name === reader ? "You" : recipient.name)).join(", ")} · ${timeAgo(message.createdAt, now)}`,
     text: message.text,
   }));
   const page = renderReadPage(`Thread #${thread.id} · members: ${thread.members.join(", ")}`, items, position, count);
