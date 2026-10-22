@@ -176,10 +176,10 @@ it("the tool exposes inspect and vote only, validating action-specific inputs", 
     assert.equal(Value.Check(acceptanceToolParameters, { action }), false);
   }
   assert.equal(executeAcceptanceTool(db, id, "Maria", { action: "inspect" }, T0, 1).verdict, "unchecked");
-  assert.throws(() => executeAcceptanceTool(db, id, "Maria", { action: "vote" }, T0, 1), /Invalid/);
+  assert.throws(() => executeAcceptanceTool(db, id, "Maria", { action: "vote" }, T0, 1), /verdict is required/);
   assert.throws(
     () => executeAcceptanceTool(db, id, "Maria", { action: "vote", verdict: "accepted", reason: "  " }, T0, 1),
-    /Invalid/,
+    /reason is required/,
   );
   const record = executeAcceptanceTool(
     db,

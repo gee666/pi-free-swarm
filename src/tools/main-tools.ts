@@ -32,22 +32,32 @@ export interface SwarmRunner {
 const DEFAULT_RUNNER: SwarmRunner = { startSwarm, resumeSwarm };
 
 export const SWARM_PARAMS = Type.Object({
-  swarm_name: Type.String({ description: `Short kebab-case name, max ${TITLE_MAX} chars, e.g. "auth-refactor".` }),
+  swarm_name: Type.String({
+    minLength: 1,
+    pattern: "\\S",
+    description: `Short kebab-case name, max ${TITLE_MAX} chars, e.g. "auth-refactor".`,
+  }),
   task_prompt: Type.String({
+    minLength: 1,
+    pattern: "\\S",
     description:
       "The whole task for the agents. Include the paths of the requirements/plan files you wrote; agents read them.",
   }),
   acceptance_criteria: Type.Array(Type.String({ minLength: 1, pattern: "\\S" }), {
     minItems: 1,
     description:
-      "Required completion criteria supplied by Main. Derive them from the task if the user did not provide them. Each entry must be a nonempty string.",
+      "Main's explicit, verifiable completion conditions. Define deliverables, locations/formats, required counts or coverage, quality standards, tests, evidence and review depth as applicable. Derive them from the task if absent; each entry must be nonempty. Do not launch with vague criteria or add requirements beyond the user's scope.",
   }),
-  agent_amount: Type.Optional(Type.Integer({ description: "Number of agents; omit for the default." })),
+  agent_amount: Type.Optional(
+    Type.Integer({ minimum: 1, description: "Number of agents within the configured range; omit for the default." }),
+  ),
 });
 
 export const RESUME_PARAMS = Type.Object({
-  swarm_id: Type.Integer({ description: "Id from the swarm result, e.g. 3." }),
+  swarm_id: Type.Integer({ minimum: 1, description: "Id from the swarm result, e.g. 3." }),
   message: Type.String({
+    minLength: 1,
+    pattern: "\\S",
     description: `Feedback for the agents: what is wrong or missing and what to do. At most ${MAIN_FEEDBACK_MAX} chars.`,
   }),
 });
@@ -73,7 +83,7 @@ export function swarmDescription(cwd: string): string {
     "Launch a swarm of pi agents on ONE task in this project; they self-organise on a shared wall.",
     "Use it when the user asks for a swarm, after the requirements are written to files.",
     `Keep task_prompt concise and point to those files. ${range}.`,
-    "Supply acceptance_criteria as a nonempty list of strings describing when the shared task is done. If the user did not provide criteria, derive them from the task before launching.",
+    "Acceptance criteria are the most important part of preparing a swarm run: they define what agents must deliver and what they judge as complete. Before launching, make them specific and verifiable. Specify the required deliverables and their locations/formats, minimum counts or coverage where relevant, quality requirements, tests and other validation, required evidence, and the scope and independence of verification. State constraints and exclusions explicitly. Avoid vague goals such as 'improve quality' or 'test thoroughly'; define observable completion conditions. If the user did not provide criteria, derive them from the task before launching, without inventing extra scope. Clear criteria strongly influence run quality, but votes do not replace Main's inspection of the result.",
     "Blocks until at least 70% of all workers vote the same accepted or blocked verdict. Returns one deterministic status document with the goal, criteria, verdict, tally and every vote reason, including dissent; review the real work before summarising.",
   ].join(" ");
 }

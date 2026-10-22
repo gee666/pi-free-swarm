@@ -51,11 +51,8 @@ it("binds votes to each peer and replaces votes without inflating quorum", () =>
   assert.deepEqual(initial.counts, { accepted: 0, incomplete: 0, blocked: 0 });
   assert.deepEqual(initial.acceptanceCriteria, swarm.acceptanceCriteria);
   assert.equal(initial.originalTask, swarm.taskPrompt);
-  assert.throws(() => maria.acceptance({ action: "vote", verdict: "accepted" }), /Invalid acceptance operation/);
-  assert.throws(
-    () => maria.acceptance({ action: "vote", verdict: "accepted", reason: "   " }),
-    /Invalid acceptance operation/,
-  );
+  assert.throws(() => maria.acceptance({ action: "vote", verdict: "accepted" }), /reason is required/);
+  assert.throws(() => maria.acceptance({ action: "vote", verdict: "accepted", reason: "   " }), /reason is required/);
   maria.acceptance({ action: "vote", verdict: "incomplete", reason: " Browser check missing. " });
   john.acceptance({ action: "vote", verdict: "accepted", reason: "Tests pass." });
   maria.acceptance({ action: "vote", verdict: "accepted", reason: "Browser check now passes." });

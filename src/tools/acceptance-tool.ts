@@ -46,8 +46,29 @@ export function executeAcceptanceTool(
   expectedRun: number,
 ) {
   requireParticipant(db, swarmId, agent);
+  if (input.action !== "inspect" && input.action !== "vote")
+    throw new BrokerError("validation", 'action must be "inspect" or "vote".', "action");
+  if (input.revision !== undefined && (!Number.isSafeInteger(input.revision) || input.revision < 0))
+    throw new BrokerError(
+      "validation",
+      "revision must be an integer >= 0; omit it when no revision check is needed.",
+      "revision",
+    );
   if (input.action === "inspect") return inspectAcceptance(db, swarmId);
-  if (!Value.Check(voteOperation, input)) throw new BrokerError("validation", "Invalid acceptance operation.");
+  if (input.verdict === undefined || !["accepted", "incomplete", "blocked"].includes(input.verdict))
+    throw new BrokerError(
+      "validation",
+      'verdict is required for action "vote"; choose accepted, incomplete or blocked.',
+      "verdict",
+    );
+  if (typeof input.reason !== "string" || !input.reason.trim())
+    throw new BrokerError(
+      "validation",
+      'reason is required for action "vote"; supply a nonempty explanation of your whole-task judgment.',
+      "reason",
+    );
+  if (!Value.Check(voteOperation, input))
+    throw new BrokerError("validation", "Vote fields must match the acceptance tool schema.");
   if (!Number.isSafeInteger(expectedRun) || expectedRun < 1)
     throw new BrokerError("validation", "Acceptance votes require a valid agent run identity.");
   return mutateAcceptance(db, swarmId, agent, input, now, expectedRun);

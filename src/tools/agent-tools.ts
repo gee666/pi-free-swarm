@@ -29,23 +29,44 @@ const bodyRule = (bodyMaxChars: number) =>
 
 const READ_POSTS = Type.Object({
   count: Type.Optional(
-    Type.Integer({ description: `Posts or changes to show, 1–${PAGE_MAX_COUNT} (default ${PAGE_DEFAULT_COUNT}).` }),
+    Type.Integer({
+      minimum: 1,
+      maximum: PAGE_MAX_COUNT,
+      description: `Posts or changes to show, 1–${PAGE_MAX_COUNT} (default ${PAGE_DEFAULT_COUNT}).`,
+    }),
   ),
-  offset: Type.Optional(Type.Integer({ description: "Skip this many newest posts (default 0); ignored with after." })),
+  offset: Type.Optional(
+    Type.Integer({ minimum: 0, description: "Skip this many newest posts (default 0); ignored with after." }),
+  ),
   after: Type.Optional(
-    Type.String({ description: "Opaque next cursor from a wall read; returns post and comment changes oldest first." }),
+    Type.String({
+      minLength: 1,
+      description:
+        "Opaque next cursor from a wall read; returns post and comment changes oldest first. Takes precedence over offset.",
+    }),
   ),
 });
-const READ_POST = Type.Object({ post_id: Type.Integer() });
-const TEXT = Type.String({ description: "Plain text." });
-const POST = Type.Object({ title: Type.String({ description: `Max ${TITLE_MAX} chars.` }), text: TEXT });
-const COMMENT = Type.Object({ post_id: Type.Integer(), text: TEXT });
-const MESSAGE = Type.Object({
-  to: Type.Array(Type.String(), { description: 'Participant names from the wall; "User" is the human.' }),
+const READ_POST = Type.Object({ post_id: Type.Integer({ minimum: 1 }) });
+// Length checks follow trimming in the broker; raw schema maxima would reject valid padded input.
+const TEXT = Type.String({
+  minLength: 1,
+  pattern: "\\S",
+  description: "Plain text; follow the stated body limit in the tool description.",
+});
+const POST = Type.Object({
+  title: Type.String({ minLength: 1, pattern: "\\S", description: `Max ${TITLE_MAX} chars.` }),
   text: TEXT,
 });
-const REPLY_TO = Type.Object({ thread_id: Type.Integer(), text: TEXT });
-const READ_THREAD = Type.Object({ thread_id: Type.Integer() });
+const COMMENT = Type.Object({ post_id: Type.Integer({ minimum: 1 }), text: TEXT });
+const MESSAGE = Type.Object({
+  to: Type.Array(Type.String({ minLength: 1, pattern: "\\S" }), {
+    minItems: 1,
+    description: 'Participant names from the wall; "User" is the human.',
+  }),
+  text: TEXT,
+});
+const REPLY_TO = Type.Object({ thread_id: Type.Integer({ minimum: 1 }), text: TEXT });
+const READ_THREAD = Type.Object({ thread_id: Type.Integer({ minimum: 1 }) });
 
 /** The tool bodies, returning the model-facing text. Separate from registration so tests need no pi. */
 export function createAgentToolHandlers(identity: AgentToolIdentity) {

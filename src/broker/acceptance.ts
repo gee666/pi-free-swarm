@@ -65,14 +65,16 @@ export function mutateAcceptance(
       throw new BrokerError("validation", "Acceptance votes require a worker agent.");
     const record = getAcceptance(db, swarmId);
     if (mutation.revision !== undefined) requireAcceptanceRevision(record, mutation.revision);
-    if (
-      mutation.action !== "vote" ||
-      !["accepted", "incomplete", "blocked"].includes(mutation.verdict) ||
-      typeof mutation.reason !== "string" ||
-      !mutation.reason.trim()
-    ) {
-      throw new BrokerError("validation", "Supply an accepted, incomplete or blocked vote and a nonempty reason.");
-    }
+    if (mutation.action !== "vote")
+      throw new BrokerError("validation", 'action must be "vote" to submit a vote.', "action");
+    if (!["accepted", "incomplete", "blocked"].includes(mutation.verdict))
+      throw new BrokerError("validation", "verdict must be accepted, incomplete or blocked.", "verdict");
+    if (typeof mutation.reason !== "string" || !mutation.reason.trim())
+      throw new BrokerError(
+        "validation",
+        "reason must be a nonempty explanation of your whole-task judgment.",
+        "reason",
+      );
     db.sql
       .prepare(
         `INSERT INTO acceptance_votes (swarm_id, agent, run, verdict, reason, updated_at)
