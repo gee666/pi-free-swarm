@@ -45,6 +45,40 @@ it("SSE tails and replays known events beyond unknown-only raw pages without cro
   assert.ok(replay.frames.every((item) => item.event === null || item.event.swarmId === a.id));
 });
 
+it(
+  "SSE closes only live streams overtaken by pruning so their existing reconnect refresh can recover",
+  { timeout: 5_000 },
+  async (t) => {
+    const temp = createTempDb();
+    const a = seedSwarm(temp.db);
+    const b = seedSwarm(temp.db, { name: "other" });
+    const clock = new FakeClock(T0);
+    const hub = new SseHub({ db: temp.db, clock, watcher: new SessionWatcher({ reader: new SessionReader(), clock }) });
+    hub.start();
+    const server = await startBoardServer({ candidates: [0], uiDir: temp.cwd, routes: [hub.route] });
+    t.after(async () => {
+      hub.stop();
+      await server.close();
+      temp.cleanup();
+    });
+    const controller = new AbortController();
+    t.after(() => controller.abort());
+    const response = await fetch(`http://127.0.0.1:${server.port}/events?swarm=${a.id}`, { signal: controller.signal });
+    assert.ok(response.body);
+    const reader = response.body.getReader();
+    await reader.read();
+    const other = await openSse(`http://127.0.0.1:${server.port}/events?swarm=${b.id}`);
+    t.after(() => other.close());
+    insertEvent(temp.db, a.id, "session.appended", { agent: "Maria", newestCursor: "1" }, T0);
+    pruneEvents(temp.db, T0 + 1);
+    insertEvent(temp.db, b.id, "session.appended", { agent: "John", newestCursor: "2" }, T0 + 2);
+    clock.advance(EVENTS_TAIL_MS);
+    assert.equal((await reader.read()).done, true);
+    const live = await other.next(isType("session.appended"));
+    assert.equal(live.event?.swarmId, b.id);
+  },
+);
+
 it("SSE sends explicit retention-gap metadata only to affected reconnecting streams", async (t) => {
   const temp = createTempDb();
   const a = seedSwarm(temp.db);
