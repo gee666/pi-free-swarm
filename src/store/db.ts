@@ -4,6 +4,11 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { BUSY_TIMEOUT_MS, DB_FILE, SESSION_FILE, SESSIONS_DIR, SWARM_DIR } from "../constants.js";
 
+/** SQL access scoped to a synchronous state-plus-outbox mutation. */
+export interface WriteTransaction {
+  readonly sql: DatabaseSync;
+}
+
 export interface SwarmDb {
   /** Absolute path of swarm.db. */
   readonly path: string;
@@ -11,7 +16,7 @@ export interface SwarmDb {
   readonly dataDir: string;
   readonly sql: DatabaseSync;
   /** BEGIN IMMEDIATE … COMMIT, ROLLBACK on throw. Reentrant: nested calls join the outer transaction. */
-  write<T>(fn: () => T): T;
+  write<T>(fn: (transaction: WriteTransaction) => T): T;
   close(): void;
 }
 
@@ -21,6 +26,7 @@ const MIGRATIONS: readonly { version: number; file: string }[] = [
   { version: 2, file: "002-communication.sql" },
   { version: 3, file: "acceptance.sql" },
   { version: 4, file: "004-acceptance-votes.sql" },
+  { version: 5, file: "005-event-retention.sql" },
 ];
 const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 
@@ -58,12 +64,12 @@ export function openSwarmDb(dbPath: string, options: { create: boolean }): Swarm
     path: absolute,
     dataDir: path.dirname(absolute),
     sql,
-    write<T>(fn: () => T): T {
-      if (depth > 0) return assertSync(fn());
+    write<T>(fn: (transaction: WriteTransaction) => T): T {
+      if (depth > 0) return assertSync(fn({ sql }));
       sql.exec("BEGIN IMMEDIATE");
       depth++;
       try {
-        const result = assertSync(fn());
+        const result = assertSync(fn({ sql }));
         sql.exec("COMMIT");
         return result;
       } catch (error) {

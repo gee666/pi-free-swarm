@@ -5,7 +5,7 @@ import type { SwarmEvent } from "../api-types.js";
 import { systemClock, type Clock, type TimerHandle } from "../clock.js";
 import { EVENTS_TAIL_MS, SSE_KEEPALIVE_MS } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
-import { latestEventId, listEventsAfter } from "../store/events.js";
+import { eventRetentionGap, latestEventId, scanEventsAfter } from "../store/events.js";
 import { getSwarm, listAgentSessions } from "../store/swarm-queries.js";
 import { sendJson, type RouteHandler } from "./http.js";
 import type { SessionWatcher } from "./sessions.js";
@@ -118,14 +118,20 @@ export class SseHub {
   private replay(client: Client, lastEventId: string | string[] | undefined): void {
     if (typeof lastEventId !== "string" || !ID_PATTERN.test(lastEventId)) return;
     let after = Number(lastEventId);
+    const gap = eventRetentionGap(this.db, client.swarmId, after);
+    if (gap !== null) {
+      // Opening already triggers the UI's snapshot refresh. This named control event is
+      // metadata only, so older clients ignore it and no second refresh loop is needed.
+      client.res.write(
+        `event: retention-gap\ndata: ${JSON.stringify({ after, prunedThrough: gap, recovery: "snapshot" })}\n\n`,
+      );
+      return;
+    }
     while (after < this.lastSeen) {
-      const batch = listEventsAfter(this.db, after, TAIL_BATCH);
-      if (batch.length === 0) return;
-      for (const event of batch) {
-        if (event.id === null || event.id > this.lastSeen) return;
-        if (wants(client, event)) client.res.write(frame(event));
-        after = event.id;
-      }
+      const page = scanEventsAfter(this.db, after, TAIL_BATCH, this.lastSeen);
+      for (const event of page.events) if (wants(client, event)) client.res.write(frame(event));
+      after = page.scannedThrough;
+      if (!page.hasMore) return;
     }
   }
 
@@ -176,13 +182,20 @@ export class SseHub {
       this.lastSeen = latestEventId(this.db);
       return;
     }
-    for (;;) {
-      const batch = listEventsAfter(this.db, this.lastSeen, TAIL_BATCH);
-      for (const event of batch) {
-        this.broadcast(event);
-        if (event.id !== null) this.lastSeen = event.id;
+    for (const client of [...this.clients]) {
+      if (eventRetentionGap(this.db, client.swarmId, this.lastSeen) !== null) {
+        // A live client missed pruned events. Its existing reconnect/open refresh
+        // obtains a new snapshot, just as after a disconnected retention gap.
+        this.remove(client);
+        client.res.end();
       }
-      if (batch.length < TAIL_BATCH) return;
+    }
+    const through = latestEventId(this.db);
+    for (;;) {
+      const page = scanEventsAfter(this.db, this.lastSeen, TAIL_BATCH, through);
+      for (const event of page.events) this.broadcast(event);
+      this.lastSeen = page.scannedThrough;
+      if (!page.hasMore) return;
     }
   }
 
