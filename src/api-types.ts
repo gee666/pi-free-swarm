@@ -52,6 +52,8 @@ export interface SwarmListItem {
   createdAt: number;
   startedAt: number | null;
   finishedAt: number | null;
+  /** Missing/null on historical runs with no recorded launch provenance. */
+  configuration?: import("./run-configuration.js").SavedRunConfiguration | null;
 }
 
 export interface AgentParticipantView {
@@ -60,6 +62,8 @@ export interface AgentParticipantView {
   status: ParticipantStatus;
   launchOrder: number;
   reviveCount: number;
+  /** Recorded effective assignment, never guessed for historical workers. */
+  model?: import("./run-configuration.js").WorkerAssignment | null;
   activity: AgentActivity | null;
   /** Inbox messages not yet in the agent's context (recipient status pending or delivered). */
   unread: number;

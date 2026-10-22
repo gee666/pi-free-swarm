@@ -4,6 +4,7 @@ import path from "node:path";
 import type { ParticipantKind, ParticipantView, SwarmListItem } from "../api-types.js";
 import { USER_NAME, WATCHER_NAME } from "../constants.js";
 import type { SwarmDb } from "./db.js";
+import { getRunConfiguration } from "./run-configuration.js";
 import { isPidAlive, isRunLockFresh, type PidAlive } from "./locks.js";
 import {
   activityOf,
@@ -53,7 +54,10 @@ export function listSwarms(db: SwarmDb, now: number, alive: PidAlive = isPidAliv
   return db.sql
     .prepare(`${SWARM_SELECT} ORDER BY s.id DESC`)
     .all()
-    .map((row) => swarmOf(row, now, alive));
+    .map((row) => ({
+      ...swarmOf(row, now, alive),
+      configuration: getRunConfiguration(db, int(row, "id"), int(row, "run_count")),
+    }));
 }
 
 export function getSwarm(
@@ -63,7 +67,12 @@ export function getSwarm(
   alive: PidAlive = isPidAlive,
 ): SwarmListItem | null {
   const row = db.sql.prepare(`${SWARM_SELECT} WHERE s.id = ?`).get(swarmId);
-  return row === undefined ? null : swarmOf(row, now, alive);
+  return row === undefined
+    ? null
+    : {
+        ...swarmOf(row, now, alive),
+        configuration: getRunConfiguration(db, swarmId, int(row, "run_count")),
+      };
 }
 
 const PARTICIPANT_SELECT = `
@@ -102,13 +111,29 @@ export function listParticipants(db: SwarmDb, swarmId: number): ParticipantView[
        ORDER BY p.kind = 'agent', p.launch_order`,
     )
     .all(swarmId);
-  return rows.flatMap((row) => participantOf(row) ?? []);
+  const assignments = currentAssignments(db, swarmId);
+  return rows.flatMap<ParticipantView>((row) => {
+    const participant = participantOf(row);
+    if (!participant) return [];
+    return participant.kind === "agent"
+      ? [{ ...participant, model: assignments.find((item) => item.name === participant.name) ?? null }]
+      : [participant];
+  });
+}
+
+function currentAssignments(db: SwarmDb, swarmId: number) {
+  const row = db.sql.prepare("SELECT run_count FROM swarms WHERE id = ?").get(swarmId);
+  return row ? (getRunConfiguration(db, swarmId, int(row, "run_count"))?.effective.workers ?? []) : [];
 }
 
 /** Case-insensitive; `null` for unknown names and for Main/System. */
 export function getParticipant(db: SwarmDb, swarmId: number, name: string): ParticipantView | null {
   const row = db.sql.prepare(`${PARTICIPANT_SELECT} WHERE p.swarm_id = ? AND p.name = ?`).get(swarmId, name);
-  return row === undefined ? null : participantOf(row);
+  if (row === undefined) return null;
+  const participant = participantOf(row);
+  if (participant?.kind !== "agent") return participant;
+  const assignments = currentAssignments(db, swarmId);
+  return { ...participant, model: assignments.find((item) => item.name === participant.name) ?? null };
 }
 
 export interface ParticipantRef {
