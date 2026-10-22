@@ -36,7 +36,7 @@ export function installFakeApi(): FakeApi {
     calls.push(call);
     const handler = handlers.get(`${call.method} ${call.path}`);
     if (!handler) return jsonResponse(404, { error: "not_found", message: `No fake for ${call.method} ${call.path}` });
-    const result = handler(call);
+    const result = await handler(call);
     return result instanceof Response ? result : jsonResponse(200, result);
   });
   return {

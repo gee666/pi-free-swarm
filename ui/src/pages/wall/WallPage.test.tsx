@@ -243,6 +243,29 @@ describe("WallPage", () => {
     expect(screen.getByRole("heading", { level: 2, name: "3 comments" })).toBeInTheDocument();
   });
 
+  it("keeps a comment arriving while a reconnect snapshot is in flight", async () => {
+    await renderWall("/s/3/wall/1");
+    await screen.findByRole("heading", { level: 2, name: "2 comments" });
+    let finishSnapshot = () => {};
+    api.on(
+      "GET",
+      "/api/swarms/3/posts/1",
+      () =>
+        new Promise((resolve) => {
+          finishSnapshot = () => resolve({ post: plan, comments: planComments });
+        }),
+    );
+    const requests = api.callsTo("GET", "/api/swarms/3/posts/1").length;
+    act(() => source().open());
+    await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/posts/1")).toHaveLength(requests + 1));
+    const concurrent = comment(31, 1, "John", "Written during snapshot fetch.");
+    emit({ ...eventBase, type: "comment.created", payload: { comment: concurrent, commentCount: 3 } });
+    expect(screen.getByText(concurrent.text)).toBeInTheDocument();
+    await act(async () => finishSnapshot());
+    expect(screen.getByText(concurrent.text)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "3 comments" })).toBeInTheDocument();
+  });
+
   it("explains an unknown post", async () => {
     await renderWall("/s/3/wall/99");
     expect(await screen.findByText("Post not found")).toBeInTheDocument();
