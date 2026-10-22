@@ -9,6 +9,8 @@ import { cx } from "../../lib/cx";
 import { ErrorBanner, SkeletonRows } from "../../components/States";
 import { formatTimestamp } from "../../lib/time";
 import { useSwarmDetail } from "../agents/useSwarmDetail";
+import { activityLabel } from "../work/activity";
+import { StatusDot } from "../../components/Indicators";
 import { useWatcher } from "./useWatcher";
 import styles from "./Watcher.module.css";
 
@@ -26,16 +28,18 @@ function WatcherChat({ swarmId }: { swarmId: string }) {
     watcher?.kind === "agent" &&
     watcher.status !== "crashed" &&
     watcher.status !== "stopped";
-  const busy = available && watcher?.kind === "agent" && watcher.status === "working";
+  const busy = available && (watcher.status === "working" || watcher.status === "starting");
+  const currentActivity = busy ? activityLabel(watcher) : null;
   const failure = error ?? chat.error?.message ?? detail.error?.message;
   const messages = [...(chat.data?.messages ?? [])].sort((a, b) => a.id - b.id);
   const messageList = useRef<HTMLOListElement>(null);
   const following = useRef(true);
   const latestMessageId = messages.at(-1)?.id;
+  const fallback = chat.data?.fallback;
   useLayoutEffect(() => {
     const list = messageList.current;
     if (list && following.current) list.scrollTop = list.scrollHeight;
-  }, [latestMessageId, busy]);
+  }, [latestMessageId, busy, fallback?.text, fallback?.error]);
   return (
     <section className={styles.page} aria-label="Watcher chat">
       {failure && <ErrorBanner>{failure}</ErrorBanner>}
@@ -61,12 +65,22 @@ function WatcherChat({ swarmId }: { swarmId: string }) {
             <Markdown source={message.text} />
           </AuthoredEntry>
         ))}
-        {busy && (
-          <li className={styles.thinking} role="status">
-            thinking<span className={styles.dots}>…</span>
-          </li>
+        {fallback && (
+          <AuthoredEntry author={WATCHER_NAME} className={styles.message} time="session evidence">
+            {fallback.text && <Markdown source={fallback.text} />}
+            {fallback.error && <ErrorBanner>{fallback.error}</ErrorBanner>}
+            <p className={styles.fallbackNote}>
+              Recovered from Watcher session for question #{fallback.questionId}. No chat reply was saved.
+            </p>
+          </AuthoredEntry>
         )}
       </ol>
+      {currentActivity && (
+        <div className={styles.activity} role="status" aria-live="polite" aria-atomic="true">
+          <StatusDot status="live" />
+          <span>Watcher: {currentActivity}</span>
+        </div>
+      )}
       <ComposeBox
         text={text}
         onTextChange={setText}

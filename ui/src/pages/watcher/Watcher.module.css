@@ -32,24 +32,17 @@
   background: var(--bg-panel-raised);
 }
 
-.thinking {
-  padding: var(--space-4) var(--space-6);
+.fallbackNote {
   color: var(--text-muted);
   font-size: var(--fs-small);
 }
 
-.dots {
-  animation: thinking 1.2s ease-in-out infinite;
-}
-
-@keyframes thinking {
-  50% {
-    opacity: 0.25;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dots {
-    animation: none;
-  }
+.activity {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  color: var(--text-secondary);
+  font-size: var(--fs-small);
 }

@@ -20,6 +20,10 @@ export function useWatcher(swarmId: string) {
     )
       chat.reload();
     if (event.type === "message.status" && event.payload.threadId === chat.data?.thread.id) chat.reload();
+    if (event.type === "participant.updated" && event.payload.participant.name === WATCHER_NAME) {
+      const participant = event.payload.participant;
+      if (participant.kind === "agent" && ["idle", "crashed", "stopped"].includes(participant.status)) chat.reload();
+    }
   });
   useEffect(() => {
     const ids =

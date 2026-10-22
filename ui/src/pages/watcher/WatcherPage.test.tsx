@@ -55,7 +55,7 @@ function mount() {
   act(() => source().open());
 }
 
-it("pins compose below oldest-first messages, renders markdown and shows thinking after replies", async () => {
+it("pins compose below oldest-first messages and keeps activity outside scrolling history", async () => {
   serve(true, true);
   mount();
   expect(screen.getByRole("link", { name: WATCHER_NAME })).toHaveAttribute("href", "/s/3/watcher");
@@ -72,8 +72,9 @@ it("pins compose below oldest-first messages, renders markdown and shows thinkin
   expect(within(messages).queryByText(/Read|Delivered/)).not.toBeInTheDocument();
   const composer = screen.getByRole("textbox", { name: "Ask about the swarm…" });
   expect(messages.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(screen.getByRole("status")).toHaveTextContent("thinking…");
-  expect(messages.lastElementChild).toBe(screen.getByRole("status"));
+  expect(screen.getByRole("status")).toHaveTextContent("Watcher: working…");
+  expect(within(messages).queryByRole("status")).not.toBeInTheDocument();
+  expect(messages.compareDocumentPosition(screen.getByRole("status")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   const user = userEvent.setup();
   await user.type(composer, "What is Maria doing?");
   await user.click(screen.getByRole("button", { name: "Send" }));
@@ -117,6 +118,64 @@ it("opens at the bottom, follows new replies, and preserves the position while r
   await reply(104);
   expect(list.scrollTop).toBe(1200);
   expect(within(list).getAllByRole("listitem").at(-1)).toHaveTextContent("Reply 104");
+});
+
+it("always shows live startup and tool activity outside history until the Watcher becomes idle", async () => {
+  serve(true, true);
+  mount();
+  await screen.findByText("Newest answer");
+  const history = screen.getByRole("list", { name: "Messages, oldest first" });
+  history.scrollTop = 0;
+  fireEvent.scroll(history);
+  const update = (status: "starting" | "working" | "idle", activity: ReturnType<typeof agent>["activity"]) => {
+    act(() =>
+      source().emit({
+        ...eventBase,
+        type: "participant.updated",
+        payload: { participant: agent(WATCHER_NAME, 4, { status, activity }) },
+      }),
+    );
+  };
+  update("starting", null);
+  expect(screen.getByRole("status")).toHaveTextContent("Watcher: starting…");
+  update("working", { kind: "tool", toolName: "swarm_agent_activity" });
+  expect(screen.getByRole("status")).toHaveTextContent("Watcher: running swarm_agent_activity…");
+  expect(history).toHaveAttribute("aria-busy", "true");
+  expect(within(history).queryByRole("status")).not.toBeInTheDocument();
+  update("working", { kind: "writing" });
+  expect(screen.getByRole("status")).toHaveTextContent("Watcher: writing…");
+  update("working", { kind: "thinking" });
+  expect(screen.getByRole("status")).toHaveTextContent("Watcher: thinking…");
+  update("idle", null);
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  expect(history).toHaveAttribute("aria-busy", "false");
+});
+
+it("recovers session answer and actionable error after work ends without a saved reply", async () => {
+  const messages = serve(true, true);
+  let fallback: { questionId: number; text: string; error: string | null } | undefined;
+  api.on("GET", "/api/swarms/3/watcher", () => ({ thread: thread(9, ["User", WATCHER_NAME]), messages, fallback }));
+  mount();
+  await screen.findByText("Newest answer");
+  fallback = {
+    questionId: 100,
+    text: "**Recovered answer**",
+    error: "Database schema v8 is newer than supported v4. Restart with the matching extension.",
+  };
+  act(() =>
+    source().emit({
+      ...eventBase,
+      type: "participant.updated",
+      payload: { participant: agent(WATCHER_NAME, 4, { status: "idle" }) },
+    }),
+  );
+  expect(await screen.findByText("Recovered answer")).toBeInTheDocument();
+  expect(screen.getByText("Recovered answer").tagName).toBe("STRONG");
+  expect(screen.getByRole("alert")).toHaveTextContent("Database schema v8 is newer than supported v4");
+  expect(
+    screen.getByText("Recovered from Watcher session for question #100. No chat reply was saved."),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
 });
 
 it("shows availability only in the placeholder, queues questions and reloads on new messages", async () => {
