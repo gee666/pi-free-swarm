@@ -32,8 +32,9 @@ export function buildRunResultText(db: SwarmDb, outcome: RunOutcome, boardUrl: s
     p.kind === "agent" && p.status === "crashed" ? [p.name] : [],
   );
   const url = swarmBoardUrl(boardUrl, swarm.id);
+  const endText = outcome.stopReason === "budget-exhausted" ? "stopped on budget exhaustion" : END_TEXT[end];
   const lines = [
-    `Swarm "${swarm.name}" (#${swarm.id}) ${END_TEXT[end]}. Run ${run}. ${plural(swarm.agentAmount, "agent")}, ` +
+    `Swarm "${swarm.name}" (#${swarm.id}) ${endText}. Run ${run}. ${plural(swarm.agentAmount, "agent")}, ` +
       `${formatElapsed(progress.elapsedMs)}, ${formatCost(progress.cost)}, ${formatTokens(progress.tokens)} tokens.`,
   ];
   if (outcome.stopReason === "budget-exhausted" && outcome.budget) {
