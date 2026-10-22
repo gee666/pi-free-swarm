@@ -229,6 +229,11 @@ export interface ThreadResponse {
   messages: MessageView[];
 }
 
+export interface WatcherResponse extends ThreadResponse {
+  /** Session evidence when the latest question has no durable Watcher reply. */
+  fallback?: { questionId: number; text: string; error: string | null };
+}
+
 /** POST /api/swarms/:id/messages (from `User`) — starts a new thread. 409 `swarm_not_running` when not live. */
 export interface SendMessageRequest {
   to: string[];

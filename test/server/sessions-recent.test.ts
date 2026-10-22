@@ -48,6 +48,7 @@ it("retains recent Unicode text after a clipped record and reports missing sessi
   assert.equal(recent.limited, true);
   assert.deepEqual(await readRecentActivity(path.join(dir, "missing")), {
     items: [],
+    entries: [],
     scannedBytes: 0,
     scannedEntries: 0,
     limited: false,

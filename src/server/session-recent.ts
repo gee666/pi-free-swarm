@@ -1,10 +1,11 @@
 import { open } from "node:fs/promises";
 import type { SessionItem } from "../api-types.js";
 import { WATCHER_ACTIVITY_MAX, WATCHER_OVERVIEW_BYTES } from "../constants.js";
-import { collectEffects, entryItems, parseEntry } from "./session-parse.js";
+import { collectEffects, entryItems, parseEntry, type SessionEntry } from "./session-parse.js";
 
 export interface RecentActivity {
   items: SessionItem[];
+  entries: SessionEntry[];
   scannedBytes: number;
   scannedEntries: number;
   limited: boolean;
@@ -12,7 +13,7 @@ export interface RecentActivity {
 
 /** A bounded tail snapshot. Unlike deep paging, this never searches outside its byte/entry window. */
 export async function readRecentActivity(sessionFile: string): Promise<RecentActivity> {
-  const empty = { items: [], scannedBytes: 0, scannedEntries: 0, limited: false };
+  const empty = { items: [], entries: [], scannedBytes: 0, scannedEntries: 0, limited: false };
   let file;
   try {
     file = await open(sessionFile, "r");
@@ -40,6 +41,7 @@ export async function readRecentActivity(sessionFile: string): Promise<RecentAct
     const entries = lines.slice(-WATCHER_ACTIVITY_MAX).map(parseEntry);
     const effects = collectEffects(entries);
     return {
+      entries,
       items: entries.flatMap((entry) => entryItems(entry, effects, 0)).reverse(),
       scannedBytes: filled,
       scannedEntries: entries.length,
