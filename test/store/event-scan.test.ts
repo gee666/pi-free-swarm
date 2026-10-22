@@ -117,6 +117,11 @@ describe("raw outbox scan and retention", () => {
     assert.equal(eventRetentionGap(temp.db, a.id, deleted), null);
     pruneEvents(temp.db, T0 + 101);
     assert.equal(latestEventId(temp.db), kept, "pruning all rows does not reset monotonic scan boundary");
+    assert.equal(
+      scanEventsAfter(temp.db, before, 500).scannedThrough,
+      kept,
+      "empty retained history advances through its scanned boundary",
+    );
     const reopened = openSwarmDb(temp.db.path, { create: false });
     t.after(() => reopened.close());
     assert.equal(eventRetentionGap(reopened, a.id, before), deleted);

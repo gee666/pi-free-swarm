@@ -67,7 +67,11 @@ export function scanEventsAfter(db: SwarmDb, afterId: number, limit: number, thr
       throw new Error(`Invalid payload for event #${int(row, "id")} (${type})`, { cause: error });
     }
   }
-  return { events, scannedThrough: scanned.length === 0 ? afterId : int(scanned[scanned.length - 1], "id"), hasMore };
+  return {
+    events,
+    scannedThrough: hasMore ? int(scanned[scanned.length - 1], "id") : Math.max(afterId, throughId),
+    hasMore,
+  };
 }
 
 /** Compatibility reader. Tailing callers must use raw scan progress instead of decoded length. */
