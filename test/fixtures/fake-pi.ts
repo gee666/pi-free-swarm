@@ -146,7 +146,11 @@ function userMessage(text: string): void {
 }
 
 function assistantMessage(content: Json[], usage: FakeUsage | undefined, stopReason: string): void {
-  const base = { role: "assistant", provider: "fake", model: "fake-model", timestamp: Date.now() };
+  const selected = argValue("--model");
+  const separator = selected?.indexOf("/") ?? -1;
+  const provider = selected && separator >= 0 ? selected.slice(0, separator) : "fake";
+  const model = selected ? selected.slice(separator + 1) : "fake-model";
+  const base = { role: "assistant", provider, model, timestamp: Date.now() };
   emit({ type: "message_start", message: { ...base, content: [], stopReason: "pending" } });
   for (const block of content) {
     const kind = block.type === "thinking" ? "thinking" : block.type === "text" ? "text" : "toolcall";

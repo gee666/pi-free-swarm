@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
 import { AgentProcess } from "../../src/agents/agent-process.js";
 import { AgentSupervisor, type SupervisorHooks } from "../../src/agents/supervisor.js";
 import type { RpcRecord } from "../../src/agents/rpc-events.js";
@@ -79,6 +80,22 @@ test("real child adapter preserves a large valid Unicode record below the config
     await agent.waitStatus("idle");
     assert.deepEqual(agent.recorded.crashes, []);
     assert.equal(agent.recorded.usage.length, 1);
+  } finally {
+    await agent.cleanup();
+  }
+});
+
+test("fixture usage identity follows the assigned combined model argument", async () => {
+  const agent = superviseFake({});
+  const spec = agent.fake.spec();
+  spec.context.model = { provider: "fixture-a", modelId: "family/model", thinkingLevel: "high" };
+  try {
+    assert.deepEqual(await agent.supervisor.launch(spec, prompt("start")), { accepted: true });
+    await agent.waitStatus("idle");
+    assert.equal(agent.recorded.usage[0]?.model, "family/model");
+    const session = readFileSync(spec.sessionFile, "utf8");
+    assert.ok(session.includes('"provider":"fixture-a"'));
+    assert.ok(session.includes('"model":"family/model"'));
   } finally {
     await agent.cleanup();
   }
