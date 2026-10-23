@@ -3,6 +3,7 @@ import { Popover } from "./Popover";
 import type { SwarmDetailResponse } from "../../../src/api-types";
 import styles from "./AcceptanceSummary.module.css";
 import { AgentName } from "./AgentName";
+import { ArchivedVotes } from "./ArchivedVotes";
 
 export function AcceptanceSummary({ detail }: { detail: SwarmDetailResponse }) {
   const anchor = useRef<HTMLButtonElement>(null);
@@ -55,6 +56,7 @@ export function AcceptanceSummary({ detail }: { detail: SwarmDetailResponse }) {
             ))}
           </ul>
         )}
+        <ArchivedVotes key={record.swarmId} swarmId={record.swarmId} />
       </Popover>
     </>
   );

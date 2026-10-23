@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
-import { SwarmStreamProvider } from "../api/SwarmStream";
+import { SwarmViewProvider } from "../api/SwarmView";
 import { useSwarmDetail } from "../pages/agents/useSwarmDetail";
 import { detail, eventBase } from "../pages/agents/testFixtures";
 import { installFakeApi } from "../test/fakeApi";
@@ -18,15 +18,46 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it("preserves retired reasons as explicitly excluded history without changing active counts", async () => {
+  const api = installFakeApi();
+  const snapshot = detail();
+  snapshot.acceptance = {
+    ...snapshot.acceptance,
+    totalAgents: 2,
+    threshold: 2,
+    counts: { accepted: 1, incomplete: 0, blocked: 0 },
+    votes: [{ agent: "John", run: 1, verdict: "accepted", reason: "Current verification", updatedAt: 1 }],
+    excludedVotes: [
+      { agent: "Maria", run: 1, verdict: "blocked", reason: "Retired historical objection", updatedAt: 1 },
+      { agent: "Maria", run: 2, verdict: "accepted", reason: "Older retired verification", updatedAt: 2 },
+    ],
+  };
+  api.on("GET", "/api/swarms/3/acceptance/history", () => ({
+    votes: snapshot.acceptance.excludedVotes ?? [],
+    next: null,
+    complete: true,
+    scanned: 2,
+  }));
+  render(<AcceptanceSummary detail={snapshot} />);
+  expect(api.callsTo("GET", "/api/swarms/3/acceptance/history")).toHaveLength(0);
+  await userEvent.click(screen.getByRole("button", { name: "Task acceptance: unchecked" }));
+  expect(screen.getByRole("heading", { name: "Archived votes, not counted" })).toBeInTheDocument();
+  expect(await screen.findByText("Retired historical objection")).toBeInTheDocument();
+  expect(screen.getByText("Older retired verification")).toBeInTheDocument();
+  expect(screen.getByText("Accepted: 1 · Incomplete: 0 · Blocked: 0")).toBeInTheDocument();
+  expect(screen.getByText("Quorum: 2 of 2 agents")).toBeInTheDocument();
+});
+
 it("separates finished execution from acceptance and refreshes vote counts and reasons on events", async () => {
   const source = installFakeEventSource();
   const api = installFakeApi();
   let snapshot = detail({ status: "finished" });
   api.on("GET", "/api/swarms/3", () => snapshot);
+  api.on("GET", "/api/swarms/3/acceptance/history", () => ({ votes: [], next: null, complete: true, scanned: 0 }));
   render(
-    <SwarmStreamProvider swarmId="3">
+    <SwarmViewProvider swarmId="3">
       <Summary />
-    </SwarmStreamProvider>,
+    </SwarmViewProvider>,
   );
   act(() => source().open());
   const pill = await screen.findByRole("button", { name: "Task acceptance: unchecked" });
@@ -78,4 +109,5 @@ it("separates finished execution from acceptance and refreshes vote counts and r
   expect(screen.queryByText("OAuth provider unavailable.")).not.toBeInTheDocument();
   expect(pill).toHaveAttribute("aria-expanded", "false");
   expect(pill).toHaveFocus();
+  expect(api.callsTo("GET", "/api/swarms/3/acceptance/history")).toHaveLength(1);
 });
