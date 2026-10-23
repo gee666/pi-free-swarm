@@ -44,7 +44,7 @@ export interface AgentCrash {
   /** OS error code classification, never inferred from stderr. */
   sharedFailure?: "spawn-resource";
   /** Identical configuration command failed, independent of worker prompt content. */
-  sharedStartupFailure?: "steering-mode";
+  sharedStartupFailure?: "steering-mode" | "launch-command";
   message: string;
   exitCode: number | null;
   signal: string | null;

@@ -9,10 +9,12 @@ export function classifyTransportExit(info: AgentExitInfo, starting: boolean): A
     return { ...common, reason: "protocol_overflow", fatal: true, message: info.protocolError.message };
   }
   if (info.spawnError !== null) {
+    const missingLaunchPath = info.spawnErrorCode === "ENOENT";
     return {
       ...common,
       reason: "spawn_error",
-      fatal: false,
+      fatal: missingLaunchPath,
+      sharedStartupFailure: missingLaunchPath ? "launch-command" : undefined,
       sharedFailure: ["EAGAIN", "EMFILE", "ENFILE"].includes(info.spawnErrorCode ?? "") ? "spawn-resource" : undefined,
       message: info.spawnError,
     };

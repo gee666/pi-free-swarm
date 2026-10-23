@@ -59,10 +59,26 @@ test("only structured OS resource codes classify shared recovery, never stderr g
       });
       await launching;
       assert.equal(run.crashes[0]?.sharedFailure, code && code !== "ENOENT" ? "spawn-resource" : undefined);
+      assert.equal(run.crashes[0]?.fatal, code === "ENOENT");
+      assert.equal(run.crashes[0]?.sharedStartupFailure, code === "ENOENT" ? "launch-command" : undefined);
     } finally {
       await run.supervisor.stop();
       run.fixture.cleanup();
     }
+  }
+});
+
+test("ENOENT-looking text without a structured code does not establish shared fatal failure", async () => {
+  const run = setup();
+  try {
+    const launching = run.supervisor.launch(run.fixture.spec(), { text: "start", messageIds: [] });
+    run.fake.instances[0]?.exit({ spawnError: "ENOENT", stderrTail: "ENOENT: unavailable command" });
+    await launching;
+    assert.equal(run.crashes[0]?.fatal, false);
+    assert.equal(run.crashes[0]?.sharedStartupFailure, undefined);
+  } finally {
+    await run.supervisor.stop();
+    run.fixture.cleanup();
   }
 });
 
