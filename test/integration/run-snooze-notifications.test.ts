@@ -80,6 +80,8 @@ test(
         ),
       );
       clock.advance(until - clock.now() - 1);
+      // Finish the async control poll before entering the deadline's timer phase.
+      await new Promise<void>((resolve) => setImmediate(resolve));
       assert.equal(reminders().length, 0, "no reminder before the five-minute deadline");
       clock.advance(1);
       await waitFor(() => reminders().length === 1, "reminder at snooze expiry");
