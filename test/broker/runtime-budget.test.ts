@@ -165,17 +165,15 @@ describe("per-swarm durable budget changes", () => {
       0,
       T0,
     );
-    assert.throws(
-      () =>
-        checkUsageAccounting(
-          db,
-          id,
-          "Maria",
-          { kind: "message", input: 1, output: 1, cacheRead: 0, cacheWrite: 0, cost: 2, model: "unexpected" },
-          T0,
-        ),
-      /unexpected model/,
+    const issue = checkUsageAccounting(
+      db,
+      id,
+      "Maria",
+      { kind: "message", input: 1, output: 1, cacheRead: 0, cacheWrite: 0, cost: 2, model: "unexpected" },
+      T0,
     );
+    assert.ok(issue instanceof Error);
+    assert.match(issue.message, /unexpected model/);
     assert.equal(hasBudgetAccountingGap(db, id), true);
   });
 

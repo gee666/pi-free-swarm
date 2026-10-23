@@ -15,7 +15,15 @@ export class RunBudget {
 
   check(): boolean {
     const { db, clock, settings } = this.env;
+    // Runtime edits cannot turn an unlimited dimension into an enforced limit.
+    if (!this.stopped && settings.budgetMoneyUsd === undefined && settings.budgetTimeSeconds === undefined)
+      return false;
     const budget = readBudget(db, this.swarmId, settings, clock.now());
+    if (budget.moneyUsd !== null && budget.hasAccountingGaps) {
+      throw new Error(
+        "Money budget accounting is incomplete. Execution cannot continue with unknown costs; inspect the evidence before resuming without a money limit.",
+      );
+    }
     if (!this.stopped && budget.exhausted) {
       this.stopped = true;
       recordBudgetStop(db, this.swarmId, this.run, budget.exhausted, clock.now());
