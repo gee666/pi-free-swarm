@@ -1,9 +1,10 @@
-import { mergeBudgetRaises, type BudgetRaises, type BudgetStatus } from "../budget.js";
+import type { BudgetRaises, BudgetStatus } from "../budget.js";
 import type { SwarmSettings } from "../settings.js";
 import type { UsageSample } from "../runtime-types.js";
 import { getRunConfiguration } from "./run-configuration.js";
 import type { SwarmDb } from "./db.js";
-import { getStats } from "./stats-queries.js";
+import { int } from "./rows.js";
+import { swarmUsageTotals } from "./scalar-totals.js";
 
 export const BUDGET_ACCOUNTING =
   "Cumulative reported worker and Watcher usage, including reported retries and compaction; active run wall time excludes stopped time. Main and external billing are excluded. Delayed usage and in-flight work may overshoot. Graceful mode drains the active pi turn, which can include further tool steps and already accepted steering, not a per-tool boundary. Interrupted external effects are uncertain; inspect artifacts before retrying.";
@@ -11,16 +12,13 @@ export const BUDGET_ACCOUNTING =
 type BudgetPolicy = Pick<SwarmSettings, "budgetMoneyUsd" | "budgetTimeSeconds" | "gracefulShutdownOnBudget">;
 
 export function readBudget(db: SwarmDb, swarmId: number, settings: BudgetPolicy, now: number): BudgetStatus {
-  const stats = getStats(db, swarmId, now);
-  const costUsd = stats?.totals.cost ?? 0;
-  const activeTimeMs = stats?.totals.wallTimeMs ?? 0;
-  const { moneyUsd, timeSeconds } = mergeBudgetRaises(
-    {
-      moneyUsd: settings.budgetMoneyUsd ?? null,
-      timeSeconds: settings.budgetTimeSeconds ?? null,
-    },
-    getBudgetRaises(db, swarmId),
-  );
+  const { costUsd, activeTimeMs } = budgetTotals(db, swarmId, now);
+  const { moneyUsd, timeSeconds, gracefulShutdown } = currentBudgetPolicy(db, swarmId) ?? {
+    moneyUsd: settings.budgetMoneyUsd ?? null,
+    timeSeconds: settings.budgetTimeSeconds ?? null,
+    gracefulShutdown: settings.gracefulShutdownOnBudget ?? false,
+  };
+  const hasAccountingGaps = hasBudgetAccountingGap(db, swarmId);
   const exhausted =
     moneyUsd !== null && costUsd >= moneyUsd
       ? "money"
@@ -37,17 +35,69 @@ export function readBudget(db: SwarmDb, swarmId: number, settings: BudgetPolicy,
     timeSeconds,
     costUsd,
     activeTimeMs,
-    gracefulShutdown: settings.gracefulShutdownOnBudget ?? false,
+    gracefulShutdown,
     exhausted,
     stopReason: stopped ? "budget-exhausted" : null,
     moneyOvershootUsd: moneyUsd === null ? 0 : Math.max(0, costUsd - moneyUsd),
     timeOvershootSeconds: timeSeconds === null ? 0 : Math.max(0, activeTimeMs / 1000 - timeSeconds),
+    hasAccountingGaps,
     accounting:
       BUDGET_ACCOUNTING +
-      (hasBudgetAccountingGap(db, swarmId)
+      (hasAccountingGaps
         ? " Accounting is incomplete: usage lacked a valid cost or reported an unexpected model. A money-budget resume is refused; missing cost is not free usage."
         : ""),
   };
+}
+
+function budgetTotals(db: SwarmDb, swarmId: number, now: number): { costUsd: number; activeTimeMs: number } {
+  const { costUsd } = swarmUsageTotals(db, swarmId);
+  const time = db.sql
+    .prepare(
+      "SELECT COALESCE(SUM(COALESCE(ended_at, ?) - started_at), 0) AS elapsed FROM swarm_runs WHERE swarm_id = ?",
+    )
+    .get(now, swarmId);
+  return { costUsd, activeTimeMs: time ? int(time, "elapsed") : 0 };
+}
+
+function isStoredCeiling(value: unknown, jsonType: unknown): value is number | null {
+  return value === null
+    ? jsonType === "null"
+    : (jsonType === "integer" || jsonType === "real") &&
+        typeof value === "number" &&
+        Number.isFinite(value) &&
+        value > 0;
+}
+
+function currentBudgetPolicy(
+  db: SwarmDb,
+  swarmId: number,
+): Pick<BudgetStatus, "moneyUsd" | "timeSeconds" | "gracefulShutdown"> | undefined {
+  const row = db.sql
+    .prepare(
+      `SELECT json_extract(configuration, '$.budget.moneyUsd') AS money_usd,
+      json_type(configuration, '$.budget.moneyUsd') AS money_type,
+      json_extract(configuration, '$.budget.timeSeconds') AS time_seconds,
+      json_type(configuration, '$.budget.timeSeconds') AS time_type,
+      json_type(configuration, '$.budget.gracefulShutdown') AS graceful_type
+    FROM (SELECT COALESCE(
+      (SELECT r.configuration FROM run_configuration_revisions r
+        WHERE r.swarm_id = s.id AND r.run = s.run_count ORDER BY r.revision DESC LIMIT 1),
+      i.configuration) AS configuration
+      FROM swarms s LEFT JOIN run_configurations i ON i.swarm_id = s.id AND i.run = s.run_count
+      WHERE s.id = ?) WHERE configuration IS NOT NULL`,
+    )
+    .get(swarmId);
+  if (!row) return undefined;
+  const moneyUsd = row.money_usd;
+  const timeSeconds = row.time_seconds;
+  if (
+    !isStoredCeiling(moneyUsd, row.money_type) ||
+    !isStoredCeiling(timeSeconds, row.time_type) ||
+    (row.graceful_type !== "true" && row.graceful_type !== "false")
+  ) {
+    throw new Error("Stored effective budget policy is invalid; inspect its configuration before continuing.");
+  }
+  return { moneyUsd, timeSeconds, gracefulShutdown: row.graceful_type === "true" };
 }
 
 export function getBudgetRaises(db: SwarmDb, swarmId: number): BudgetRaises {
@@ -120,12 +170,12 @@ export function recordBudgetStop(
   reason: "money" | "time",
   now: number,
 ): void {
-  const stats = getStats(db, swarmId, now);
+  const { costUsd, activeTimeMs } = budgetTotals(db, swarmId, now);
   db.write(() =>
     db.sql
       .prepare(
         "INSERT OR IGNORE INTO budget_stops (swarm_id, run, reason, cost_usd, active_time_ms, created_at) VALUES (?, ?, ?, ?, ?, ?)",
       )
-      .run(swarmId, run, reason, stats?.totals.cost ?? 0, stats?.totals.wallTimeMs ?? 0, now),
+      .run(swarmId, run, reason, costUsd, activeTimeMs, now),
   );
 }

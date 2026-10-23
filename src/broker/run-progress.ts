@@ -1,10 +1,7 @@
 // The live snapshot the swarm tools stream into the terminal tool box about once a second (plan §9).
 import type { ParticipantStatus, SwarmStatus } from "../api-types.js";
-import { USER_NAME, WATCHER_NAME } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
-import { unreadCounts } from "../store/message-queries.js";
-import { getStats } from "../store/stats-queries.js";
-import { getSwarm, listParticipants } from "../store/swarm-queries.js";
+import { getProgressSnapshot } from "../store/progress-queries.js";
 
 export interface RunProgress {
   swarmId: number;
@@ -24,35 +21,21 @@ export interface RunProgress {
 }
 
 export function readRunProgress(db: SwarmDb, swarmId: number, now: number, boardUrl: string | null): RunProgress {
-  const swarm = getSwarm(db, swarmId, now);
-  const stats = getStats(db, swarmId, now);
-  if (swarm === null || stats === null) throw new Error(`Swarm #${swarmId} not found.`);
-  const agents: Record<ParticipantStatus, number> = {
-    pending: 0,
-    starting: 0,
-    working: 0,
-    idle: 0,
-    crashed: 0,
-    stopped: 0,
-    retired: 0,
-  };
-  for (const participant of listParticipants(db, swarmId)) {
-    if (participant.kind === "agent" && participant.name !== WATCHER_NAME) agents[participant.status]++;
-  }
-  const { totals } = stats;
+  const swarm = getProgressSnapshot(db, swarmId, now);
+  if (swarm === null) throw new Error(`Swarm #${swarmId} not found.`);
   const startedAt = swarm.startedAt ?? now;
   return {
     swarmId,
     swarmName: swarm.name,
-    run: swarm.runCount,
+    run: swarm.run,
     status: swarm.status,
-    agents,
-    posts: totals.posts,
-    messages: totals.messages,
-    unreadForUser: unreadCounts(db, swarmId, [USER_NAME])[USER_NAME] ?? 0,
+    agents: swarm.agents,
+    posts: swarm.posts,
+    messages: swarm.messages,
+    unreadForUser: swarm.unreadForUser,
     elapsedMs: Math.max(0, (swarm.finishedAt ?? now) - startedAt),
-    cost: totals.cost,
-    tokens: totals.input + totals.output + totals.cacheRead + totals.cacheWrite,
+    cost: swarm.cost,
+    tokens: swarm.tokens,
     boardUrl,
   };
 }

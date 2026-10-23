@@ -6,19 +6,9 @@ import { USER_NAME, WATCHER_NAME } from "../constants.js";
 import type { SwarmDb } from "./db.js";
 import { getRunConfiguration } from "./run-configuration.js";
 import { readBudget } from "./budget.js";
-import { isPidAlive, isRunLockFresh, type PidAlive } from "./locks.js";
-import {
-  activityOf,
-  agentStatusOf,
-  int,
-  intOrNull,
-  kindOf,
-  real,
-  stringList,
-  swarmStatusOf,
-  text,
-  type Row,
-} from "./rows.js";
+import { isPidAlive, type PidAlive } from "./locks.js";
+import { resolvedSwarmState } from "./swarm-status.js";
+import { activityOf, agentStatusOf, int, intOrNull, kindOf, real, stringList, text, type Row } from "./rows.js";
 
 const SWARM_SELECT = `
   SELECT s.*,
@@ -28,17 +18,13 @@ const SWARM_SELECT = `
   FROM swarms s`;
 
 function swarmOf(row: Row, now: number, alive: PidAlive): SwarmListItem {
-  const stored = swarmStatusOf(row);
-  const runnerPid = intOrNull(row, "runner_pid");
-  const wantsLive = stored === "starting" || stored === "running";
-  const live =
-    wantsLive && isRunLockFresh({ runnerPid, runnerHeartbeatAt: intOrNull(row, "runner_heartbeat_at") }, now, alive);
+  const { status, runnerPid, live } = resolvedSwarmState(row, now, alive);
   return {
     id: int(row, "id"),
     name: text(row, "name"),
     taskPrompt: text(row, "task_prompt"),
     acceptanceCriteria: stringList(row, "acceptance_criteria"),
-    status: wantsLive && !live ? "interrupted" : stored,
+    status,
     acceptsMessages: live && row.admission_closed !== 1,
     agentAmount: int(row, "agent_amount"),
     agentsWorking: live ? int(row, "agents_working") : 0,
