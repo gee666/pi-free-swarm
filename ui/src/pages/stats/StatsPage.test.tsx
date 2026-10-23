@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StatsResponse, SwarmEvent } from "../../../../src/api-types";
-import { SwarmStreamProvider } from "../../api/SwarmStream";
+import { SwarmViewProvider } from "../../api/SwarmView";
 import { installFakeApi, type FakeApi } from "../../test/fakeApi";
 import { installFakeEventSource, type FakeEventSource } from "../../test/fakeEventSource";
 import { STATS_REFRESH_MS, STATS_CLOCK_MS, StatsPage } from "./StatsPage";
@@ -51,9 +51,9 @@ async function renderStats(path = "/s/3/stats") {
         <Route
           path="/s/:id/stats"
           element={
-            <SwarmStreamProvider swarmId="3">
+            <SwarmViewProvider swarmId="3">
               <StatsPage />
-            </SwarmStreamProvider>
+            </SwarmViewProvider>
           }
         />
       </Routes>

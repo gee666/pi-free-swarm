@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { budget } from "../test/runConfigurationFixture";
 import { BudgetSummary } from "./BudgetSummary";
-import { SwarmStreamProvider } from "../api/SwarmStream";
+import { SwarmViewProvider } from "../api/SwarmView";
 import { useSwarmDetail } from "../pages/agents/useSwarmDetail";
 import { detail, eventBase } from "../pages/agents/testFixtures";
 import { installFakeApi } from "../test/fakeApi";
@@ -59,9 +59,9 @@ it("refreshes cumulative accounting when reported usage changes", async () => {
   let snapshot = detail({ budget: { ...budget, exhausted: null, stopReason: null, costUsd: 1 } });
   api.on("GET", "/api/swarms/3", () => snapshot);
   render(
-    <SwarmStreamProvider swarmId="3">
+    <SwarmViewProvider swarmId="3">
       <LiveBudget />
-    </SwarmStreamProvider>,
+    </SwarmViewProvider>,
   );
   act(() => source().open());
   await userEvent.click(await screen.findByRole("button", { name: "Budget accounting" }));

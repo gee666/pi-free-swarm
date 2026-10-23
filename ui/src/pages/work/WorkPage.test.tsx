@@ -4,7 +4,7 @@ import { MemoryRouter, Outlet, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { acceptance } from "../../test/acceptanceFixture";
 import type { AgentParticipantView, SwarmDetailResponse, SwarmEvent } from "../../../../src/api-types";
-import { SwarmStreamProvider } from "../../api/SwarmStream";
+import { SwarmViewProvider } from "../../api/SwarmView";
 import { installFakeApi } from "../../test/fakeApi";
 import { installFakeEventSource, type FakeEventSource } from "../../test/fakeEventSource";
 import { FakeIntersectionObserver } from "./testSession";
@@ -94,9 +94,9 @@ function renderWork(path = "/s/3/work") {
         <Route
           path="/s/:id"
           element={
-            <SwarmStreamProvider swarmId="3">
+            <SwarmViewProvider swarmId="3">
               <Outlet />
-            </SwarmStreamProvider>
+            </SwarmViewProvider>
           }
         >
           <Route path="work/:name?" element={<WorkPage />} />

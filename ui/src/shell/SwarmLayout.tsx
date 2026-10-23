@@ -1,6 +1,6 @@
 import { useSwarmDetail } from "../pages/agents/useSwarmDetail";
 import { Outlet, useNavigate, useParams } from "react-router-dom";
-import { SwarmStreamProvider } from "../api/SwarmStream";
+import { SwarmViewProvider } from "../api/SwarmView";
 import { useSwarmList } from "../api/SwarmList";
 import { AppShell } from "./AppShell";
 import { TabRail } from "./TabRail";
@@ -11,11 +11,11 @@ import { FilePreviewProvider } from "../components/FilePreview";
 export function SwarmLayout() {
   const { id = "" } = useParams();
   return (
-    <SwarmStreamProvider key={id} swarmId={id}>
+    <SwarmViewProvider key={id} swarmId={id}>
       <FilePreviewProvider swarmId={id}>
         <SwarmFrame swarmId={id} />
       </FilePreviewProvider>
-    </SwarmStreamProvider>
+    </SwarmViewProvider>
   );
 }
 

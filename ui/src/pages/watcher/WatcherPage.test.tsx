@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { WATCHER_NAME } from "../../../../src/constants";
-import { SwarmStreamProvider } from "../../api/SwarmStream";
+import { SwarmViewProvider } from "../../api/SwarmView";
 import { TabRail } from "../../shell/TabRail";
 import { installFakeApi, type FakeApi } from "../../test/fakeApi";
 import { installFakeEventSource, type FakeEventSource } from "../../test/fakeEventSource";
@@ -44,12 +44,12 @@ function serve(running = true, busy = false) {
 function mount() {
   render(
     <MemoryRouter initialEntries={["/s/3/watcher"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <SwarmStreamProvider swarmId="3">
+      <SwarmViewProvider swarmId="3">
         <TabRail basePath="/s/3" />
         <Routes>
           <Route path="/s/:id/watcher" element={<WatcherPage />} />
         </Routes>
-      </SwarmStreamProvider>
+      </SwarmViewProvider>
     </MemoryRouter>,
   );
   act(() => source().open());

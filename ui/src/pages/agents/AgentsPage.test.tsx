@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RecipientView, SwarmEvent } from "../../../../src/api-types";
-import { SwarmStreamProvider } from "../../api/SwarmStream";
+import { SwarmViewProvider } from "../../api/SwarmView";
 import { SWARM_NOT_RUNNING_NOTICE } from "../../components/compose/ComposeBox";
 import { installFakeApi, jsonResponse, type FakeApi } from "../../test/fakeApi";
 import { installFakeEventSource, type FakeEventSource } from "../../test/fakeEventSource";
@@ -64,11 +64,11 @@ afterEach(() => {
 function mount(path: string) {
   render(
     <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <SwarmStreamProvider swarmId="3">
+      <SwarmViewProvider swarmId="3">
         <Routes>
           <Route path="/s/:id/agents/:name?" element={<AgentsPage />} />
         </Routes>
-      </SwarmStreamProvider>
+      </SwarmViewProvider>
     </MemoryRouter>,
   );
   act(() => source().open());
