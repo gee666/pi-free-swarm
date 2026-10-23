@@ -1,4 +1,4 @@
-import type { BudgetStatus } from "../budget.js";
+import { mergeBudgetRaises, type BudgetRaises, type BudgetStatus } from "../budget.js";
 import type { SwarmSettings } from "../settings.js";
 import type { UsageSample } from "../runtime-types.js";
 import { getRunConfiguration } from "./run-configuration.js";
@@ -14,8 +14,13 @@ export function readBudget(db: SwarmDb, swarmId: number, settings: BudgetPolicy,
   const stats = getStats(db, swarmId, now);
   const costUsd = stats?.totals.cost ?? 0;
   const activeTimeMs = stats?.totals.wallTimeMs ?? 0;
-  const moneyUsd = settings.budgetMoneyUsd ?? null;
-  const timeSeconds = settings.budgetTimeSeconds ?? null;
+  const { moneyUsd, timeSeconds } = mergeBudgetRaises(
+    {
+      moneyUsd: settings.budgetMoneyUsd ?? null,
+      timeSeconds: settings.budgetTimeSeconds ?? null,
+    },
+    getBudgetRaises(db, swarmId),
+  );
   const exhausted =
     moneyUsd !== null && costUsd >= moneyUsd
       ? "money"
@@ -45,6 +50,32 @@ export function readBudget(db: SwarmDb, swarmId: number, settings: BudgetPolicy,
   };
 }
 
+export function getBudgetRaises(db: SwarmDb, swarmId: number): BudgetRaises {
+  // A committed revision survives interruption before its request reaches "applied".
+  const row = db.sql
+    .prepare(
+      `WITH ceilings AS (
+        SELECT json_extract(change, '$.moneyUsd') AS money_usd,
+          json_extract(change, '$.timeSeconds') AS time_seconds
+        FROM configuration_requests
+        WHERE swarm_id = ? AND status = 'applied' AND json_extract(change, '$.type') = 'raiseBudget'
+        UNION ALL
+        SELECT
+          CASE WHEN json_extract(r.configuration, '$.budget.moneyUsd') > json_extract(i.configuration, '$.budget.moneyUsd')
+            THEN json_extract(r.configuration, '$.budget.moneyUsd') END,
+          CASE WHEN json_extract(r.configuration, '$.budget.timeSeconds') > json_extract(i.configuration, '$.budget.timeSeconds')
+            THEN json_extract(r.configuration, '$.budget.timeSeconds') END
+        FROM run_configuration_revisions r JOIN run_configurations i USING (swarm_id, run)
+        WHERE r.swarm_id = ?
+      ) SELECT MAX(money_usd) AS money_usd, MAX(time_seconds) AS time_seconds FROM ceilings`,
+    )
+    .get(swarmId, swarmId);
+  return {
+    ...(typeof row?.money_usd === "number" ? { moneyUsd: row.money_usd } : {}),
+    ...(typeof row?.time_seconds === "number" ? { timeSeconds: row.time_seconds } : {}),
+  };
+}
+
 export function hasBudgetAccountingGap(db: SwarmDb, swarmId: number): boolean {
   return db.sql.prepare("SELECT 1 FROM budget_accounting_gaps WHERE swarm_id = ? LIMIT 1").get(swarmId) !== undefined;
 }
@@ -59,7 +90,14 @@ export function checkUsageAccounting(
 ): void {
   const config = getRunConfiguration(db, swarmId);
   const assigned = config?.effective.workers.find((worker) => worker.name === agent);
-  const unexpectedModel = assigned && sample.model !== null && sample.model !== assigned.modelId;
+  const archived = !assigned
+    ? db.sql
+        .prepare("SELECT retired_model_id FROM participants WHERE swarm_id = ? AND name = ? AND retired_at IS NOT NULL")
+        .get(swarmId, agent)
+    : undefined;
+  const expectedModel =
+    assigned?.modelId ?? (typeof archived?.retired_model_id === "string" ? archived.retired_model_id : undefined);
+  const unexpectedModel = expectedModel !== undefined && sample.model !== null && sample.model !== expectedModel;
   if (sample.costKnown !== false && !unexpectedModel) return;
   const reason = unexpectedModel ? "unexpected model" : "missing USD usage total";
   db.write(() =>

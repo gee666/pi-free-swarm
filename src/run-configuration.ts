@@ -30,7 +30,7 @@ export interface RunConfiguration {
     idleTimeoutMs?: number;
     startupRetries?: number;
   };
-  limits: { bodyMaxChars: number; maxRpcFrameBytes: number };
+  limits: { bodyMaxChars: number; maxRpcFrameBytes: number; maxAgents?: number };
   budget: {
     moneyUsd: number | null;
     timeSeconds: number | null;
@@ -41,6 +41,8 @@ export interface RunConfiguration {
 export interface SavedRunConfiguration {
   run: number;
   recordedAt: number;
+  /** Present for explicit live edits; original run records remain immutable. */
+  revision?: number;
   effective: RunConfiguration;
   /** Names of changed sections compared with the previous recorded run. */
   changes: string[];

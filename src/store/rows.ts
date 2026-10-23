@@ -72,8 +72,10 @@ const RECIPIENT_STATUSES: readonly RecipientStatus[] = ["pending", "delivered", 
 
 export const swarmStatusOf = (row: Row, key = "status"): SwarmStatus => oneOf(SWARM_STATUSES, text(row, key), key);
 export const kindOf = (row: Row, key = "kind"): ParticipantKind => oneOf(KINDS, text(row, key), key);
-export const agentStatusOf = (row: Row, key = "status"): ParticipantStatus =>
-  oneOf(AGENT_STATUSES, text(row, key), key);
+export function agentStatusOf(row: Row, key = "status"): ParticipantStatus {
+  if (key === "status" && row.retired_at !== undefined && intOrNull(row, "retired_at") !== null) return "retired";
+  return oneOf(AGENT_STATUSES, text(row, key), key);
+}
 export const recipientStatusOf = (row: Row, key = "status"): RecipientStatus =>
   oneOf(RECIPIENT_STATUSES, text(row, key), key);
 

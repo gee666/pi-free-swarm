@@ -34,6 +34,7 @@ export function readRunProgress(db: SwarmDb, swarmId: number, now: number, board
     idle: 0,
     crashed: 0,
     stopped: 0,
+    retired: 0,
   };
   for (const participant of listParticipants(db, swarmId)) {
     if (participant.kind === "agent" && participant.name !== WATCHER_NAME) agents[participant.status]++;

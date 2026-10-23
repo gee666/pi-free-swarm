@@ -3,7 +3,7 @@ import type { SwarmDb } from "./db.js";
 import { safeExtensionReference } from "./configuration-references.js";
 
 /** Explicit projection prevents credentials attached to runtime objects reaching the database/API. */
-function project(config: RunConfiguration): RunConfiguration {
+export function projectRunConfiguration(config: RunConfiguration): RunConfiguration {
   return {
     version: 1,
     workers: config.workers.map(({ name, provider, modelId, thinkingLevel }) => ({
@@ -31,7 +31,11 @@ function project(config: RunConfiguration): RunConfiguration {
       idleTimeoutMs: config.timing.idleTimeoutMs,
       startupRetries: config.timing.startupRetries,
     },
-    limits: { bodyMaxChars: config.limits.bodyMaxChars, maxRpcFrameBytes: config.limits.maxRpcFrameBytes },
+    limits: {
+      bodyMaxChars: config.limits.bodyMaxChars,
+      maxRpcFrameBytes: config.limits.maxRpcFrameBytes,
+      ...(config.limits.maxAgents === undefined ? {} : { maxAgents: config.limits.maxAgents }),
+    },
     budget: {
       moneyUsd: config.budget.moneyUsd,
       timeSeconds: config.budget.timeSeconds,
@@ -48,7 +52,7 @@ export function saveRunConfiguration(
   now: number,
 ): SavedRunConfiguration {
   return db.write(({ sql }) => {
-    const effective = project(configuration);
+    const effective = projectRunConfiguration(configuration);
     const previous = getRunConfiguration(db, swarmId);
     const changes = previous ? changedSections(previous.effective, effective) : [];
     sql
@@ -72,10 +76,20 @@ export function getRunConfiguration(db: SwarmDb, swarmId: number, run?: number):
       ? db.sql.prepare("SELECT * FROM run_configurations WHERE swarm_id = ? ORDER BY run DESC LIMIT 1").get(swarmId)
       : db.sql.prepare("SELECT * FROM run_configurations WHERE swarm_id = ? AND run = ?").get(swarmId, run);
   if (!row) return null;
-  const value: unknown = JSON.parse(String(row.configuration));
-  const changes: unknown = JSON.parse(String(row.changes));
+  const revision = db.sql
+    .prepare("SELECT * FROM run_configuration_revisions WHERE swarm_id = ? AND run = ? ORDER BY revision DESC LIMIT 1")
+    .get(swarmId, row.run);
+  const current = revision ?? row;
+  const value: unknown = JSON.parse(String(current.configuration));
+  const changes: unknown = JSON.parse(String(current.changes));
   if (!isConfiguration(value) || !strings(changes)) throw new Error("Invalid persisted run configuration");
-  return { run: Number(row.run), recordedAt: Number(row.recorded_at), effective: project(value), changes };
+  return {
+    run: Number(row.run),
+    recordedAt: Number(current.recorded_at),
+    ...(revision ? { revision: Number(revision.revision) } : {}),
+    effective: projectRunConfiguration(value),
+    changes,
+  };
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -124,6 +138,8 @@ function isConfiguration(value: unknown): value is RunConfiguration {
     record(limits) &&
     finite(limits.bodyMaxChars) &&
     finite(limits.maxRpcFrameBytes) &&
+    (limits.maxAgents === undefined ||
+      (typeof limits.maxAgents === "number" && Number.isSafeInteger(limits.maxAgents) && limits.maxAgents >= 1)) &&
     record(budget) &&
     (budget.moneyUsd === null || finite(budget.moneyUsd)) &&
     (budget.timeSeconds === null || finite(budget.timeSeconds)) &&

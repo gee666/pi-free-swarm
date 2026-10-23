@@ -67,6 +67,8 @@ export function requireParticipant(db: SwarmDb, swarmId: number, name: string): 
  */
 export function actAs(db: SwarmDb, swarmId: number, name: string, now: number): ParticipantRef {
   const participant = requireParticipant(db, swarmId, name);
+  if (participant.retiredAt !== undefined)
+    throw new BrokerError("validation", `Worker ${participant.name} is retired and cannot write new swarm activity.`);
   const row = db.sql
     .prepare("SELECT joined_at FROM participants WHERE swarm_id = ? AND name = ?")
     .get(swarmId, participant.name);

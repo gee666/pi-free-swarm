@@ -37,7 +37,7 @@ function afterCommit(swarmId: number, result: SendResult): MessageView {
 }
 
 const canReceive = (participant: ParticipantRef): boolean =>
-  participant.kind === "agent" || participant.kind === "user";
+  participant.retiredAt === undefined && (participant.kind === "agent" || participant.kind === "user");
 
 /** Agents and User only (Main and System never receive), minus the sender, deduplicated, canonical. */
 function resolveRecipients(
@@ -51,7 +51,8 @@ function resolveRecipients(
   for (const raw of to) {
     const name = raw.trim();
     const participant = findParticipant(db, swarmId, name);
-    if (participant?.retiredAt !== undefined) throw new BrokerError("validation", `Worker ${participant.name} is retired. Choose an active recipient.`, "to");
+    if (participant?.retiredAt !== undefined)
+      throw new BrokerError("validation", `Worker ${participant.name} is retired. Choose an active recipient.`, "to");
     if (participant === null || !canReceive(participant)) unknown.push(name);
     else if (participant.name !== sender.name && !recipients.some((r) => r.name === participant.name)) {
       recipients.push(participant);
@@ -127,7 +128,7 @@ export function sendMainFeedback(db: SwarmDb, swarmId: number, text: string, now
     requireSwarm(db, swarmId);
     const value = requireText(text, MAIN_FEEDBACK_MAX, "message");
     const sender = actAs(db, swarmId, MAIN_NAME, now);
-    const recipients = listAgentSessions(db, swarmId)
+    const recipients = listAgentSessions(db, swarmId, { activeOnly: true })
       .filter((agent) => agent.name !== WATCHER_NAME)
       .map((agent): ParticipantRef => ({
         name: agent.name,

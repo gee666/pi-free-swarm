@@ -40,7 +40,7 @@ it("upgrades released v1 without losing history, delivery state, foreign keys or
         before,
       );
       assert.deepEqual(db.sql.prepare("PRAGMA foreign_key_check").all(), []);
-      assert.equal(db.sql.prepare("PRAGMA user_version").get()?.user_version, 11);
+      assert.equal(db.sql.prepare("PRAGMA user_version").get()?.user_version, 12);
       assert.equal(inspectAcceptance(db, 1).verdict, "unchecked");
       assert.equal(inspectAcceptance(db, 1).originalTask, "task");
       assert.equal(db.sql.prepare("PRAGMA foreign_keys").get()?.foreign_keys, 1);

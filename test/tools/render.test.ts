@@ -24,7 +24,7 @@ function progress(overrides: Partial<RunProgress> = {}): RunProgress {
     swarmName: "auth-refactor",
     run: 1,
     status: "running",
-    agents: { pending: 0, starting: 1, working: 3, idle: 1, crashed: 0, stopped: 0 },
+    agents: { pending: 0, starting: 1, working: 3, idle: 1, crashed: 0, stopped: 0, retired: 0 },
     posts: 14,
     messages: 22,
     unreadForUser: 2,

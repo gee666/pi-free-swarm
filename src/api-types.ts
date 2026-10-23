@@ -10,7 +10,6 @@
  * - Participant names are canonical as stored ("Maria"); lookups ignore case.
  */
 
-// Work-tab session view types live in their own file to keep both under the size limit.
 export type * from "./api-session-types.js";
 
 export type * from "./api-common-types.js";
@@ -52,6 +51,8 @@ export interface AgentParticipantView {
   status: ParticipantStatus;
   launchOrder: number;
   reviveCount: number;
+  retiredAt?: number | null;
+  firstIdleAt?: number | null;
   /** Recorded effective assignment, never guessed for historical workers. */
   model?: import("./run-configuration.js").WorkerAssignment | null;
   activity: AgentActivity | null;

@@ -24,7 +24,7 @@ const SWARM_SELECT = `
   SELECT s.*,
     (SELECT a.closed_run = s.run_count FROM acceptance a WHERE a.swarm_id = s.id) AS admission_closed,
     (SELECT COUNT(*) FROM participants p
-      WHERE p.swarm_id = s.id AND p.kind = 'agent' AND p.name <> '${WATCHER_NAME}' AND p.status = 'working') AS agents_working
+      WHERE p.swarm_id = s.id AND p.kind = 'agent' AND p.name <> '${WATCHER_NAME}' AND p.retired_at IS NULL AND p.status = 'working') AS agents_working
   FROM swarms s`;
 
 function swarmOf(row: Row, now: number, alive: PidAlive): SwarmListItem {
@@ -100,6 +100,16 @@ const PARTICIPANT_SELECT = `
     (SELECT COALESCE(SUM(u.cost), 0) FROM usage u WHERE u.swarm_id = p.swarm_id AND u.agent = p.name) AS cost
   FROM participants p`;
 
+function retiredAssignment(row: Row) {
+  if (typeof row.retired_provider !== "string" || typeof row.retired_model_id !== "string") return null;
+  return {
+    name: text(row, "name"),
+    provider: row.retired_provider,
+    modelId: row.retired_model_id,
+    thinkingLevel: typeof row.retired_thinking_level === "string" ? row.retired_thinking_level : null,
+  };
+}
+
 function participantOf(row: Row): ParticipantView | null {
   const kind = kindOf(row);
   const common = {
@@ -113,6 +123,9 @@ function participantOf(row: Row): ParticipantView | null {
     kind,
     name: text(row, "name"),
     status: agentStatusOf(row),
+    retiredAt: intOrNull(row, "retired_at"),
+    firstIdleAt: intOrNull(row, "first_idle_at"),
+    model: retiredAssignment(row),
     launchOrder: int(row, "launch_order"),
     reviveCount: int(row, "revive_count"),
     activity: activityOf(row),
@@ -134,7 +147,12 @@ export function listParticipants(db: SwarmDb, swarmId: number): ParticipantView[
     const participant = participantOf(row);
     if (!participant) return [];
     return participant.kind === "agent"
-      ? [{ ...participant, model: assignments.find((item) => item.name === participant.name) ?? null }]
+      ? [
+          {
+            ...participant,
+            model: assignments.find((item) => item.name === participant.name) ?? participant.model ?? null,
+          },
+        ]
       : [participant];
   });
 }
@@ -151,25 +169,33 @@ export function getParticipant(db: SwarmDb, swarmId: number, name: string): Part
   const participant = participantOf(row);
   if (participant?.kind !== "agent") return participant;
   const assignments = currentAssignments(db, swarmId);
-  return { ...participant, model: assignments.find((item) => item.name === participant.name) ?? null };
+  return {
+    ...participant,
+    model: assignments.find((item) => item.name === participant.name) ?? participant.model ?? null,
+  };
 }
 
 export interface ParticipantRef {
   name: string;
   kind: ParticipantKind;
+  retiredAt?: number;
 }
 
 /** Any participant including Main and System, case-insensitive, with its canonical name. */
 export function findParticipant(db: SwarmDb, swarmId: number, name: string): ParticipantRef | null {
-  const row = db.sql.prepare("SELECT name, kind FROM participants WHERE swarm_id = ? AND name = ?").get(swarmId, name);
-  return row === undefined ? null : { name: text(row, "name"), kind: kindOf(row) };
+  const row = db.sql
+    .prepare("SELECT name, kind, retired_at FROM participants WHERE swarm_id = ? AND name = ?")
+    .get(swarmId, name);
+  if (!row) return null;
+  const retiredAt = intOrNull(row, "retired_at");
+  return { name: text(row, "name"), kind: kindOf(row), ...(retiredAt === null ? {} : { retiredAt }) };
 }
 
 /** Everyone an agent may message: agents in launch order, then `User`. */
 export function listMessageableNames(db: SwarmDb, swarmId: number): string[] {
   return db.sql
     .prepare(
-      `SELECT name FROM participants WHERE swarm_id = ? AND kind IN ('agent', 'user')
+      `SELECT name FROM participants WHERE swarm_id = ? AND kind IN ('agent', 'user') AND retired_at IS NULL
        ORDER BY kind = 'user', launch_order`,
     )
     .all(swarmId)
@@ -177,9 +203,15 @@ export function listMessageableNames(db: SwarmDb, swarmId: number): string[] {
 }
 
 /** Absolute session file per agent, in launch order. */
-export function listAgentSessions(db: SwarmDb, swarmId: number): { name: string; sessionFile: string }[] {
+export function listAgentSessions(
+  db: SwarmDb,
+  swarmId: number,
+  options: { activeOnly?: boolean } = {},
+): { name: string; sessionFile: string }[] {
   return db.sql
-    .prepare("SELECT name, session_file FROM participants WHERE swarm_id = ? AND kind = 'agent' ORDER BY launch_order")
+    .prepare(
+      `SELECT name, session_file FROM participants WHERE swarm_id = ? AND kind = 'agent' ${options.activeOnly ? "AND retired_at IS NULL" : ""} ORDER BY launch_order`,
+    )
     .all(swarmId)
     .map((row) => ({ name: text(row, "name"), sessionFile: path.join(db.dataDir, text(row, "session_file")) }));
 }
