@@ -16,8 +16,17 @@ export class MessageObservation {
   }
 
   settled(): void {
-    this.#prompts.clear();
     this.#observed.clear();
+  }
+
+  cancelQueued(texts: ReadonlyMap<string, number>): void {
+    const remaining = new Map(texts);
+    for (const [token, prompt] of this.#prompts) {
+      const count = remaining.get(prompt.text) ?? 0;
+      if (count <= 0) continue;
+      this.#prompts.delete(token);
+      remaining.set(prompt.text, count - 1);
+    }
   }
 
   observed(text: string): number[] {

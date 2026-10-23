@@ -16,6 +16,7 @@ import type { AgentExitInfo } from "./agent-process.js";
 import { spawnAgentTransport, type AgentTransport, type AgentTransportFactory } from "./transport.js";
 import type { AgentLaunchSpec } from "./launch.js";
 import { createProtocolHandler, forwardUsage } from "./protocol.js";
+import { clearSteeringQueue } from "./steering-queue.js";
 import { PostObservation } from "./post-observation.js";
 import { dialogRequestId, type RpcRecord } from "./rpc-events.js";
 import { MessageObservation } from "./message-observation.js";
@@ -87,8 +88,8 @@ export class AgentSupervisor {
       life.promptsInFlight++;
       life.watchdog.rearm();
       try {
-        const response = await life.proc.send({ type: "clear_queue" });
-        if (response.success !== true) {
+        const cleared = await clearSteeringQueue(life.proc, life.messages, life.posts);
+        if (!cleared) {
           life.watchdog.disarm();
           return { accepted: false, error: "Could not clear the steering queue." };
         }
@@ -127,8 +128,8 @@ export class AgentSupervisor {
     if (!life) return;
     if (this.#status === "starting") return this.stop();
     try {
-      const response = await life.proc.send({ type: "clear_queue" });
-      if (response.success !== true && life === this.#life) await this.stop();
+      const cleared = await clearSteeringQueue(life.proc, life.messages, life.posts);
+      if (!cleared && life === this.#life) await this.stop();
     } catch {
       if (life === this.#life) await this.stop();
     }
@@ -288,8 +289,7 @@ export class AgentSupervisor {
   #applySettle(life: Life): void {
     if (life === this.#life && this.#status === "working") {
       life.watchdog.disarm();
-      // Unobserved content stays durable and can be recovered; settled turns need no retained proof strings.
-      life.posts.settled();
+      // A previous turn may settle after a newer payload was queued but before it enters context.
       life.messages.settled();
       if (this.#launch) this.#launch.prompt = null;
       this.#setStatus("idle");
