@@ -13,6 +13,7 @@ import { emitParticipantUpdated, emitSwarmUpdated } from "./emit.js";
 import { BrokerError } from "./errors.js";
 import { requireAcceptanceCriteria } from "./validate.js";
 import { cleanupRun, type RunEndStatus } from "./run-cleanup.js";
+import { interruptedActiveUntil } from "./interrupted-time.js";
 import { reopenAcceptance } from "./run-acceptance.js";
 
 export type { RunEndStatus } from "./run-cleanup.js";
@@ -107,7 +108,8 @@ export function beginResume(
       throw new BrokerError("swarm_running", message);
     }
     const status = swarmStatusOf(row);
-    if (status === "starting" || status === "running") cleanupRun(db, swarmId, "interrupted", now);
+    if (status === "starting" || status === "running")
+      cleanupRun(db, swarmId, "interrupted", now, interruptedActiveUntil(db, swarmId, now));
     const claim = claimRunLock(db, swarmId, runnerPid, now);
     if (!claim.ok) {
       throw new BrokerError(
@@ -205,7 +207,7 @@ export function sweepStaleRuns(
         return !isRunLockFresh({ runnerPid, runnerHeartbeatAt: intOrNull(row, "runner_heartbeat_at") }, now, alive);
       })
       .map((row) => int(row, "id"));
-    for (const swarmId of stale) cleanupRun(db, swarmId, "interrupted", now);
+    for (const swarmId of stale) cleanupRun(db, swarmId, "interrupted", now, interruptedActiveUntil(db, swarmId, now));
     return stale;
   });
 }

@@ -8,7 +8,7 @@ import { freezeRunAcceptance } from "./run-acceptance.js";
 
 export type RunEndStatus = "finished" | "stopped" | "interrupted";
 
-export function cleanupRun(db: SwarmDb, swarmId: number, end: RunEndStatus, now: number): void {
+export function cleanupRun(db: SwarmDb, swarmId: number, end: RunEndStatus, now: number, activeUntil = now): void {
   db.write(() => {
     freezeRunAcceptance(db, swarmId);
     const before = new Map(
@@ -23,11 +23,15 @@ export function cleanupRun(db: SwarmDb, swarmId: number, end: RunEndStatus, now:
     if (runnerPid !== null) releaseRunLock(db, swarmId, runnerPid);
     db.sql.prepare("UPDATE swarms SET status = ?, finished_at = ? WHERE id = ?").run(end, now, swarmId);
     db.sql
-      .prepare("UPDATE swarm_runs SET ended_at = ?, end_status = ? WHERE swarm_id = ? AND ended_at IS NULL")
-      .run(now, end, swarmId);
+      .prepare(
+        "UPDATE swarm_runs SET ended_at = MAX(started_at, ?), end_status = ? WHERE swarm_id = ? AND ended_at IS NULL",
+      )
+      .run(activeUntil, end, swarmId);
     db.sql
-      .prepare("UPDATE agent_runs SET ended_at = ?, reason = 'stopped' WHERE swarm_id = ? AND ended_at IS NULL")
-      .run(now, swarmId);
+      .prepare(
+        "UPDATE agent_runs SET ended_at = MAX(started_at, ?), reason = 'stopped' WHERE swarm_id = ? AND ended_at IS NULL",
+      )
+      .run(activeUntil, swarmId);
     db.sql
       .prepare(
         `UPDATE participants SET activity = NULL,
