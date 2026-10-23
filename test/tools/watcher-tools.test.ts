@@ -4,7 +4,7 @@ import path from "node:path";
 import { after, it } from "node:test";
 import { recordUsage, setAgentActivity, setAgentStatus } from "../../src/broker/agent-state.js";
 import { sendMessage } from "../../src/broker/messages.js";
-import { createSwarm } from "../../src/broker/swarms.js";
+import { createSwarm, endRun } from "../../src/broker/swarms.js";
 import { createPost } from "../../src/broker/wall.js";
 import {
   AGENT_TOOL,
@@ -138,6 +138,19 @@ it("shows the actual runtime tool separately from a different historical tool", 
   const overview = await run.overview();
   assert.match(overview, /current tool: bash/);
   assert.match(overview, /recent tool: read src\/tail.ts/);
+});
+
+it("retains retired status and deliberate historical session inspection after the run stops", async () => {
+  db.sql
+    .prepare("UPDATE participants SET retired_at = ? WHERE swarm_id = ? AND name = ?")
+    .run(clock.now(), swarm.id, "Maria");
+  const retiredBlock = (await run.overview()).split("\n\n").find((block) => block.startsWith("Maria: retired"));
+  assert.match(retiredBlock ?? "", /current tool: none/);
+  assert.match(retiredBlock ?? "", /Recent slice: 0 entries, 0 bytes/);
+  assert.match(await run.activity({ agent: "Maria", count: 1 }), /read src\/tail.ts/);
+  assert.equal(endRun(db, swarm.id, process.pid, "stopped", clock.now()), true);
+  assert.match(await run.overview(), /Maria: retired/);
+  assert.match(await run.activity({ agent: "Maria", count: 1 }), /read src\/tail.ts/);
 });
 
 it("registers exactly the Watcher allowlist, without acceptance or built-in tools", () => {

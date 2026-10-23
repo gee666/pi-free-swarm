@@ -11,7 +11,7 @@ import {
 import { BrokerError } from "../broker/errors.js";
 import { checkPage, requireSwarm } from "../broker/validate.js";
 import { SessionReader } from "../server/sessions.js";
-import { readRecentActivity } from "../server/session-recent.js";
+import { readRecentActivity, type RecentActivity } from "../server/session-recent.js";
 import { getAcceptance } from "../store/acceptance-queries.js";
 import { listThreads } from "../store/message-queries.js";
 import { getStats } from "../store/stats-queries.js";
@@ -43,19 +43,28 @@ export function createWatcherToolHandlers(identity: AgentToolIdentity) {
       const participants = listParticipants(db, swarm.id);
       const blocks = await Promise.all(
         listAgentSessions(db, swarm.id).map(async (agent) => {
-          const recent = await readRecentActivity(agent.sessionFile);
+          const participant = participants.find((item) => item.name === agent.name);
+          const retired = participant?.kind === "agent" && participant.status === "retired";
+          const recent: RecentActivity = retired
+            ? { items: [], entries: [], scannedEntries: 0, scannedBytes: 0, limited: true }
+            : await readRecentActivity(agent.sessionFile);
           const text = recent.items.find((item) => item.kind === "assistant_text");
           const tool = recent.items.find((item) => item.kind === "tool_call");
           const timestamp = recent.items[0]?.timestamp ?? 0;
-          const participant = participants.find((item) => item.name === agent.name);
           const usage = stats?.agents.find((item) => item.name === agent.name);
           const rawStatus = participant?.kind === "agent" ? participant.status : "stopped";
           const running = swarm.status === "running" || swarm.status === "starting";
           const status =
-            rawStatus === "crashed" ? "crashed" : !running ? "stopped" : rawStatus === "working" ? "busy" : rawStatus;
+            rawStatus === "crashed" || rawStatus === "retired"
+              ? rawStatus
+              : !running
+                ? "stopped"
+                : rawStatus === "working"
+                  ? "busy"
+                  : rawStatus;
           const latest = Math.max(participant?.lastActivityAt ?? 0, timestamp);
           const current =
-            participant?.kind === "agent" && participant.activity?.kind === "tool"
+            running && rawStatus === "working" && participant?.kind === "agent" && participant.activity?.kind === "tool"
               ? participant.activity.toolName
               : null;
           return [

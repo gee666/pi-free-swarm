@@ -33,14 +33,7 @@ export class IdleReminders {
 
   constructor(options: IdleReminderOptions) {
     this.#options = options;
-    for (const name of options.agents.keys()) {
-      if (name === WATCHER_NAME) continue;
-      this.#states.set(name, {
-        timer: null,
-        scheduledFor: 0,
-        inFlight: false,
-      });
-    }
+    this.#syncAgents();
   }
 
   statusChanged(name: string, status: ParticipantStatus): void {
@@ -54,6 +47,7 @@ export class IdleReminders {
   /** Reconcile before checking completion; true while a timer or prompt is outstanding. */
   update(): boolean {
     if (this.#stopped) return false;
+    this.#syncAgents();
     const { agents, clock, settings } = this.#options;
     const decided = this.#decided();
     const open = this.#openRecipients();
@@ -79,6 +73,18 @@ export class IdleReminders {
   stop(): void {
     this.#stopped = true;
     for (const name of this.#states.keys()) this.#cancel(name);
+  }
+
+  #syncAgents(): void {
+    for (const name of this.#states.keys()) {
+      if (this.#options.agents.has(name)) continue;
+      this.#cancel(name);
+      this.#states.delete(name);
+    }
+    for (const name of this.#options.agents.keys()) {
+      if (name === WATCHER_NAME || this.#states.has(name)) continue;
+      this.#states.set(name, { timer: null, scheduledFor: 0, inFlight: false });
+    }
   }
 
   #cancel(name: string): void {
@@ -122,7 +128,10 @@ export class IdleReminders {
       };
       await agent.deliver({
         ...prompt,
-        beforeSend: () => (this.#stopped || reminderSnoozedUntil(db, swarmId, name) > clock.now() ? null : prompt),
+        beforeSend: () =>
+          this.#stopped || agents.get(name) !== agent || reminderSnoozedUntil(db, swarmId, name) > clock.now()
+            ? null
+            : prompt,
       });
     } finally {
       state.inFlight = false;
