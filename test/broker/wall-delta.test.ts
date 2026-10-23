@@ -76,6 +76,25 @@ it("cuts previews at the current ceiling only for bodies stored under a larger s
   }
 });
 
+it("reduces overview page size for large Unicode bodies instead of exceeding output bounds", () => {
+  const isolated = createTempDb();
+  try {
+    const swarm = seedSwarm(isolated.db);
+    writeFileSync(path.join(isolated.db.dataDir, "settings.json"), JSON.stringify({ bodyMaxChars: 8000 }));
+    for (let i = 0; i < 3; i++)
+      createPost(isolated.db, swarm.id, "Maria", { title: `Large ${i}`, text: "🙂".repeat(8000) }, T0);
+    const history = readWallTool(isolated.db, swarm.id, "John", { count: 100 }, T0);
+    assert.ok(Buffer.byteLength(history) < 40_000);
+    assert.match(history, /Next offset: 1/);
+    const delta = readWallTool(isolated.db, swarm.id, "John", { count: 100, after: initialWallCursor(swarm.id) }, T0);
+    assert.ok(Buffer.byteLength(delta) < 40_000);
+    assert.match(delta, /more changes/);
+    assert.equal(isolated.db.sql.prepare("SELECT COUNT(*) AS n FROM post_coverage WHERE name = 'John'").get()?.n, 0);
+  } finally {
+    isolated.cleanup();
+  }
+});
+
 it("rejects malformed, foreign cursors and invalid page sizes without consuming history", () => {
   const swarm = seedSwarm(db);
   for (const after of ["bad", "", initialWallCursor(swarm.id + 1)]) {

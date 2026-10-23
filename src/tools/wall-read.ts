@@ -7,7 +7,14 @@ import { formatPostList } from "../wall-format.js";
 import { markPostsCovered, markCommentsCovered } from "../store/wall-coverage.js";
 
 const OVERVIEW_ITEMS = 12;
-const OVERVIEW_CHARS = 500;
+// Bound worst-case UTF-8 bodies plus titles/authors while retaining the current body ceiling when it fits.
+const OVERVIEW_BYTES = 32_000;
+const ITEM_METADATA_BYTES = 1_024;
+function overviewBounds(db: SwarmDb, requested: number) {
+  const preview = Math.min(wallPreviewChars(db), Math.floor((OVERVIEW_BYTES - ITEM_METADATA_BYTES) / 4));
+  const count = Math.min(requested, OVERVIEW_ITEMS, Math.floor(OVERVIEW_BYTES / (preview * 4 + ITEM_METADATA_BYTES)));
+  return { preview, count };
+}
 
 /** Shared execution helper; registration keeps the existing history parameters optional. */
 export function readWallTool(
@@ -19,11 +26,10 @@ export function readWallTool(
 ): string {
   if (input.after === undefined) {
     const requested = input.count ?? PAGE_DEFAULT_COUNT;
-    const count = Math.min(requested, OVERVIEW_ITEMS);
+    const { count, preview } = overviewBounds(db, requested);
     const offset = input.offset ?? 0;
     checkPage({ count: requested, offset });
     const result = readPostsAs(db, swarmId, reader, { count, offset });
-    const preview = Math.min(wallPreviewChars(db), OVERVIEW_CHARS);
     markPostsCovered(
       db,
       swarmId,
@@ -42,8 +48,9 @@ export function readWallTool(
   // Validate the original count before imposing the smaller overview output bound.
   const requested = input.count ?? PAGE_DEFAULT_COUNT;
   const delta = readWallDeltaAs(db, swarmId, reader, input.after, requested);
-  const visible = delta.changes.slice(0, OVERVIEW_ITEMS);
-  const complete = visible.filter((change) => !change.truncated && Array.from(change.text).length <= OVERVIEW_CHARS);
+  const { count, preview } = overviewBounds(db, requested);
+  const visible = delta.changes.slice(0, count);
+  const complete = visible.filter((change) => !change.truncated && Array.from(change.text).length <= preview);
   markPostsCovered(
     db,
     swarmId,
@@ -61,7 +68,7 @@ export function readWallTool(
       change.kind === "post"
         ? `Post #${change.id}: ${change.title}`
         : `Comment #${change.id} on post #${change.postId}`;
-    const text = Array.from(change.text).slice(0, OVERVIEW_CHARS).join("").replaceAll("\n", "\\n");
+    const text = Array.from(change.text).slice(0, preview).join("").replaceAll("\n", "\\n");
     return `${label} · ${change.author}: ${text}${change.truncated || text.length < change.text.length ? ` … (read post #${change.postId} for full text)` : ""}`;
   });
   if (lines.length === 0) lines.push("No wall changes.");
