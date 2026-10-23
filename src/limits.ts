@@ -1,12 +1,13 @@
 // Shared by the broker and the UI counters, so it must stay free of Node imports.
 
 export const TITLE_MAX = 60;
-/** Default stated body limit: what agents and the UI are told (`bodyMaxChars`). */
+/** Default stated worker body limit (`bodyMaxChars`). */
 export const TEXT_MAX = 200;
 export const BODY_STATED_MIN = 100;
 /** Matches the body CHECK constraints. */
 export const BODY_SAFETY_MAX = 16000;
 export const MAIN_FEEDBACK_MAX = 4000;
+export const USER_BODY_PREVIEW_CHARS = 200;
 
 export type LimitCheck = { ok: true; value: string } | { ok: false; error: string };
 
@@ -35,6 +36,7 @@ export function clipWithSuffix(text: string, suffix: string, max: number): strin
 export function checkText(raw: string, max: number = TEXT_MAX): LimitCheck {
   const value = raw.trim();
   if (value.length === 0) return { ok: false, error: "Text is empty." };
+  if (max === Number.POSITIVE_INFINITY) return { ok: true, value };
   const count = charCount(value);
   if (count > max) {
     return { ok: false, error: `Too long: ${count}/${max} characters. Shorten it or point to a file path.` };

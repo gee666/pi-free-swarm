@@ -121,7 +121,7 @@ export function pageQuery(url: URL): { count: number; offset: number } {
 
 const BODY_MAX_BYTES = 64 * 1024;
 
-function badRequest(message: string, field?: string): ApiFailure {
+export function badRequest(message: string, field?: string): ApiFailure {
   return new ApiFailure(400, "bad_request", message, field);
 }
 
@@ -133,7 +133,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * Requiring a JSON content type also keeps other web pages from posting here: browsers only send it
  * cross-origin after a CORS preflight, which this server never approves.
  */
-export async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+export function readUserJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+  return readJsonBody(req, null);
+}
+
+export async function readJsonBody(
+  req: IncomingMessage,
+  maxBytes: number | null = BODY_MAX_BYTES,
+): Promise<Record<string, unknown>> {
   if (!(req.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) {
     throw badRequest("Content-Type must be application/json.");
   }
@@ -142,7 +149,7 @@ export async function readJsonBody(req: IncomingMessage): Promise<Record<string,
   for await (const chunk of req) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
     size += buffer.length;
-    if (size > BODY_MAX_BYTES) throw badRequest(`Request body is larger than ${BODY_MAX_BYTES / 1024} KB.`);
+    if (maxBytes !== null && size > maxBytes) throw badRequest(`Request body is larger than ${maxBytes / 1024} KB.`);
     chunks.push(buffer);
   }
   let body: unknown;

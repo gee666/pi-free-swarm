@@ -6,7 +6,7 @@ import { findDirectThread } from "../store/message-queries.js";
 import { listAgentSessions } from "../store/swarm-queries.js";
 import { readRecentActivity } from "./session-recent.js";
 import { watcherFallback } from "./watcher-fallback.js";
-import { readJsonBody, reply, requireSwarmItem, stringField, type ApiDeps, type ApiRoute } from "./api-util.js";
+import { readUserJsonBody, reply, requireSwarmItem, stringField, type ApiDeps, type ApiRoute } from "./api-util.js";
 
 export function watcherRoutes(deps: ApiDeps): ApiRoute[] {
   const { db, clock } = deps;
@@ -28,7 +28,7 @@ export function watcherRoutes(deps: ApiDeps): ApiRoute[] {
       method: "POST",
       pattern: "/api/swarms/:swarmId/watcher",
       handle: async ({ req, params }) => {
-        const text = stringField(await readJsonBody(req), "text");
+        const text = stringField(await readUserJsonBody(req), "text");
         const swarm = requireSwarmItem(deps, params.id("swarmId"));
         const message = db.write(() => {
           ensureWatcher(db, swarm.id);

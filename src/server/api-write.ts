@@ -8,6 +8,7 @@ import {
   idArrayField,
   notFound,
   readJsonBody,
+  readUserJsonBody,
   reply,
   requireSwarmItem,
   stringArrayField,
@@ -35,7 +36,7 @@ export function writeRoutes(deps: ApiDeps): ApiRoute[] {
       method: "POST",
       pattern: "/api/swarms/:swarmId/posts",
       handle: async ({ req, params }) => {
-        const body = await readJsonBody(req);
+        const body = await readUserJsonBody(req);
         const input = { title: stringField(body, "title"), text: stringField(body, "text") };
         const swarm = requireSwarmItem(deps, params.id("swarmId"));
         return reply<CreatePostResponse>({ post: createPost(db, swarm.id, USER_NAME, input, clock.now()) }, CREATED);
@@ -45,7 +46,7 @@ export function writeRoutes(deps: ApiDeps): ApiRoute[] {
       method: "POST",
       pattern: "/api/swarms/:swarmId/posts/:postId/comments",
       handle: async ({ req, params }) => {
-        const text = stringField(await readJsonBody(req), "text");
+        const text = stringField(await readUserJsonBody(req), "text");
         const swarm = requireSwarmItem(deps, params.id("swarmId"));
         const result = addComment(db, swarm.id, USER_NAME, params.id("postId"), text, clock.now());
         return reply<CreateCommentResponse>(result, CREATED);
@@ -55,7 +56,7 @@ export function writeRoutes(deps: ApiDeps): ApiRoute[] {
       method: "POST",
       pattern: "/api/swarms/:swarmId/messages",
       handle: async ({ req, params }) => {
-        const body = await readJsonBody(req);
+        const body = await readUserJsonBody(req);
         const to = stringArrayField(body, "to");
         const text = stringField(body, "text");
         const swarmId = requireAcceptingSwarm(deps, params.id("swarmId"));
@@ -67,7 +68,7 @@ export function writeRoutes(deps: ApiDeps): ApiRoute[] {
       method: "POST",
       pattern: "/api/swarms/:swarmId/threads/:threadId/reply",
       handle: async ({ req, params }) => {
-        const text = stringField(await readJsonBody(req), "text");
+        const text = stringField(await readUserJsonBody(req), "text");
         const swarmId = requireAcceptingSwarm(deps, params.id("swarmId"));
         const message = replyToThread(db, swarmId, USER_NAME, params.id("threadId"), text, clock.now());
         return reply<SendMessageResponse>({ message }, CREATED);

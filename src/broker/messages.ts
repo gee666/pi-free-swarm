@@ -51,6 +51,7 @@ function resolveRecipients(
   for (const raw of to) {
     const name = raw.trim();
     const participant = findParticipant(db, swarmId, name);
+    if (participant?.retiredAt !== undefined) throw new BrokerError("validation", `Worker ${participant.name} is retired. Choose an active recipient.`, "to");
     if (participant === null || !canReceive(participant)) unknown.push(name);
     else if (participant.name !== sender.name && !recipients.some((r) => r.name === participant.name)) {
       recipients.push(participant);
@@ -81,7 +82,7 @@ export function sendMessage(
     const sender = actAs(db, swarmId, from, now);
     const recipients = resolveRecipients(db, swarmId, sender, to);
     const threadId = createThread(db, swarmId, [sender.name, ...recipients.map((r) => r.name)], now);
-    const value = storedBody(db, swarmId, "message", text);
+    const value = storedBody(db, swarmId, "message", text, sender.kind);
     return sendToThread(db, { swarmId, threadId, sender, recipients, text: value, now });
   });
   return afterCommit(swarmId, result);
@@ -109,7 +110,7 @@ export function replyToThread(
       .flatMap((name) => findParticipant(db, swarmId, name) ?? [])
       .filter(canReceive);
     if (recipients.length === 0) throw new BrokerError("validation", `Nobody else is in thread #${threadId}.`);
-    const value = storedBody(db, swarmId, "message", text);
+    const value = storedBody(db, swarmId, "message", text, sender.kind);
     return sendToThread(db, { swarmId, threadId, sender, recipients, text: value, now });
   });
   return afterCommit(swarmId, result);

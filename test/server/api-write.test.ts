@@ -55,7 +55,7 @@ describe("request bodies", () => {
       error: "bad_request",
       message: "Content-Type must be application/json.",
     });
-    await expectError(postJson(posts, { title: "a", text: "x".repeat(70_000) }), 400, {
+    await expectError(postJson(url("/participants/User/read"), { messageIds: [], padding: "x".repeat(70_000) }), 400, {
       error: "bad_request",
       message: "Request body is larger than 64 KB.",
     });

@@ -21,7 +21,7 @@ export function createPost(
     requireSwarm(db, swarmId);
     const participant = actAs(db, swarmId, author, now);
     const title = requireTitle(input.title);
-    const body = storedBody(db, swarmId, "post", input.text);
+    const body = storedBody(db, swarmId, "post", input.text, participant.kind);
     const postId = count(
       db.sql
         .prepare("INSERT INTO posts (swarm_id, author, title, body, created_at) VALUES (?, ?, ?, ?, ?)")
@@ -55,7 +55,7 @@ export function addComment(
     const participant = actAs(db, swarmId, author, now);
     const post = getPost(db, swarmId, postId);
     if (post === null) throw new BrokerError("not_found", `Post #${postId} not found.`);
-    const body = storedBody(db, swarmId, "comment", text);
+    const body = storedBody(db, swarmId, "comment", text, participant.kind);
     const commentId = count(
       db.sql
         .prepare("INSERT INTO comments (post_id, swarm_id, author, body, created_at) VALUES (?, ?, ?, ?, ?)")
