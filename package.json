@@ -12,6 +12,7 @@
     "src/",
     "ui_dist/",
     "README.md",
+    "docs/file-previews.md",
     "LICENSE"
   ],
   "pi": {
