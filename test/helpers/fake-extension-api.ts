@@ -1,4 +1,4 @@
-// A stand-in for pi's ExtensionAPI: records tools and the two session handlers the extension uses.
+// Records extension registration and session behavior without a live pi process.
 import type { SessionShutdownEvent, SessionStartEvent, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { TSchema } from "typebox";
 import type { SessionContext, SwarmExtensionApi } from "../../src/extension-api.js";
@@ -16,6 +16,11 @@ type ShutdownHandler = (event: SessionShutdownEvent) => void | Promise<void>;
 export class FakeExtensionApi implements SwarmExtensionApi {
   readonly tools: RecordedTool[] = [];
   readonly notes: string[] = [];
+  readonly commands = new Map<string, Parameters<SwarmExtensionApi["registerCommand"]>[1]>();
+  readonly selectRequests: string[][] = [];
+  selection: string | undefined;
+  selectionResult: Promise<string | undefined> | undefined;
+  private activeTools = new Set<string>();
   readonly flags = new Map<string, Parameters<SwarmExtensionApi["registerFlag"]>[1]>();
   readonly flagValues = new Map<string, boolean | string>();
   aborted = 0;
@@ -24,12 +29,34 @@ export class FakeExtensionApi implements SwarmExtensionApi {
   private shutdownHandlers: ShutdownHandler[] = [];
 
   registerTool<TParams extends TSchema, TDetails, TState>(tool: ToolDefinition<TParams, TDetails, TState>): void {
-    this.tools.push({
+    this.activeTools.add(tool.name);
+    const recorded = {
       name: tool.name,
       description: tool.description,
       promptSnippet: tool.promptSnippet,
       parameters: tool.parameters,
-    });
+    };
+    const existing = this.tools.findIndex((entry) => entry.name === tool.name);
+    if (existing < 0) this.tools.push(recorded);
+    else this.tools[existing] = recorded;
+  }
+
+  registerCommand(name: string, command: Parameters<SwarmExtensionApi["registerCommand"]>[1]): void {
+    this.commands.set(name, command);
+  }
+
+  getActiveTools(): string[] {
+    return [...this.activeTools];
+  }
+
+  setActiveTools(names: string[]): void {
+    this.activeTools = new Set(names);
+  }
+
+  async command(name: string, args: string = "", cwd: string = process.cwd(), hasUI: boolean = true): Promise<void> {
+    const command = this.commands.get(name);
+    if (!command) throw new Error(`command ${name} not registered`);
+    await command.handler(args, this.context(cwd, hasUI));
   }
 
   registerFlag(name: string, options: Parameters<SwarmExtensionApi["registerFlag"]>[1]): void {
@@ -58,14 +85,24 @@ export class FakeExtensionApi implements SwarmExtensionApi {
     return tool;
   }
 
-  startSession(cwd: string = process.cwd()): void {
-    const ctx: SessionContext = {
+  private context(cwd: string, hasUI: boolean = true): SessionContext {
+    return {
       cwd,
-      hasUI: true,
-      ui: { notify: (message) => void this.notes.push(message) },
+      hasUI,
+      ui: {
+        notify: (message) => void this.notes.push(message),
+        select: async (_title, options) => {
+          this.selectRequests.push(options);
+          return this.selectionResult ?? this.selection;
+        },
+      },
       abort: () => void this.aborted++,
       shutdown: () => void this.shutdowns++,
     };
+  }
+
+  startSession(cwd: string = process.cwd()): void {
+    const ctx = this.context(cwd);
     for (const handler of [...this.startHandlers]) handler({ type: "session_start", reason: "startup" }, ctx);
   }
 

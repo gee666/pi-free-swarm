@@ -4,11 +4,12 @@
 import { systemClock } from "./clock.js";
 import type { SessionContext, SwarmExtensionApi } from "./extension-api.js";
 import { killAllAgentsSync } from "./agents/process-registry.js";
-import { stopAllRuns } from "./broker/swarm-run.js";
+import { stopOwnedRuns } from "./broker/run-registry.js";
 import { ownsActiveRun } from "./broker/active-ownership.js";
 import { sweepStaleRuns } from "./broker/swarms.js";
 import { hasSwarmDb, openSwarmDb, swarmDbPath, type SwarmDb } from "./store/db.js";
 import { registerMainTools } from "./tools/main-tools.js";
+import type { SessionOptions } from "./session-commands.js";
 
 /** The part of `ServerHost` (server/host.ts) the main session drives. */
 export interface BoardHost {
@@ -33,6 +34,7 @@ export interface MainRuntime {
   /** Absolute path of our index.ts; every agent loads it with `-e`. */
   readonly extensionPath: string;
   readonly host: BoardHost;
+  session?: SessionOptions;
   /** `create: false` returns null while the project has no swarm.db yet. */
   getDb(create: boolean): SwarmDb | null;
   /** Shown in the session's UI when it has one (TUI, RPC client); dropped in print/JSON mode. */
@@ -93,9 +95,10 @@ export function registerMainMode(
   pi: SwarmExtensionApi,
   runtime: MainRuntimeControl,
   initialContext?: SessionContext,
-): void {
+): { start(ctx: SessionContext): void; stop(): Promise<void> } {
   registerMainTools(pi, runtime);
   const start = (ctx: SessionContext) => {
+    if (runtime.session?.enabled === false) return;
     runtime.attachUi(ctx.hasUI ? ctx.ui : null);
     const db = runtime.getDb(false);
     if (db === null) return;
@@ -103,11 +106,24 @@ export function registerMainMode(
     runtime.host.start();
   };
   pi.on("session_start", (_event, ctx) => start(ctx));
+  const stop = async () => {
+    try {
+      await stopOwnedRuns(runtime);
+    } finally {
+      try {
+        await runtime.host.stop();
+      } finally {
+        runtime.closeDb();
+        runtime.attachUi(null);
+      }
+    }
+  };
   pi.on("session_shutdown", async () => {
-    await stopAllRuns();
-    await runtime.host.stop();
-    runtime.closeDb();
-    runtime.attachUi(null);
+    if (runtime.session) {
+      runtime.session.enabled = false;
+      delete runtime.session.maxAgents;
+    }
+    await stop();
   });
   // Last resort when pi exits without session_shutdown finishing: SIGKILL agent groups, free the host row.
   onProcessExit(() => {
@@ -116,4 +132,5 @@ export function registerMainMode(
   });
   // Activation during session_start cannot join that event's handler snapshot.
   if (initialContext) start(initialContext);
+  return { start, stop };
 }

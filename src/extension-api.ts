@@ -8,10 +8,17 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 
 export type SessionContext = Pick<ExtensionContext, "cwd" | "hasUI" | "abort" | "shutdown"> & {
-  ui: Pick<ExtensionContext["ui"], "notify">;
+  ui: Pick<ExtensionContext["ui"], "notify"> & Partial<Pick<ExtensionContext["ui"], "select">>;
 };
 
-export interface SwarmExtensionApi extends Pick<ExtensionAPI, "registerTool" | "registerFlag" | "getFlag"> {
+export interface SwarmExtensionApi extends Pick<
+  ExtensionAPI,
+  "registerTool" | "registerFlag" | "getFlag" | "getActiveTools" | "setActiveTools"
+> {
+  registerCommand(
+    name: string,
+    command: { description: string; handler(args: string, ctx: SessionContext): Promise<void> },
+  ): void;
   on(event: "session_start", handler: (event: SessionStartEvent, ctx: SessionContext) => void): unknown;
   on(event: "session_shutdown", handler: (event: SessionShutdownEvent) => void | Promise<void>): unknown;
 }

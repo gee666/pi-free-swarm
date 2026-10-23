@@ -173,7 +173,7 @@ export class SwarmRun {
 
   execute(staggerMs: number): Promise<RunOutcome> {
     this.#lifecycle.activate();
-    registerRun(this);
+    registerRun(this, this.#env.runOwner);
     this.#releaseOwnership = registerActiveRun(this.#env.db, this.#swarm.id, this.#env.runnerPid);
     this.#resources.add("quiesce", () => {
       for (const timer of this.#timers) timer.cancel();

@@ -10,6 +10,7 @@ import { requireAcceptanceCriteria } from "../broker/validate.js";
 import { readRunProgress, type RunProgress } from "../broker/run-progress.js";
 import { resumeSwarm, startSwarm, type RunEnvironment, type RunOptions, type RunOutcome } from "../broker/swarm-run.js";
 import type { MainRuntime } from "../main-runtime.js";
+import { applySessionOptions } from "../session-commands.js";
 import { describeAgentRange, loadSettings, resolveAgentAmount, type SwarmSettings } from "../settings.js";
 import type { SwarmDb } from "../store/db.js";
 import {
@@ -69,13 +70,13 @@ type OnUpdate = ((partial: ToolResult) => void) | undefined;
 function readSettings(runtime: MainRuntime): SwarmSettings {
   const { settings, warnings } = loadSettings(runtime.cwd);
   for (const warning of warnings) runtime.notify(warning, "warning");
-  return settings;
+  return applySessionOptions(settings, runtime.session);
 }
 
-export function swarmDescription(cwd: string): string {
+export function swarmDescription(cwd: string, maxAgents?: number): string {
   let range: string;
   try {
-    range = describeAgentRange(loadSettings(cwd).settings);
+    range = describeAgentRange(applySessionOptions(loadSettings(cwd).settings, { enabled: true, maxAgents }));
   } catch (error) {
     range = `agent_amount: ${SWARM_DIR}/${SETTINGS_FILE} is invalid (${error instanceof Error ? error.message : String(error)})`;
   }
@@ -103,10 +104,19 @@ interface RunRequest {
 
 /** The tool bodies. Separate from registration so tests need neither pi nor a full tool context. */
 export function createMainToolHandlers(runtime: MainRuntime, runner: SwarmRunner = DEFAULT_RUNNER) {
+  const assertEnabled = () => {
+    if (runtime.session?.enabled === false)
+      throw new BrokerError(
+        "validation",
+        "Swarm is disabled for this session. Use /swarm:enable before launching or resuming.",
+      );
+  };
   async function run(request: RunRequest): Promise<ToolResult> {
     const { db, onUpdate } = request;
+    assertEnabled();
     runtime.host.start();
     await runtime.host.ensure();
+    assertEnabled();
     const env = buildRunEnvironment(runtime, db, request.settings, request.ctx);
     const onProgress = (progress: RunProgress) =>
       onUpdate?.(toolResult(progressLines(progress, PLAIN_THEME).join("\n"), progress));
@@ -124,6 +134,7 @@ export function createMainToolHandlers(runtime: MainRuntime, runner: SwarmRunner
       onUpdate: OnUpdate,
       ctx: LaunchSource,
     ): Promise<ToolResult> {
+      assertEnabled();
       const name = checkTitle(params.swarm_name);
       if (!name.ok) throw new BrokerError("validation", `swarm_name: ${name.error}`, "swarm_name");
       const taskPrompt = checkText(params.task_prompt, Infinity);
@@ -154,6 +165,7 @@ export function createMainToolHandlers(runtime: MainRuntime, runner: SwarmRunner
       onUpdate: OnUpdate,
       ctx: LaunchSource,
     ): Promise<ToolResult> {
+      assertEnabled();
       const settings = readSettings(runtime);
       const db = runtime.getDb(false);
       if (db === null) throw new Error(`Swarm #${params.swarm_id} not found: this project has no swarms yet.`);
@@ -177,7 +189,7 @@ export function registerMainTools(pi: Pick<ExtensionAPI, "registerTool">, runtim
   pi.registerTool({
     name: MAIN_TOOL.swarm,
     label: "Swarm",
-    description: swarmDescription(runtime.cwd),
+    description: swarmDescription(runtime.cwd, runtime.session?.maxAgents),
     promptSnippet: "Launch a self-organising swarm of agents on one task and wait for it to finish.",
     parameters: SWARM_PARAMS,
     execute: (_toolCallId, params, signal, onUpdate, ctx) => handlers.swarm(params, signal, onUpdate, ctx),

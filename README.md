@@ -20,9 +20,31 @@ pi --swarm
 PI_SWARM_ENABLED=1 pi
 ```
 
-Only the exact environment values `1` and `true` enable it; `0`, `false`, unset and other values do not. `--swarm` enables it regardless of the environment value. Disabled main sessions register no swarm tools and start no board, database or cleanup handlers. Internal children with `PI_SWARM_ROLE=agent` automatically get agent communication tools without either opt-in.
+Only the exact environment values `1` and `true` enable it; `0`, `false`, unset and other values do not. `--swarm` enables it regardless of the environment value. Disabled main sessions expose no usable swarm tools and do not start the board or open the database. The session commands below remain available without startup opt-in. Internal children with `PI_SWARM_ROLE=agent` automatically get agent communication tools without either opt-in.
 
 Start enabled pi in the project you want to work on. Write requirements to a file, then ask the main agent to launch a swarm and include that file's path in its task prompt. Agents inherit the main session's current model, thinking level, project-trust decision and explicit extension arguments.
+
+## Session commands
+
+These commands work even if pi started without `--swarm`:
+
+```text
+/swarm:enable
+/swarm:disable
+/swarm:max-agents 15
+/swarm:settings
+/swarm:save-settings project
+/swarm:save-settings global
+```
+
+- `/swarm:enable` enables Main's swarm tools and the existing project board for this session. An empty project still creates no database until a swarm starts.
+- `/swarm:disable` hides and blocks Main's swarm tools, stops active work owned by this session, and closes its board host. Saved work and unread messages remain resumable after enabling again. Other processes are not disabled.
+- `/swarm:max-agents <number>` overrides the maximum for new swarm creation in this session. Resuming a saved swarm retains its complete recorded team. Use a positive integer at least as large as the project's `minAgents`. The default agent count is clamped to this range, but an explicit out-of-range request is rejected. Existing teams, votes, model assignments and budget consumption are unchanged.
+
+- `/swarm:settings` shows effective settings with session overrides and without env credential values.
+- `/swarm:save-settings` offers a project/global choice in interactive mode. Without interactive UI, supply `project` or `global` explicitly. `/swarm:save-settings project` saves supported nonsecret effective settings to `.pi/swarm/settings.json`; use `global` to save defaults under the pi agent directory's `swarm/settings.json`. Saving preserves the destination's existing `env` block but does not copy active env values between scopes. The enabled state is not saved.
+
+Enable and disable are always session-only. A max-agents override is session-only unless explicitly saved. Commands do not change environment variables or reset cumulative budgets. Overrides end when the session is replaced; startup opt-in and project settings apply again. These Main-session commands are not exposed inside workers. Additional command ideas are analysis only, not implemented behavior.
 
 ## Tools and workflow
 
@@ -83,7 +105,9 @@ Port selection: `settings.port`, then the process environment's `PI_SWARM_PORT`,
 
 ## Settings
 
-Optional, hand-written `.pi/swarm/settings.json`:
+Settings load from the global pi agent directory's `swarm/settings.json`, then optional project `.pi/swarm/settings.json`, with project values taking precedence. The agent directory defaults to `~/.pi/agent` and respects `PI_CODING_AGENT_DIR`. `/swarm:save-settings` writes only to the selected scope; files can also be edited by hand.
+
+Example project settings:
 
 ```json
 {

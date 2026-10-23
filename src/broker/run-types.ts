@@ -37,6 +37,8 @@ export const DEFAULT_TIMINGS: RunTimings = {
 };
 
 export interface RunEnvironment {
+  /** Process-local session identity, never persisted or exposed through the API. */
+  runOwner?: object;
   cwd: string;
   db: SwarmDb;
   runnerPid: number;

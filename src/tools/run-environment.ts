@@ -62,6 +62,7 @@ export function buildRunEnvironment(
   ctx: LaunchSource,
 ): RunEnvironment {
   return {
+    runOwner: runtime,
     cwd: runtime.cwd,
     db,
     runnerPid: process.pid,
