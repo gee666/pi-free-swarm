@@ -136,7 +136,7 @@ export function registerWatcherTools(pi: Pick<ExtensionAPI, "registerTool">, ide
     name: WATCHER_TOOL.threads,
     label: "Swarm threads",
     description:
-      "List all swarm threads newest first, including agent-to-agent. Supply thread_id to read bounded history; count bounds messages, after continues its Next cursor and offset is ignored. Read-only.",
+      "List all swarm threads newest first, including agent-to-agent. Supply thread_id to read bounded history, including full known User attachments by source ID. count bounds messages, after continues its Next cursor and offset is ignored. No arbitrary file paths. Read-only.",
     parameters: Type.Object({
       thread_id: Type.Optional(Type.Integer({ minimum: 1 })),
       count: Type.Optional(Type.Integer({ minimum: 1, maximum: PAGE_MAX_COUNT })),

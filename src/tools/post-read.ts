@@ -7,6 +7,7 @@ import { getPost } from "../store/wall-queries.js";
 import { markCommentsCovered, markPostsCovered } from "../store/wall-coverage.js";
 import { timeAgo } from "../wall-format.js";
 import { readPosition, renderReadPage, type ReadItem } from "./read-page.js";
+import { withWatcherAttachment } from "./watcher-attachment.js";
 
 export function readPostTool(
   db: SwarmDb,
@@ -33,11 +34,13 @@ export function readPostTool(
       .get(swarmId, reader, post.id);
     const items: ReadItem[] = [];
     if (position.id === 0 && (!input.only_new || covered === undefined)) {
-      items.push({
-        id: 0,
-        label: `#${post.id} ${post.author} · ${timeAgo(post.createdAt, now)} · ${post.title}`,
-        text: post.text,
-      });
+      items.push(
+        withWatcherAttachment(db, swarmId, reader, "post", post.id, {
+          id: 0,
+          label: `#${post.id} ${post.author} · ${timeAgo(post.createdAt, now)} · ${post.title}`,
+          text: post.text,
+        }),
+      );
     }
     const rows = db.sql
       .prepare(
@@ -51,11 +54,13 @@ export function readPostTool(
           : [swarmId, post.id, position.id, position.snapshot, count + 1]),
       );
     items.push(
-      ...rows.map(commentOf).map((comment) => ({
-        id: comment.id,
-        label: `#${comment.id} ${comment.author} · ${timeAgo(comment.createdAt, now)}`,
-        text: comment.text,
-      })),
+      ...rows.map(commentOf).map((comment) =>
+        withWatcherAttachment(db, swarmId, reader, "comment", comment.id, {
+          id: comment.id,
+          label: `#${comment.id} ${comment.author} · ${timeAgo(comment.createdAt, now)}`,
+          text: comment.text,
+        }),
+      ),
     );
     const page = renderReadPage(`Post #${post.id} · ${post.title}`, items, position, count);
     if (page.completeIds.includes(0)) markPostsCovered(db, swarmId, reader, [post.id]);

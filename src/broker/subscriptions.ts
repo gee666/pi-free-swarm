@@ -1,5 +1,5 @@
 import type { CommentView } from "../api-types.js";
-import { SYSTEM_NAME } from "../constants.js";
+import { SYSTEM_NAME, WATCHER_NAME } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
 import { int, text as str } from "../store/rows.js";
 import { findParticipant, type ParticipantRef } from "../store/swarm-queries.js";
@@ -9,6 +9,7 @@ import { emitRecipientStatus } from "./emit.js";
 import { BrokerError } from "./errors.js";
 import { createThread, insertMessage } from "./message-insert.js";
 import { actAs, requireSwarm } from "./validate.js";
+import { hasUserAttachment } from "./user-attachment.js";
 
 /** Automatic participation never reverses an explicit opt-out. Caller owns the write transaction. */
 export function autoSubscribe(db: SwarmDb, swarmId: number, postId: number, name: string): void {
@@ -98,9 +99,9 @@ export function coverCommentNotifications(
     const query = db.sql.prepare(`SELECT n.comment_id FROM comment_notifications n
       JOIN message_recipients r ON r.message_id = n.message_id
       WHERE r.swarm_id = ? AND r.name = ? AND r.message_id = ? AND (? = 1 OR r.status = 'read')`);
-    const comments = messageIds.flatMap((id) =>
-      query.all(swarmId, reader, id, fullyReturned ? 1 : 0).map((row) => int(row, "comment_id")),
-    );
+    const comments = messageIds
+      .flatMap((id) => query.all(swarmId, reader, id, fullyReturned ? 1 : 0).map((row) => int(row, "comment_id")))
+      .filter((id) => reader !== WATCHER_NAME || !hasUserAttachment(db, swarmId, "comment", id));
     markCommentsCovered(db, swarmId, reader, comments);
   });
 }

@@ -5,6 +5,7 @@ import { PAGE_DEFAULT_COUNT } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
 import { formatPostList } from "../wall-format.js";
 import { markPostsCovered, markCommentsCovered } from "../store/wall-coverage.js";
+import { isWatcherAttachment } from "./watcher-attachment.js";
 
 const OVERVIEW_ITEMS = 12;
 // Bound worst-case UTF-8 bodies plus titles/authors while retaining the current body ceiling when it fits.
@@ -35,7 +36,11 @@ export function readWallTool(
       swarmId,
       reader,
       result.page.posts
-        .filter((post) => Array.from(post.text.replaceAll("\n", "\\n")).length <= preview)
+        .filter(
+          (post) =>
+            Array.from(post.text.replaceAll("\n", "\\n")).length <= preview &&
+            !isWatcherAttachment(db, swarmId, reader, "post", post.id),
+        )
         .map((post) => post.id),
     );
     const page = {
@@ -50,7 +55,12 @@ export function readWallTool(
   const delta = readWallDeltaAs(db, swarmId, reader, input.after, requested);
   const { count, preview } = overviewBounds(db, requested);
   const visible = delta.changes.slice(0, count);
-  const complete = visible.filter((change) => !change.truncated && Array.from(change.text).length <= preview);
+  const complete = visible.filter(
+    (change) =>
+      !change.truncated &&
+      Array.from(change.text).length <= preview &&
+      !isWatcherAttachment(db, swarmId, reader, change.kind, change.id),
+  );
   markPostsCovered(
     db,
     swarmId,

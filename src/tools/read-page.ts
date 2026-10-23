@@ -7,10 +7,16 @@ export interface ReadPosition {
   id: number;
   offset: number;
 }
+export interface ReadChunk {
+  text: string;
+  nextOffset: number | null;
+}
 export interface ReadItem {
   id: number;
   label: string;
   text: string;
+  /** A bounded source range, when the stored body points to a known User attachment. */
+  readChunk?: (offset: number, maxBytes: number) => ReadChunk | null;
 }
 const PAGE_BYTES = 24_000;
 const TEXT_CHUNK = 3_000;
@@ -59,19 +65,23 @@ export function renderReadPage(header: string, items: ReadItem[], position: Read
       next = { ...position, id: item.id, offset };
       break;
     }
-    let end = Math.min(item.text.length, offset + TEXT_CHUNK);
-    const last = item.text.charCodeAt(end - 1);
-    if (end < item.text.length && last >= 0xd800 && last <= 0xdbff) end--;
+    const chunk = item.readChunk?.(offset, TEXT_CHUNK);
+    const text = chunk?.text ?? item.text;
+    const start = chunk ? 0 : offset;
+    let end = chunk ? text.length : Math.min(text.length, offset + TEXT_CHUNK);
+    const last = text.charCodeAt(end - 1);
+    if (!chunk && end < text.length && last >= 0xd800 && last <= 0xdbff) end--;
     const label = item.label.replaceAll("\n", "\\n");
-    const line = `${label}${offset > 0 ? ` · text offset ${offset}` : ""}: ${JSON.stringify(item.text.slice(offset, end))}`;
+    const line = `${label}${offset > 0 ? ` · text offset ${offset}` : ""}: ${JSON.stringify(text.slice(start, end))}`;
     if (bytes + Buffer.byteLength(line) > PAGE_BYTES) {
       next = { ...position, id: item.id, offset };
       break;
     }
     lines.push(line);
     bytes += Buffer.byteLength(line);
-    if (end < item.text.length) {
-      next = { ...position, id: item.id, offset: end };
+    const nextOffset = chunk ? chunk.nextOffset : end < text.length ? end : null;
+    if (nextOffset !== null) {
+      next = { ...position, id: item.id, offset: nextOffset };
       break;
     }
     completeIds.push(item.id);

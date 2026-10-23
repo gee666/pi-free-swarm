@@ -2,8 +2,10 @@ import { checkPage, requireParticipant, requireSwarm } from "../broker/validate.
 import { PAGE_DEFAULT_COUNT } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
 import { int, postOf } from "../store/rows.js";
+import { replacementPostBaseline } from "../store/replacement-baseline.js";
 import { markPostsCovered } from "../store/wall-coverage.js";
 import { readPosition, renderReadPage } from "./read-page.js";
+import { withWatcherAttachment } from "./watcher-attachment.js";
 
 export function readFreshPostsTool(
   db: SwarmDb,
@@ -16,6 +18,7 @@ export function readFreshPostsTool(
   requireSwarm(db, swarmId);
   requireParticipant(db, swarmId, reader);
   return db.write(() => {
+    const baseline = replacementPostBaseline(db, swarmId, reader);
     const row = db.sql.prepare("SELECT COALESCE(MAX(id), 0) AS id FROM posts WHERE swarm_id = ?").get(swarmId);
     const position = readPosition(input.after, `posts:${swarmId}:${reader}`, row === undefined ? 0 : int(row, "id"));
     const posts = db.sql
@@ -25,15 +28,25 @@ export function readFreshPostsTool(
       SELECT 1 FROM post_coverage r WHERE r.swarm_id = p.swarm_id AND r.name = ? AND r.post_id = p.id)
       ORDER BY p.id LIMIT ?`,
       )
-      .all(swarmId, position.id, position.snapshot, reader, count + 1)
+      .all(
+        swarmId,
+        Math.max(position.id, baseline),
+        position.snapshot,
+        reader,
+        count + 1,
+      )
       .map(postOf);
     const page = renderReadPage(
-      "Only-new posts · oldest first · full bodies",
-      posts.map((post) => ({
-        id: post.id,
-        label: `Post #${post.id}: ${post.title} · ${post.author}`,
-        text: post.text,
-      })),
+      baseline > 0
+        ? `Only-new posts · replacement history starts at #${baseline} · oldest first · full bodies`
+        : "Only-new posts · oldest first · full bodies",
+      posts.map((post) =>
+        withWatcherAttachment(db, swarmId, reader, "post", post.id, {
+          id: post.id,
+          label: `Post #${post.id}: ${post.title} · ${post.author}`,
+          text: post.text,
+        }),
+      ),
       position,
       count,
     );

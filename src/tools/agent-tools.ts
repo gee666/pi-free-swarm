@@ -169,7 +169,8 @@ export function registerAgentTools(
     name: AGENT_TOOL.readPost,
     label: "Read post",
     description:
-      "Read a bounded page of one post and its comments, oldest first. only_new uses persistent per-agent/per-post coverage; omit it for replay. Follow Next cursor with the same only_new value until Complete: true. Partial text does not cover its unseen tail.",
+      "Read a bounded page of one post and its comments, oldest first. only_new uses persistent per-agent/per-post coverage; omit it for replay. Follow Next cursor with the same only_new value until Complete: true. Partial text does not cover its unseen tail." +
+      (watcher ? " Known User attachments are paged by source ID without arbitrary filesystem access." : ""),
     promptSnippet: "Read one wall post with its comments.",
     parameters: READ_POST,
     async execute(_toolCallId, params) {
@@ -236,7 +237,8 @@ export function registerAgentTools(
     name: AGENT_TOOL.readThread,
     label: "Read thread",
     description:
-      "Read bounded oldest-first history of a thread you belong to. Complete and Next cursor remain visible; continue with after for remaining text. Omit after to replay history after compaction or include newer messages.",
+      "Read bounded oldest-first history of a thread you belong to. Complete and Next cursor remain visible; continue with after for remaining text. Omit after to replay history after compaction or include newer messages." +
+      (watcher ? " Known User attachments are paged by source ID without arbitrary filesystem access." : ""),
     promptSnippet: "Read the full history of a message thread.",
     parameters: READ_THREAD,
     async execute(_toolCallId, params) {

@@ -8,6 +8,7 @@ import { markDelivered, markRead } from "../../src/broker/delivery-state.js";
 import { listFreshComments } from "../../src/store/wall-coverage.js";
 import { openSwarmDb } from "../../src/store/db.js";
 import { getMessages } from "../../src/store/message-queries.js";
+import { createAgentToolHandlers } from "../../src/tools/agent-tools.js";
 import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
 
 const temp = createTempDb();
@@ -96,6 +97,43 @@ it("accepted steering remains valid after unsubscribe; only observed notificatio
   coverCommentNotifications(db, swarm.id, "Maria", [id]);
   assert.equal(listFreshComments(db, swarm.id, "Maria", post.id, 10).total, 0);
   assert.equal(listFreshComments(db, swarm.id, "Liam", post.id, 10).total, 1);
+});
+
+it("Watcher notification previews leave attached User comment tails uncovered until fully read", () => {
+  const swarm = seedSwarm(db);
+  const post = createPost(db, swarm.id, "Watcher", { title: "Long evidence", text: "Read the source." }, T0);
+  const { comment } = addComment(
+    db,
+    swarm.id,
+    "User",
+    post.id,
+    "head ".repeat(50) + "tail evidence ".repeat(3000) + "UNSEEN-END",
+    T0,
+  );
+  const notification = db.sql
+    .prepare("SELECT message_id FROM comment_notifications WHERE comment_id = ?")
+    .get(comment.id);
+  assert.ok(notification && typeof notification.message_id === "number");
+  const id = notification.message_id;
+  markRead(db, swarm.id, "Watcher", [id], T0 + 1);
+  coverCommentNotifications(db, swarm.id, "Watcher", [id]);
+  coverCommentNotifications(db, swarm.id, "Watcher", [id], true);
+  assert.equal(listFreshComments(db, swarm.id, "Watcher", post.id, 10).total, 1);
+  const tools = createAgentToolHandlers({ getDb: () => db, swarmId: swarm.id, run: 1, agentName: "Watcher" });
+  let after: string | undefined;
+  let output = "";
+  let pages = 0;
+  do {
+    const page = tools.readPost({ post_id: post.id, only_new: true, count: 1, after });
+    output += page;
+    after = /Next cursor: (\S+)/.exec(page)?.[1];
+    pages++;
+    assert.ok(pages < 20, "bounded attachment continuation must make forward progress");
+    if (after) assert.equal(listFreshComments(db, swarm.id, "Watcher", post.id, 10).total, 1);
+  } while (after);
+  assert.ok(pages > 1);
+  assert.match(output, /UNSEEN-END/);
+  assert.equal(listFreshComments(db, swarm.id, "Watcher", post.id, 10).total, 0);
 });
 
 it("retains offline notifications and explicit opt-out across a reopened database", () => {
