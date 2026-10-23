@@ -53,7 +53,17 @@ test("extractUsage reads assistant message_end and compaction_end", () => {
     model: null,
   });
   assert.equal(extractUsage({ type: "message_start", message: { role: "assistant", usage } }), null);
-  assert.equal(extractUsage({ type: "message_end", message: { role: "toolResult", usage } }), null);
+  assert.deepEqual(extractUsage({ type: "message_end", message: { role: "toolResult", usage } }), {
+    kind: "tool",
+    input: 10,
+    output: 49,
+    cacheRead: 3,
+    cacheWrite: 12331,
+    cost: 0.0157,
+    model: null,
+  });
+  assert.equal(extractUsage({ type: "message_end", message: { role: "toolResult" } }), null);
+  assert.equal(extractUsage({ type: "tool_execution_end", result: { usage } }), null);
   assert.equal(extractUsage({ type: "compaction_end", result: null, aborted: true }), null);
 });
 

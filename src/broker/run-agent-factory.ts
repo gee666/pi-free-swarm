@@ -31,6 +31,10 @@ export function runAgentFactory(
     acceptanceCriteria: swarm.acceptanceCriteria,
     clock: env.clock,
     watchdog: timings.watchdog,
+    modelHasKnownPricing: (model) =>
+      model !== null &&
+      env.availableModels?.find((entry) => entry.provider === model.provider && entry.id === model.modelId)
+        ?.pricingKnown === true,
     ...services,
   };
   return (session, assignment, handoff) =>

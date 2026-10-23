@@ -31,5 +31,6 @@ export interface BudgetStatus {
   moneyOvershootUsd: number;
   timeOvershootSeconds: number;
   hasAccountingGaps?: boolean;
+  hasInterruptedRuns?: boolean;
   accounting: string;
 }

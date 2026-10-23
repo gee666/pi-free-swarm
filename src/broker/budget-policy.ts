@@ -3,6 +3,7 @@ import type { ConfigurationChange } from "../runtime-configuration.js";
 import type { SwarmDb } from "../store/db.js";
 import { USER_NAME } from "../constants.js";
 import { hasBudgetAccountingGap } from "../store/budget.js";
+import { hasUnverifiedUsageCost } from "../store/usage-provenance.js";
 import { appendConfigurationRevision, ConfigurationConflictError } from "../store/configuration-revisions.js";
 import { getRunConfiguration } from "../store/run-configuration.js";
 import { queueConfigurationChange, finishConfigurationRequest } from "../store/runtime-configuration.js";
@@ -82,7 +83,7 @@ export function validateSwarmBudgetRaise(
   input: unknown,
 ): BudgetPolicy {
   const budget = raiseBudgetPolicy(current, input);
-  if (budget.moneyUsd !== null && hasBudgetAccountingGap(db, swarmId)) {
+  if (budget.moneyUsd !== null && (hasBudgetAccountingGap(db, swarmId) || hasUnverifiedUsageCost(db, swarmId))) {
     throw new BrokerError(
       "validation",
       "Money accounting is incomplete. Raising a ceiling cannot repair unknown costs; inspect the evidence before resuming without a money limit.",

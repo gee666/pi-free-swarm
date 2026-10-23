@@ -9,12 +9,15 @@ import { markRead } from "./delivery-state.js";
 import { coverCommentNotifications } from "./subscriptions.js";
 import { guardRunAction } from "./run-failure.js";
 import { readRunOwnership } from "./run-ownership.js";
+import { qualifyUsagePricing } from "./usage-pricing.js";
 
 export interface AgentHooksContext {
   db: SwarmDb;
   swarmId: number;
   run?: number;
   runnerPid?: number;
+  /** Captured for this process's actual model, never inferred later from changed catalog prices. */
+  modelPricingKnown?: boolean;
   name: string;
   clock: Clock;
   /** True once the run is ending: endRun writes the final statuses, so stop() transitions are dropped. */
@@ -52,9 +55,10 @@ export function createAgentHooks(ctx: AgentHooksContext): SupervisorHooks {
     onUsage: (sample) =>
       // Closing children can still report attributable usage; other callbacks remain fenced.
       write(() => {
+        const captured = qualifyUsagePricing(sample, ctx.modelPricingKnown);
         const issue = db.write(() => {
-          recordUsage(db, swarmId, name, sample, clock.now(), ctx.run);
-          return checkUsageAccounting(db, swarmId, name, sample, clock.now(), ctx.run);
+          recordUsage(db, swarmId, name, captured, clock.now(), ctx.run);
+          return checkUsageAccounting(db, swarmId, name, captured, clock.now(), ctx.run);
         });
         if (issue) throw issue;
       }, true),

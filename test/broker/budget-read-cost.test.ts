@@ -147,6 +147,20 @@ test("stored missing or mistyped policy fields never become unlimited or boolean
   }
 });
 
+test("interrupted timing discloses uncertainty without charging the later read or discovery time", () => {
+  const { id } = seedSwarm(temp.db);
+  temp.db.sql
+    .prepare("UPDATE swarm_runs SET ended_at = ?, end_status = 'interrupted' WHERE swarm_id = ?")
+    .run(T0 + 1000, id);
+  const budget = readBudget(temp.db, id, { budgetTimeSeconds: 60 }, T0 + 86400000);
+  assert.equal(budget.activeTimeMs, 1000);
+  assert.equal(budget.hasInterruptedRuns, true);
+  assert.equal(budget.exhausted, null);
+  assert.match(budget.accounting, /unobserved final interval/);
+  assert.match(budget.accounting, /same-run worker usage\/spans/);
+  assert.match(budget.accounting, /not the later discovery time/);
+});
+
 function configuredBudget(project: TempDb): { id: number; env: RunEnvironment } {
   const { id } = seedSwarm(project.db, { agents: ["Current"] });
   const env: RunEnvironment = {

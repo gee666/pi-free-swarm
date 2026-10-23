@@ -31,12 +31,14 @@ test("closing hooks charge the originating run after resume without advancing cu
       db: temp.db,
       swarmId: swarm.id,
       run: 1,
+      runnerPid: process.pid,
       name: "Maria",
       clock: new FakeClock(T0 + 30),
-      isEnding: () => true,
+      isEnding: () => false,
       onCrash: () => assert.fail("Closing hooks must not revive or report another crash"),
     });
     hooks.onUsage(sample);
+    hooks.onStatus("idle");
     hooks.onStatus("working");
     hooks.onActivity({ kind: "writing" });
     hooks.onMessagesRead([message.id]);
@@ -49,10 +51,11 @@ test("closing hooks charge the originating run after resume without advancing cu
       [[1, 0.5]],
     );
     const worker = temp.db.sql
-      .prepare("SELECT status, activity FROM participants WHERE swarm_id = ? AND name = 'Maria'")
+      .prepare("SELECT status, activity, first_idle_at FROM participants WHERE swarm_id = ? AND name = 'Maria'")
       .get(swarm.id);
     assert.equal(worker?.status, "pending");
     assert.equal(worker?.activity, null);
+    assert.equal(worker?.first_idle_at, null);
     assert.equal(
       temp.db.sql
         .prepare("SELECT status FROM message_recipients WHERE message_id = ? AND name = 'Maria'")
@@ -68,6 +71,41 @@ test("closing hooks charge the originating run after resume without advancing cu
       [1, 2],
     );
     assert.equal(getStats(temp.db, swarm.id, T0 + 31)?.totals.cost, 1);
+  } finally {
+    temp.cleanup();
+  }
+});
+
+test("callbacks from a replaced run owner cannot mark first idle or activity even before its local stop flag", () => {
+  const temp = createTempDb();
+  try {
+    const swarm = seedSwarm(temp.db);
+    let crashes = 0;
+    const hooks = createAgentHooks({
+      db: temp.db,
+      swarmId: swarm.id,
+      run: 1,
+      runnerPid: process.pid,
+      name: "Maria",
+      clock: new FakeClock(T0),
+      isEnding: () => false,
+      onCrash: () => {
+        crashes++;
+      },
+    });
+    temp.db.sql.prepare("UPDATE swarms SET runner_pid = ? WHERE id = ?").run(process.pid + 1, swarm.id);
+    hooks.onStatus("idle");
+    hooks.onActivity({ kind: "writing" });
+    hooks.onCrash({ reason: "exit", fatal: false, message: "old owner", exitCode: 1, signal: null, stderrTail: "" });
+    const worker = temp.db.sql
+      .prepare("SELECT status, activity, first_idle_at FROM participants WHERE swarm_id = ? AND name = 'Maria'")
+      .get(swarm.id);
+    assert.equal(worker?.status, "pending");
+    assert.equal(worker?.activity, null);
+    assert.equal(worker?.first_idle_at, null);
+    assert.equal(crashes, 0);
+    hooks.onUsage(sample);
+    assert.equal(getStats(temp.db, swarm.id, T0)?.totals.cost, 0.5);
   } finally {
     temp.cleanup();
   }

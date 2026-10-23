@@ -112,8 +112,8 @@ export function recordUsage(
     db.sql
       .prepare(
         `INSERT INTO usage (swarm_id, agent, run, kind, input, output, cache_read, cache_write, cost,
-          cost_input, cost_output, cost_cache_read, cost_cache_write, model, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          cost_input, cost_output, cost_cache_read, cost_cache_write, model, created_at, cost_reported)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         swarmId,
@@ -131,6 +131,7 @@ export function recordUsage(
         sample.costBreakdown?.cacheWrite ?? null,
         sample.model,
         now,
+        sample.costKnown === false ? 0 : 1,
       );
     insertEvent(db, swarmId, "usage.updated", { agent, usage: agentUsageTotals(db, swarmId, agent) }, now);
   });

@@ -3,15 +3,17 @@ import type { AgentStats, StatsResponse, UsageCostBreakdown, UsageCostComponent,
 import type { SwarmDb } from "./db.js";
 import { agentStatusOf, int, real, text, type Row } from "./rows.js";
 
+function categorySums(column: string): string {
+  const value = `CASE WHEN cost_reported IS NULL AND cost <= 0 AND ${column} = 0 THEN NULL ELSE ${column} END`;
+  return `SUM(${value}) AS ${column}, COUNT(${value}) AS ${column}_records`;
+}
+
+const CATEGORY_SUMS = ["cost_input", "cost_output", "cost_cache_read", "cost_cache_write"].map(categorySums).join(", ");
 const USAGE_SUMS = `
   COALESCE(SUM(input), 0) AS input, COALESCE(SUM(output), 0) AS output,
   COALESCE(SUM(cache_read), 0) AS cache_read, COALESCE(SUM(cache_write), 0) AS cache_write,
   COALESCE(SUM(cost), 0) AS cost, COALESCE(SUM(kind = 'message'), 0) AS turns,
-  COUNT(*) AS cost_records,
-  SUM(cost_input) AS cost_input, COUNT(cost_input) AS cost_input_records,
-  SUM(cost_output) AS cost_output, COUNT(cost_output) AS cost_output_records,
-  SUM(cost_cache_read) AS cost_cache_read, COUNT(cost_cache_read) AS cost_cache_read_records,
-  SUM(cost_cache_write) AS cost_cache_write, COUNT(cost_cache_write) AS cost_cache_write_records`;
+  COUNT(*) AS cost_records, ${CATEGORY_SUMS}`;
 
 function costComponent(row: Row, column: string): UsageCostComponent {
   const knownRecords = int(row, `${column}_records`);
@@ -41,7 +43,7 @@ function usageOf(row: Row | undefined): UsageTotals {
   };
 }
 
-/** Tokens and cost include compactions; `turns` counts assistant messages only. */
+/** Every native usage kind contributes tokens/cost; turns remain assistant-only. */
 export function agentUsageTotals(db: SwarmDb, swarmId: number, agent: string): UsageTotals {
   return usageOf(
     db.sql.prepare(`SELECT ${USAGE_SUMS} FROM usage WHERE swarm_id = ? AND agent = ?`).get(swarmId, agent),

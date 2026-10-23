@@ -9,6 +9,7 @@ import { buildKickoffPrompt, buildResumePrompt, buildRevivePrompt, buildSystemPr
 import { AgentSupervisor, type AgentCrash, type DeliveryOutcome, type PromptPayload } from "../agents/supervisor.js";
 import type { WatchdogConfig } from "../agents/watchdog.js";
 import type { Clock, TimerHandle } from "../clock.js";
+import type { ModelSelection } from "../runtime-types.js";
 import type { SwarmDb } from "../store/db.js";
 import { createAgentHooks } from "./agent-hooks.js";
 import { bodyLimit } from "./body-limit.js";
@@ -28,6 +29,7 @@ export interface RunAgentContext {
   acceptanceCriteria: readonly string[];
   clock: Clock;
   watchdog: WatchdogConfig | undefined;
+  modelHasKnownPricing?(model: ModelSelection | null): boolean;
   /** DeliveryLoop.collect: open messages for a launch prompt. */
   collect(name: string, includeDeliveredUnread: boolean): { text: string; messageIds: number[] };
   isEnding(): boolean;
@@ -64,6 +66,7 @@ export class RunAgent implements DeliveryTarget {
       swarmId: ctx.swarmId,
       run: ctx.run,
       runnerPid: ctx.runnerPid,
+      modelPricingKnown: ctx.modelHasKnownPricing?.(spec.context.model) ?? false,
       name: spec.name,
       clock: ctx.clock,
       isEnding: ctx.isEnding,

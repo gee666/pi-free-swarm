@@ -2,18 +2,17 @@
 import type { ReportedUsageCosts } from "./api-usage-types.js";
 
 /**
- * Usage of one assistant message (RPC `message_end`) or one compaction (`compaction_end.result.usage`),
- * which no `message_end` reports. Cost is USD.
+ * One completed native usage report. Cost is reported USD.
  */
 export interface UsageSample {
-  kind: "message" | "compaction";
+  kind: "message" | "compaction" | "tool" | "usage";
   input: number;
   output: number;
   cacheRead: number;
   cacheWrite: number;
   cost: number;
   costBreakdown?: ReportedUsageCosts;
-  /** False when the protocol supplied no valid attributable USD total. */
+  /** False when no attributable USD total can be verified, including unpriced SDK zero. */
   costKnown?: boolean;
   model: string | null;
 }

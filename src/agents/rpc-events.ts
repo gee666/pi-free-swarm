@@ -72,7 +72,7 @@ function usageSample(kind: UsageSample["kind"], usage: RpcRecord, model: string 
   };
 }
 
-/** Assistant `message_start` carries a partial usage, so only `message_end` counts. */
+/** Completed messages are authoritative; tool_execution_end repeats tool-result usage. */
 export function extractUsage(event: RpcRecord): UsageSample | null {
   if (event.type === "message_end" && isRecord(event.message) && event.message.role === "assistant") {
     const { usage, model } = event.message;
@@ -80,6 +80,21 @@ export function extractUsage(event: RpcRecord): UsageSample | null {
       "message",
       isRecord(usage) ? usage : {},
       typeof model === "string" && model.length > 0 ? model : null,
+    );
+  }
+  if (
+    event.type === "message_end" &&
+    isRecord(event.message) &&
+    event.message.role === "toolResult" &&
+    isRecord(event.message.usage)
+  ) {
+    return usageSample("tool", event.message.usage, null);
+  }
+  if (event.type === "entry_appended" && isRecord(event.entry) && event.entry.type === "usage") {
+    return usageSample(
+      "usage",
+      isRecord(event.entry.usage) ? event.entry.usage : {},
+      typeof event.entry.model === "string" && event.entry.model.length > 0 ? event.entry.model : null,
     );
   }
   if (event.type === "compaction_end" && isRecord(event.result)) {

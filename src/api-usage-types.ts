@@ -12,7 +12,7 @@ export interface UsageCostComponent {
 }
 
 export interface UsageCostBreakdown {
-  /** Assistant-message and compaction rows, including rows without category costs. */
+  /** Completed native reports: assistant, compaction, tool and standalone usage. */
   records: number;
   input: UsageCostComponent;
   output: UsageCostComponent;
@@ -29,6 +29,6 @@ export interface UsageTotals {
   cost: number;
   /** Absent when no category costs were reported; known subtotals may be partial. */
   costBreakdown?: UsageCostBreakdown;
-  /** Assistant messages counted. Tokens and cost also include compactions. */
+  /** Assistant messages counted; every native usage kind contributes tokens and cost. */
   turns: number;
 }

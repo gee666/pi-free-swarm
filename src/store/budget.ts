@@ -7,12 +7,12 @@ import { int } from "./rows.js";
 import { swarmUsageTotals } from "./scalar-totals.js";
 
 export const BUDGET_ACCOUNTING =
-  "Cumulative reported worker and Watcher usage, including reported retries and compaction; active run wall time excludes stopped time. Main and external billing are excluded. Delayed usage and in-flight work may overshoot. Graceful mode drains the active pi turn, which can include further tool steps and already accepted steering, not a per-tool boundary. Interrupted external effects are uncertain; inspect artifacts before retrying.";
+  "Cumulative persisted worker and Watcher usage, including reported tool costs, other native usage, retries and compaction; active run wall time excludes stopped time. Main and external billing are excluded. Reports lost on abrupt failure are not estimated. Delayed usage and in-flight work may overshoot. Graceful mode drains the active pi turn, which can include further tool steps and already accepted steering, not a per-tool boundary. Interrupted external effects are uncertain; inspect artifacts before retrying.";
 
 type BudgetPolicy = Pick<SwarmSettings, "budgetMoneyUsd" | "budgetTimeSeconds" | "gracefulShutdownOnBudget">;
 
 export function readBudget(db: SwarmDb, swarmId: number, settings: BudgetPolicy, now: number): BudgetStatus {
-  const { costUsd, activeTimeMs } = budgetTotals(db, swarmId, now);
+  const { costUsd, activeTimeMs, hasInterruptedRuns } = budgetTotals(db, swarmId, now);
   const { moneyUsd, timeSeconds, gracefulShutdown } = currentBudgetPolicy(db, swarmId) ?? {
     moneyUsd: settings.budgetMoneyUsd ?? null,
     timeSeconds: settings.budgetTimeSeconds ?? null,
@@ -41,22 +41,34 @@ export function readBudget(db: SwarmDb, swarmId: number, settings: BudgetPolicy,
     moneyOvershootUsd: moneyUsd === null ? 0 : Math.max(0, costUsd - moneyUsd),
     timeOvershootSeconds: timeSeconds === null ? 0 : Math.max(0, activeTimeMs / 1000 - timeSeconds),
     hasAccountingGaps,
+    hasInterruptedRuns,
     accounting:
       BUDGET_ACCOUNTING +
       (hasAccountingGaps
-        ? " Accounting is incomplete: usage lacked a valid cost or reported an unexpected model. A money-budget resume is refused; missing cost is not free usage."
+        ? " Accounting is incomplete or unverified: a total is missing, a worker model mismatched, or legacy reporting provenance is unavailable. A money-budget resume is refused; missing cost is not free usage."
+        : "") +
+      (hasInterruptedRuns
+        ? " Interrupted history may have an unobserved final interval. Recovery uses the latest recorded heartbeat or same-run worker usage/spans, not the later discovery time; this is not an exact death time."
         : ""),
   };
 }
 
-function budgetTotals(db: SwarmDb, swarmId: number, now: number): { costUsd: number; activeTimeMs: number } {
+function budgetTotals(
+  db: SwarmDb,
+  swarmId: number,
+  now: number,
+): { costUsd: number; activeTimeMs: number; hasInterruptedRuns: boolean } {
   const { costUsd } = swarmUsageTotals(db, swarmId);
   const time = db.sql
     .prepare(
-      "SELECT COALESCE(SUM(COALESCE(ended_at, ?) - started_at), 0) AS elapsed FROM swarm_runs WHERE swarm_id = ?",
+      "SELECT COALESCE(SUM(COALESCE(ended_at, ?) - started_at), 0) AS elapsed, COALESCE(MAX(end_status = 'interrupted'), 0) AS interrupted FROM swarm_runs WHERE swarm_id = ?",
     )
     .get(now, swarmId);
-  return { costUsd, activeTimeMs: time ? int(time, "elapsed") : 0 };
+  return {
+    costUsd,
+    activeTimeMs: time ? int(time, "elapsed") : 0,
+    hasInterruptedRuns: time ? int(time, "interrupted") === 1 : false,
+  };
 }
 
 function isStoredCeiling(value: unknown, jsonType: unknown): value is number | null {
@@ -139,6 +151,8 @@ export function checkUsageAccounting(
   now: number,
   originRun?: number,
 ): Error | undefined {
+  // Service receipts may name a different model without changing the worker's assignment.
+  if (sample.costKnown !== false && (sample.kind !== "message" || sample.model === null)) return;
   const config = getRunConfiguration(db, swarmId, originRun);
   const assigned = config?.effective.workers.find((worker) => worker.name === agent);
   const archived = !assigned
@@ -148,7 +162,8 @@ export function checkUsageAccounting(
     : undefined;
   const expectedModel =
     assigned?.modelId ?? (typeof archived?.retired_model_id === "string" ? archived.retired_model_id : undefined);
-  const unexpectedModel = expectedModel !== undefined && sample.model !== null && sample.model !== expectedModel;
+  const unexpectedModel =
+    sample.kind === "message" && expectedModel !== undefined && sample.model !== null && sample.model !== expectedModel;
   if (sample.costKnown !== false && !unexpectedModel) return;
   const reason = unexpectedModel ? "unexpected model" : "missing USD usage total";
   db.write(() =>

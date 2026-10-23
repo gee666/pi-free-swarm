@@ -1,6 +1,7 @@
 import type { ModelSelection } from "../runtime-types.js";
 import type { RunEnvironment } from "./run-types.js";
 import { hasBudgetAccountingGap } from "../store/budget.js";
+import { hasUnverifiedUsageCost } from "../store/usage-provenance.js";
 export { readBudget, recordBudgetStop, BUDGET_ACCOUNTING } from "../store/budget.js";
 export type { BudgetStatus } from "../budget.js";
 
@@ -10,7 +11,11 @@ export function assertBudgetPricing(
   swarmId?: number,
 ): void {
   if (env.settings.budgetMoneyUsd === undefined) return;
-  if (env.db && swarmId !== undefined && hasBudgetAccountingGap(env.db, swarmId)) {
+  if (
+    env.db &&
+    swarmId !== undefined &&
+    (hasBudgetAccountingGap(env.db, swarmId) || hasUnverifiedUsageCost(env.db, swarmId))
+  ) {
     throw new Error(
       "Money budget accounting is incomplete for this swarm. Missing costs cannot be repaired by raising the ceiling; inspect usage and resume without a money limit only with user agreement.",
     );

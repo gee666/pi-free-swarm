@@ -104,7 +104,7 @@ test("additive v10 upgrade preserves pending messages and starts with no snoozes
       PRAGMA user_version = 10;`);
     const upgraded = openSwarmDb(temp.db.path, { create: false });
     try {
-      assert.equal(upgraded.sql.prepare("PRAGMA user_version").get()?.user_version, 13);
+      assert.equal(upgraded.sql.prepare("PRAGMA user_version").get()?.user_version, 14);
       assert.equal(reminderSnoozedUntil(upgraded, swarm.id, "Maria"), 0);
       assert.equal(
         upgraded.sql.prepare("SELECT status FROM message_recipients WHERE message_id = ?").get(message.id)?.status,

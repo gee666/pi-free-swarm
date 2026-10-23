@@ -88,7 +88,7 @@ test("v12 migration preserves old totals without inventing category prices", () 
     );
     const upgraded = openSwarmDb(temp.db.path, { create: false });
     try {
-      assert.equal(upgraded.sql.prepare("PRAGMA user_version").get()?.user_version, 13);
+      assert.equal(upgraded.sql.prepare("PRAGMA user_version").get()?.user_version, 14);
       assert.deepEqual(agentUsageTotals(upgraded, swarm.id, "Maria"), {
         input: 2,
         output: 3,
@@ -105,6 +105,43 @@ test("v12 migration preserves old totals without inventing category prices", () 
     } finally {
       upgraded.close();
     }
+  } finally {
+    temp.cleanup();
+  }
+});
+
+test("legacy unverified default zero categories stay unknown without rewriting historical amounts", () => {
+  const temp = createTempDb();
+  const { db } = temp;
+  try {
+    const swarm = seedSwarm(db);
+    const oldWrite = db.sql
+      .prepare(`INSERT INTO usage (swarm_id,agent,run,kind,input,output,cache_read,cache_write,cost,model,created_at,cost_input,cost_output,cost_cache_read,cost_cache_write)
+      VALUES (?, ?, 1, 'message', 1, 1, 0, 0, ?, NULL, ?, 0, 0, 0, 0)`);
+    oldWrite.run(swarm.id, "Maria", 0, T0);
+    assert.equal(agentUsageTotals(db, swarm.id, "Maria").costBreakdown, undefined);
+    assert.equal(
+      db.sql.prepare("SELECT cost_input FROM usage WHERE swarm_id = ? AND agent = 'Maria'").get(swarm.id)?.cost_input,
+      0,
+    );
+    db.sql.prepare("UPDATE usage SET cost_input = 2 WHERE swarm_id = ? AND agent = 'Maria'").run(swarm.id);
+    const partial = agentUsageTotals(db, swarm.id, "Maria").costBreakdown;
+    assert.deepEqual(partial?.input, { usd: 2, knownRecords: 1 });
+    assert.deepEqual(partial?.output, { usd: null, knownRecords: 0 });
+    recordUsage(
+      db,
+      swarm.id,
+      "John",
+      { ...legacy, cost: 0, costKnown: true, costBreakdown: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } },
+      T0,
+    );
+    assert.deepEqual(agentUsageTotals(db, swarm.id, "John").costBreakdown?.input, { usd: 0, knownRecords: 1 });
+    oldWrite.run(swarm.id, "Liam", 5, T0);
+    assert.deepEqual(
+      agentUsageTotals(db, swarm.id, "Liam").costBreakdown?.input,
+      { usd: 0, knownRecords: 1 },
+      "positive legacy totals preserve their reported zero category amounts",
+    );
   } finally {
     temp.cleanup();
   }
