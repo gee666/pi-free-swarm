@@ -34,10 +34,11 @@ test("agents receive shared facts, criteria and whole-task voting instructions",
   assert.ok(text.includes(`${AGENT_TOOL.acceptance} with {"action":"inspect"}`));
   assert.ok(text.includes('{"action":"vote","verdict":"accepted","reason":'));
   assert.ok(text.includes("Give a nonempty reason"));
-  assert.ok(text.includes("at least 70% of all workers vote the same terminal verdict, accepted or blocked"));
+  assert.ok(text.includes("at least 70% of all active workers vote the same terminal verdict, accepted or blocked"));
   assert.ok(text.includes("rounded up to a whole worker"));
   assert.ok(text.includes("Accepted and blocked votes do not combine; incomplete votes do not end the run"));
-  assert.ok(text.includes("including crashed workers; Main, User and Watcher do not vote"));
+  assert.ok(text.includes("including crashed workers; retired workers are excluded"));
+  assert.ok(text.includes("Main, User and Watcher do not vote"));
   assert.ok(text.includes("even if agents are active or messages remain"));
   assert.ok(text.includes("not an enforced criterion-by-criterion assessment"));
   assert.ok(text.includes(CRITERIA_TEXT));
@@ -69,7 +70,16 @@ test("common prefix preserves restrictions and advisory ownership before identit
   const maria = prompt("Maria");
   const lee = prompt("Lee");
   assert.equal(maria.slice(0, maria.lastIndexOf("You are Maria")), lee.slice(0, lee.lastIndexOf("You are Lee")));
+  assert.ok(maria.includes("Prefer one shared wall post for each substantial task"));
+  assert.ok(
+    maria.includes(
+      "use its comments for claims, ownership, discussion, decisions, implementation history, results and handoffs",
+    ),
+  );
+  assert.ok(maria.includes("Check for an existing task post before opening another"));
+  assert.ok(maria.includes("Other posts are allowed for announcements or other purposes"));
   assert.ok(maria.includes("Ownership is advisory, not an exclusive lock"));
+  assert.ok(maria.includes("Tiny tasks do not need a ceremony or repetitive status reports"));
   assert.ok(maria.includes("A review-only task does not authorize edits"));
   assert.ok(maria.includes("raise actual conflicts rather than weakening restrictions"));
   assert.ok(maria.includes("leave it pending and take other useful work"));
