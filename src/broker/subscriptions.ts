@@ -1,9 +1,9 @@
 import type { CommentView } from "../api-types.js";
 import { SYSTEM_NAME, WATCHER_NAME } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
-import { int, text as str } from "../store/rows.js";
+import { count, int, text as str } from "../store/rows.js";
 import { findParticipant, type ParticipantRef } from "../store/swarm-queries.js";
-import { getPost } from "../store/wall-queries.js";
+import { postExists } from "../store/wall-queries.js";
 import { markCommentsCovered } from "../store/wall-coverage.js";
 import { emitRecipientStatus } from "./emit.js";
 import { BrokerError } from "./errors.js";
@@ -12,13 +12,17 @@ import { actAs, requireSwarm } from "./validate.js";
 import { hasUserAttachment } from "./user-attachment.js";
 
 /** Automatic participation never reverses an explicit opt-out. Caller owns the write transaction. */
-export function autoSubscribe(db: SwarmDb, swarmId: number, postId: number, name: string): void {
-  db.sql
-    .prepare(
-      `INSERT OR IGNORE INTO post_subscriptions (swarm_id, post_id, name, subscribed)
+export function autoSubscribe(db: SwarmDb, swarmId: number, postId: number, name: string): boolean {
+  return (
+    count(
+      db.sql
+        .prepare(
+          `INSERT OR IGNORE INTO post_subscriptions (swarm_id, post_id, name, subscribed)
     VALUES (?, ?, ?, 1)`,
-    )
-    .run(swarmId, postId, name);
+        )
+        .run(swarmId, postId, name).changes,
+    ) > 0
+  );
 }
 
 export function setPostSubscription(
@@ -34,7 +38,7 @@ export function setPostSubscription(
     const participant = actAs(db, swarmId, name, now);
     if (!Number.isSafeInteger(postId) || postId < 1)
       throw new BrokerError("validation", "post_id must be a positive integer.", "post_id");
-    if (getPost(db, swarmId, postId) === null) throw new BrokerError("not_found", `Post #${postId} not found.`);
+    if (!postExists(db, swarmId, postId)) throw new BrokerError("not_found", `Post #${postId} not found.`);
     db.sql
       .prepare(
         `INSERT INTO post_subscriptions (swarm_id, post_id, name, subscribed) VALUES (?, ?, ?, ?)
@@ -62,7 +66,7 @@ export function setPostSubscription(
 }
 
 /** One durable message per comment, delivered through the ordinary native steering path. */
-export function notifyComment(db: SwarmDb, comment: CommentView, now: number): void {
+export function notifyComment(db: SwarmDb, comment: CommentView, now: number): boolean {
   const { swarmId, postId, author } = comment;
   const recipients = db.sql
     .prepare(
@@ -75,7 +79,7 @@ export function notifyComment(db: SwarmDb, comment: CommentView, now: number): v
     .filter(
       (person): person is ParticipantRef => person !== null && (person.kind === "agent" || person.kind === "user"),
     );
-  if (recipients.length === 0) return;
+  if (recipients.length === 0) return false;
   const threadId = createThread(db, swarmId, [SYSTEM_NAME, ...recipients.map((person) => person.name)], now);
   insertMessage(db, {
     swarmId,
@@ -89,6 +93,7 @@ export function notifyComment(db: SwarmDb, comment: CommentView, now: number): v
     })),
     now,
   });
+  return recipients.some((person) => person.kind === "user");
 }
 
 /** Called only when the current worker generation observed the complete durable message. */

@@ -7,6 +7,7 @@ import { getPost, listPosts } from "../store/wall-queries.js";
 import { storedBody } from "./attachment.js";
 import { BrokerError } from "./errors.js";
 import { autoSubscribe, notifyComment } from "./subscriptions.js";
+import { emitUserPostAttention } from "./user-post-subscription.js";
 import { notifyLocalMessage } from "./notify.js";
 import { actAs, checkPage, requireParticipant, requireSwarm, requireTitle } from "./validate.js";
 
@@ -36,8 +37,9 @@ export function createPost(
       commentCount: 0,
       createdAt: now,
     };
-    autoSubscribe(db, swarmId, postId, participant.name);
+    const subscribed = autoSubscribe(db, swarmId, postId, participant.name);
     insertEvent(db, swarmId, "post.created", { post }, now);
+    if (subscribed && participant.kind === "user") emitUserPostAttention(db, swarmId, postId, now);
     return post;
   });
 }
@@ -64,9 +66,10 @@ export function addComment(
     const row = db.sql.prepare("SELECT * FROM comments WHERE id = ?").get(commentId);
     if (row === undefined) throw new Error(`Comment #${commentId} vanished inside its transaction`);
     const result = { comment: commentOf(row), commentCount: post.commentCount + 1 };
-    autoSubscribe(db, swarmId, postId, participant.name);
-    notifyComment(db, result.comment, now);
+    const subscribed = autoSubscribe(db, swarmId, postId, participant.name);
+    const userNotified = notifyComment(db, result.comment, now);
     insertEvent(db, swarmId, "comment.created", result, now);
+    if (userNotified || (subscribed && participant.kind === "user")) emitUserPostAttention(db, swarmId, postId, now);
     return result;
   });
   notifyLocalMessage(swarmId);

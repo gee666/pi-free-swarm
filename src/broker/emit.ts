@@ -1,5 +1,7 @@
 // Outbox rows whose payload is a fresh snapshot of a record. Called inside the write that changed it.
 import type { SwarmDb } from "../store/db.js";
+import { USER_NAME } from "../constants.js";
+import { userUnreadState } from "../store/user-unread.js";
 import { insertEvent } from "../store/events.js";
 import { unreadCounts } from "../store/message-queries.js";
 import { int, recipientOf } from "../store/rows.js";
@@ -25,11 +27,14 @@ export function emitRecipientStatus(db: SwarmDb, swarmId: number, messageId: num
     .get(messageId, name);
   if (row === undefined) return;
   const recipient = recipientOf(row);
+  const userState = recipient.name === USER_NAME ? userUnreadState(db, swarmId) : undefined;
+  const userUnread = userState?.summary;
+  const unread = userState ? { [USER_NAME]: userState.total } : unreadCounts(db, swarmId, [recipient.name]);
   insertEvent(
     db,
     swarmId,
     "message.status",
-    { messageId, threadId: int(row, "thread_id"), recipient, unread: unreadCounts(db, swarmId, [recipient.name]) },
+    { messageId, threadId: int(row, "thread_id"), recipient, unread, ...(userUnread ? { userUnread } : {}) },
     now,
   );
 }

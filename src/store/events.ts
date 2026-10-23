@@ -7,6 +7,7 @@ const EVENT_TYPES: ReadonlySet<string> = new Set<SwarmEventType>([
   "acceptance.updated",
   "post.created",
   "comment.created",
+  "user.post.updated",
   "message.created",
   "message.status",
   "participant.updated",

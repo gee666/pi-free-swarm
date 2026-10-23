@@ -17,6 +17,10 @@ export function listPosts(db: SwarmDb, swarmId: number, page: { count: number; o
   return { posts, total: total === undefined ? 0 : int(total, "n") };
 }
 
+export function postExists(db: SwarmDb, swarmId: number, postId: number): boolean {
+  return db.sql.prepare("SELECT 1 FROM posts WHERE swarm_id = ? AND id = ?").get(swarmId, postId) !== undefined;
+}
+
 export function getPost(db: SwarmDb, swarmId: number, postId: number): PostSummary | null {
   const row = db.sql.prepare(`${POST_SELECT} WHERE p.swarm_id = ? AND p.id = ?`).get(swarmId, postId);
   return row === undefined ? null : postOf(row);

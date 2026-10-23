@@ -1,11 +1,12 @@
 // Inserting threads and messages, and the §7.4 race rule. Shared by messages.ts and the run cleanup.
 import type { MessageView, RecipientStatus } from "../api-types.js";
-import { SYSTEM_NAME, UNDELIVERABLE_REPLY_TEXT, WATCHER_NAME } from "../constants.js";
+import { SYSTEM_NAME, UNDELIVERABLE_REPLY_TEXT, USER_NAME, WATCHER_NAME } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
 import { insertEvent } from "../store/events.js";
 import { getMessages, unreadCounts } from "../store/message-queries.js";
 import { count } from "../store/rows.js";
 import { getSwarm, type ParticipantRef } from "../store/swarm-queries.js";
+import { userUnreadState } from "../store/user-unread.js";
 
 export interface RecipientInput {
   name: string;
@@ -64,7 +65,25 @@ export function insertMessage(
   }
   const [message] = getMessages(db, [messageId]);
   const names = input.recipients.map((recipient) => recipient.name);
-  insertEvent(db, swarmId, "message.created", { message, unread: unreadCounts(db, swarmId, names) }, now);
+  const userState = names.includes(USER_NAME) ? userUnreadState(db, swarmId) : undefined;
+  const userUnread = userState?.summary;
+  const unread = unreadCounts(
+    db,
+    swarmId,
+    names.filter((name) => name !== USER_NAME),
+  );
+  if (userState) unread[USER_NAME] = userState.total;
+  insertEvent(
+    db,
+    swarmId,
+    "message.created",
+    {
+      message,
+      unread,
+      ...(userUnread ? { userUnread } : {}),
+    },
+    now,
+  );
   return message;
 }
 

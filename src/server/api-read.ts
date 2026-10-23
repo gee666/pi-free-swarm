@@ -17,6 +17,9 @@ import { getMailbox, getThread } from "../store/message-queries.js";
 import { getStats } from "../store/stats-queries.js";
 import { getParticipant, listAgentSessions, listParticipants, listSwarms } from "../store/swarm-queries.js";
 import { getPostDetail, listPosts } from "../store/wall-queries.js";
+import { userUnreadSummary } from "../store/user-unread.js";
+import { postsForUser } from "../store/user-post-state.js";
+import { getUserPostAttention } from "../broker/user-post-subscription.js";
 import {
   ApiFailure,
   intQuery,
@@ -58,6 +61,7 @@ export function readRoutes(deps: ApiDeps): ApiRoute[] {
           participants: listParticipants(db, swarm.id),
           acceptance: getAcceptance(db, swarm.id),
           bodyMaxChars: bodyLimit(db),
+          userUnread: userUnreadSummary(db, swarm.id),
         });
       },
     },
@@ -67,7 +71,8 @@ export function readRoutes(deps: ApiDeps): ApiRoute[] {
       handle: ({ params, url }) => {
         const page = pageQuery(url);
         const swarm = requireSwarmItem(deps, params.id("swarmId"));
-        return reply<PostListResponse>(listPosts(db, swarm.id, page));
+        const result = listPosts(db, swarm.id, page);
+        return reply<PostListResponse>({ ...result, posts: postsForUser(db, swarm.id, result.posts) });
       },
     },
     {
@@ -78,8 +83,16 @@ export function readRoutes(deps: ApiDeps): ApiRoute[] {
         const postId = params.id("postId");
         const detail = getPostDetail(db, swarm.id, postId);
         if (detail === null) throw notFound(`Post #${postId} not found.`);
-        return reply<PostDetailResponse>(detail);
+        return reply<PostDetailResponse>({
+          ...detail,
+          post: postsForUser(db, swarm.id, [detail.post])[0] ?? detail.post,
+        });
       },
+    },
+    {
+      method: "GET",
+      pattern: "/api/swarms/:swarmId/posts/:postId/subscription",
+      handle: ({ params }) => reply(getUserPostAttention(db, params.id("swarmId"), params.id("postId"))),
     },
     {
       method: "GET",

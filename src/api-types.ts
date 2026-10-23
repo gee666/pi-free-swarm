@@ -12,6 +12,8 @@
 
 export type * from "./api-session-types.js";
 import type { UsageTotals } from "./api-usage-types.js";
+import type { MessageCreatedPayload, MessageStatusPayload, UserUnreadSummary } from "./api-user-unread-types.js";
+export type * from "./api-user-unread-types.js";
 
 export type * from "./api-common-types.js";
 import type {
@@ -85,6 +87,8 @@ export interface PostSummary {
   text: string;
   commentCount: number;
   createdAt: number;
+  userSubscribed?: boolean;
+  userUnreadComments?: number;
 }
 
 export interface CommentView {
@@ -142,6 +146,7 @@ export interface SwarmDetailResponse {
   participants: ParticipantView[];
   acceptance: import("./store/acceptance-types.js").AcceptanceRecord;
   bodyMaxChars: number;
+  userUnread?: UserUnreadSummary;
 }
 
 // ── REST: wall ────────────────────────────────────────────────────────────────
@@ -312,9 +317,10 @@ export interface SwarmEventPayloads {
   "acceptance.updated": { revision: number };
   "post.created": { post: PostSummary };
   "comment.created": { comment: CommentView; commentCount: number };
-  "message.created": { message: MessageView; unread: UnreadCounts };
+  "user.post.updated": import("./api-user-unread-types.js").UserPostAttention;
+  "message.created": MessageCreatedPayload;
   /** One event per recipient change. */
-  "message.status": { messageId: number; threadId: number; recipient: RecipientView; unread: UnreadCounts };
+  "message.status": MessageStatusPayload;
   "participant.updated": { participant: ParticipantView };
   /** The agent's cumulative totals for the swarm after the change. */
   "usage.updated": { agent: string; usage: UsageTotals };

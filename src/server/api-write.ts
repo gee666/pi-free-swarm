@@ -1,6 +1,8 @@
 // POST routes of the board API. The board always acts as User.
 import type { CreateCommentResponse, CreatePostResponse, MarkReadResponse, SendMessageResponse } from "../api-types.js";
 import { markUserRead, replyToThread, sendMessage } from "../broker/messages.js";
+import { markUserCommentsRead } from "../broker/user-comment-read.js";
+import { setUserPostSubscription } from "../broker/user-post-subscription.js";
 import { addComment, createPost } from "../broker/wall.js";
 import { NOT_RUNNING_TEXT, USER_NAME } from "../constants.js";
 import {
@@ -39,7 +41,8 @@ export function writeRoutes(deps: ApiDeps): ApiRoute[] {
         const body = await readUserJsonBody(req);
         const input = { title: stringField(body, "title"), text: stringField(body, "text") };
         const swarm = requireSwarmItem(deps, params.id("swarmId"));
-        return reply<CreatePostResponse>({ post: createPost(db, swarm.id, USER_NAME, input, clock.now()) }, CREATED);
+        const post = createPost(db, swarm.id, USER_NAME, input, clock.now());
+        return reply<CreatePostResponse>({ post: { ...post, userSubscribed: true, userUnreadComments: 0 } }, CREATED);
       },
     },
     {
@@ -50,6 +53,24 @@ export function writeRoutes(deps: ApiDeps): ApiRoute[] {
         const swarm = requireSwarmItem(deps, params.id("swarmId"));
         const result = addComment(db, swarm.id, USER_NAME, params.id("postId"), text, clock.now());
         return reply<CreateCommentResponse>(result, CREATED);
+      },
+    },
+    {
+      method: "POST",
+      pattern: "/api/swarms/:swarmId/posts/:postId/read",
+      handle: async ({ req, params }) => {
+        const ids = idArrayField(await readJsonBody(req), "commentIds");
+        return reply(markUserCommentsRead(db, params.id("swarmId"), params.id("postId"), ids, clock.now()));
+      },
+    },
+    {
+      method: "POST",
+      pattern: "/api/swarms/:swarmId/posts/:postId/subscription",
+      handle: async ({ req, params }) => {
+        const body = await readJsonBody(req);
+        return reply(
+          setUserPostSubscription(db, params.id("swarmId"), params.id("postId"), body.subscribed, clock.now()),
+        );
       },
     },
     {
