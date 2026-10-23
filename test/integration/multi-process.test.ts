@@ -6,7 +6,7 @@ import { after, describe, it } from "node:test";
 import { sendMessage } from "../../src/broker/messages.js";
 import { sweepStaleRuns } from "../../src/broker/swarms.js";
 import { resumeSwarm } from "../../src/broker/swarm-run.js";
-import { PARENT_WATCH_INTERVAL_MS, RESUME_PROMPT_HEADER, UNDELIVERABLE_REPLY_TEXT } from "../../src/constants.js";
+import { PARENT_WATCH_INTERVAL_MS, RESUME_PROMPT_HEADER } from "../../src/constants.js";
 import { getSwarm, listSwarms } from "../../src/store/swarm-queries.js";
 import { SCENARIOS } from "../fixtures/fake-pi/harness.js";
 import {
@@ -66,11 +66,15 @@ describe("a runner in another process", () => {
 
         assert.deepEqual(sweepStaleRuns(db, Date.now()), [swarmId]);
         assert.equal(getSwarm(db, swarmId, Date.now())?.status, "interrupted");
-        assert.equal(recipientStatus(db, waiting.id, second), "undeliverable");
-        assert.deepEqual(systemReplies(db, waiting.threadId), [UNDELIVERABLE_REPLY_TEXT]);
+        assert.equal(recipientStatus(db, waiting.id, second), "pending");
+        assert.deepEqual(systemReplies(db, waiting.threadId), []);
 
         const outcome = resumeSwarm(run.env, { swarmId, message: "Pick it up from here." }, {});
         await waitForWorkersIdle(run, swarmId);
+        await waitFor(
+          () => recipientStatus(db, waiting.id, second) === "read",
+          "pending message recovered after runner death",
+        );
         voteAll(db, swarmId, "accepted", "Resumed workers finished the interrupted task.");
         const resumed = await outcome;
         assert.equal(resumed.end, "finished");

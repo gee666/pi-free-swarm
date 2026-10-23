@@ -90,7 +90,7 @@ describe("the end of a run", () => {
   });
 
   it(
-    "quorum stops an active tool and abandons unread steering without waiting for quiet",
+    "quorum stops an active tool and preserves unread steering without waiting for quiet",
     { timeout: 10_000 },
     async () => {
       const run = createRunFixture(SCENARIOS.longTool(60_000));
@@ -112,45 +112,49 @@ describe("the end of a run", () => {
       assert.equal(result.end, "finished");
       assert.equal(result.acceptance.verdict, "accepted");
       assert.equal(agentStatus(run.db, swarmId, name), "stopped");
-      assert.equal(recipientStatus(run.db, steering.id, name), "undeliverable");
-      assert.deepEqual(systemReplies(run.db, steering.threadId), [UNDELIVERABLE_REPLY_TEXT]);
+      assert.equal(recipientStatus(run.db, steering.id, name), "delivered");
+      assert.deepEqual(systemReplies(run.db, steering.threadId), []);
       assert.ok(spawnsOf(run.fake).every((child) => !isAlive(child.pid)));
     },
   );
 
-  it("abort stops every agent's process group and makes open messages undeliverable", { timeout: 20_000 }, async () => {
-    const run = createRunFixture({ startup: [{ type: "grandchild" }] }, { staggerSeconds: 60 });
-    fixture = run;
-    const { db } = run;
-    const controller = new AbortController();
-    const outcome = startSwarm(
-      run.env,
-      { name: "abort", taskPrompt: "Work.", acceptanceCriteria: ["Work is complete."], agentAmount: 2 },
-      { signal: controller.signal },
-    );
-    const swarmId = newestSwarmId(db);
-    const [first, second] = agentNames(db, swarmId);
-    await waitFor(() => agentStatus(db, swarmId, first) === "idle", "first agent idle");
-    const pending = sendMessage(db, swarmId, "User", [second], "waiting for my slot", Date.now());
+  it(
+    "abort stops every agent's process group while retaining previously pending messages",
+    { timeout: 20_000 },
+    async () => {
+      const run = createRunFixture({ startup: [{ type: "grandchild" }] }, { staggerSeconds: 60 });
+      fixture = run;
+      const { db } = run;
+      const controller = new AbortController();
+      const outcome = startSwarm(
+        run.env,
+        { name: "abort", taskPrompt: "Work.", acceptanceCriteria: ["Work is complete."], agentAmount: 2 },
+        { signal: controller.signal },
+      );
+      const swarmId = newestSwarmId(db);
+      const [first, second] = agentNames(db, swarmId);
+      await waitFor(() => agentStatus(db, swarmId, first) === "idle", "first agent idle");
+      const pending = sendMessage(db, swarmId, "User", [second], "waiting for my slot", Date.now());
 
-    controller.abort();
-    // The race: this lands while the agents are being stopped, before the run lock is released.
-    const racing = sendMessage(db, swarmId, "User", [first], "during shutdown", Date.now());
-    assert.equal(recipientStatus(db, racing.id, first), "undeliverable", "stop closes admission before shutdown");
+      controller.abort();
+      // The race: this lands while the agents are being stopped, before the run lock is released.
+      const racing = sendMessage(db, swarmId, "User", [first], "during shutdown", Date.now());
+      assert.equal(recipientStatus(db, racing.id, first), "undeliverable", "stop closes admission before shutdown");
 
-    const result = await outcome;
-    assert.equal(result.end, "stopped");
-    assert.equal(getSwarm(db, swarmId, Date.now())?.status, "stopped");
-    assert.deepEqual([agentStatus(db, swarmId, first), agentStatus(db, swarmId, second)], ["stopped", "stopped"]);
-    for (const message of [pending, racing]) {
-      assert.equal(recipientStatus(db, message.id, message.recipients[0].name), "undeliverable");
-      assert.deepEqual(systemReplies(db, message.threadId), [UNDELIVERABLE_REPLY_TEXT]);
-    }
-    const [spawn] = spawnsOf(run.fake);
-    const grandchild = Number(run.fake.log().find((record) => record.fake === "grandchild")?.pid);
-    assert.equal(spawnsOf(run.fake).length, 1, "the second agent never started");
-    await waitFor(() => !isAlive(spawn.pid) && !isAlive(grandchild), "the whole group is gone");
-  });
+      const result = await outcome;
+      assert.equal(result.end, "stopped");
+      assert.equal(getSwarm(db, swarmId, Date.now())?.status, "stopped");
+      assert.deepEqual([agentStatus(db, swarmId, first), agentStatus(db, swarmId, second)], ["stopped", "stopped"]);
+      assert.equal(recipientStatus(db, pending.id, second), "pending");
+      assert.deepEqual(systemReplies(db, pending.threadId), []);
+      assert.equal(recipientStatus(db, racing.id, first), "undeliverable");
+      assert.deepEqual(systemReplies(db, racing.threadId), [UNDELIVERABLE_REPLY_TEXT]);
+      const [spawn] = spawnsOf(run.fake);
+      const grandchild = Number(run.fake.log().find((record) => record.fake === "grandchild")?.pid);
+      assert.equal(spawnsOf(run.fake).length, 1, "the second agent never started");
+      await waitFor(() => !isAlive(spawn.pid) && !isAlive(grandchild), "the whole group is gone");
+    },
+  );
 
   it("stopAllRuns stops a run for session_shutdown", { timeout: 20_000 }, async () => {
     const run = createRunFixture(SCENARIOS.settle);
