@@ -56,9 +56,9 @@ it("Watcher retrieves full User message attachments through bounded existing thr
 
 it("only-new post/comment attachment coverage waits for complete tails and stays isolated", () => {
   const swarm = seedSwarm(db);
-  const original = "🙂".repeat(5000) + "POST TAIL";
+  const original = "🙂".repeat(8000) + "POST TAIL";
   const post = createPost(db, swarm.id, "User", { title: "User evidence", text: original }, T0);
-  const comment = addComment(db, swarm.id, "User", post.id, "漢".repeat(5000) + "COMMENT TAIL", T0).comment;
+  const comment = addComment(db, swarm.id, "User", post.id, "漢".repeat(10000) + "COMMENT TAIL", T0).comment;
   const tools = watcher(swarm.id);
   assert.match(tools.readPosts({}), /full text:/);
   tools.readPosts({ after: initialWallCursor(swarm.id) });
@@ -80,7 +80,7 @@ it("only-new post/comment attachment coverage waits for complete tails and stays
     after = next(result);
     assert.ok(++pages < 100);
   }
-  assert.equal(parts.join(""), original + "漢".repeat(5000) + "COMMENT TAIL");
+  assert.equal(parts.join(""), original + "漢".repeat(10000) + "COMMENT TAIL");
   assert.equal(
     db.sql.prepare("SELECT COUNT(*) AS n FROM post_coverage WHERE name = 'Watcher' AND post_id = ?").get(post.id)?.n,
     1,
@@ -98,7 +98,7 @@ it("only-new post/comment attachment coverage waits for complete tails and stays
 
 it("Watcher only-new post ranges cover a User attachment only after its final page", () => {
   const swarm = seedSwarm(db);
-  const original = "漢🙂".repeat(2000) + "FRESH TAIL";
+  const original = "漢🙂".repeat(6000) + "FRESH TAIL";
   const post = createPost(db, swarm.id, "User", { title: "Fresh source", text: original }, T0);
   const tools = watcher(swarm.id);
   let result = tools.readPosts({ only_new: true });

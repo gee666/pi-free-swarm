@@ -20,6 +20,39 @@ export interface ReadItem {
 }
 const PAGE_BYTES = 24_000;
 const TEXT_CHUNK = 3_000;
+const JSON_MAX_EXPANSION = 6;
+const MIN_FILL_BYTES = 512;
+
+/** Fill one output item without overreading ranges that would have to be fetched again next turn. */
+function rangedText(item: ReadItem, offset: number, budget: number): ReadChunk | null {
+  if (!item.readChunk) return null;
+  const parts: string[] = [];
+  let remaining = budget;
+  let current = offset;
+  let next: number | null = offset;
+  while (remaining >= MIN_FILL_BYTES || parts.length === 0) {
+    const part = item.readChunk(current, Math.max(4, Math.floor(remaining / JSON_MAX_EXPANSION)));
+    if (part === null) {
+      if (parts.length === 0) return null;
+      throw new BrokerError(
+        "not_found",
+        "Generated attachment changed during this read; omit after to replay.",
+        "after",
+      );
+    }
+    const cost = Buffer.byteLength(JSON.stringify(part.text)) - 2;
+    if (cost > remaining)
+      throw new BrokerError("validation", "Generated attachment exceeded this read budget.", "after");
+    parts.push(part.text);
+    remaining -= cost;
+    next = part.nextOffset;
+    if (next === null) break;
+    if (next <= current || part.text.length === 0)
+      throw new BrokerError("validation", "Generated attachment range did not advance; omit after to replay.", "after");
+    current = next;
+  }
+  return { text: parts.join(""), nextOffset: next };
+}
 
 export function readPosition(after: string | undefined, scope: string, snapshot: number): ReadPosition {
   if (after === undefined) return { scope, snapshot, id: 0, offset: 0 };
@@ -65,14 +98,20 @@ export function renderReadPage(header: string, items: ReadItem[], position: Read
       next = { ...position, id: item.id, offset };
       break;
     }
-    const chunk = item.readChunk?.(offset, TEXT_CHUNK);
+    const label = item.label.replaceAll("\n", "\\n");
+    const prefix = `${label}${offset > 0 ? ` · text offset ${offset}` : ""}: `;
+    const sourceBudget = PAGE_BYTES - bytes - Buffer.byteLength(prefix) - 2;
+    if (item.readChunk && sourceBudget < JSON_MAX_EXPANSION * 4) {
+      next = { ...position, id: item.id, offset };
+      break;
+    }
+    const chunk = rangedText(item, offset, sourceBudget);
     const text = chunk?.text ?? item.text;
     const start = chunk ? 0 : offset;
     let end = chunk ? text.length : Math.min(text.length, offset + TEXT_CHUNK);
     const last = text.charCodeAt(end - 1);
     if (!chunk && end < text.length && last >= 0xd800 && last <= 0xdbff) end--;
-    const label = item.label.replaceAll("\n", "\\n");
-    const line = `${label}${offset > 0 ? ` · text offset ${offset}` : ""}: ${JSON.stringify(text.slice(start, end))}`;
+    const line = `${prefix}${JSON.stringify(text.slice(start, end))}`;
     if (bytes + Buffer.byteLength(line) > PAGE_BYTES) {
       next = { ...position, id: item.id, offset };
       break;
