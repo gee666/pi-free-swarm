@@ -1,8 +1,8 @@
-import { WATCHER_NAME } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
 import { int, text } from "../store/rows.js";
 import { BrokerError } from "./errors.js";
-import { actAs, requireParticipant, requireSwarm } from "./validate.js";
+import { actAs, requireSwarm } from "./validate.js";
+import { requireIdleWorker } from "./worker-eligibility.js";
 
 export const REMINDER_SNOOZE_MS = 5 * 60 * 1000;
 
@@ -14,15 +14,12 @@ export function snoozeReminders(db: SwarmDb, swarmId: number, name: string, now:
   }
   return db.write(() => {
     requireSwarm(db, swarmId);
-    const participant = requireParticipant(db, swarmId, name);
-    if (participant.kind !== "agent" || participant.name === WATCHER_NAME) {
-      throw new BrokerError("validation", "Only worker agents may snooze their idle reminders.");
-    }
+    const workerName = requireIdleWorker(db, swarmId, name);
     const swarm = db.sql.prepare("SELECT status FROM swarms WHERE id = ?").get(swarmId);
     if (!swarm || !["starting", "running"].includes(text(swarm, "status"))) {
       throw new BrokerError("validation", "Idle reminders can only be snoozed while the swarm is running.");
     }
-    const worker = actAs(db, swarmId, participant.name, now);
+    const worker = actAs(db, swarmId, workerName, now);
     db.sql
       .prepare(
         `INSERT INTO reminder_snoozes (swarm_id, name, until_at) VALUES (?, ?, ?)

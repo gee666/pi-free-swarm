@@ -3,6 +3,7 @@ import { afterEach, it } from "node:test";
 import type { ParticipantStatus } from "../../src/api-types.js";
 import type { DeliveryOutcome, PromptPayload } from "../../src/agents/supervisor.js";
 import { mutateAcceptance } from "../../src/broker/acceptance.js";
+import { setAgentStatus } from "../../src/broker/agent-state.js";
 import { IdleReminders } from "../../src/broker/idle-reminder.js";
 import { REMINDER_SNOOZE_MS, snoozeReminders } from "../../src/broker/reminder-snooze.js";
 import { createPost } from "../../src/broker/wall.js";
@@ -23,6 +24,7 @@ function setup(delay = 100) {
   const { db } = temp;
   const swarm = seedSwarm(db, { agents: ["Maria", "John"] });
   const clock = new FakeClock(T0 + 1);
+  setAgentStatus(db, swarm.id, "Maria", "idle", clock.now());
   const prompts: { name: string; text: string }[] = [];
   const agents = new Map(
     ["Maria", "John"].map((name) => [

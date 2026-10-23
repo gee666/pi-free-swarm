@@ -3,6 +3,7 @@
 import type {
   ExtensionAPI,
   ExtensionContext,
+  AgentSettledEvent,
   SessionShutdownEvent,
   SessionStartEvent,
 } from "@earendil-works/pi-coding-agent";
@@ -21,4 +22,5 @@ export interface SwarmExtensionApi extends Pick<
   ): void;
   on(event: "session_start", handler: (event: SessionStartEvent, ctx: SessionContext) => void): unknown;
   on(event: "session_shutdown", handler: (event: SessionShutdownEvent) => void | Promise<void>): unknown;
+  on(event: "agent_settled", handler: (event: AgentSettledEvent) => void): unknown;
 }

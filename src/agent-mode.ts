@@ -8,7 +8,8 @@ import { startParentWatch } from "./agents/parent-watch.js";
 import { bodyLimitIn } from "./broker/body-limit.js";
 import { openSwarmDb, type SwarmDb } from "./store/db.js";
 import { registerWatcherTools } from "./tools/watcher-tools.js";
-import { registerAgentTools } from "./tools/agent-tools.js";
+import { IDLE_ONLY_TOOLS, registerAgentTools } from "./tools/agent-tools.js";
+import { workerHasIdled } from "./broker/worker-eligibility.js";
 
 export interface AgentEnv {
   dbPath: string;
@@ -54,7 +55,7 @@ export function registerAgentMode(pi: SwarmExtensionApi, env: NodeJS.ProcessEnv)
     return;
   }
   const identity = parsed.value;
-  // Opened on the first tool call; the runner created the DB before spawning us.
+  // Opened for persisted tool eligibility or the first tool call; the runner creates the DB.
   let db: SwarmDb | null = null;
   let watch: TimerHandle | null = null;
   registerAgentTools(
@@ -74,6 +75,16 @@ export function registerAgentMode(pi: SwarmExtensionApi, env: NodeJS.ProcessEnv)
       run: identity.run,
       agentName: identity.agentName,
     });
+  let idleToolsAvailable: boolean | undefined;
+  const setIdleTools = (available: boolean) => {
+    if (idleToolsAvailable === available) return;
+    const active = pi.getActiveTools().filter((name) => !IDLE_ONLY_TOOLS.includes(name));
+    pi.setActiveTools(available ? [...active, ...IDLE_ONLY_TOOLS] : active);
+    idleToolsAvailable = available;
+  };
+  pi.on("agent_settled", () => {
+    if (identity.agentName !== WATCHER_NAME) setIdleTools(true);
+  });
   pi.on("session_start", (_event, ctx) => {
     watch?.cancel();
     watch = startParentWatch({
@@ -81,6 +92,15 @@ export function registerAgentMode(pi: SwarmExtensionApi, env: NodeJS.ProcessEnv)
       abort: () => ctx.abort(),
       shutdown: () => ctx.shutdown(),
     });
+    let available = false;
+    try {
+      if (identity.agentName !== WATCHER_NAME) {
+        db ??= openSwarmDb(identity.dbPath, { create: false });
+        available = workerHasIdled(db, identity.swarmId, identity.agentName);
+      }
+    } finally {
+      setIdleTools(available);
+    }
   });
   pi.on("session_shutdown", () => {
     watch?.cancel();

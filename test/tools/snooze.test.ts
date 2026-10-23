@@ -4,6 +4,7 @@ import { Value } from "typebox/value";
 import { AGENT_TOOL, WATCHER_NAME } from "../../src/constants.js";
 import { reminderSnoozedUntil, REMINDER_SNOOZE_MS } from "../../src/broker/reminder-snooze.js";
 import { sendMessage } from "../../src/broker/messages.js";
+import { setAgentStatus } from "../../src/broker/agent-state.js";
 import { listOpenAgentRecipients } from "../../src/store/message-queries.js";
 import { createAgentToolHandlers, registerAgentTools } from "../../src/tools/agent-tools.js";
 import { FakeExtensionApi } from "../helpers/fake-extension-api.js";
@@ -41,6 +42,7 @@ test("snooze handler reports exactly five minutes for its own agent without cons
   const tools = createAgentToolHandlers({ getDb: () => db, swarmId: swarm.id, run: 1, agentName: "Maria", clock });
   const message = sendMessage(db, swarm.id, "John", ["Maria"], "real pending work", now);
   const pending = listOpenAgentRecipients(db, swarm.id);
+  setAgentStatus(db, swarm.id, "Maria", "idle", now);
   const text = tools.snooze();
   assert.match(text, /Idle reminders snoozed for 5 minutes/);
   assert.ok(text.includes(new Date(now + REMINDER_SNOOZE_MS).toISOString()));

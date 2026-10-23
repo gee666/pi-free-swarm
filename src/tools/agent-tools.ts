@@ -4,12 +4,15 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { systemClock, type Clock } from "../clock.js";
 import { AGENT_TOOL, PAGE_DEFAULT_COUNT, PAGE_MAX_COUNT, WATCHER_NAME } from "../constants.js";
+export { IDLE_ONLY_TOOLS } from "../constants.js";
 import { TITLE_MAX } from "../limits.js";
 import { replyToThread, sendMessage } from "../broker/messages.js";
 import { addComment, createPost } from "../broker/wall.js";
 import { setPostSubscription } from "../broker/subscriptions.js";
 import { snoozeReminders } from "../broker/reminder-snooze.js";
+import { requestRetirement } from "../broker/retirement.js";
 import type { SwarmDb } from "../store/db.js";
+import { hasReplacementPostBaseline } from "../store/replacement-baseline.js";
 import { formatSent } from "./agent-tool-format.js";
 import { acceptanceToolDescription, acceptanceToolParameters, executeAcceptanceTool } from "./acceptance-tool.js";
 import { readWallTool } from "./wall-read.js";
@@ -17,6 +20,7 @@ import { readThreadTool } from "./thread-read.js";
 import { readPostTool } from "./post-read.js";
 import { readFreshPostsTool } from "./fresh-post-read.js";
 import { agentToolResult as textResult } from "./agent-tool-result.js";
+import { createRetirementTool, retirementToolParameters } from "./retirement-tool.js";
 
 export interface AgentToolIdentity {
   getDb(): SwarmDb;
@@ -34,7 +38,7 @@ const READ_POSTS = Type.Object({
   only_new: Type.Optional(
     Type.Boolean({
       description:
-        "Persistent only-new full posts, oldest first. Default false replays history. With only_new, after is its own continuation cursor and offset is ignored.",
+        "Persistent only-new full posts, oldest first. Fresh replacements default to only-new from their last-10 baseline; other workers default to history. Set false for explicit history. With only_new, after is its own continuation cursor and offset is ignored.",
     }),
   ),
   count: Type.Optional(
@@ -102,9 +106,11 @@ export function createAgentToolHandlers(identity: AgentToolIdentity) {
   const clock = identity.clock ?? systemClock;
   return {
     readPosts(params: Static<typeof READ_POSTS>): string {
-      return params.only_new
-        ? readFreshPostsTool(identity.getDb(), swarmId, agentName, params)
-        : readWallTool(identity.getDb(), swarmId, agentName, params, clock.now());
+      const db = identity.getDb();
+      const onlyNew = params.only_new ?? hasReplacementPostBaseline(db, swarmId, agentName);
+      return onlyNew
+        ? readFreshPostsTool(db, swarmId, agentName, params)
+        : readWallTool(db, swarmId, agentName, params, clock.now());
     },
     readPost(params: Static<typeof READ_POST>): string {
       return readPostTool(identity.getDb(), swarmId, agentName, params, clock.now());
@@ -131,6 +137,10 @@ export function createAgentToolHandlers(identity: AgentToolIdentity) {
     },
     readThread(params: Static<typeof READ_THREAD>): string {
       return readThreadTool(identity.getDb(), swarmId, agentName, params, clock.now());
+    },
+    retire(params: Static<typeof retirementToolParameters>): string {
+      const result = requestRetirement(identity.getDb(), swarmId, agentName, identity.run, params.handoff, clock.now());
+      return `Replacement request #${result.requestId} queued. Handoff saved to ${result.handoffPath}. Do not start more work or repeat this request.`;
     },
     snooze(): string {
       const until = snoozeReminders(identity.getDb(), swarmId, agentName, clock.now());
@@ -250,13 +260,14 @@ export function registerAgentTools(
     name: AGENT_TOOL.snooze,
     label: "Snooze reminders",
     description:
-      "Pause new idle reminders for exactly 5 minutes when no useful work is available. If the swarm is still unfinished, reminders resume afterward. Already queued reminders may still arrive. Direct messages and subscribed comments still arrive; this does not pause the run, budgets or quorum. No arguments.",
+      "Available only after your first idle turn. Pause new idle reminders for exactly 5 minutes when no useful work is available. If the swarm is still unfinished, reminders resume afterward. Already queued reminders may still arrive. Direct messages and subscribed comments still arrive; this does not pause the run, budgets or quorum. No arguments.",
     promptSnippet: "Snooze your idle reminders for 5 minutes; messages still arrive.",
     parameters: Type.Object({}, { additionalProperties: false }),
     async execute() {
       return textResult(run.snooze());
     },
   });
+  pi.registerTool(createRetirementTool(run.retire));
   pi.registerTool({
     name: AGENT_TOOL.acceptance,
     label: "Acceptance",

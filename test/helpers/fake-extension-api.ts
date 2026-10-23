@@ -1,5 +1,10 @@
 // Records extension registration and session behavior without a live pi process.
-import type { SessionShutdownEvent, SessionStartEvent, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type {
+  AgentSettledEvent,
+  SessionShutdownEvent,
+  SessionStartEvent,
+  ToolDefinition,
+} from "@earendil-works/pi-coding-agent";
 import type { TSchema } from "typebox";
 import type { SessionContext, SwarmExtensionApi } from "../../src/extension-api.js";
 
@@ -12,6 +17,7 @@ export interface RecordedTool {
 
 type StartHandler = (event: SessionStartEvent, ctx: SessionContext) => void;
 type ShutdownHandler = (event: SessionShutdownEvent) => void | Promise<void>;
+type SettledHandler = (event: AgentSettledEvent) => void;
 
 export class FakeExtensionApi implements SwarmExtensionApi {
   readonly tools: RecordedTool[] = [];
@@ -27,6 +33,7 @@ export class FakeExtensionApi implements SwarmExtensionApi {
   shutdowns = 0;
   private startHandlers: StartHandler[] = [];
   private shutdownHandlers: ShutdownHandler[] = [];
+  private settledHandlers: SettledHandler[] = [];
 
   registerTool<TParams extends TSchema, TDetails, TState>(tool: ToolDefinition<TParams, TDetails, TState>): void {
     this.activeTools.add(tool.name);
@@ -69,9 +76,14 @@ export class FakeExtensionApi implements SwarmExtensionApi {
 
   on(event: "session_start", handler: StartHandler): unknown;
   on(event: "session_shutdown", handler: ShutdownHandler): unknown;
-  on(...[event, handler]: ["session_start", StartHandler] | ["session_shutdown", ShutdownHandler]): unknown {
+  on(event: "agent_settled", handler: SettledHandler): unknown;
+  on(
+    ...[event, handler]:
+      ["session_start", StartHandler] | ["session_shutdown", ShutdownHandler] | ["agent_settled", SettledHandler]
+  ): unknown {
     if (event === "session_start") this.startHandlers.push(handler);
-    else this.shutdownHandlers.push(handler);
+    else if (event === "session_shutdown") this.shutdownHandlers.push(handler);
+    else this.settledHandlers.push(handler);
     return undefined;
   }
 
@@ -104,6 +116,10 @@ export class FakeExtensionApi implements SwarmExtensionApi {
   startSession(cwd: string = process.cwd()): void {
     const ctx = this.context(cwd);
     for (const handler of [...this.startHandlers]) handler({ type: "session_start", reason: "startup" }, ctx);
+  }
+
+  settleAgent(): void {
+    for (const handler of this.settledHandlers) handler({ type: "agent_settled" });
   }
 
   async shutdownSession(): Promise<void> {

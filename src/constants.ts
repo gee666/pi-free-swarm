@@ -116,8 +116,11 @@ export const AGENT_TOOL = {
   replyTo: "swarm_reply_to",
   readThread: "swarm_read_thread",
   snooze: "swarm_snooze",
+  retire: "swarm_retire",
   acceptance: "swarm_acceptance",
 } as const;
+
+export const IDLE_ONLY_TOOLS: readonly string[] = [AGENT_TOOL.snooze, AGENT_TOOL.retire];
 
 export const WATCHER_TOOL = {
   overview: "swarm_overview",
@@ -125,7 +128,7 @@ export const WATCHER_TOOL = {
   threads: "swarm_read_threads",
 } as const;
 export const WATCHER_TOOLS = [
-  ...Object.values(AGENT_TOOL).filter((name) => name !== AGENT_TOOL.acceptance && name !== AGENT_TOOL.snooze),
+  ...Object.values(AGENT_TOOL).filter((name) => name !== AGENT_TOOL.acceptance && !IDLE_ONLY_TOOLS.includes(name)),
   ...Object.values(WATCHER_TOOL),
 ];
 
