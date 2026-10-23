@@ -127,7 +127,7 @@ test("handoff write failure never queues a retirement request", () => {
 
 test("retirement reports the actual handoff path when the agent uses a custom database location", () => {
   const isolated = createTempDb();
-  const custom = openSwarmDb(path.join(isolated.cwd, "custom-data", "runtime.sqlite"), { create: true });
+  const custom = openSwarmDb(path.join(isolated.cwd, "custom data", "runtime.sqlite"), { create: true });
   try {
     const swarm = fixture(custom);
     const now = T0 + 1000;
@@ -144,7 +144,7 @@ test("retirement reports the actual handoff path when the agent uses a custom da
     assert.equal(request.change.type, "retireAgent");
     if (request.change.type !== "retireAgent") throw new Error("Expected retirement request");
     const absolute = path.join(custom.dataDir, request.change.handoffFile);
-    assert.ok(result.includes(absolute));
+    assert.ok(result.includes(`\`${absolute}\``));
     assert.equal(readFileSync(absolute, "utf8"), "Saved outside the default data directory.");
   } finally {
     custom.close();

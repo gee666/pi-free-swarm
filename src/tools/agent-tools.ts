@@ -141,7 +141,7 @@ export function createAgentToolHandlers(identity: AgentToolIdentity) {
     },
     retire(params: Static<typeof retirementToolParameters>): string {
       const result = requestRetirement(identity.getDb(), swarmId, agentName, identity.run, params.handoff, clock.now());
-      return `Replacement request #${result.requestId} queued. Handoff saved to ${result.handoffPath}. Do not start more work or repeat this request.`;
+      return `Replacement request #${result.requestId} queued. Handoff saved to \`${result.handoffPath}\`. Do not start more work or repeat this request.`;
     },
     snooze(): string {
       const until = snoozeReminders(identity.getDb(), swarmId, agentName, clock.now());
