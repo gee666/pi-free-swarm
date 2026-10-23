@@ -1,16 +1,17 @@
-/** A deliberately small Markdown subset for assistant text in the Work tab. */
+/** A deliberately small Markdown subset for assistant text and file previews. */
+import { localFileHref } from "./filePaths";
 
 export type Inline =
   | { type: "text"; text: string }
   | { type: "code"; text: string }
   | { type: "strong"; children: Inline[] }
   | { type: "em"; children: Inline[] }
-  | { type: "link"; href: string; children: Inline[] };
+  | { type: "link"; href: string; children: Inline[]; local?: true };
 
 export type Block =
   | { type: "paragraph"; text: string }
   | { type: "heading"; level: number; text: string }
-  | { type: "code"; text: string }
+  | { type: "code"; text: string; language?: string }
   | { type: "list"; ordered: boolean; items: string[] }
   | { type: "rule" };
 
@@ -36,7 +37,8 @@ export function parseMarkdown(source: string): Block[] {
       i += 1;
       while (i < lines.length && !lines[i].trimStart().startsWith(fence[1])) body.push(lines[i++]);
       i += 1;
-      blocks.push({ type: "code", text: body.join("\n") });
+      const language = line.slice(fence[0].length).trim().split(/\s+/, 1)[0];
+      blocks.push({ type: "code", text: body.join("\n"), ...(language ? { language } : {}) });
     } else if (line.trim() === "") {
       i += 1;
     } else if (heading) {
@@ -68,7 +70,7 @@ export function parseMarkdown(source: string): Block[] {
 }
 
 const INLINE =
-  /(`+)([^`]|[^`][\s\S]*?[^`])\1(?!`)|\*\*(.+?)\*\*|__(.+?)__|\*([^*\s](?:[^*]*[^*\s])?)\*|(?<!\w)_([^_\s](?:[^_]*[^_\s])?)_(?!\w)|\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<>()]*[^\s<>().,;:!?'"])/g;
+  /(?<!`)(`+)(?!`)([^`]|[^`][\s\S]*?[^`])\1(?!`)|\*\*(.+?)\*\*|__(.+?)__|\*([^*\s](?:[^*]*[^*\s])?)\*|(?<!\w)_([^_\s](?:[^_]*[^_\s])?)_(?!\w)|\[([^\[\]\r\n]+)\]\(([^\)\[\]\s]+)\)|(https?:\/\/[^\s<>()]*[^\s<>().,;:!?'"])/g;
 
 const SAFE_HREF = /^(?:https?:|mailto:)/i;
 
@@ -80,14 +82,20 @@ export function parseInline(text: string): Inline[] {
   };
   for (const match of text.matchAll(INLINE)) {
     const [whole, , code, strong, strong2, em, em2, linkText, href, url] = match;
+    const localHref = href === undefined ? undefined : localFileHref(href);
     pushText(text.slice(last, match.index));
     last = match.index + whole.length;
     if (code !== undefined) nodes.push({ type: "code", text: code.trim() || code });
     else if (strong !== undefined || strong2 !== undefined)
       nodes.push({ type: "strong", children: parseInline(strong ?? strong2) });
     else if (em !== undefined || em2 !== undefined) nodes.push({ type: "em", children: parseInline(em ?? em2) });
-    else if (linkText !== undefined && SAFE_HREF.test(href))
-      nodes.push({ type: "link", href, children: parseInline(linkText) });
+    else if (linkText !== undefined && (SAFE_HREF.test(href) || localHref !== undefined))
+      nodes.push({
+        type: "link",
+        href: localHref ?? href,
+        children: parseInline(linkText),
+        ...(localHref !== undefined ? { local: true } : {}),
+      });
     else if (linkText !== undefined) nodes.push(...parseInline(linkText));
     else if (url !== undefined) nodes.push({ type: "link", href: url, children: [{ type: "text", text: url }] });
   }

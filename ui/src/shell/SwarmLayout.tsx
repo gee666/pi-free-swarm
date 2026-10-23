@@ -5,13 +5,16 @@ import { useSwarmList } from "../api/SwarmList";
 import { AppShell } from "./AppShell";
 import { TabRail } from "./TabRail";
 import { TopBar } from "./TopBar";
+import { FilePreviewProvider } from "../components/FilePreview";
 
 /** Keep the global selector live while activity remains on its separate swarm-filtered stream. */
 export function SwarmLayout() {
   const { id = "" } = useParams();
   return (
     <SwarmStreamProvider key={id} swarmId={id}>
-      <SwarmFrame swarmId={id} />
+      <FilePreviewProvider swarmId={id}>
+        <SwarmFrame swarmId={id} />
+      </FilePreviewProvider>
     </SwarmStreamProvider>
   );
 }

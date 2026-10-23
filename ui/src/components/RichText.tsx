@@ -1,18 +1,26 @@
 import { cx } from "../lib/cx";
-import { splitFilePaths } from "../lib/filePaths";
+import { isFileReference, splitFilePaths } from "../lib/filePaths";
+import { FileLink } from "./file-preview/FileLink";
 import styles from "./RichText.module.css";
 
 /** Mono chip used for file paths and inline code. */
-export function InlineCode({ children }: { children: string }) {
-  return <code className={styles.code}>{children}</code>;
+export function InlineCode({ children, interactive = true }: { children: string; interactive?: boolean }) {
+  const code = <code className={styles.code}>{children}</code>;
+  return interactive && isFileReference(children) ? <FileLink reference={children}>{code}</FileLink> : code;
 }
 
 /** Text with detected file paths rendered as InlineCode; the caller controls whitespace. */
-export function PathText({ text }: { text: string }) {
+export function PathText({ text, interactive = true }: { text: string; interactive?: boolean }) {
   return (
     <>
       {splitFilePaths(text).map((segment, index) =>
-        segment.kind === "path" ? <InlineCode key={index}>{segment.text}</InlineCode> : segment.text,
+        segment.kind === "path" ? (
+          <InlineCode key={index} interactive={interactive}>
+            {segment.text}
+          </InlineCode>
+        ) : (
+          segment.text
+        ),
       )}
     </>
   );
