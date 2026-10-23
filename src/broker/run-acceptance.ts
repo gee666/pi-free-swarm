@@ -30,7 +30,7 @@ export function prepareRunCompletion(db: SwarmDb, input: RunIdentity): Completio
     const acceptance = getAcceptance(db, input.swarmId);
     if (acceptance.verdict !== "accepted" && acceptance.verdict !== "blocked") return { kind: "pending" };
     sealAcceptance(db, input.swarmId, input.run, acceptance.revision);
-    return { kind: "closed", acceptance };
+    return { kind: "closed", acceptance: getAcceptance(db, input.swarmId, { includeExcludedVotes: true }) };
   });
 }
 
@@ -38,7 +38,7 @@ export function prepareRunCompletion(db: SwarmDb, input: RunIdentity): Completio
 export function closeRunAdmission(db: SwarmDb, input: RunIdentity): AcceptanceRecord | null {
   return db.write(() => {
     if (!ownsRun(db, input)) return null;
-    const acceptance = getAcceptance(db, input.swarmId);
+    const acceptance = getAcceptance(db, input.swarmId, { includeExcludedVotes: true });
     sealAcceptance(db, input.swarmId, input.run, acceptance.revision);
     return acceptance;
   });

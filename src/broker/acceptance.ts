@@ -1,6 +1,6 @@
-import { SYSTEM_NAME, WATCHER_NAME } from "../constants.js";
+import { SYSTEM_NAME, USER_NAME, WATCHER_NAME } from "../constants.js";
 import type { AcceptanceRecord, AcceptanceVoteVerdict } from "../store/acceptance-types.js";
-import { getAcceptance, saveAcceptance } from "../store/acceptance-queries.js";
+import { getAcceptance, saveAcceptance, type AcceptanceReadOptions } from "../store/acceptance-queries.js";
 import type { SwarmDb } from "../store/db.js";
 import { int } from "../store/rows.js";
 import { insertEvent } from "../store/events.js";
@@ -14,9 +14,9 @@ export interface AcceptanceMutation {
   reason: string;
 }
 
-export function inspectAcceptance(db: SwarmDb, swarmId: number): AcceptanceRecord {
+export function inspectAcceptance(db: SwarmDb, swarmId: number, options: AcceptanceReadOptions = {}): AcceptanceRecord {
   requireSwarm(db, swarmId);
-  return getAcceptance(db, swarmId);
+  return getAcceptance(db, swarmId, options);
 }
 
 /** Call under db.write, including when composing this guard into the runner's close transaction. */
@@ -63,6 +63,11 @@ export function mutateAcceptance(
     const participant = requireParticipant(db, swarmId, actor);
     if (participant.kind !== "agent" || participant.name.toLowerCase() === WATCHER_NAME.toLowerCase())
       throw new BrokerError("validation", "Acceptance votes require a worker agent.");
+    const worker = db.sql
+      .prepare("SELECT retired_at FROM participants WHERE swarm_id = ? AND name = ?")
+      .get(swarmId, participant.name);
+    if (!worker || worker.retired_at !== null)
+      throw new BrokerError("validation", "Removed workers cannot vote on the active roster.");
     const record = getAcceptance(db, swarmId);
     if (mutation.revision !== undefined) requireAcceptanceRevision(record, mutation.revision);
     if (mutation.action !== "vote")
@@ -83,6 +88,21 @@ export function mutateAcceptance(
       )
       .run(swarmId, participant.name, run, mutation.verdict, mutation.reason.trim(), now);
     recordChange(db, record, participant.name, now);
+    return getAcceptance(db, swarmId);
+  });
+}
+
+/** Join the roster mutation transaction so counts, revision and outbox commit together. */
+export function recordRosterAcceptanceChange(
+  db: SwarmDb,
+  swarmId: number,
+  now: number,
+  actor = USER_NAME,
+): AcceptanceRecord {
+  return db.write(() => {
+    acceptanceRun(db, swarmId);
+    const record = getAcceptance(db, swarmId);
+    recordChange(db, record, actor, now);
     return getAcceptance(db, swarmId);
   });
 }
@@ -116,6 +136,7 @@ export function invalidateAgentVote(
       .prepare(
         `SELECT 1 FROM acceptance_votes v JOIN acceptance a ON a.swarm_id = v.swarm_id
         JOIN swarms s ON s.id = v.swarm_id
+        JOIN participants p ON p.swarm_id = v.swarm_id AND p.name = v.agent AND p.retired_at IS NULL
         WHERE v.swarm_id = ? AND v.agent = ? AND v.run = ? AND s.run_count = ?
         AND (a.closed_run IS NULL OR a.closed_run != ?)`,
       )
@@ -131,11 +152,16 @@ export function invalidateAgentVote(
   });
 }
 
-/** Resume clears judgments from the previous run; reopening admission belongs to the runner. */
+/** Resume clears active judgments; retired workers' historical votes remain stored. */
 export function resetAcceptanceVotes(db: SwarmDb, swarmId: number, now: number): AcceptanceRecord {
   return db.write(() => {
     const record = inspectAcceptance(db, swarmId);
-    db.sql.prepare("DELETE FROM acceptance_votes WHERE swarm_id = ?").run(swarmId);
+    db.sql
+      .prepare(
+        `DELETE FROM acceptance_votes WHERE swarm_id = ? AND agent IN
+      (SELECT name FROM participants WHERE swarm_id = ? AND retired_at IS NULL)`,
+      )
+      .run(swarmId, swarmId);
     recordChange(db, record, SYSTEM_NAME, now);
     return getAcceptance(db, swarmId);
   });

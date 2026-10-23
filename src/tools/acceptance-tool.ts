@@ -32,7 +32,7 @@ export const acceptanceToolParameters = Type.Object({
 export const acceptanceToolDescription =
   "Inspect acceptance votes or submit your own accepted, incomplete or blocked vote with a free-form reason. " +
   "Your latest vote replaces your previous vote. Judge the whole original task, not just your own work. " +
-  "Accepted or blocked requires matching votes from at least ceil(registered worker agents * 0.70); Watcher does not vote. Incomplete is not terminal. " +
+  "Accepted or blocked requires matching votes from at least ceil(workers in the current roster * 0.70); retired workers and Watcher are excluded. Incomplete is not terminal. " +
   "Inspect returns the original task, acceptance criteria, individual votes, counts and threshold. " +
   "Reasons need no structured evidence or criterion-by-criterion assessment.";
 

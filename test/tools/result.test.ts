@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, describe, it } from "node:test";
 import { readBudget } from "../../src/store/budget.js";
-import { inspectAcceptance, mutateAcceptance } from "../../src/broker/acceptance.js";
+import { inspectAcceptance, mutateAcceptance, recordRosterAcceptanceChange } from "../../src/broker/acceptance.js";
 import { sendMessage } from "../../src/broker/messages.js";
 import { readRunProgress } from "../../src/broker/run-progress.js";
 import { createSwarm, endRun } from "../../src/broker/swarms.js";
@@ -37,7 +37,7 @@ function vote(swarmId: number, agent: string, verdict: "accepted" | "incomplete"
 function outcomeOf(swarmId: number, end: "finished" | "stopped" | "interrupted") {
   const swarm = getSwarm(db, swarmId, END);
   assert.ok(swarm);
-  return { swarm, run: 1, end, acceptance: inspectAcceptance(db, swarmId) };
+  return { swarm, run: 1, end, acceptance: inspectAcceptance(db, swarmId, { includeExcludedVotes: true }) };
 }
 
 describe("buildRunResultText", () => {
@@ -80,6 +80,25 @@ describe("buildRunResultText", () => {
     const updated = buildRunResultText(db, outcomeOf(swarm.id, "finished"), BOARD, T0);
     assert.match(updated, /Task verdict: incomplete \(acceptance revision 6\)/);
     assert.match(updated, /John \(run 1\): incomplete\. Reason: Output changed; recheck requirements\./);
+  });
+
+  it("retains retired vote reasons as excluded history without adding them to the current tally", () => {
+    const swarm = fixture("retired-history");
+    for (const agent of AGENTS.slice(0, 4)) vote(swarm.id, agent, "accepted", `${agent} original evidence.`);
+    vote(swarm.id, "Emma", "blocked", "Active dissent remains.");
+    db.write(() => {
+      db.sql
+        .prepare("UPDATE participants SET retired_at = ? WHERE swarm_id = ? AND name = 'Maria'")
+        .run(T0 + 1, swarm.id);
+      db.sql.prepare("UPDATE swarms SET agent_amount = 4 WHERE id = ?").run(swarm.id);
+      recordRosterAcceptanceChange(db, swarm.id, T0 + 1);
+    });
+    const text = buildRunResultText(db, outcomeOf(swarm.id, "finished"), BOARD, T0 + 1);
+    assert.match(text, /Tally: 3 accepted, 0 incomplete, 1 blocked; 4\/4 agents voted\. Threshold: 3\/4/);
+    const [current, archived] = text.split("Excluded retired-agent votes (not counted):");
+    assert.doesNotMatch(current, /Maria original evidence/);
+    assert.ok(archived?.includes("- Maria (run 1): accepted. Reason: Maria original evidence."));
+    assert.match(current, /Emma.*Active dissent remains/);
   });
 
   it("returns one status document with goal, criteria, tally, messages and review steps, without wall bodies", () => {

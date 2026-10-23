@@ -4,6 +4,7 @@ import type { RunEndStatus } from "../broker/swarms.js";
 import { readRunProgress, type RunProgress } from "../broker/run-progress.js";
 import type { RunOutcome } from "../broker/swarm-run.js";
 import type { SwarmDb } from "../store/db.js";
+import type { AcceptanceVote } from "../store/acceptance-types.js";
 import { listInboxAfter, unreadCounts } from "../store/message-queries.js";
 import { listParticipants } from "../store/swarm-queries.js";
 import { formatCost, formatElapsed, formatTokens, plural, swarmBoardUrl } from "./run-format.js";
@@ -73,13 +74,18 @@ export function buildRunResultText(db: SwarmDb, outcome: RunOutcome, boardUrl: s
     "Agent votes and reasons:",
   );
   if (votes.length === 0) lines.push("No votes recorded.");
-  for (const vote of votes) {
-    lines.push(`- ${vote.agent} (run ${vote.run}): ${vote.verdict}. Reason: ${vote.reason}`);
+  for (const vote of votes) lines.push(voteLine(vote));
+  if (acceptance.excludedVotes?.length) {
+    lines.push("", "Excluded retired-agent votes (not counted):", ...acceptance.excludedVotes.map(voteLine));
   }
   if (crashed.length > 0) lines.push(`Crashed and not revived: ${crashed.join(", ")}.`);
   lines.push("", url === null ? "Board: not running." : `Board: ${url}`);
   lines.push(userMessagesLine(db, swarm.id), "", ...nextSteps(swarm.id, end));
   return lines.join("\n");
+}
+
+function voteLine(vote: AcceptanceVote): string {
+  return `- ${vote.agent} (run ${vote.run}): ${vote.verdict}. Reason: ${vote.reason}`;
 }
 
 function userMessagesLine(db: SwarmDb, swarmId: number): string {
