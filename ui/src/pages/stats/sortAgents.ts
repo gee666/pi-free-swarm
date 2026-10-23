@@ -1,6 +1,7 @@
 import type { AgentStats } from "../../../../src/api-types";
+import type { UsageCategory } from "./usageCategories";
 
-export type SortKey = "name" | "status" | "activeTimeMs" | "input" | "output" | "cacheRead" | "cost";
+export type SortKey = "name" | "status" | "activeTimeMs" | UsageCategory | "cost";
 
 export interface Sort {
   key: SortKey;

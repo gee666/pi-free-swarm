@@ -1,8 +1,19 @@
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const usageUsd = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 6,
+});
 
 /** "$1.23" */
 export function formatCost(dollars: number): string {
   return usd.format(dollars);
+}
+
+/** Keep small recorded charges distinguishable from a genuine zero. */
+export function formatUsageCost(dollars: number): string {
+  return dollars > 0 && dollars < 0.000001 ? "<$0.000001" : usageUsd.format(dollars);
 }
 
 const pad2 = (value: number) => String(value).padStart(2, "0");

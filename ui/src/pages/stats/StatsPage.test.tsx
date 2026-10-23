@@ -2,28 +2,12 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentStats, StatsResponse, SwarmEvent } from "../../../../src/api-types";
+import type { StatsResponse, SwarmEvent } from "../../../../src/api-types";
 import { SwarmStreamProvider } from "../../api/SwarmStream";
 import { installFakeApi, type FakeApi } from "../../test/fakeApi";
 import { installFakeEventSource, type FakeEventSource } from "../../test/fakeEventSource";
 import { STATS_REFRESH_MS, STATS_CLOCK_MS, StatsPage } from "./StatsPage";
-
-const agentStats = (name: string, patch: Partial<AgentStats>): AgentStats => ({
-  name,
-  status: "working",
-  activeTimeMs: 0,
-  reviveCount: 0,
-  posts: 0,
-  comments: 0,
-  messagesSent: 0,
-  input: 0,
-  output: 0,
-  cacheRead: 0,
-  cacheWrite: 0,
-  cost: 0,
-  turns: 0,
-  ...patch,
-});
+import { agentStats, statsTotals } from "../../test/statsFixture";
 
 const stats: StatsResponse = {
   swarmId: 3,
@@ -33,20 +17,7 @@ const stats: StatsResponse = {
     agentStats("Ava", { cost: 0.4, input: 412_000, output: 3_000, status: "idle", activeTimeMs: 750_000 }),
     agentStats("Zoe", { cost: 0.23, input: 950, output: 2_000, status: "crashed", cacheRead: 5_000 }),
   ],
-  totals: {
-    input: 2_312_950,
-    output: 6_000,
-    cacheRead: 5_000,
-    cacheWrite: 0,
-    cost: 1.23,
-    turns: 3,
-    wallTimeMs: 750_000,
-    activeTimeMs: 4_590_000,
-    runCount: 2,
-    posts: 14,
-    comments: 3,
-    messages: 128,
-  },
+  totals: statsTotals,
 };
 
 const usageUpdated: SwarmEvent = {
@@ -207,14 +178,21 @@ describe("StatsPage", () => {
   });
   it("shows the swarm totals as formatted tiles, cost in accent", async () => {
     await renderStats();
+    const body = screen.getByRole("region", { name: "Usage statistics content" });
+    expect(body).toHaveAttribute("tabindex", "0");
+    expect(body).toContainElement(screen.getByRole("region", { name: "Swarm usage totals" }));
+    expect(screen.getByRole("region", { name: "Agent usage table" })).toHaveAttribute("tabindex", "0");
     const tile = (label: string) => screen.getByText(label, { selector: "dt" }).nextElementSibling;
     expect(tile("Cost")).toHaveTextContent("$1.23");
     expect(tile("Cost")?.className).toMatch(/accent/);
     expect(tile("Wall time")).toHaveTextContent("12m 30s");
     expect(tile("Wall time")?.className).not.toMatch(/accent/);
     expect(tile("Agent time")).toHaveTextContent("1h 16m");
-    expect(tile("Tokens in")).toHaveTextContent("2.3M");
-    expect(tile("Tokens out")).toHaveTextContent("6k");
+    expect(tile("Input tokens")).toHaveTextContent("2.3M");
+    expect(tile("Output tokens")).toHaveTextContent("6k");
+    expect(tile("Cache read tokens")).toHaveTextContent("5k");
+    expect(tile("Cache write tokens")).toHaveTextContent("0");
+    expect(screen.getByText("Cache tokens")).toHaveTextContent("5k");
     expect(tile("Messages · Posts")).toHaveTextContent("128 · 14");
   });
 
@@ -231,8 +209,21 @@ describe("StatsPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Agent" }));
     expect(bodyNames()).toEqual(["Zoe", "Liam", "Ava"]);
 
-    await userEvent.click(screen.getByRole("button", { name: "Tokens out" }));
+    await userEvent.click(screen.getByRole("button", { name: "Output tokens" }));
     expect(bodyNames()).toEqual(["Ava", "Zoe", "Liam"]);
+  });
+
+  it("sorts cache-read and cache-write tokens independently", async () => {
+    api.on("GET", "/api/swarms/3/stats", () => ({
+      ...stats,
+      agents: stats.agents.map((agent, index) => ({ ...agent, cacheWrite: 100 * (index + 1) })),
+    }));
+    await renderStats();
+    await userEvent.click(screen.getByRole("button", { name: "Cache write tokens" }));
+    expect(bodyNames()).toEqual(["Zoe", "Ava", "Liam"]);
+    await userEvent.click(screen.getByRole("button", { name: "Cache read tokens" }));
+    expect(bodyNames()).toEqual(["Zoe", "Liam", "Ava"]);
+    expect(screen.getByRole("columnheader", { name: "Cache read tokens" })).toHaveAttribute("aria-sort", "descending");
   });
 
   it("formats the rows, draws cost shares and pins the total row", async () => {

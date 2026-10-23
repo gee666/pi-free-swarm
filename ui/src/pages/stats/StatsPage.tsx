@@ -6,7 +6,7 @@ import { useSwarmStream } from "../../api/SwarmStream";
 import { useAsync } from "../../api/useAsync";
 import { useStreamListener } from "../../api/useEventStream";
 import { Button } from "../../components/Button";
-import { Panel } from "../../components/Panel";
+import { Panel, PanelBody } from "../../components/Panel";
 import { EmptyState, ErrorBanner, SkeletonRows } from "../../components/States";
 import { AgentStatsTable } from "./AgentStatsTable";
 import { StatTiles } from "./StatTiles";
@@ -58,7 +58,7 @@ export function StatsPage() {
           <EmptyState icon={ChartColumn} text="No agents yet" />
         ) : (
           <Panel inset className={styles.tableBox}>
-            <div className={styles.tableScroll}>
+            <div className={styles.tableScroll} role="region" aria-label="Agent usage table" tabIndex={0}>
               <AgentStatsTable agents={agents} totals={totals} selected={query.get("agent") ?? undefined} />
             </div>
           </Panel>
@@ -75,7 +75,9 @@ export function StatsPage() {
           {`Could not load the stats: ${stats.error.message}`}
         </ErrorBanner>
       )}
-      {content()}
+      <PanelBody role="region" aria-label="Usage statistics content" tabIndex={0}>
+        {content()}
+      </PanelBody>
     </Panel>
   );
 }

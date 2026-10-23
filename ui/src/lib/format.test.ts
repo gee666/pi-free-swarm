@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCost, formatDuration, formatTokens } from "./format";
+import { formatCost, formatDuration, formatTokens, formatUsageCost } from "./format";
 import { formatTimestamp } from "./time";
 
 describe("formatTimestamp", () => {
@@ -23,6 +23,15 @@ describe("formatCost", () => {
     expect(formatCost(1.234)).toBe("$1.23");
     expect(formatCost(0)).toBe("$0.00");
     expect(formatCost(1234.5)).toBe("$1,234.50");
+  });
+});
+
+describe("formatUsageCost", () => {
+  it("keeps small per-category charges visible without inventing precision for zero", () => {
+    expect(formatUsageCost(0)).toBe("$0.00");
+    expect(formatUsageCost(0.000003)).toBe("$0.000003");
+    expect(formatUsageCost(0.0000001)).toBe("<$0.000001");
+    expect(formatUsageCost(12.3456789)).toBe("$12.345679");
   });
 });
 

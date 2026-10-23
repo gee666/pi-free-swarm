@@ -10,14 +10,14 @@ import { formatCost, formatDuration, formatTokens } from "../../lib/format";
 import { agentDotStatus } from "../../lib/swarmStatus";
 import { DEFAULT_SORT, isTextKey, nextSort, sortAgents, type Sort, type SortKey } from "./sortAgents";
 import styles from "./Stats.module.css";
+import { TOKEN_CATEGORIES } from "./usageCategories";
+import { UsageCost } from "./UsageCost";
 
 const COLUMNS: ReadonlyArray<{ key: SortKey; label: string }> = [
   { key: "name", label: "Agent" },
   { key: "status", label: "Status" },
   { key: "activeTimeMs", label: "Active time" },
-  { key: "input", label: "Tokens in" },
-  { key: "output", label: "Tokens out" },
-  { key: "cacheRead", label: "Cache" },
+  ...TOKEN_CATEGORIES.map(({ key, label }) => ({ key, label: `${label} tokens` })),
   { key: "cost", label: "Cost" },
 ];
 
@@ -28,9 +28,12 @@ function UsageCells({ usage }: { usage: AgentStats | StatsTotals }) {
   return (
     <>
       <td className={styles.number}>{formatDuration(usage.activeTimeMs)}</td>
-      <td className={styles.number}>{formatTokens(usage.input)}</td>
-      <td className={styles.number}>{formatTokens(usage.output)}</td>
-      <td className={styles.number}>{formatTokens(usage.cacheRead)}</td>
+      {TOKEN_CATEGORIES.map(({ key, label }) => (
+        <td key={key} className={styles.number}>
+          {formatTokens(usage[key])}
+          <UsageCost usage={usage} category={key} label={label} compact />
+        </td>
+      ))}
       <td className={styles.number}>{formatCost(usage.cost)}</td>
     </>
   );

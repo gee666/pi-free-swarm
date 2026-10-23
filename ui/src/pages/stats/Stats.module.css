@@ -1,7 +1,7 @@
 .tiles {
   display: grid;
   flex: none;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: var(--gap-panels);
   margin: 0;
   padding: var(--space-4);
@@ -39,14 +39,67 @@
   color: var(--accent);
 }
 
-/* Sized to the table so a short table leaves no empty box; scrolls once it outgrows the panel. */
+.tokenHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5) 0;
+  border-top: 1px solid var(--border);
+}
+
+.tokenHeading h3 {
+  color: var(--text-primary);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+}
+
+.cacheTotal {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+.cacheTotal strong {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.tileCost {
+  margin: 0;
+}
+
+.costLine,
+.costNote {
+  color: var(--text-secondary);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-body);
+}
+
+.costLine {
+  display: block;
+  white-space: normal;
+}
+
+.costNote {
+  margin: 0;
+  padding: 0 var(--space-5) var(--space-4);
+}
+
+/* The outer body scrolls totals in short windows; the table keeps its own sticky header and footer. */
 .tableBox {
-  flex: 0 1 auto;
+  flex: none;
 }
 
 .tableScroll {
   min-height: 0;
-  overflow-y: auto;
+  max-height: 60vh;
+  overflow: auto;
 }
 
 .table {
@@ -59,7 +112,7 @@
 .table th,
 .table td {
   height: var(--row-h);
-  padding: 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border);
   font-weight: var(--fw-regular);
   text-align: left;
@@ -67,7 +120,28 @@
 }
 
 .table th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
   padding-left: var(--space-5);
+  background: var(--bg-panel);
+}
+
+.table thead th:first-child {
+  z-index: 3;
+}
+
+.table tbody tr:hover th:first-child {
+  background: var(--bg-hover);
+}
+
+.table tbody tr.selected th:first-child {
+  background: var(--accent-soft-bg);
+}
+
+.table tfoot th:first-child {
+  z-index: 3;
+  background: var(--bg-panel-raised);
 }
 
 .table th:last-child,
