@@ -21,4 +21,6 @@ Qualified paths in prose, such as `src/main.ts:12`, become preview links. Quote 
 
 Explicit Markdown file links also support extensionless files: `[config](.env)`, `[script](scripts/run)` and `[notes](docs/my%20notes.md)`. Local link targets inside a previewed Markdown file resolve relative to that file. Paths in ordinary message text are project-relative. Every target still passes the server's project-root checks.
 
+Generated full-text attachment footers stay outside message Markdown so an unfinished code fence cannot hide their file links. File previews keep the actual source literal instead of splitting those footers.
+
 Markdown supports headings, paragraphs, lists, emphasis, links and fenced code, not full GFM or raw HTML. File-image references open the image preview rather than loading arbitrary remote content. Highlighting covers JavaScript, TypeScript, JSON, Python, shell, CSS, HTML/XML, YAML and SQL; other code remains readable plain text. It never guesses a language by scanning every grammar.

@@ -118,7 +118,7 @@ export function FilePreviewDialog({
           (file.totalBytes === 0 ? (
             <p>This file is empty.</p>
           ) : /\.(?:md|markdown)$/i.test(file.path) ? (
-            <Markdown source={file.text} highlightCode fileBase={file.path} />
+            <Markdown source={file.text} highlightCode fileBase={file.path} renderAttachmentFooter={false} />
           ) : (
             <CodeBlock language={fileLanguage(file.path)}>{file.text}</CodeBlock>
           ))}

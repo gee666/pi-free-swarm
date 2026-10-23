@@ -101,22 +101,45 @@ function BlockNode({ block, highlightCode, fileBase }: { block: Block; highlight
   }
 }
 
-/** Assistant text in the Work tab. Renders React elements only, never raw HTML. */
+function splitAttachmentFooter(source: string): { body: string; reference?: string } {
+  const marker = "… [full text: ";
+  const at = source.endsWith("]") ? source.lastIndexOf(marker) : -1;
+  if (at < 0) return { body: source };
+  const reference = source.slice(at + marker.length, -1);
+  if (!reference.trim() || /[\r\n]/.test(reference)) return { body: source };
+  return { body: source.slice(0, at), reference };
+}
+
+/** Safe message Markdown; generated attachment metadata stays outside an unfinished code fence. */
 export function Markdown({
   source,
   highlightCode = false,
   fileBase,
+  renderAttachmentFooter = true,
 }: {
   source: string;
   highlightCode?: boolean;
   fileBase?: string;
+  renderAttachmentFooter?: boolean;
 }) {
-  const blocks = useMemo(() => parseMarkdown(source), [source]);
+  const { blocks, reference } = useMemo(() => {
+    const parts = renderAttachmentFooter ? splitAttachmentFooter(source) : { body: source, reference: undefined };
+    return { blocks: parseMarkdown(parts.body), reference: parts.reference };
+  }, [source, renderAttachmentFooter]);
   return (
     <div className={styles.markdown}>
       {blocks.map((block, index) => (
         <BlockNode key={index} block={block} highlightCode={highlightCode} fileBase={fileBase} />
       ))}
+      {reference !== undefined && (
+        <p className={styles.paragraph}>
+          {"… [full text: "}
+          <FileLink reference={reference}>
+            <InlineCode interactive={false}>{reference}</InlineCode>
+          </FileLink>
+          {"]"}
+        </p>
+      )}
     </div>
   );
 }

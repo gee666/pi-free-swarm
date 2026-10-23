@@ -247,6 +247,23 @@ it("aborts a closed file and ignores its late response after another file is ope
   expect(screen.queryByText("Retired file response")).not.toBeInTheDocument();
 });
 
+it("keeps generated full-text footers outside a truncated Markdown fence without linking arbitrary code", async () => {
+  const reference = ".pi/swarm/bodies/full.md";
+  api.on("GET", route, () => textPage(reference, "# Full original\n\nComplete attachment body."));
+  render(
+    <FilePreviewProvider swarmId="3">
+      <Markdown source={`\`\`\`ts\nconst preview = 1; … [full text: ${reference}]`} />
+      <Markdown source={"```txt\nsrc/not-a-reference.ts\n```"} />
+    </FilePreviewProvider>,
+  );
+  const link = screen.getByRole("link", { name: reference });
+  expect(link.closest("pre")).toBeNull();
+  expect(screen.queryByRole("link", { name: "src/not-a-reference.ts" })).not.toBeInTheDocument();
+  await userEvent.click(link);
+  expect(await screen.findByRole("heading", { name: "Full original" })).toBeInTheDocument();
+  expect(api.callsTo("GET", route)[0].query.get("path")).toBe(reference);
+});
+
 it("does not merge changed file versions and allows an explicit fresh preview", async () => {
   let changed = false;
   api.on("GET", route, ({ query }) => {
