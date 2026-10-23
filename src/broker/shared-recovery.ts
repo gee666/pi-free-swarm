@@ -29,6 +29,20 @@ export class SharedRecovery {
     return [];
   }
 
+  remove(name: string): void {
+    for (const [key, group] of this.#groups) {
+      group.waiting.delete(name);
+      if (group.leader !== name) continue;
+      const next = group.waiting.entries().next().value;
+      if (!next) this.#groups.delete(key);
+      else {
+        group.leader = next[0];
+        group.waiting.delete(next[0]);
+        next[1]();
+      }
+    }
+  }
+
   close(): void {
     this.#groups.clear();
   }

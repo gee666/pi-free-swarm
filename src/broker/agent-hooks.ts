@@ -8,11 +8,13 @@ import { recordUsage, setAgentActivity, setAgentStatus } from "./agent-state.js"
 import { markRead } from "./delivery-state.js";
 import { coverCommentNotifications } from "./subscriptions.js";
 import { guardRunAction } from "./run-failure.js";
+import { readRunOwnership } from "./run-ownership.js";
 
 export interface AgentHooksContext {
   db: SwarmDb;
   swarmId: number;
   run?: number;
+  runnerPid?: number;
   name: string;
   clock: Clock;
   /** True once the run is ending: endRun writes the final statuses, so stop() transitions are dropped. */
@@ -24,9 +26,17 @@ export interface AgentHooksContext {
 export function createAgentHooks(ctx: AgentHooksContext): SupervisorHooks {
   const { db, swarmId, name, clock } = ctx;
   const write = (action: () => void, allowWhileEnding = false) => {
-    if (!allowWhileEnding && ctx.isEnding()) return;
-    if (ctx.onError) guardRunAction(action, ctx.onError);
-    else action();
+    const apply = () => {
+      if (allowWhileEnding) return action();
+      if (ctx.isEnding()) return;
+      db.write(() => {
+        if (ctx.isEnding()) return;
+        if (ctx.run !== undefined && readRunOwnership(db, swarmId, ctx.run, ctx.runnerPid) !== "owned") return;
+        action();
+      });
+    };
+    if (ctx.onError) guardRunAction(apply, ctx.onError);
+    else apply();
   };
   return {
     onStatus: (status) => write(() => setAgentStatus(db, swarmId, name, status, clock.now())),

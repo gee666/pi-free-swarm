@@ -21,6 +21,8 @@ import { guardRunAction } from "./run-failure.js";
 export interface RunAgentContext {
   db: SwarmDb;
   swarmId: number;
+  run: number;
+  runnerPid: number;
   swarmName: string;
   taskPrompt: string;
   acceptanceCriteria: readonly string[];
@@ -37,22 +39,31 @@ export interface RunAgentContext {
   onCrash(agent: RunAgent, crash: AgentCrash): void;
 }
 
+export interface ReplacementHandoff {
+  file: string;
+  text: string;
+}
+
 export class RunAgent implements DeliveryTarget {
   readonly name: string;
   readonly #spec: AgentLaunchSpec;
   readonly #ctx: RunAgentContext;
   readonly #supervisor: AgentSupervisor;
+  #handoff: ReplacementHandoff | undefined;
   #launching = false;
   #revivesThisRun = 0;
   #reviveTimer: TimerHandle | null = null;
 
-  constructor(spec: AgentLaunchSpec, ctx: RunAgentContext) {
+  constructor(spec: AgentLaunchSpec, ctx: RunAgentContext, handoff?: ReplacementHandoff) {
     this.name = spec.name;
+    this.#handoff = handoff;
     this.#spec = spec;
     this.#ctx = ctx;
     const hooks = createAgentHooks({
       db: ctx.db,
       swarmId: ctx.swarmId,
+      run: ctx.run,
+      runnerPid: ctx.runnerPid,
       name: spec.name,
       clock: ctx.clock,
       isEnding: ctx.isEnding,
@@ -63,6 +74,7 @@ export class RunAgent implements DeliveryTarget {
       ...hooks,
       onReady: () => ctx.onReady?.(this.name),
       onStatus: (status: ParticipantStatus) => {
+        if (status === "idle") this.#handoff = undefined;
         hooks.onStatus(status);
         ctx.onStatus(this.name, status);
       },
@@ -91,12 +103,12 @@ export class RunAgent implements DeliveryTarget {
 
   deliver(prompt: PromptPayload): Promise<DeliveryOutcome> {
     if (prompt.messageIds.length) this.#ctx.onRealMessage(this.name);
-    return this.#supervisor.deliver(prompt);
+    return this.#ownedOutcome(this.#supervisor.deliver(this.#fenced(prompt)));
   }
 
   recoverUnread(prompt: PromptPayload): Promise<DeliveryOutcome> {
     if (prompt.messageIds.length) this.#ctx.onRealMessage(this.name);
-    return this.#supervisor.recoverUnread(prompt);
+    return this.#ownedOutcome(this.#supervisor.recoverUnread(this.#fenced(prompt)));
   }
 
   /** pi reads the file at startup; a missing path would become literal prompt text. */
@@ -118,6 +130,14 @@ export class RunAgent implements DeliveryTarget {
 
   /** Kickoff for a fresh session, the resume prompt when the session already has history. */
   launchFirst(): Promise<void> {
+    if (this.#handoff) {
+      const { file, text } = this.#handoff;
+      return this.#launch([], () =>
+        buildKickoffPrompt({
+          messages: `Fresh replacement handoff (${file}):\n${text}\nVerify the referenced artifacts before repeating work. Do not replay uncertain side effects.`,
+        }),
+      );
+    }
     const { acceptanceCriteria } = this.#ctx;
     const messages = this.#ctx.collect(this.name, true);
     if (this.name === WATCHER_NAME) return this.#launch(messages.messageIds, (text) => text || null);
@@ -128,6 +148,7 @@ export class RunAgent implements DeliveryTarget {
   }
 
   scheduleRevive(delayMs: number): void {
+    if (this.#supervisor.status === "stopped") return;
     this.#revivesThisRun++;
     this.#reviveTimer = this.#ctx.clock.after(delayMs, () => {
       this.#reviveTimer = null;
@@ -152,17 +173,43 @@ export class RunAgent implements DeliveryTarget {
     const { db, swarmId } = this.#ctx;
     // Published by the `starting` status update the launch emits right after.
     incrementReviveCount(db, swarmId, this.name);
+    if (this.#handoff) return this.launchFirst();
     const messages = this.#ctx.collect(this.name, true);
     return this.#launch(messages.messageIds, (text) =>
       buildRevivePrompt({ acceptanceCriteria: this.#ctx.acceptanceCriteria, messages: text }),
     );
   }
 
+  async #ownedOutcome(delivery: Promise<DeliveryOutcome>): Promise<DeliveryOutcome> {
+    const outcome = await delivery;
+    if (outcome.accepted && this.#ctx.canContinue?.() === false) {
+      return { accepted: false, error: "The run stopped or lost ownership before delivery confirmation; pending content is preserved." };
+    }
+    return outcome;
+  }
+
+  #fenced(prompt: PromptPayload): PromptPayload {
+    return {
+      ...prompt,
+      beforeSend: () => {
+        try {
+          if (this.#ctx.canContinue?.() === false) return null;
+          return prompt.beforeSend ? prompt.beforeSend() : prompt;
+        } catch (error) {
+          this.#ctx.onError(error);
+          return null;
+        }
+      },
+    };
+  }
+
   async #launch(messageIds: number[], render: (messages: string) => string | null): Promise<void> {
+    if (this.#ctx.canContinue?.() === false) return;
     if (messageIds.length) this.#ctx.onRealMessage(this.name);
     this.#launching = true;
     const prompt = messagePrompt(this.#ctx.db, this.#ctx.swarmId, this.name, messageIds, render, this.#ctx.onError);
-    const outcome = await this.#supervisor.launch(this.#spec, prompt).finally(() => (this.#launching = false));
+    const outcome = await this.#ownedOutcome(this.#supervisor.launch(this.#spec, prompt ? this.#fenced(prompt) : null))
+      .finally(() => (this.#launching = false));
     const { db, swarmId, clock } = this.#ctx;
     if (outcome.accepted && !this.#ctx.isEnding()) markDelivered(db, swarmId, this.name, messageIds, clock.now());
   }

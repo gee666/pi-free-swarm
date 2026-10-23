@@ -1,5 +1,6 @@
 // Runner side of agent rows: status (with working spans), live activity, usage and revives.
 import type { AgentActivity, AgentRunEndReason, ParticipantStatus } from "../api-types.js";
+import { WATCHER_NAME } from "../constants.js";
 import type { UsageSample } from "../runtime-types.js";
 import type { SwarmDb } from "../store/db.js";
 import { insertEvent } from "../store/events.js";
@@ -16,10 +17,16 @@ function agentRow(
   name: string,
 ): { name: string; status: ParticipantStatus; activity: string | null } {
   const row = db.sql
-    .prepare("SELECT name, status, activity FROM participants WHERE swarm_id = ? AND name = ? AND kind = 'agent'")
+    .prepare(
+      "SELECT name, status, activity, retired_at FROM participants WHERE swarm_id = ? AND name = ? AND kind = 'agent'",
+    )
     .get(swarmId, name);
   if (row === undefined) throw new BrokerError("validation", `Unknown agent: ${name}.`);
-  return { name: text(row, "name"), status: agentStatusOf(row), activity: textOrNull(row, "activity") };
+  return {
+    name: text(row, "name"),
+    status: agentStatusOf(row),
+    activity: textOrNull(row, "activity"),
+  };
 }
 
 function spanEndReason(next: ParticipantStatus): AgentRunEndReason {
@@ -40,12 +47,14 @@ export function setAgentStatus(
 ): void {
   db.write(() => {
     const agent = agentRow(db, swarmId, name);
-    if (agent.status === status) return;
+    if (agent.status === status || agent.status === "retired") return;
     db.sql
       .prepare(
-        "UPDATE participants SET status = ?, activity = CASE WHEN ? = 'working' THEN activity END WHERE swarm_id = ? AND name = ?",
+        `UPDATE participants SET status = ?, activity = CASE WHEN ? = 'working' THEN activity END,
+          first_idle_at = CASE WHEN ? = 'idle' AND name <> ? THEN COALESCE(first_idle_at, ?) ELSE first_idle_at END
+          WHERE swarm_id = ? AND name = ?`,
       )
-      .run(status, status, swarmId, agent.name);
+      .run(status, status, status, WATCHER_NAME, now, swarmId, agent.name);
     if (agent.status === "working") {
       db.sql
         .prepare("UPDATE agent_runs SET ended_at = ?, reason = ? WHERE swarm_id = ? AND agent = ? AND ended_at IS NULL")
@@ -72,7 +81,7 @@ export function setAgentActivity(
   db.write(() => {
     const agent = agentRow(db, swarmId, name);
     const encoded = activity === null ? null : JSON.stringify(activity);
-    if (agent.activity === encoded) return;
+    if (agent.status === "retired" || agent.activity === encoded) return;
     db.sql
       .prepare("UPDATE participants SET activity = ? WHERE swarm_id = ? AND name = ?")
       .run(encoded, swarmId, agent.name);

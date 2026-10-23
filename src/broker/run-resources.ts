@@ -10,9 +10,14 @@ export class RunResources {
   #closing = false;
   #closed: Promise<void> | undefined;
 
-  add(phase: "quiesce" | "join" | "release", cleanup: Cleanup): void {
+  add(phase: "quiesce" | "join" | "release", cleanup: Cleanup): () => void {
+    const owned = this.#list(phase);
     if (this.#closing) this.#track(cleanup);
-    else this.#list(phase).push(cleanup);
+    else owned.push(cleanup);
+    return () => {
+      const index = owned.indexOf(cleanup);
+      if (index >= 0) owned.splice(index, 1);
+    };
   }
 
   /** Register acquisition before it starts so shutdown also joins late resources. */

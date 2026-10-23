@@ -63,6 +63,12 @@ export class StartupAdmission {
     this.launch(next);
   }
 
+  remove(candidate: Candidate): void {
+    const group = this.#groups.get(candidate.launchKey);
+    if (group) group.waiting = group.waiting.filter((waiting) => waiting.name !== candidate.name);
+    this.isolatedFailure(candidate);
+  }
+
   close(): void {
     this.#closed = true;
     this.#groups.clear();

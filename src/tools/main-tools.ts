@@ -85,7 +85,7 @@ export function swarmDescription(cwd: string, maxAgents?: number): string {
     "Use it when the user asks for a swarm, after the requirements are written to files.",
     `Keep task_prompt concise and point to those files. ${range}.`,
     "Acceptance criteria are the most important part of preparing a swarm run: they define what agents must deliver and what they judge as complete. Before launching, make them specific and verifiable. Specify the required deliverables and their locations/formats, minimum counts or coverage where relevant, quality requirements, tests and other validation, required evidence, and the scope and independence of verification. State constraints and exclusions explicitly. Avoid vague goals such as 'improve quality' or 'test thoroughly'; define observable completion conditions. If the user did not provide criteria, derive them from the task before launching, without inventing extra scope. Clear criteria strongly influence run quality, but votes do not replace Main's inspection of the result.",
-    "Blocks until at least 70% of all workers vote the same accepted or blocked verdict. Returns one deterministic status document with the goal, criteria, verdict, tally and every vote reason, including dissent; review the real work before summarising.",
+    "Blocks until at least 70% of all active workers vote the same accepted or blocked verdict; retired workers are excluded. Returns one deterministic status document with the goal, criteria, verdict, tally and every vote reason, including dissent; review the real work before summarising.",
   ].join(" ");
 }
 
@@ -204,7 +204,7 @@ export function registerMainTools(pi: Pick<ExtensionAPI, "registerTool">, runtim
     name: MAIN_TOOL.resumeSwarm,
     label: "Resume swarm",
     description:
-      "Resume a finished, stopped or interrupted swarm of this project with your feedback; every agent gets it " +
+      "Resume a finished, stopped or interrupted swarm of this project with your feedback; every active worker gets it " +
       "and they discuss it on the wall before working. Be concise and specific. Blocks and returns like swarm.",
     promptSnippet: "Resume a swarm with feedback on its work.",
     parameters: RESUME_PARAMS,

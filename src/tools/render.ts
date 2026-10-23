@@ -12,7 +12,15 @@ export type RenderTheme = Pick<Theme, "fg" | "bold">;
 export const PLAIN_THEME: RenderTheme = { fg: (_color, text) => text, bold: (text) => text };
 
 const GLYPH = "⬢";
-const STATUS_ORDER: readonly ParticipantStatus[] = ["working", "idle", "starting", "pending", "crashed", "stopped"];
+const STATUS_ORDER: readonly ParticipantStatus[] = [
+  "working",
+  "idle",
+  "starting",
+  "pending",
+  "crashed",
+  "stopped",
+  "retired",
+];
 
 class Lines implements Component {
   constructor(private readonly build: () => string[]) {}
@@ -30,12 +38,12 @@ function title(progress: RunProgress, theme: RenderTheme): string {
 }
 
 function agentCounts(progress: RunProgress, theme: RenderTheme): string {
-  const total = STATUS_ORDER.reduce((sum, status) => sum + progress.agents[status], 0);
+  const total = STATUS_ORDER.reduce((sum, status) => sum + (status === "retired" ? 0 : progress.agents[status]), 0);
   const parts = STATUS_ORDER.filter((status) => progress.agents[status] > 0).map((status) => {
     const text = `${progress.agents[status]} ${status}`;
     return status === "crashed" ? theme.fg("error", text) : theme.fg("muted", text);
   });
-  return `${theme.fg("muted", `${plural(total, "agent")}:`)} ${parts.join(theme.fg("muted", " · "))}`;
+  return `${theme.fg("muted", `${plural(total, progress.agents.retired ? "active agent" : "agent")}:`)} ${parts.join(theme.fg("muted", " · "))}`;
 }
 
 /** Line 1: title and agents by status; line 2: activity, time, cost; line 3: the board link. */

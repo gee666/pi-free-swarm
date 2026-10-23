@@ -8,6 +8,7 @@ import { agentSessionFile, type SwarmDb } from "../store/db.js";
 import { claimRunLock, heartbeatRunLock, isPidAlive, isRunLockFresh, type PidAlive } from "../store/locks.js";
 import { count, int, intOrNull, swarmStatusOf, text } from "../store/rows.js";
 import { getSwarm } from "../store/swarm-queries.js";
+import { rejectRunConfigurationRequests } from "../store/runtime-configuration.js";
 import { emitParticipantUpdated, emitSwarmUpdated } from "./emit.js";
 import { BrokerError } from "./errors.js";
 import { requireAcceptanceCriteria } from "./validate.js";
@@ -114,6 +115,7 @@ export function beginResume(
         `Swarm #${swarmId} is running in another pi process (pid ${claim.holderPid}).`,
       );
     }
+    rejectRunConfigurationRequests(db, swarmId, int(row, "run_count"), now);
     ensureWatcher(db, swarmId);
     reopenAcceptance(db, swarmId, now);
     const run = int(row, "run_count") + 1;
@@ -127,12 +129,14 @@ export function beginResume(
     db.sql.prepare("INSERT INTO swarm_runs (swarm_id, run, started_at) VALUES (?, ?, ?)").run(swarmId, run, now);
     const agents = db.sql
       .prepare(
-        "SELECT name FROM participants WHERE swarm_id = ? AND kind = 'agent' AND status <> 'pending' ORDER BY launch_order",
+        "SELECT name FROM participants WHERE swarm_id = ? AND kind = 'agent' AND retired_at IS NULL AND status <> 'pending' ORDER BY launch_order",
       )
       .all(swarmId)
       .map((agent) => text(agent, "name"));
     db.sql
-      .prepare("UPDATE participants SET status = 'pending', activity = NULL WHERE swarm_id = ? AND kind = 'agent'")
+      .prepare(
+        "UPDATE participants SET status = 'pending', activity = NULL WHERE swarm_id = ? AND kind = 'agent' AND retired_at IS NULL",
+      )
       .run(swarmId);
     for (const name of agents) emitParticipantUpdated(db, swarmId, name, now);
     emitSwarmUpdated(db, swarmId, now);

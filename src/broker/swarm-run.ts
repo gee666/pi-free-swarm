@@ -1,23 +1,27 @@
 // One SwarmRun per tool call holds the run lock until launch, delivery and completion finish.
 import type { SwarmListItem } from "../api-types.js";
 import { announceUserMessage } from "./messages.js";
-import type { AgentCrash } from "../agents/supervisor.js";
 import type { TimerHandle } from "../clock.js";
-import { MAIN_NAME, WATCHER_NAME } from "../constants.js";
-import { buildRunSpec } from "./run-spec.js";
+import { WATCHER_NAME } from "../constants.js";
+import { runAgentFactory } from "./run-agent-factory.js";
+import { LiveWorkers } from "./live-workers.js";
+import { RunControls } from "./run-controls.js";
+import { RunRecovery } from "./run-recovery.js";
+import { readRunOwnership } from "./run-ownership.js";
 import { configureRun } from "./run-configuration.js";
 import { heartbeatRunLock } from "../store/locks.js";
 import { getSwarm, listAgentSessions } from "../store/swarm-queries.js";
+import { getPendingReplacementHandoff } from "../store/replacement-handoff.js";
+import { readReplacementHandoff } from "./replacement-handoff.js";
 import { DeliveryLoop } from "./delivery.js";
 import { RunResources } from "./run-resources.js";
 import { RunLifecycle } from "./run-lifecycle.js";
 import { readBudget, assertBudgetPricing } from "./budget.js";
 import { RunBudget } from "./run-budget.js";
 import { IdleReminders } from "./idle-reminder.js";
-import { inspectAcceptance, invalidateAgentVote } from "./acceptance.js";
+import { inspectAcceptance } from "./acceptance.js";
 import { closeRunAdmission, prepareRunCompletion } from "./run-acceptance.js";
 import type { AcceptanceRecord } from "../store/acceptance-types.js";
-import { reviveDelayMs } from "./lifecycle.js";
 import { RunAgent } from "./run-agent.js";
 import { readRunProgress } from "./run-progress.js";
 import { registerActiveRun } from "./active-ownership.js";
@@ -32,9 +36,7 @@ import {
 export type { RunEnvironment, RunOptions, RunOutcome, RunTimings } from "./run-types.js";
 import { endRun, markSwarmRunning, type RunEndStatus } from "./swarms.js";
 export { startSwarm, resumeSwarm } from "./run-entry.js";
-import { createPost } from "./wall.js";
 import { StartupAdmission } from "./startup-admission.js";
-import { SharedRecovery } from "./shared-recovery.js";
 
 import { registerRun, unregisterRun } from "./run-registry.js";
 export { stopAllRuns } from "./run-registry.js";
@@ -55,8 +57,10 @@ export class SwarmRun {
   readonly #delivery: DeliveryLoop;
   readonly #reminders: IdleReminders;
   readonly #admission: StartupAdmission;
-  readonly #recovery = new SharedRecovery();
-  #admittedWorkers = 0;
+  readonly #recovery: RunRecovery;
+  readonly #liveWorkers: LiveWorkers;
+  readonly #controls: RunControls;
+  readonly #admittedWorkers = new Set<string>();
   readonly #done: Promise<RunOutcome>;
   #settle: { resolve(outcome: RunOutcome): void; reject(error: unknown): void } = {
     resolve: () => undefined,
@@ -94,7 +98,7 @@ export class SwarmRun {
       if (agent) this.#launchFirst(agent);
     }, this.#fail);
     const { db, clock, settings } = env;
-    const sessions = listAgentSessions(db, swarm.id);
+    const sessions = listAgentSessions(db, swarm.id, { activeOnly: true });
     const assignments = configureRun(
       env,
       swarm.id,
@@ -103,31 +107,44 @@ export class SwarmRun {
       this.#timings,
     );
     assertBudgetPricing(env, assignments, swarm.id);
-    for (const { name, sessionFile } of sessions) {
-      const spec = buildRunSpec(env, swarm.id, name, sessionFile, run, assignments.get(name));
-      const agent = new RunAgent(spec, {
-        db,
-        swarmId: swarm.id,
-        swarmName: swarm.name,
-        taskPrompt: swarm.taskPrompt,
-        acceptanceCriteria: swarm.acceptanceCriteria,
-        clock,
-        watchdog: this.#timings.watchdog,
-        collect: (agentName, includeDeliveredUnread) => this.#delivery.collect(agentName, includeDeliveredUnread),
-        isEnding: () => this.#isEnding,
-        canContinue: () => this.#lifecycle.admitsWork,
-        onStatus: (name, status) => this.#reminders.statusChanged(name, status),
-        onReady: (name) => {
-          const agent = this.#agents.get(name);
-          if (agent) this.#admission.ready(agent);
-          this.#recovery.ready(name);
-        },
-        onRealMessage: (name) => this.#reminders.realMessage(name),
-        onError: this.#fail,
-        onCrash: (crashed, crash) => this.#onCrash(crashed, crash),
-      });
-      this.#agents.set(name, agent);
+    const create = runAgentFactory(env, swarm, run, this.#timings, {
+      collect: (name, includeDeliveredUnread) => this.#delivery.collect(name, includeDeliveredUnread),
+      isEnding: () => this.#isEnding,
+      canContinue: () => this.#canRun(true),
+      onStatus: (name, status) => this.#reminders.statusChanged(name, status),
+      onReady: (name) => this.#recovery.ready(name),
+      onRealMessage: (name) => this.#reminders.realMessage(name),
+      onError: this.#fail,
+      onCrash: (agent, crash) => this.#recovery.crashed(agent, crash),
+    });
+    for (const session of sessions) {
+      const pendingHandoff = getPendingReplacementHandoff(db, swarm.id, session.name);
+      const handoff = pendingHandoff ? readReplacementHandoff(db, swarm.id, pendingHandoff) : undefined;
+      this.#agents.set(session.name, create(session, assignments.get(session.name), handoff));
     }
+    this.#liveWorkers = new LiveWorkers(env, swarm.id, this.#agents, this.#resources, {
+      create,
+      launch: (agent) => this.#launchFirst(agent),
+      removed: (agent) => {
+        this.#admittedWorkers.delete(agent.name);
+        this.#recovery.removed(agent);
+      },
+      changed: () => this.#markRunning(),
+      canContinue: () => this.#canRun(true),
+      onError: this.#fail,
+    });
+    this.#recovery = new RunRecovery({
+      env,
+      swarmId: swarm.id,
+      swarmName: swarm.name,
+      run,
+      timings: this.#timings,
+      agents: this.#agents,
+      admission: this.#admission,
+      live: this.#liveWorkers,
+      canContinue: () => this.#canRun(true),
+    });
+    this.#controls = new RunControls(env, swarm.id, run, this.#liveWorkers, () => this.#canRun(true));
     this.#delivery = new DeliveryLoop({
       db,
       swarmId: swarm.id,
@@ -181,10 +198,13 @@ export class SwarmRun {
       this.#delivery.stop();
       this.#reminders.stop();
       this.#options.signal?.removeEventListener("abort", this.#onAbort);
+      this.#liveWorkers.close();
+      this.#controls.quiesce();
     });
-    for (const agent of this.#agents.values()) this.#resources.add("join", () => agent.stop());
+    this.#resources.add("join", () => this.#controls.close());
+    for (const agent of this.#agents.values()) this.#liveWorkers.register(agent);
     this.#guard(() => {
-      if (!this.#budget.check()) this.#start(staggerMs);
+      if (this.#canRun(true)) this.#start(staggerMs);
     });
     return this.#done;
   }
@@ -199,7 +219,13 @@ export class SwarmRun {
     if (watcher) this.#guard(() => watcher.launchFirst());
     const agents = this.#workers();
     agents.forEach((agent, index) => {
-      this.#timers.push(clock.after(index * staggerMs, () => this.#guard(() => this.#admission.admit(agent))));
+      this.#timers.push(
+        clock.after(index * staggerMs, () =>
+          this.#guard(() => {
+            if (this.#agents.get(agent.name) === agent) this.#admission.admit(agent);
+          }),
+        ),
+      );
     });
     this.#timers.push(clock.every(timings.completionCheckMs, () => this.#guard(() => this.#checkCompletion())));
     this.#timers.push(clock.every(timings.progressMs, () => this.#guard(() => this.#reportProgress())));
@@ -214,59 +240,15 @@ export class SwarmRun {
   }
 
   #launchFirst(agent: RunAgent): void {
-    if (this.#isEnding || this.#budgetStop) return;
+    if (this.#agents.get(agent.name) !== agent || !this.#canRun(true)) return;
     this.#guard(() => agent.launchFirst());
-    this.#admittedWorkers++;
-    if (this.#admittedWorkers !== this.#workers().length) return;
+    this.#admittedWorkers.add(agent.name);
+    this.#markRunning();
+  }
+
+  #markRunning(): void {
+    if (this.#isEnding || this.#workers().some((agent) => !this.#admittedWorkers.has(agent.name))) return;
     markSwarmRunning(this.#env.db, this.#swarm.id, this.#env.runnerPid, this.#env.clock.now(), this.#run);
-  }
-
-  #onCrash(agent: RunAgent, crash: AgentCrash): void {
-    if (agent.name === WATCHER_NAME || this.#budgetStop) return;
-    invalidateAgentVote(
-      this.#env.db,
-      this.#swarm.id,
-      this.#run,
-      agent.name,
-      `Voter crashed: ${crash.message}`,
-      this.#env.clock.now(),
-    );
-    if (this.#admission.crashed(agent, crash)) return;
-    if (crash.fatal) {
-      this.#env.notifyUser(`Swarm "${this.#swarm.name}": ${agent.name} could not start. ${crash.message}`);
-      this.#reportCrash(agent);
-      return;
-    }
-    const delayMs = reviveDelayMs(agent.revivesThisRun, this.#timings.reviveBackoffMs);
-    if (delayMs === null) {
-      this.#reportCrash(agent);
-    } else if (crash.sharedFailure) {
-      this.#env.notifyUser(
-        `Swarm "${this.#swarm.name}": coordinating ${crash.sharedFailure} recovery for ${agent.name}.`,
-      );
-      this.#recovery.recover(`${agent.launchKey}:${crash.sharedFailure}`, agent.name, () => {
-        if (!this.#isEnding) agent.scheduleRevive(delayMs);
-      });
-    } else {
-      // Unknown failures keep individual retries; an existing shared group still waits for readiness.
-      agent.scheduleRevive(delayMs);
-    }
-  }
-
-  #reportCrash(agent: RunAgent): void {
-    this.#admission.isolatedFailure(agent);
-    for (const name of this.#recovery.failed(agent.name)) {
-      const waiting = this.#agents.get(name);
-      if (waiting) this.#reportCrash(waiting);
-    }
-    const text = `${agent.name} crashed and was not revived`;
-    createPost(
-      this.#env.db,
-      this.#swarm.id,
-      MAIN_NAME,
-      { title: `${agent.name} crashed`, text },
-      this.#env.clock.now(),
-    );
   }
 
   #heartbeat(): void {
@@ -275,8 +257,21 @@ export class SwarmRun {
     if (!heartbeatRunLock(db, this.#swarm.id, runnerPid, clock.now(), this.#run)) void this.#end("interrupted", true);
   }
 
-  #checkCompletion(): void {
-    if (this.#isEnding || this.#budget.check()) return;
+  #canRun(admit = false): boolean {
+    if (this.#isEnding) return false;
+    const ownership = readRunOwnership(this.#env.db, this.#swarm.id, this.#run, this.#env.runnerPid);
+    if (ownership === "lost") {
+      void this.#end("interrupted", true);
+      return false;
+    }
+    if (admit && (!this.#lifecycle.admitsWork || ownership === "closed")) return false;
+    return !this.#budget.check();
+  }
+
+  async #checkCompletion(): Promise<void> {
+    if (!this.#canRun()) return;
+    await this.#controls.update();
+    if (!this.#canRun()) return;
     this.#reminders.update();
     const { db, runnerPid, clock } = this.#env;
     const decision = prepareRunCompletion(db, {
@@ -324,7 +319,7 @@ export class SwarmRun {
               runnerPid,
               now: clock.now(),
             })) ||
-          inspectAcceptance(db, this.#swarm.id);
+          inspectAcceptance(db, this.#swarm.id, { includeExcludedVotes: true });
       } finally {
         await this.#resources.close();
       }

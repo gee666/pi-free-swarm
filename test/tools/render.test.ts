@@ -53,6 +53,14 @@ describe("renderProgress", () => {
     ]);
   });
 
+  it("shows retired history without adding it to the active worker total", () => {
+    const current = progress();
+    current.agents.retired = 2;
+    const [line] = strip(renderProgress(current, ansiTheme).render(160));
+    assert.match(line, /5 active agents:/);
+    assert.match(line, /2 retired/);
+  });
+
   it("fits every line into the width", () => {
     for (const line of strip(renderProgress(progress(), ansiTheme).render(30))) assert.ok(line.length <= 30, line);
   });

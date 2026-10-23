@@ -73,6 +73,26 @@ test("cleanup failures remain observable without skipping other resources", asyn
   assert.equal(released, true);
 });
 
+test("joined retired resources release their cleanup references before whole-run shutdown", async () => {
+  const scope = new RunResources();
+  const stopped: number[] = [];
+  for (let identity = 0; identity < 20; identity++) {
+    const stop = () => {
+      stopped.push(identity);
+    };
+    const release = scope.add("join", stop);
+    if (identity < 19) {
+      stop();
+      release();
+    }
+  }
+  await scope.close();
+  assert.deepEqual(
+    stopped,
+    Array.from({ length: 20 }, (_, identity) => identity),
+  );
+});
+
 test("run lifecycle closes admission monotonically but draining is not shutdown", () => {
   const run = new RunLifecycle();
   assert.equal(run.admitsWork, false);

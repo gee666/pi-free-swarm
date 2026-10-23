@@ -1,6 +1,7 @@
 // Run shutdown releases execution resources, not durable pending or unobserved communication.
 import type { SwarmDb } from "../store/db.js";
-import { intOrNull, text, textOrNull } from "../store/rows.js";
+import { int, intOrNull, text, textOrNull } from "../store/rows.js";
+import { rejectRunConfigurationRequests } from "../store/runtime-configuration.js";
 import { releaseRunLock } from "../store/locks.js";
 import { emitParticipantUpdated, emitSwarmUpdated } from "./emit.js";
 import { freezeRunAcceptance } from "./run-acceptance.js";
@@ -16,7 +17,8 @@ export function cleanupRun(db: SwarmDb, swarmId: number, end: RunEndStatus, now:
         .all(swarmId)
         .map((row) => [text(row, "name"), `${text(row, "status")}|${textOrNull(row, "activity")}`]),
     );
-    const swarm = db.sql.prepare("SELECT runner_pid FROM swarms WHERE id = ?").get(swarmId);
+    const swarm = db.sql.prepare("SELECT runner_pid, run_count FROM swarms WHERE id = ?").get(swarmId);
+    if (swarm) rejectRunConfigurationRequests(db, swarmId, int(swarm, "run_count"), now);
     const runnerPid = swarm === undefined ? null : intOrNull(swarm, "runner_pid");
     if (runnerPid !== null) releaseRunLock(db, swarmId, runnerPid);
     db.sql.prepare("UPDATE swarms SET status = ?, finished_at = ? WHERE id = ?").run(end, now, swarmId);

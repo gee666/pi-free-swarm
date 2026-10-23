@@ -2,29 +2,31 @@ import type { CommentView, PostListResponse } from "../api-types.js";
 import { PAGE_MAX_COUNT } from "../constants.js";
 import type { SwarmDb } from "./db.js";
 import { commentOf, int, postOf } from "./rows.js";
+import { replacementPostBaseline } from "./replacement-baseline.js";
 
-/** Oldest first, including pre-existing history on first use. This read never advances coverage. */
+/** Oldest first from the reader's history boundary. Reading alone never advances coverage. */
 export function listFreshPosts(db: SwarmDb, swarmId: number, reader: string, count: number): PostListResponse {
   checkCount(count);
   return db.write(() => {
+    const baseline = replacementPostBaseline(db, swarmId, reader);
     const posts = db.sql
       .prepare(
         `
       SELECT p.*, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count
-      FROM posts p WHERE p.swarm_id = ? AND NOT EXISTS (
+      FROM posts p WHERE p.swarm_id = ? AND p.id >= ? AND NOT EXISTS (
         SELECT 1 FROM post_coverage r WHERE r.swarm_id = p.swarm_id AND r.name = ? AND r.post_id = p.id
       ) ORDER BY p.id LIMIT ?`,
       )
-      .all(swarmId, reader, count)
+      .all(swarmId, baseline, reader, count)
       .map(postOf);
     const row = db.sql
       .prepare(
         `
-      SELECT COUNT(*) AS n FROM posts p WHERE p.swarm_id = ? AND NOT EXISTS (
+      SELECT COUNT(*) AS n FROM posts p WHERE p.swarm_id = ? AND p.id >= ? AND NOT EXISTS (
         SELECT 1 FROM post_coverage r WHERE r.swarm_id = p.swarm_id AND r.name = ? AND r.post_id = p.id
       )`,
       )
-      .get(swarmId, reader);
+      .get(swarmId, baseline, reader);
     return { posts, total: row === undefined ? 0 : int(row, "n") };
   });
 }
