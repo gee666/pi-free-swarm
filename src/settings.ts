@@ -1,7 +1,7 @@
-// `.pi/swarm/settings.json`: optional, hand-written, read fresh on every call so edits apply to the next
-// launch without restarting pi. `env` values may be secrets: they never appear in errors or warnings.
-import { readFileSync } from "node:fs";
-import path from "node:path";
+// Global defaults and project overrides are read fresh for each launch. Env values never enter errors.
+import { globalSettingsFile, layeredSettings } from "./settings-files.js";
+import { SettingsError } from "./settings-error.js";
+export { SettingsError } from "./settings-error.js";
 import {
   AGENT_NAME_ENV,
   AGENT_ROLE,
@@ -20,7 +20,6 @@ import {
   RUNNER_PID_ENV,
   RUN_ENV,
   SETTINGS_FILE,
-  SWARM_DIR,
   SWARM_ID_ENV,
 } from "./constants.js";
 
@@ -57,13 +56,6 @@ export interface AgentIdentity {
   runnerPid: number;
 }
 
-export class SettingsError extends Error {
-  constructor(reason: string) {
-    super(`${SETTINGS_FILE}: ${reason}`);
-    this.name = "SettingsError";
-  }
-}
-
 const KNOWN_KEYS = new Set([
   "port",
   "minAgents",
@@ -83,13 +75,13 @@ const KNOWN_KEYS = new Set([
 const PORT_MIN = 1;
 const PORT_MAX = 65_535;
 
-export function loadSettings(cwd: string): { settings: SwarmSettings; warnings: string[] } {
-  const raw = readSettingsFile(path.join(cwd, SWARM_DIR, SETTINGS_FILE));
+export function loadSettings(
+  cwd: string,
+  options: { globalFile?: string | null } = {},
+): { settings: SwarmSettings; warnings: string[] } {
+  const parsed = layeredSettings(cwd, options.globalFile === undefined ? globalSettingsFile() : options.globalFile);
   const warnings: string[] = [];
-  if (raw === null) return { settings: buildSettings({}, {}), warnings };
-
-  const parsed = parseJson(raw);
-  if (!isRecord(parsed)) throw new SettingsError("must be a JSON object");
+  if (parsed === null) return { settings: buildSettings({}, {}), warnings };
   for (const key of Object.keys(parsed)) {
     if (!KNOWN_KEYS.has(key)) warnings.push(`${SETTINGS_FILE}: unknown key "${key}" ignored`);
   }
@@ -245,33 +237,6 @@ function buildSettings(values: ParsedNumbers, env: Record<string, string>): Swar
   };
 }
 
-function readSettingsFile(file: string): string | null {
-  try {
-    return readFileSync(file, "utf8");
-  } catch (error) {
-    if (errorCode(error) === "ENOENT") return null;
-    throw new SettingsError(`cannot be read (${errorCode(error) ?? "unknown error"})`);
-  }
-}
-
-function parseJson(raw: string): unknown {
-  try {
-    return JSON.parse(raw);
-  } catch (error) {
-    throw new SettingsError(`invalid JSON (${jsonErrorReason(error)})`);
-  }
-}
-
-/** V8 quotes the offending source text in some parse errors; drop it so env values never leak. */
-function jsonErrorReason(error: unknown): string {
-  const message = error instanceof Error ? error.message : "";
-  const reason = message
-    .replace(/,?\s*(?:\.\.\.)?"[\s\S]*$/, "")
-    .replace(/\s*'[^']*'/g, "")
-    .trim();
-  return reason === "" ? "syntax error" : reason;
-}
-
 function optionalInteger(
   source: Record<string, unknown>,
   key: string,
@@ -318,8 +283,4 @@ function describe(value: unknown): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function errorCode(error: unknown): string | undefined {
-  return error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : undefined;
 }
