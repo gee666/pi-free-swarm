@@ -106,12 +106,14 @@ export function recordUsage(
       !Number.isSafeInteger(run) ||
       run < 1 ||
       !db.sql.prepare("SELECT 1 FROM swarm_runs WHERE swarm_id = ? AND run = ?").get(swarmId, run)
-    )
+    ) {
       throw new BrokerError("validation", "Usage must belong to an existing originating run.");
+    }
     db.sql
       .prepare(
-        `INSERT INTO usage (swarm_id, agent, run, kind, input, output, cache_read, cache_write, cost, model, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO usage (swarm_id, agent, run, kind, input, output, cache_read, cache_write, cost,
+          cost_input, cost_output, cost_cache_read, cost_cache_write, model, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         swarmId,
@@ -123,6 +125,10 @@ export function recordUsage(
         sample.cacheRead,
         sample.cacheWrite,
         sample.cost,
+        sample.costBreakdown?.input ?? null,
+        sample.costBreakdown?.output ?? null,
+        sample.costBreakdown?.cacheRead ?? null,
+        sample.costBreakdown?.cacheWrite ?? null,
         sample.model,
         now,
       );

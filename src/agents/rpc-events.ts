@@ -45,9 +45,20 @@ export function parseRpcLine(line: string): RpcRecord | undefined {
   }
 }
 
+function reportedCost(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
 function usageSample(kind: UsageSample["kind"], usage: RpcRecord, model: string | null): UsageSample {
-  const total = isRecord(usage.cost) ? usage.cost.total : undefined;
+  const costs = isRecord(usage.cost) ? usage.cost : {};
+  const total = costs.total;
   const costKnown = typeof total === "number" && Number.isFinite(total) && total >= 0;
+  const costBreakdown = {
+    input: reportedCost(costs.input),
+    output: reportedCost(costs.output),
+    cacheRead: reportedCost(costs.cacheRead),
+    cacheWrite: reportedCost(costs.cacheWrite),
+  };
   return {
     ...(!costKnown ? { costKnown: false } : {}),
     kind,
@@ -56,6 +67,7 @@ function usageSample(kind: UsageSample["kind"], usage: RpcRecord, model: string 
     cacheRead: numberOrZero(usage.cacheRead),
     cacheWrite: numberOrZero(usage.cacheWrite),
     cost: costKnown ? total : 0,
+    ...(Object.values(costBreakdown).some((value) => value !== null) ? { costBreakdown } : {}),
     model,
   };
 }

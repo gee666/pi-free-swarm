@@ -1,4 +1,5 @@
 // Backend-only shapes passed between layers owned by different modules (agents ↔ broker ↔ tools).
+import type { ReportedUsageCosts } from "./api-usage-types.js";
 
 /**
  * Usage of one assistant message (RPC `message_end`) or one compaction (`compaction_end.result.usage`),
@@ -11,6 +12,7 @@ export interface UsageSample {
   cacheRead: number;
   cacheWrite: number;
   cost: number;
+  costBreakdown?: ReportedUsageCosts;
   /** False when the protocol supplied no valid attributable USD total. */
   costKnown?: boolean;
   model: string | null;

@@ -1,16 +1,37 @@
 // Stats tab: usage, time and activity per agent and per swarm. Open spans count up to `now`.
-import type { AgentStats, StatsResponse, UsageTotals } from "../api-types.js";
+import type { AgentStats, StatsResponse, UsageCostBreakdown, UsageCostComponent, UsageTotals } from "../api-types.js";
 import type { SwarmDb } from "./db.js";
 import { agentStatusOf, int, real, text, type Row } from "./rows.js";
 
 const USAGE_SUMS = `
   COALESCE(SUM(input), 0) AS input, COALESCE(SUM(output), 0) AS output,
   COALESCE(SUM(cache_read), 0) AS cache_read, COALESCE(SUM(cache_write), 0) AS cache_write,
-  COALESCE(SUM(cost), 0) AS cost, COALESCE(SUM(kind = 'message'), 0) AS turns`;
+  COALESCE(SUM(cost), 0) AS cost, COALESCE(SUM(kind = 'message'), 0) AS turns,
+  COUNT(*) AS cost_records,
+  SUM(cost_input) AS cost_input, COUNT(cost_input) AS cost_input_records,
+  SUM(cost_output) AS cost_output, COUNT(cost_output) AS cost_output_records,
+  SUM(cost_cache_read) AS cost_cache_read, COUNT(cost_cache_read) AS cost_cache_read_records,
+  SUM(cost_cache_write) AS cost_cache_write, COUNT(cost_cache_write) AS cost_cache_write_records`;
+
+function costComponent(row: Row, column: string): UsageCostComponent {
+  const knownRecords = int(row, `${column}_records`);
+  return { usd: knownRecords === 0 ? null : real(row, column), knownRecords };
+}
+
+function costBreakdownOf(row: Row): UsageCostBreakdown | undefined {
+  const input = costComponent(row, "cost_input");
+  const output = costComponent(row, "cost_output");
+  const cacheRead = costComponent(row, "cost_cache_read");
+  const cacheWrite = costComponent(row, "cost_cache_write");
+  if ([input, output, cacheRead, cacheWrite].every((value) => value.knownRecords === 0)) return undefined;
+  return { records: int(row, "cost_records"), input, output, cacheRead, cacheWrite };
+}
 
 function usageOf(row: Row | undefined): UsageTotals {
   if (row === undefined) return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 };
+  const costBreakdown = costBreakdownOf(row);
   return {
+    ...(costBreakdown ? { costBreakdown } : {}),
     input: int(row, "input"),
     output: int(row, "output"),
     cacheRead: int(row, "cache_read"),

@@ -11,6 +11,7 @@
  */
 
 export type * from "./api-session-types.js";
+import type { UsageTotals } from "./api-usage-types.js";
 
 export type * from "./api-common-types.js";
 import type {
@@ -126,16 +127,7 @@ export interface ThreadView {
 /** Unread counts of the participants a change touched, keyed by canonical name. */
 export type UnreadCounts = Record<string, number>;
 
-export interface UsageTotals {
-  input: number;
-  output: number;
-  cacheRead: number;
-  cacheWrite: number;
-  /** USD. */
-  cost: number;
-  /** Assistant messages counted. Tokens and cost also include compactions. */
-  turns: number;
-}
+export type * from "./api-usage-types.js";
 
 // ── REST: /api/swarms ─────────────────────────────────────────────────────────
 
