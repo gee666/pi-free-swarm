@@ -23,8 +23,15 @@ export function AgentsPage() {
   const detail = useSwarmDetail(swarmId);
   const participants = detail.data?.participants;
   const selected = participants?.find((participant) => participant.name.toLowerCase() === routeName.toLowerCase());
-  const agents = participants?.filter((participant) => participant.kind === "agent").map(({ name }) => name) ?? [];
-  const composer = useComposer(swarmId, detail.data?.swarm, selected?.kind === "agent" ? [selected.name] : []);
+  const agents =
+    participants
+      ?.filter((participant) => participant.kind === "agent" && participant.status !== "retired")
+      .map(({ name }) => name) ?? [];
+  const composer = useComposer(
+    swarmId,
+    detail.data?.swarm,
+    selected?.kind === "agent" && selected.status !== "retired" ? [selected.name] : [],
+  );
   const composeSlot = useRef<HTMLDivElement>(null);
   const focusCompose = () => composeSlot.current?.querySelector("textarea")?.focus();
 
@@ -58,7 +65,7 @@ export function AgentsPage() {
             swarmId={swarmId}
             participant={selected}
             banners={banners}
-            canSend={!composer.disabled}
+            canSend={!composer.disabled && (selected.kind !== "agent" || selected.status !== "retired")}
             onReply={reply}
           />
         ) : (

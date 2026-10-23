@@ -11,7 +11,10 @@ export function useComposeRequest(
   const [query, setQuery] = useSearchParams();
   const requested = query.get("compose");
   const recipient = participants?.find(
-    (participant) => participant.kind === "agent" && participant.name.toLowerCase() === requested?.toLowerCase(),
+    (participant) =>
+      participant.kind === "agent" &&
+      participant.status !== "retired" &&
+      participant.name.toLowerCase() === requested?.toLowerCase(),
   )?.name;
   useEffect(() => {
     if (requested === null || participants === undefined) return;

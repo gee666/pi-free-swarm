@@ -65,7 +65,11 @@ export function setPostSubscription(
 export function notifyComment(db: SwarmDb, comment: CommentView, now: number): void {
   const { swarmId, postId, author } = comment;
   const recipients = db.sql
-    .prepare(`SELECT name FROM post_subscriptions WHERE swarm_id = ? AND post_id = ? AND subscribed = 1 AND name != ?`)
+    .prepare(
+      `SELECT s.name FROM post_subscriptions s
+      JOIN participants p ON p.swarm_id = s.swarm_id AND p.name = s.name
+      WHERE s.swarm_id = ? AND s.post_id = ? AND s.subscribed = 1 AND s.name != ? AND p.retired_at IS NULL`,
+    )
     .all(swarmId, postId, author)
     .map((row) => findParticipant(db, swarmId, str(row, "name")))
     .filter(

@@ -4,6 +4,7 @@ import { ListRow } from "../../components/ListRow";
 import { AgentName } from "../../components/AgentName";
 import { WorkerModel } from "../../components/WorkerModel";
 import { PanelBody } from "../../components/Panel";
+import { Pill } from "../../components/Pill";
 import { RowList } from "../../components/RowList";
 import { formatCost } from "../../lib/format";
 import { agentDotStatus } from "../../lib/swarmStatus";
@@ -26,6 +27,7 @@ export function WorkAgentList({ agents, selected, onSelect }: WorkAgentListProps
             key={agent.name}
             avatar={agent.name}
             title={<AgentName name={agent.name} />}
+            titleAddon={agent.status === "retired" ? <Pill>retired</Pill> : undefined}
             subtitle={
               <>
                 <WorkerModel model={agent.model} />
@@ -37,7 +39,10 @@ export function WorkAgentList({ agents, selected, onSelect }: WorkAgentListProps
             onSelect={() => onSelect(agent.name)}
             trailing={
               <>
-                <StatusDot status={agentDotStatus(agent.status)} />
+                <StatusDot
+                  status={agentDotStatus(agent.status)}
+                  label={agent.status === "retired" ? "Retired" : undefined}
+                />
                 <span className={styles.cost}>{formatCost(agent.cost)}</span>
               </>
             }
