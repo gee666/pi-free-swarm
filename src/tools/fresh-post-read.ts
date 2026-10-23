@@ -28,13 +28,7 @@ export function readFreshPostsTool(
       SELECT 1 FROM post_coverage r WHERE r.swarm_id = p.swarm_id AND r.name = ? AND r.post_id = p.id)
       ORDER BY p.id LIMIT ?`,
       )
-      .all(
-        swarmId,
-        Math.max(position.id, baseline),
-        position.snapshot,
-        reader,
-        count + 1,
-      )
+      .all(swarmId, Math.max(position.id, baseline), position.snapshot, reader, count + 1)
       .map(postOf);
     const page = renderReadPage(
       baseline > 0
