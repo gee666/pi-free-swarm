@@ -2,12 +2,12 @@ import { headerMessageIds } from "./rpc-events.js";
 
 /** Authorization dies with a process. Queue acceptance alone never advances durable reads. */
 export class MessageObservation {
-  readonly #prompts = new Map<symbol, ReadonlySet<number>>();
+  readonly #prompts = new Map<symbol, { ids: ReadonlySet<number>; text: string }>();
   readonly #observed = new Set<number>();
 
-  sent(ids: readonly number[]): symbol {
+  sent(ids: readonly number[], text: string): symbol {
     const token = Symbol();
-    if (ids.length) this.#prompts.set(token, new Set(ids));
+    if (ids.length && text) this.#prompts.set(token, { ids: new Set(ids), text });
     return token;
   }
 
@@ -21,11 +21,18 @@ export class MessageObservation {
   }
 
   observed(text: string): number[] {
-    const authorized = new Set([...this.#prompts.values()].flatMap((ids) => [...ids]));
-    const fresh = headerMessageIds(text).filter((id) => authorized.has(id) && !this.#observed.has(id));
-    for (const id of fresh) this.#observed.add(id);
-    for (const [token, ids] of this.#prompts) {
-      if ([...ids].every((id) => this.#observed.has(id))) this.#prompts.delete(token);
+    const authorized = new Set<number>();
+    for (const prompt of this.#prompts.values()) {
+      if (text.includes(prompt.text)) for (const id of prompt.ids) authorized.add(id);
+    }
+    const fresh: number[] = [];
+    for (const id of headerMessageIds(text)) {
+      if (!authorized.has(id) || this.#observed.has(id)) continue;
+      this.#observed.add(id);
+      fresh.push(id);
+    }
+    for (const [token, prompt] of this.#prompts) {
+      if ([...prompt.ids].every((id) => this.#observed.has(id))) this.#prompts.delete(token);
     }
     return fresh;
   }

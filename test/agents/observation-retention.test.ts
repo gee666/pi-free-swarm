@@ -18,12 +18,13 @@ test("settled turns discard unmatched post payloads instead of retaining a lifet
 
 test("settlement clears pending message authorization and historical observed IDs without dropping durable work", () => {
   const messages = new MessageObservation();
-  messages.sent([1, 2]);
+  messages.sent([1], "[swarm message #1] observed first");
+  messages.sent([2], "[swarm message #2] current recovery");
   assert.deepEqual(messages.observed("[swarm message #1] observed first"), [1]);
   assert.deepEqual(messages.observed("[swarm message #1] duplicate"), []);
   messages.settled();
   assert.deepEqual(messages.observed("[swarm message #2] late queued text"), []);
-  messages.sent([2]);
+  messages.sent([2], "[swarm message #2] current recovery");
   assert.deepEqual(messages.observed("[swarm message #2] current recovery"), [2]);
   messages.settled();
   messages.settled();
@@ -35,8 +36,8 @@ test("all queued payloads remain authorized until the genuine settled boundary",
   const messages = new MessageObservation();
   posts.sent("First complete post", [10]);
   posts.sent("Second complete post", [11]);
-  messages.sent([20]);
-  messages.sent([21]);
+  messages.sent([20], "[swarm message #20] first");
+  messages.sent([21], "[swarm message #21] second");
   assert.deepEqual(posts.observed("First complete post\nSecond complete post"), [10, 11]);
   assert.deepEqual(messages.observed("[swarm message #20] first\n[swarm message #21] second"), [20, 21]);
   posts.settled();

@@ -251,7 +251,7 @@ export class AgentSupervisor {
     if (life !== this.#life || this.#stopped || this.#quiescing) return null;
     life.promptsInFlight++;
     const runStarts = life.runStarts;
-    const token = life.messages.sent(prompt.messageIds);
+    const token = life.messages.sent(prompt.messageIds, prompt.text);
     life.posts.sent(prompt.text, prompt.postIds);
     try {
       const response = await life.proc.send({ type: "prompt", message: prompt.text, streamingBehavior: "steer" });
