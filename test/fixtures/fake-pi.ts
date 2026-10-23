@@ -62,6 +62,7 @@ export interface FakePiScenario {
   /** The n-th spawn with this scenario file uses spawns[n] (last repeats); counted in `<file>.spawns`. */
   spawns?: FakePiScenario[];
   agents?: Record<string, FakePiScenario>;
+  models?: Record<string, FakePiScenario>;
 }
 
 type Json = Record<string, unknown>;
@@ -91,6 +92,8 @@ function loadScenario(): FakePiScenario {
   const scenario = JSON.parse(fs.readFileSync(file, "utf8")) as FakePiScenario;
   const agent = process.env.PI_SWARM_AGENT;
   if (agent && scenario.agents?.[agent]) return scenario.agents[agent];
+  const model = argValue("--model");
+  if (model && scenario.models?.[model]) return scenario.models[model];
   if (!scenario.spawns?.length) return scenario;
   const counter = `${file}.spawns`;
   const index = fs.existsSync(counter) ? Number(fs.readFileSync(counter, "utf8")) : 0;
