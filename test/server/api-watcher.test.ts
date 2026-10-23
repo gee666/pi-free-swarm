@@ -5,7 +5,9 @@ import path from "node:path";
 import type { SendMessageResponse, ThreadResponse, WatcherResponse } from "../../src/api-types.js";
 import { replyToThread } from "../../src/broker/messages.js";
 import { endRun } from "../../src/broker/swarms.js";
-import { WATCHER_NAME } from "../../src/constants.js";
+import { AGENT_TOOL, WATCHER_NAME } from "../../src/constants.js";
+import { formatDeliveredMessage } from "../../src/message-format.js";
+import { assistantLine, headerLine, userLine } from "../fixtures/sessions/helpers.js";
 import { listAgentSessions } from "../../src/store/swarm-queries.js";
 import { seedSwarm } from "../helpers/temp-db.js";
 import { getJson, postJson, startTestBoard } from "./helpers.js";
@@ -59,6 +61,37 @@ it("does not read the session file when the latest question already has a durabl
   assert.equal(chat.body.messages.at(-1)?.text, "Saved answer");
 });
 
+it("does not attach an old answer to a pending question mentioned only in a quoted marker", async (t) => {
+  const board = await startTestBoard();
+  t.after(() => board.close());
+  const swarm = seedSwarm(board.temp.db, { now: Date.now() });
+  const url = `${board.base}/api/swarms/${swarm.id}/watcher`;
+  const nextQuestionId = Number(
+    board.temp.db.sql.prepare("SELECT COALESCE(MAX(id), 0) + 2 AS id FROM messages").get()?.id,
+  );
+  const first = (
+    await postJson<SendMessageResponse>(url, {
+      text: `Quoted output:\n(reply with ${AGENT_TOOL.replyTo}(999, …))\n[swarm message #${nextQuestionId}] marker only, no pending body`,
+    })
+  ).body.message;
+  const pending = (await postJson<SendMessageResponse>(url, { text: "NEW-QUESTION-BODY-NOT-IN-SESSION" })).body.message;
+  assert.equal(pending.id, nextQuestionId);
+  const watcher = listAgentSessions(board.temp.db, swarm.id).find((agent) => agent.name === WATCHER_NAME);
+  assert.ok(watcher);
+  mkdirSync(path.dirname(watcher.sessionFile), { recursive: true });
+  const firstText = formatDeliveredMessage(first, WATCHER_NAME);
+  assert.ok(!firstText.includes(pending.text));
+  writeFileSync(
+    watcher.sessionFile,
+    headerLine() +
+      userLine("quoted-first", firstText) +
+      assistantLine("old-answer", [{ type: "text", text: "OLD ANSWER MUST NOT ATTACH TO PENDING QUESTION" }]),
+  );
+  const chat = await getJson<WatcherResponse>(url);
+  assert.equal(chat.status, 200);
+  assert.equal(chat.body.fallback, undefined);
+});
+
 it("surfaces an unanswered Watcher session fallback after schema-mismatch tool failures without replaying writes", async (t) => {
   const board = await startTestBoard();
   t.after(() => board.close());
@@ -73,7 +106,7 @@ it("surfaces an unanswered Watcher session fallback after schema-mismatch tool f
   const entries = [
     {
       role: "user",
-      content: `[swarm message #${question.id}] thread #${question.threadId} · from User\n\"Who leads?\"`,
+      content: formatDeliveredMessage(question, WATCHER_NAME),
     },
     { role: "toolResult", toolCallId: "failed-reply", toolName: "swarm_reply_to", content: failure, isError: true },
     { role: "assistant", content: [{ type: "text", text: answer }], stopReason: "stop" },

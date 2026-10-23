@@ -1,6 +1,6 @@
 import type { MessageView, ThreadResponse, WatcherResponse } from "../api-types.js";
 import { USER_NAME, WATCHER_NAME } from "../constants.js";
-import { headerMessageIds } from "../agents/rpc-events.js";
+import { formatDeliveredMessage } from "../message-format.js";
 import type { SessionEntry } from "./session-parse.js";
 
 export function pendingWatcherQuestion(thread: ThreadResponse): MessageView | undefined {
@@ -18,9 +18,10 @@ export function pendingWatcherQuestion(thread: ThreadResponse): MessageView | un
 export function watcherFallback(thread: ThreadResponse, entries: readonly SessionEntry[]): WatcherResponse["fallback"] {
   const question = pendingWatcherQuestion(thread);
   if (!question) return undefined;
+  const questionText = formatDeliveredMessage(question, WATCHER_NAME);
   let start = -1;
   entries.forEach((entry, index) => {
-    if (entry.kind === "user" && headerMessageIds(entry.text).includes(question.id)) start = index;
+    if (entry.kind === "user" && entry.text.includes(questionText)) start = index;
   });
   if (start < 0) return undefined;
   const turn = entries.slice(start + 1).reverse();
