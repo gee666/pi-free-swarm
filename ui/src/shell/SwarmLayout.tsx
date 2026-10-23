@@ -34,7 +34,7 @@ function SwarmFrame({ swarmId }: { swarmId: string }) {
           onSelectSwarm={(id) => navigate(`/s/${id}/agents`)}
         />
       }
-      rail={<TabRail basePath={`/s/${swarmId}`} />}
+      rail={<TabRail basePath={`/s/${swarmId}`} unread={detail.data?.userUnread} />}
     >
       <Outlet />
     </AppShell>

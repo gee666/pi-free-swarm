@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { FileQuestion, MessageSquare } from "lucide-react";
 import { useSwarmStream } from "../../api/SwarmStream";
+import { useSwarmDetail } from "../agents/useSwarmDetail";
 import { ComposeBox } from "../../components/compose/ComposeBox";
 import { Panel } from "../../components/Panel";
 import { EmptyState, ErrorBanner } from "../../components/States";
@@ -13,6 +14,7 @@ import { useCommentComposer } from "./useCommentComposer";
 import { usePost } from "./usePost";
 import { usePosts } from "./usePosts";
 import { useSeenComments } from "./useSeenComments";
+import { useUserCommentRead } from "./useUserCommentRead";
 import { withComment, withCommentCount, withPost } from "./wallModel";
 
 /** `/s/:id/wall/new` opens the new-post form; any other value is a post id. */
@@ -34,7 +36,9 @@ export function WallPage() {
   const posts = usePosts(swarmId);
   const postId = parsePostId(route);
   const post = usePost(swarmId, postId);
-  const unreadComments = useSeenComments(swarmId, posts.data?.posts, postId);
+  const swarm = useSwarmDetail(swarmId);
+  const readError = useUserCommentRead(swarmId, postId, post.data, swarm.data?.userUnread !== undefined);
+  const unreadComments = useSeenComments(swarmId, posts.data?.posts, post.data?.post.id);
   const composer = useCommentComposer(swarmId, postId, ({ comment, commentCount }) => {
     post.update((current) => current && withComment(current, comment, commentCount));
     posts.update((current) => current && withCommentCount(current, comment.postId, commentCount));
@@ -64,6 +68,7 @@ export function WallPage() {
           <>
             {reconnecting}
             {commentError}
+            {readError && <ErrorBanner>{`Could not confirm comment read state: ${readError}`}</ErrorBanner>}
           </>
         }
       />

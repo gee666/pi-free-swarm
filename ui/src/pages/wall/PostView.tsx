@@ -1,6 +1,6 @@
 import { FileQuestion } from "lucide-react";
 import type { ReactNode } from "react";
-import type { CommentView, PostDetailResponse } from "../../../../src/api-types";
+import type { CommentView, PostDetailResponse, UserPostAttention } from "../../../../src/api-types";
 import { displayName, USER_NAME } from "../../api/agents";
 import { ApiError } from "../../api/http";
 import { AuthoredEntry } from "../../components/AuthoredEntry";
@@ -13,15 +13,17 @@ import { EmptyState, ErrorBanner, SkeletonRows } from "../../components/States";
 import { formatTimestamp } from "../../lib/time";
 import styles from "./Wall.module.css";
 import { commentCountLabel } from "./wallModel";
+import { PostSubscriptionButton } from "./PostSubscriptionButton";
 
 interface PostViewProps {
   detail: PostDetailResponse | undefined;
   error: Error | undefined;
   banners: ReactNode;
+  onSubscriptionChange?: (state: UserPostAttention) => void;
 }
 
 /** Main panel of the Wall tab: the post, then its comments. */
-export function PostView({ detail, error, banners }: PostViewProps) {
+export function PostView({ detail, error, banners, onSubscriptionChange }: PostViewProps) {
   if (!detail) {
     const missing = error instanceof ApiError && error.code === "not_found";
     return (
@@ -45,6 +47,14 @@ export function PostView({ detail, error, banners }: PostViewProps) {
       <EntityHeader
         avatar={<Avatar name={author} size="lg" accent />}
         title={post.title}
+        actions={
+          <PostSubscriptionButton
+            swarmId={post.swarmId}
+            postId={post.id}
+            subscribed={post.userSubscribed}
+            onChange={onSubscriptionChange}
+          />
+        }
         subtitle={
           <>
             <AgentName name={author} /> · {formatTimestamp(post.createdAt)}

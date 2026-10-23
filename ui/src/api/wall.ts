@@ -6,6 +6,7 @@ import type {
   PostDetailResponse,
   PostListQuery,
   PostListResponse,
+  UserCommentsReadResponse,
 } from "../../../src/api-types";
 import { getJson, postJson } from "./http";
 
@@ -26,6 +27,15 @@ export function fetchPosts(
 /** The post with its comments, oldest first. */
 export function fetchPost(swarmId: number | string, postId: number, signal: AbortSignal): Promise<PostDetailResponse> {
   return getJson<PostDetailResponse>(`${postsUrl(swarmId)}/${postId}`, signal);
+}
+
+export function markUserCommentsRead(
+  swarmId: number | string,
+  postId: number,
+  commentIds: readonly number[],
+  signal: AbortSignal,
+): Promise<UserCommentsReadResponse> {
+  return postJson<UserCommentsReadResponse>(`${postsUrl(swarmId)}/${postId}/read`, { commentIds }, signal);
 }
 
 export function createPost(swarmId: number | string, request: CreatePostRequest): Promise<CreatePostResponse> {

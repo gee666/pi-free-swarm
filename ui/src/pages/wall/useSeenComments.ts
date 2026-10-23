@@ -25,9 +25,8 @@ function readSeen(swarmId: string): SeenCounts {
 }
 
 /**
- * Unread comments per post, remembered in localStorage (the API has no read state for the wall). A post seen
- * for the first time counts as read, so only comments that arrive afterwards raise its badge; the open post
- * is always read.
+ * Server User subscription/read counts are authoritative. Local counts support older servers without them;
+ * this fallback treats a first-seen post and the open post as read.
  */
 export function useSeenComments(
   swarmId: string,
@@ -40,6 +39,7 @@ export function useSeenComments(
     if (!posts) return;
     setSeen((current) => {
       const changes = posts.filter((post) => {
+        if (post.userUnreadComments !== undefined) return false;
         const known = current[post.id];
         return known === undefined || (post.id === openPostId && known !== post.commentCount);
       });
@@ -56,5 +56,9 @@ export function useSeenComments(
     }
   }, [swarmId, seen]);
 
-  return (post) => Math.max(0, post.commentCount - (seen[post.id] ?? post.commentCount));
+  return (post) => {
+    if (post.userSubscribed === false) return 0;
+    if (post.userUnreadComments !== undefined) return Math.max(0, post.userUnreadComments);
+    return Math.max(0, post.commentCount - (seen[post.id] ?? post.commentCount));
+  };
 }

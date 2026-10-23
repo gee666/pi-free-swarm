@@ -1,4 +1,10 @@
-import type { CommentView, PostDetailResponse, PostListResponse, PostSummary } from "../../../../src/api-types";
+import type {
+  CommentView,
+  PostDetailResponse,
+  PostListResponse,
+  PostSummary,
+  UserPostAttention,
+} from "../../../../src/api-types";
 import { insertNewest, newestFirst } from "../../lib/newestFirst";
 
 export function orderPost(detail: PostDetailResponse): PostDetailResponse {
@@ -39,6 +45,22 @@ export function withComment(
     post: { ...detail.post, commentCount: Math.max(detail.post.commentCount, commentCount) },
     comments: insertNewest(detail.comments, comment),
   };
+}
+
+export function withUserPostAttention(post: PostSummary, attention: UserPostAttention): PostSummary {
+  if (
+    post.id !== attention.postId ||
+    (post.userSubscribed === attention.userSubscribed && post.userUnreadComments === attention.userUnreadComments)
+  )
+    return post;
+  return { ...post, userSubscribed: attention.userSubscribed, userUnreadComments: attention.userUnreadComments };
+}
+
+export function withUserPostListAttention(list: PostListResponse, attention: UserPostAttention): PostListResponse {
+  const target = list.posts.find((post) => post.id === attention.postId);
+  if (!target) return list;
+  const updated = withUserPostAttention(target, attention);
+  return updated === target ? list : { ...list, posts: list.posts.map((post) => (post === target ? updated : post)) };
 }
 
 /** "1 comment", "4 comments". */

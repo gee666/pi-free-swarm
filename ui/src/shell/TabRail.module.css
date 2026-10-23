@@ -30,6 +30,12 @@
   text-decoration: none;
 }
 
+.tabBadge {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+}
+
 .active,
 .active:hover {
   background: var(--bg-panel);
