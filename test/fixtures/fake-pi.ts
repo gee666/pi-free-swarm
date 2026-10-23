@@ -28,7 +28,7 @@ export interface FakeUsage {
 export type FakeStep =
   | { type: "reply"; text?: string; thinking?: boolean; usage?: FakeUsage }
   /** A tool that stays silent for `ms`; steering prompts are queued meanwhile. */
-  | { type: "tool"; name?: string; ms: number }
+  | { type: "tool"; name?: string; ms: number; usage?: FakeUsage }
   /** Turn boundary: queued steers arrive here, each as its own user message_start. */
   | { type: "turn" }
   | { type: "compaction"; usage?: FakeUsage }
@@ -194,7 +194,8 @@ async function runStep(step: FakeStep): Promise<void> {
       assistantMessage([{ type: "toolCall", id: toolCallId, name: toolName, arguments: args }], undefined, "toolUse");
       emit({ type: "tool_execution_start", toolCallId, toolName, args });
       await sleep(step.ms);
-      const result = { content: [{ type: "text", text: "(no output)" }] };
+      const usage = step.usage ? usageRecord(step.usage) : undefined;
+      const result = { content: [{ type: "text", text: "(no output)" }], usage };
       emit({ type: "tool_execution_end", toolCallId, toolName, result, isError: false });
       const message = { role: "toolResult", toolCallId, toolName, ...result, isError: false, timestamp: Date.now() };
       emit({ type: "message_start", message });
