@@ -183,7 +183,10 @@ export class RunAgent implements DeliveryTarget {
   async #ownedOutcome(delivery: Promise<DeliveryOutcome>): Promise<DeliveryOutcome> {
     const outcome = await delivery;
     if (outcome.accepted && this.#ctx.canContinue?.() === false) {
-      return { accepted: false, error: "The run stopped or lost ownership before delivery confirmation; pending content is preserved." };
+      return {
+        accepted: false,
+        error: "The run stopped or lost ownership before delivery confirmation; pending content is preserved.",
+      };
     }
     return outcome;
   }
@@ -208,8 +211,9 @@ export class RunAgent implements DeliveryTarget {
     if (messageIds.length) this.#ctx.onRealMessage(this.name);
     this.#launching = true;
     const prompt = messagePrompt(this.#ctx.db, this.#ctx.swarmId, this.name, messageIds, render, this.#ctx.onError);
-    const outcome = await this.#ownedOutcome(this.#supervisor.launch(this.#spec, prompt ? this.#fenced(prompt) : null))
-      .finally(() => (this.#launching = false));
+    const outcome = await this.#ownedOutcome(
+      this.#supervisor.launch(this.#spec, prompt ? this.#fenced(prompt) : null),
+    ).finally(() => (this.#launching = false));
     const { db, swarmId, clock } = this.#ctx;
     if (outcome.accepted && !this.#ctx.isEnding()) markDelivered(db, swarmId, this.name, messageIds, clock.now());
   }
