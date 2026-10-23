@@ -5,7 +5,14 @@ import { useStreamListener } from "../../api/useEventStream";
 import { useLoadMore, type LoadMore } from "../../api/useLoadMore";
 import { fetchPosts } from "../../api/wall";
 import { newestFirst } from "../../lib/newestFirst";
-import { withCommentCount, withOlderPosts, withPost, withUserPostListAttention } from "./wallModel";
+import {
+  withCommentCount,
+  withOlderPosts,
+  withPost,
+  withPostListClaim,
+  withPostListContract,
+  withUserPostListAttention,
+} from "./wallModel";
 
 const PAGE_SIZE = 20;
 
@@ -21,6 +28,9 @@ export function usePosts(swarmId: string): AsyncState<PostListResponse> & LoadMo
 
   useStreamListener(stream, (event) => {
     if (event.type === "post.created") update((current) => current && withPost(current, event.payload.post));
+    if (event.type === "post.contract.updated")
+      update((current) => current && withPostListContract(current, event.payload.contract));
+    if (event.type === "post.claimed") update((current) => current && withPostListClaim(current, event.payload.claim));
     if (event.type === "user.post.updated")
       update((current) => current && withUserPostListAttention(current, event.payload));
     if (event.type === "comment.created") {

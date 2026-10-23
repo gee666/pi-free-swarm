@@ -27,7 +27,6 @@ export function AcceptanceSummary({ detail }: { detail: SwarmDetailResponse }) {
           {record.verdict === "accepted" && " (agent-attested)"}
         </p>
         <p>Agent votes against the original task, not independent verification.</p>
-        <p>Original task: {record.originalTask}</p>
         <h3>Acceptance criteria</h3>
         <ul>
           {record.acceptanceCriteria.map((criterion, index) => (

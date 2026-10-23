@@ -1,3 +1,11 @@
+.totals {
+  container-type: inline-size;
+}
+
+.tileGroups {
+  display: grid;
+}
+
 .tiles {
   display: grid;
   flex: none;
@@ -46,7 +54,6 @@
   justify-content: space-between;
   gap: var(--space-4);
   padding: var(--space-3) var(--space-5) 0;
-  border-top: 1px solid var(--border);
 }
 
 .tokenHeading h3 {
@@ -91,19 +98,39 @@
   padding: 0 var(--space-5) var(--space-4);
 }
 
+/* Eight cards fit without crowding once the panel itself is wide enough. */
+@container (min-width: 1280px) {
+  .tileGroups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+
+  .tiles:first-child {
+    padding-right: 0;
+  }
+}
+
 /* The outer body scrolls totals in short windows; the table keeps its own sticky header and footer. */
 .tableBox {
   flex: none;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .tableScroll {
+  width: 100%;
   min-height: 0;
   max-height: 60vh;
   overflow: auto;
 }
 
 .table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
@@ -229,4 +256,29 @@
   display: block;
   height: 100%;
   background: var(--accent);
+}
+
+@media (max-width: 600px) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .tile {
+    padding: var(--space-3);
+  }
+
+  .tileValue {
+    font-size: var(--fs-h2);
+  }
+
+  .cacheTotal {
+    flex-wrap: wrap;
+  }
+
+  /* Let long agent names scroll away instead of covering the narrow viewport. */
+  .table th:first-child {
+    left: auto;
+  }
 }

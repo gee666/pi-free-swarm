@@ -82,6 +82,7 @@ function WatcherChat({ swarmId }: { swarmId: string }) {
         </div>
       )}
       <ComposeBox
+        uploadSwarmId={swarmId}
         text={text}
         onTextChange={setText}
         onSend={() => void send()}

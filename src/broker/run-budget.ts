@@ -15,9 +15,6 @@ export class RunBudget {
 
   check(): boolean {
     const { db, clock, settings } = this.env;
-    // Runtime edits cannot turn an unlimited dimension into an enforced limit.
-    if (!this.stopped && settings.budgetMoneyUsd === undefined && settings.budgetTimeSeconds === undefined)
-      return false;
     const budget = readBudget(db, this.swarmId, settings, clock.now());
     if (budget.moneyUsd !== null && budget.hasAccountingGaps) {
       throw new Error(

@@ -12,6 +12,8 @@
 
 export type * from "./api-session-types.js";
 import type { UsageTotals } from "./api-usage-types.js";
+import type { CommentView, PostClaim, PostContract, PostSummary } from "./api-wall-types.js";
+export type * from "./api-wall-types.js";
 import type { MessageCreatedPayload, MessageStatusPayload, UserUnreadSummary } from "./api-user-unread-types.js";
 export type * from "./api-user-unread-types.js";
 
@@ -55,6 +57,8 @@ export interface AgentParticipantView {
   launchOrder: number;
   reviveCount: number;
   retiredAt?: number | null;
+  /** Durable replacement identity; absent/null for removals without a replacement. */
+  successorName?: string | null;
   firstIdleAt?: number | null;
   /** Recorded effective assignment, never guessed for historical workers. */
   model?: import("./run-configuration.js").WorkerAssignment | null;
@@ -78,27 +82,6 @@ export interface UserParticipantView {
 
 /** `Main` and `System` are senders only and never appear in participant lists. */
 export type ParticipantView = AgentParticipantView | UserParticipantView;
-
-export interface PostSummary {
-  id: number;
-  swarmId: number;
-  author: string;
-  title: string;
-  text: string;
-  commentCount: number;
-  createdAt: number;
-  userSubscribed?: boolean;
-  userUnreadComments?: number;
-}
-
-export interface CommentView {
-  id: number;
-  postId: number;
-  swarmId: number;
-  author: string;
-  text: string;
-  createdAt: number;
-}
 
 export interface RecipientView {
   name: string;
@@ -167,6 +150,7 @@ export interface PostListResponse {
 export interface PostDetailResponse {
   post: PostSummary;
   comments: CommentView[];
+  contract?: PostContract | null;
 }
 
 /** POST /api/swarms/:id/posts. The REST API always acts as `User`, so there is no author field. */
@@ -191,9 +175,10 @@ export interface CreateCommentResponse {
 
 // ── REST: messages ────────────────────────────────────────────────────────────
 
-/** GET /api/swarms/:id/participants/:name/messages?box&count&offset (defaults inbox / 20 / 0, count ≤ 100). */
+/** GET /api/swarms/:id/participants/:name/messages?box&count&offset&unreadOnly. */
 export interface MailboxQuery {
   box?: MailboxKind;
+  unreadOnly?: boolean;
   count?: number;
   offset?: number;
 }
@@ -214,6 +199,7 @@ export interface MailboxThread {
 export interface MailboxResponse {
   name: string;
   box: MailboxKind;
+  unreadOnly?: boolean;
   threads: MailboxThread[];
   /** Number of threads in this box, for pagination. */
   total: number;
@@ -316,6 +302,8 @@ export interface ApiErrorBody {
 export interface SwarmEventPayloads {
   "acceptance.updated": { revision: number };
   "post.created": { post: PostSummary };
+  "post.claimed": { postId: number; claim: PostClaim };
+  "post.contract.updated": { postId: number; contract: PostContract };
   "comment.created": { comment: CommentView; commentCount: number };
   "user.post.updated": import("./api-user-unread-types.js").UserPostAttention;
   "message.created": MessageCreatedPayload;

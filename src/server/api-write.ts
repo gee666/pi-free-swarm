@@ -1,12 +1,20 @@
 // POST routes of the board API. The board always acts as User.
-import type { CreateCommentResponse, CreatePostResponse, MarkReadResponse, SendMessageResponse } from "../api-types.js";
+import type {
+  CreateCommentResponse,
+  CreatePostResponse,
+  MarkReadResponse,
+  PostContract,
+  SendMessageResponse,
+} from "../api-types.js";
 import { markUserRead, replyToThread, sendMessage } from "../broker/messages.js";
 import { markUserCommentsRead } from "../broker/user-comment-read.js";
 import { setUserPostSubscription } from "../broker/user-post-subscription.js";
 import { addComment, createPost } from "../broker/wall.js";
+import { PostContractConflictError, writePostContract } from "../broker/post-contracts.js";
 import { NOT_RUNNING_TEXT, USER_NAME } from "../constants.js";
 import {
   ApiFailure,
+  badRequest,
   idArrayField,
   notFound,
   readJsonBody,
@@ -53,6 +61,33 @@ export function writeRoutes(deps: ApiDeps): ApiRoute[] {
         const swarm = requireSwarmItem(deps, params.id("swarmId"));
         const result = addComment(db, swarm.id, USER_NAME, params.id("postId"), text, clock.now());
         return reply<CreateCommentResponse>(result, CREATED);
+      },
+    },
+    {
+      method: "POST",
+      pattern: "/api/swarms/:swarmId/posts/:postId/contract",
+      handle: async ({ req, params }) => {
+        const body = await readJsonBody(req);
+        const expectedRevision = body.expectedRevision;
+        if (typeof expectedRevision !== "number" || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0)
+          throw badRequest("expectedRevision must be a nonnegative safe integer.", "expectedRevision");
+        const swarm = requireSwarmItem(deps, params.id("swarmId"));
+        try {
+          const contract = writePostContract(
+            db,
+            swarm.id,
+            USER_NAME,
+            params.id("postId"),
+            stringField(body, "text"),
+            expectedRevision,
+            clock.now(),
+          );
+          return reply<{ contract: PostContract }>({ contract });
+        } catch (error) {
+          if (error instanceof PostContractConflictError)
+            throw new ApiFailure(409, "validation", error.message, "expectedRevision");
+          throw error;
+        }
       },
     },
     {

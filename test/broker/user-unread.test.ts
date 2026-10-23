@@ -26,8 +26,8 @@ test("User attention separates direct messages from subscribed comments and pres
     addComment(db, swarm.id, "User", otherPost.id, "stay opted out", T0);
     addComment(db, swarm.id, "John", otherPost.id, "not notified", T0);
     assert.deepEqual(userUnreadSummary(db, swarm.id), { messages: 1, comments: 1 });
-    assert.deepEqual(markUserRead(db, swarm.id, [direct.id], T0 + 1), { updated: 1, unread: 2 });
-    assert.deepEqual(userUnreadState(db, swarm.id), { total: 2, summary: { messages: 0, comments: 1 } });
+    assert.deepEqual(markUserRead(db, swarm.id, [direct.id], T0 + 1), { updated: 1, unread: 0 });
+    assert.deepEqual(userUnreadState(db, swarm.id), { total: 0, summary: { messages: 0, comments: 1 } });
     assert.equal(
       markUserCommentsRead(db, swarm.id, otherPost.id, [followed.id], T0 + 2).updated,
       0,
@@ -43,13 +43,8 @@ test("User attention separates direct messages from subscribed comments and pres
       userUnread: { messages: 0, comments: 0 },
       userSubscribed: true,
     });
-    const retained = db.sql
-      .prepare(
-        `SELECT r.status FROM message_recipients r JOIN comment_notifications n
-      ON n.message_id = r.message_id WHERE n.comment_id = ? AND r.name = 'User'`,
-      )
-      .get(followed.id);
-    assert.equal(retained?.status, "delivered", "hiding an unfollowed discussion never marks unseen content read");
+    const retained = db.sql.prepare(`SELECT read_at FROM user_comment_attention WHERE comment_id = ?`).get(followed.id);
+    assert.equal(retained?.read_at, null, "hiding an unfollowed discussion never marks unseen content read");
     setPostSubscription(db, swarm.id, "User", otherPost.id, true, T0 + 4);
     const reopened = openSwarmDb(db.path, { create: false });
     try {
@@ -62,32 +57,19 @@ test("User attention separates direct messages from subscribed comments and pres
   }
 });
 
-test("cancelled unsent User notifications never return on resubscribe", () => {
+test("User wall attention survives unsubscribe without creating private notifications", () => {
   const temp = createTempDb();
   const { db } = temp;
   try {
     const swarm = seedSwarm(db);
     const post = createPost(db, swarm.id, "User", { title: "Cancelled", text: "Keep terminal delivery state." }, T0);
     const comment = addComment(db, swarm.id, "Maria", post.id, "old unsent", T0).comment;
-    const notification = db.sql
-      .prepare("SELECT message_id FROM comment_notifications WHERE comment_id = ?")
-      .get(comment.id);
-    assert.ok(notification && typeof notification.message_id === "number");
-    db.sql
-      .prepare(
-        "UPDATE message_recipients SET status = 'pending', delivered_at = NULL WHERE message_id = ? AND name = 'User'",
-      )
-      .run(notification.message_id);
+    assert.equal(db.sql.prepare("SELECT COUNT(*) AS n FROM messages WHERE swarm_id = ?").get(swarm.id)?.n, 0);
     setPostSubscription(db, swarm.id, "User", post.id, false, T0 + 1);
-    setPostSubscription(db, swarm.id, "User", post.id, true, T0 + 2);
     assert.deepEqual(userUnreadSummary(db, swarm.id), { messages: 0, comments: 0 });
-    assert.equal(markUserCommentsRead(db, swarm.id, post.id, [comment.id], T0 + 3).updated, 0);
-    assert.equal(
-      db.sql
-        .prepare("SELECT status FROM message_recipients WHERE message_id = ? AND name = 'User'")
-        .get(notification.message_id)?.status,
-      "undeliverable",
-    );
+    setPostSubscription(db, swarm.id, "User", post.id, true, T0 + 2);
+    assert.deepEqual(userUnreadSummary(db, swarm.id), { messages: 0, comments: 1 });
+    assert.equal(markUserCommentsRead(db, swarm.id, post.id, [comment.id], T0 + 3).updated, 1);
     addComment(db, swarm.id, "John", post.id, "future only", T0 + 4);
     assert.deepEqual(userUnreadSummary(db, swarm.id), { messages: 0, comments: 1 });
   } finally {

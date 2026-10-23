@@ -1,11 +1,10 @@
 import type { UserCommentsReadResponse } from "../api-types.js";
 import { USER_NAME } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
-import { int, jsonList } from "../store/rows.js";
+import { readUserCommentAttention } from "../store/user-comment-attention.js";
 import { userUnreadSummary } from "../store/user-unread.js";
 import { postExists } from "../store/wall-queries.js";
 import { emitUserPostAttention } from "./user-post-subscription.js";
-import { markRead } from "./delivery-state.js";
 import { BrokerError } from "./errors.js";
 import { requireSwarm } from "./validate.js";
 
@@ -33,17 +32,7 @@ export function markUserCommentsRead(
       .get(swarmId, postId, USER_NAME);
     if (subscription?.subscribed !== 1)
       return { updated: 0, userUnread: userUnreadSummary(db, swarmId), userSubscribed: false };
-    const ids = db.sql
-      .prepare(
-        `SELECT DISTINCT n.message_id FROM comment_notifications n
-      JOIN comments c ON c.id = n.comment_id AND c.post_id = n.post_id
-      JOIN message_recipients r ON r.message_id = n.message_id
-      WHERE c.swarm_id = ? AND n.post_id = ? AND r.name = ?
-      AND n.comment_id IN (SELECT value FROM json_each(?))`,
-      )
-      .all(swarmId, postId, USER_NAME, jsonList(commentIds))
-      .map((row) => int(row, "message_id"));
-    const updated = markRead(db, swarmId, USER_NAME, ids, now);
+    const updated = readUserCommentAttention(db, swarmId, postId, commentIds, now);
     const userUnread =
       updated > 0 ? emitUserPostAttention(db, swarmId, postId, now).userUnread : userUnreadSummary(db, swarmId);
     return { updated, userUnread, userSubscribed: true };

@@ -1,0 +1,28 @@
+.wrapper {
+  min-width: 0;
+}
+
+.options {
+  min-height: 0;
+  max-height: 40vh;
+  margin: 0;
+  padding: var(--space-2);
+  overflow-y: auto;
+  list-style: none;
+}
+
+.options li {
+  display: flex;
+  align-items: center;
+  min-height: var(--menu-row-h);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.options li:hover,
+.options .active {
+  background: var(--accent-soft-bg);
+  color: var(--accent);
+}

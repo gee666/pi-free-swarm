@@ -50,3 +50,31 @@
   border-radius: var(--radius-full);
   background: var(--accent);
 }
+
+@media (max-width: 760px) {
+  .rail {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0;
+    width: 100%;
+    padding: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    min-width: 0;
+    height: 58px;
+    gap: var(--space-1);
+    border-radius: 0;
+    font-size: var(--fs-small);
+  }
+  .tabBadge {
+    top: 0;
+    right: var(--space-1);
+  }
+  .active::before {
+    inset: auto var(--space-1) 0;
+    width: auto;
+    height: 3px;
+  }
+}

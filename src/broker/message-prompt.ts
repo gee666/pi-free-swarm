@@ -1,5 +1,5 @@
 import type { PromptPayload } from "../agents/supervisor.js";
-import { formatDeliveredMessages } from "../message-format.js";
+import { formatNotificationMessages } from "./notification-format.js";
 import type { SwarmDb } from "../store/db.js";
 import { getMessages } from "../store/message-queries.js";
 
@@ -21,7 +21,7 @@ export function messagePrompt(
             recipient.name === name && (recipient.status === "pending" || recipient.status === "delivered"),
         ),
     );
-    const text = render(formatDeliveredMessages(messages, name));
+    const text = render(formatNotificationMessages(db, messages, name));
     return text === null ? null : { text, messageIds: messages.map((message) => message.id) };
   };
   const initial = refresh();

@@ -51,6 +51,11 @@ export function raiseSwarmBudget(
       );
     }
     const budget = validateSwarmBudgetRaise(db, swarmId, saved.effective.budget, input);
+    if (
+      budget.moneyUsd === saved.effective.budget.moneyUsd &&
+      budget.timeSeconds === saved.effective.budget.timeSeconds
+    )
+      return saved;
     const change: ConfigurationChange = {
       type: "raiseBudget",
       ...(budget.moneyUsd !== null && budget.moneyUsd !== saved.effective.budget.moneyUsd
@@ -86,25 +91,21 @@ export function validateSwarmBudgetRaise(
   if (budget.moneyUsd !== null && (hasBudgetAccountingGap(db, swarmId) || hasUnverifiedUsageCost(db, swarmId))) {
     throw new BrokerError(
       "validation",
-      "Money accounting is incomplete. Raising a ceiling cannot repair unknown costs; inspect the evidence before resuming without a money limit.",
+      "Money accounting is incomplete. Editing a ceiling cannot repair unknown costs; inspect the evidence before resuming without a money limit.",
       "budget.moneyUsd",
     );
   }
   return budget;
 }
 
-/** Runtime edits raise total ceilings; they never reset accounting or change shutdown policy. */
+/** Runtime edits replace total ceilings without resetting accounting or changing shutdown policy. */
 export function raiseBudgetPolicy(current: BudgetPolicy, input: unknown): BudgetPolicy {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
     throw new BrokerError("validation", "budget must be an object containing moneyUsd or timeSeconds.", "budget");
   }
   const keys = Object.keys(input);
   if (keys.length === 0 || keys.some((key) => key !== "moneyUsd" && key !== "timeSeconds")) {
-    throw new BrokerError(
-      "validation",
-      "budget accepts only increased moneyUsd and timeSeconds total ceilings.",
-      "budget",
-    );
+    throw new BrokerError("validation", "budget accepts only moneyUsd and timeSeconds total ceilings.", "budget");
   }
   const next = { ...current };
   for (const key of CEILINGS) {
@@ -112,21 +113,6 @@ export function raiseBudgetPolicy(current: BudgetPolicy, input: unknown): Budget
     const value: unknown = Reflect.get(input, key);
     if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
       throw new BrokerError("validation", `budget.${key} must be a finite positive total ceiling.`, `budget.${key}`);
-    }
-    const previous = current[key];
-    if (previous === null) {
-      throw new BrokerError(
-        "validation",
-        `budget.${key} is already unlimited; there is no ceiling to raise.`,
-        `budget.${key}`,
-      );
-    }
-    if (value <= previous) {
-      throw new BrokerError(
-        "validation",
-        `budget.${key} must exceed its current total ceiling (${previous}); cumulative consumption is not reset.`,
-        `budget.${key}`,
-      );
     }
     next[key] = value;
   }

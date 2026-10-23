@@ -9,6 +9,7 @@ import type {
   ThreadView,
   UnreadCounts,
 } from "../api-types.js";
+import { USER_NAME } from "../constants.js";
 import type { SwarmDb } from "./db.js";
 import { int, jsonList, kindOf, recipientOf, recipientStatusOf, text, type Row } from "./rows.js";
 import { findParticipant } from "./swarm-queries.js";
@@ -133,12 +134,18 @@ export function getMailbox(
   swarmId: number,
   name: string,
   box: MailboxKind,
-  page: { count: number; offset: number },
+  page: { count: number; offset: number; unreadOnly?: boolean },
 ): MailboxResponse {
   const canonical = findParticipant(db, swarmId, name)?.name ?? name;
+  if (page.unreadOnly && (canonical !== USER_NAME || box !== "inbox"))
+    throw new RangeError("unreadOnly is supported only for the User inbox.");
+  const unreadFilter = page.unreadOnly
+    ? ` AND EXISTS (SELECT 1 FROM messages um JOIN message_recipients ur ON ur.message_id = um.id
+        WHERE um.thread_id = m.thread_id AND ur.swarm_id = r.swarm_id AND ur.name = r.name AND ur.status IN ${OPEN})`
+    : "";
   const inBox =
     box === "inbox"
-      ? "FROM messages m JOIN message_recipients r ON r.message_id = m.id WHERE r.swarm_id = ? AND r.name = ?"
+      ? `FROM messages m JOIN message_recipients r ON r.message_id = m.id WHERE r.swarm_id = ? AND r.name = ?${unreadFilter}`
       : "FROM messages m WHERE m.swarm_id = ? AND m.sender = ?";
   const threadRows = db.sql
     .prepare(
@@ -165,6 +172,7 @@ export function getMailbox(
   return {
     name: canonical,
     box,
+    ...(page.unreadOnly ? { unreadOnly: true } : {}),
     threads,
     total: total === undefined ? 0 : int(total, "n"),
     unread: unreadOf(db, swarmId, canonical),

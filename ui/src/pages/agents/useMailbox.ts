@@ -9,17 +9,27 @@ import { applyMailboxEvent, orderMailbox, withOlderThreads } from "./mailboxMode
 const PAGE_SIZE = 20;
 
 /** One box of a participant, kept live from the swarm stream; older threads load on demand. */
-export function useMailbox(swarmId: string, name: string, box: MailboxKind): AsyncState<MailboxResponse> & LoadMore {
+export function useMailbox(
+  swarmId: string,
+  name: string,
+  box: MailboxKind,
+  unreadOnly = false,
+): AsyncState<MailboxResponse> & LoadMore {
   const stream = useSwarmStream();
   const state = useAsync(
-    (signal) => fetchMailbox(swarmId, name, { box, count: PAGE_SIZE }, signal).then(orderMailbox),
-    [swarmId, name, box, stream.openCount],
+    (signal) => fetchMailbox(swarmId, name, { box, count: PAGE_SIZE, unreadOnly }, signal).then(orderMailbox),
+    [swarmId, name, box, unreadOnly, stream.openCount],
   );
   const { data, update, reload } = state;
 
   useStreamListener(stream, (event) => {
     if (!data) return;
-    if (applyMailboxEvent(data, event).kind === "reload") {
+    const relevantUnreadEvent =
+      unreadOnly &&
+      ((event.type === "message.created" &&
+        event.payload.message.recipients.some((recipient) => recipient.name === name)) ||
+        (event.type === "message.status" && event.payload.recipient.name === name));
+    if (relevantUnreadEvent || applyMailboxEvent(data, event).kind === "reload") {
       reload();
       return;
     }
@@ -33,7 +43,7 @@ export function useMailbox(swarmId: string, name: string, box: MailboxKind): Asy
   const more = useLoadMore(state, {
     loaded: (mailbox) => mailbox.threads.length,
     total: (mailbox) => mailbox.total,
-    fetch: (offset) => fetchMailbox(swarmId, name, { box, count: PAGE_SIZE, offset }).then(orderMailbox),
+    fetch: (offset) => fetchMailbox(swarmId, name, { box, count: PAGE_SIZE, offset, unreadOnly }).then(orderMailbox),
     merge: withOlderThreads,
   });
   return { ...state, ...more };

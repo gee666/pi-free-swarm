@@ -82,6 +82,8 @@ export function AgentsPage() {
       compose={
         <div ref={composeSlot} className={styles.composeSlot}>
           <ComposeBox
+            uploadSwarmId={swarmId}
+            uploadScope={JSON.stringify([composer.to, composer.thread?.id])}
             text={composer.text}
             onTextChange={composer.setText}
             onSend={composer.send}

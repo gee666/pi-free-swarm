@@ -12,6 +12,7 @@ interface ListRowProps {
   title: ReactNode;
   /** Inline after the title, e.g. the "you" pill. */
   titleAddon?: ReactNode;
+  wrapTitle?: boolean;
   /** Second line in --text-muted --fs-small. */
   subtitle?: ReactNode;
   /** Right side: status dot, envelope button, badge. May hold its own buttons. */
@@ -26,13 +27,14 @@ export function ListRow({
   avatarSize = "md",
   title,
   titleAddon,
+  wrapTitle = false,
   subtitle,
   trailing,
   selected = false,
   onSelect,
 }: ListRowProps) {
   return (
-    <div className={cx(styles.row, selected && styles.selected)} data-agent-row>
+    <div className={cx(styles.row, selected && styles.selected, wrapTitle && styles.wrapTitle)} data-agent-row>
       <div className={styles.main} onClick={onSelect}>
         <RowButton label={typeof title === "string" ? title : avatar} selected={selected} />
         <Avatar name={avatar} size={avatarSize} accent={selected} />

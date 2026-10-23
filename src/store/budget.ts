@@ -113,29 +113,38 @@ function currentBudgetPolicy(
 }
 
 export function getBudgetRaises(db: SwarmDb, swarmId: number): BudgetRaises {
-  // A committed revision survives interruption before its request reaches "applied".
-  const row = db.sql
+  // Committed revisions survive interrupted requests. Compare consecutive policies so a reset
+  // to the initial value is still an override, while unrelated roster revisions pin no defaults.
+  const rows = db.sql
     .prepare(
-      `WITH ceilings AS (
-        SELECT json_extract(change, '$.moneyUsd') AS money_usd,
+      `WITH history AS (
+        SELECT run, 0 AS revision, configuration FROM run_configurations WHERE swarm_id = ?
+        UNION ALL
+        SELECT run, revision, configuration FROM run_configuration_revisions WHERE swarm_id = ?
+      ), policies AS (
+        SELECT *, LAG(configuration) OVER (PARTITION BY run ORDER BY revision) AS previous FROM history
+      ), ceilings AS (
+        SELECT run, expected_revision + 1 AS revision, 0 AS priority,
+          json_extract(change, '$.moneyUsd') AS money_usd,
           json_extract(change, '$.timeSeconds') AS time_seconds
         FROM configuration_requests
         WHERE swarm_id = ? AND status = 'applied' AND json_extract(change, '$.type') = 'raiseBudget'
         UNION ALL
-        SELECT
-          CASE WHEN json_extract(r.configuration, '$.budget.moneyUsd') > json_extract(i.configuration, '$.budget.moneyUsd')
-            THEN json_extract(r.configuration, '$.budget.moneyUsd') END,
-          CASE WHEN json_extract(r.configuration, '$.budget.timeSeconds') > json_extract(i.configuration, '$.budget.timeSeconds')
-            THEN json_extract(r.configuration, '$.budget.timeSeconds') END
-        FROM run_configuration_revisions r JOIN run_configurations i USING (swarm_id, run)
-        WHERE r.swarm_id = ?
-      ) SELECT MAX(money_usd) AS money_usd, MAX(time_seconds) AS time_seconds FROM ceilings`,
+        SELECT run, revision, 1 AS priority,
+          CASE WHEN json_extract(configuration, '$.budget.moneyUsd') IS NOT json_extract(previous, '$.budget.moneyUsd')
+            THEN json_extract(configuration, '$.budget.moneyUsd') END,
+          CASE WHEN json_extract(configuration, '$.budget.timeSeconds') IS NOT json_extract(previous, '$.budget.timeSeconds')
+            THEN json_extract(configuration, '$.budget.timeSeconds') END
+        FROM policies WHERE revision > 0
+      ) SELECT money_usd, time_seconds FROM ceilings ORDER BY run, revision, priority`,
     )
-    .get(swarmId, swarmId);
-  return {
-    ...(typeof row?.money_usd === "number" ? { moneyUsd: row.money_usd } : {}),
-    ...(typeof row?.time_seconds === "number" ? { timeSeconds: row.time_seconds } : {}),
-  };
+    .all(swarmId, swarmId, swarmId);
+  const ceilings: BudgetRaises = {};
+  for (const row of rows) {
+    if (typeof row.money_usd === "number") ceilings.moneyUsd = row.money_usd;
+    if (typeof row.time_seconds === "number") ceilings.timeSeconds = row.time_seconds;
+  }
+  return ceilings;
 }
 
 export function hasBudgetAccountingGap(db: SwarmDb, swarmId: number): boolean {

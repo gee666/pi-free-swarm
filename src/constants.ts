@@ -110,6 +110,8 @@ export const AGENT_TOOL = {
   readPost: "swarm_read_post",
   post: "swarm_post",
   comment: "swarm_comment",
+  claim: "swarm_claim",
+  contract: "swarm_contract",
   subscribe: "swarm_subscribe",
   unsubscribe: "swarm_unsubscribe",
   message: "swarm_message",

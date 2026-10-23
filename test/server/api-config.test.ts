@@ -16,7 +16,11 @@ function postJson<T = unknown>(url: string, body: Record<string, unknown>) {
 }
 
 // Seed provenance without model calls; HTTP requests must not start child processes.
-function recordedSwarm(board: TestBoard, names = ["Maria", "John", "Liam"]) {
+function recordedSwarm(
+  board: TestBoard,
+  names = ["Maria", "John", "Liam"],
+  budget: RunConfiguration["budget"] = { moneyUsd: 1, timeSeconds: 60, gracefulShutdown: false },
+) {
   const now = Date.now();
   const swarm = seedSwarm(board.temp.db, { agents: names, now });
   const configuration: RunConfiguration = {
@@ -39,7 +43,7 @@ function recordedSwarm(board: TestBoard, names = ["Maria", "John", "Liam"]) {
       reviveBackoffMs: [10],
     },
     limits: { bodyMaxChars: 200, maxRpcFrameBytes: 16 * 1024 * 1024, maxAgents: 6 },
-    budget: { moneyUsd: 1, timeSeconds: 60, gracefulShutdown: false },
+    budget,
   };
   saveRunConfiguration(board.temp.db, swarm.id, 1, configuration, now);
   return { swarm, url: `${board.base}/api/swarms/${swarm.id}/config` };
@@ -90,7 +94,7 @@ test("Config HTTP rejects unsupported fields, invalid controls, Watcher removal 
   assert.match(last.body.message, /at least one|Stop/);
   assert.equal((await submit({ type: "retireAgent", name: "Maria", handoffFile: "/etc/passwd" })).status, 400);
   assert.equal((await submit({ type: "addAgents", count: 1, model: "unapproved" })).status, 400);
-  assert.equal((await submit({ type: "raiseBudget", moneyUsd: 0.5 })).status, 400);
+  assert.equal((await submit({ type: "raiseBudget", moneyUsd: 0 })).status, 400);
   assert.equal((await submit({ type: "raiseBudget", gracefulShutdown: true })).status, 400);
   const oversized = await postJson<ApiErrorBody>(url, {
     expectedRevision: 0,
@@ -143,6 +147,42 @@ test("a User can synchronously raise stopped budget ceilings without resetting s
     (await postJson(url, { expectedRevision: 0, change: { type: "raiseBudget", moneyUsd: 3 } })).status,
     409,
   );
+});
+
+test("Config HTTP lowers ceilings and limits unlimited work without resetting usage", async (t) => {
+  const board = await startTestBoard();
+  t.after(() => board.close());
+  for (const starting of [1, null]) {
+    const { swarm, url } = recordedSwarm(board, ["Maria"], {
+      moneyUsd: starting,
+      timeSeconds: starting === null ? null : 60,
+      gracefulShutdown: true,
+    });
+    recordUsage(
+      board.temp.db,
+      swarm.id,
+      "Maria",
+      { kind: "message", input: 1, output: 1, cacheRead: 0, cacheWrite: 0, cost: 0.75, model: "alpha" },
+      Date.now(),
+    );
+    const result = await postJson<RuntimeConfigurationView>(url, {
+      expectedRevision: 0,
+      change: { type: "raiseBudget", moneyUsd: 0.5, timeSeconds: 30 },
+    });
+    assert.equal(result.status, 200);
+    assert.equal(result.body.revision, 1);
+    assert.equal(result.body.budget?.moneyUsd, 0.5);
+    assert.equal(result.body.budget?.timeSeconds, 30);
+    assert.equal(result.body.budget?.costUsd, 0.75);
+    assert.equal(result.body.budget?.exhausted, "money");
+    assert.equal(result.body.budget?.gracefulShutdown, true);
+    assert.equal(result.body.requests[0]?.status, "applied");
+    assert.equal(result.body.configuration?.effective.workers.length, 1);
+    assert.equal(
+      (await postJson(url, { expectedRevision: 0, change: { type: "raiseBudget", moneyUsd: 0.2 } })).status,
+      409,
+    );
+  }
 });
 
 test("Config HTTP fences a stale editor across resume even when both runs have revision zero", async (t) => {

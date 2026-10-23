@@ -49,13 +49,8 @@ test("User follow buttons have canonical HTTP state, preserve opt-out and hide r
   );
   assert.ok(frame.event?.type === "user.post.updated");
   assert.equal(frame.event.payload.userUnread.comments, 0);
-  const retained = db.sql
-    .prepare(
-      `SELECT r.status FROM message_recipients r JOIN comment_notifications n
-    ON n.message_id = r.message_id WHERE n.comment_id = ? AND r.name = 'User'`,
-    )
-    .get(first.id);
-  assert.equal(retained?.status, "delivered");
+  const retained = db.sql.prepare(`SELECT read_at FROM user_comment_attention WHERE comment_id = ?`).get(first.id);
+  assert.equal(retained?.read_at, null);
   const hiddenRead = await postJson<UserCommentsReadResponse>(`${base}/read`, { commentIds: [first.id] });
   assert.equal(hiddenRead.body.updated, 0, "a late read mark while unfollowed is ignored atomically");
   assert.equal(hiddenRead.body.userSubscribed, false);

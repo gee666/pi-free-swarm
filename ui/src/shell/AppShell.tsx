@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import styles from "./AppShell.module.css";
 
 interface AppShellProps {
@@ -32,9 +32,10 @@ interface PanelLayoutProps {
 }
 
 export function PanelLayout({ list, main, compose, listWidth }: PanelLayoutProps) {
+  const listStyle: CSSProperties & { "--list-width"?: string } = { "--list-width": listWidth };
   return (
     <div className={styles.columns}>
-      <div className={styles.list} style={listWidth ? { width: listWidth } : undefined}>
+      <div className={styles.list} style={listStyle}>
         {list}
       </div>
       <div className={styles.mainColumn}>

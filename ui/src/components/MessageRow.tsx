@@ -49,7 +49,7 @@ export function MessageRow({
         <UnreadDot unread={unread} />
         <AgentName className={styles.sender} name={sender} />
         <span className={styles.subject}>{subject}</span>
-        {meta}
+        {meta && <span className={styles.meta}>{meta}</span>}
         <span className={styles.end}>
           {status}
           <span className={styles.time}>{time}</span>

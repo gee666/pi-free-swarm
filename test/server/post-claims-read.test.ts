@@ -1,0 +1,34 @@
+import assert from "node:assert/strict";
+import { it } from "node:test";
+import type { PostDetailResponse, PostListResponse } from "../../src/api-types.js";
+import { claimPostRole } from "../../src/broker/post-claims.js";
+import { createPost } from "../../src/broker/wall.js";
+import { seedSwarm } from "../helpers/temp-db.js";
+import { getJson, startTestBoard } from "./helpers.js";
+
+it("projects chosen free-text roles into wall list/detail without leaking across posts or swarms", async (t) => {
+  const board = await startTestBoard();
+  t.after(() => board.close());
+  const { db } = board.temp;
+  const now = Date.now();
+  const swarm = seedSwarm(db, { now });
+  const other = seedSwarm(db, { now });
+  const post = createPost(db, swarm.id, "Maria", { title: "Research", text: "Open investigation" }, now);
+  const unrelated = createPost(db, swarm.id, "Maria", { title: "Other", text: "Separate" }, now);
+  const foreign = createPost(db, other.id, "Maria", { title: "Foreign", text: "Separate swarm" }, now);
+  const first = claimPostRole(db, swarm.id, "John", post.id, "archive research", now);
+  const second = claimPostRole(db, swarm.id, "Liam", post.id, "testing", now + 1);
+  assert.equal(first.claimed, true);
+  assert.equal(second.claimed, true);
+  const url = `${board.base}/api/swarms/${swarm.id}/posts`;
+  const list = await getJson<PostListResponse>(url);
+  assert.equal(list.status, 200);
+  assert.deepEqual(list.body.posts.find((row) => row.id === post.id)?.claims, [first.claim, second.claim]);
+  assert.deepEqual(list.body.posts.find((row) => row.id === unrelated.id)?.claims, []);
+  const detail = await getJson<PostDetailResponse>(`${url}/${post.id}`);
+  assert.equal(detail.status, 200);
+  assert.deepEqual(detail.body.post.claims, [first.claim, second.claim]);
+  const foreignDetail = await getJson<PostDetailResponse>(`${board.base}/api/swarms/${other.id}/posts/${foreign.id}`);
+  assert.deepEqual(foreignDetail.body.post.claims, []);
+  assert.equal((await getJson(`${url}/${foreign.id}`)).status, 404);
+});

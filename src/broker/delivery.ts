@@ -4,7 +4,7 @@ import type { MessageView, ParticipantStatus } from "../api-types.js";
 import type { DeliveryOutcome, PromptPayload } from "../agents/supervisor.js";
 import { systemClock, type Clock, type TimerHandle } from "../clock.js";
 import { DELIVERY_POLL_MS, USER_NAME } from "../constants.js";
-import { formatDeliveredMessages } from "../message-format.js";
+import { formatNotificationMessages } from "./notification-format.js";
 import type { SwarmDb } from "../store/db.js";
 import { getMessages, listInboxAfter, listOpenAgentRecipients } from "../store/message-queries.js";
 import { markDelivered } from "./delivery-state.js";
@@ -89,7 +89,7 @@ export class DeliveryLoop {
     const messageIds = listOpenAgentRecipients(this.#db, this.#swarmId)
       .filter((open) => open.name === name && (open.status === "pending" || includeDeliveredUnread))
       .map((open) => open.messageId);
-    return { text: formatDeliveredMessages(getMessages(this.#db, messageIds), name), messageIds };
+    return { text: formatNotificationMessages(this.#db, getMessages(this.#db, messageIds), name), messageIds };
   }
 
   /** Deferred, so a write never runs a delivery pass inside its caller. */

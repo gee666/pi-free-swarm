@@ -46,15 +46,32 @@ export function ParticipantList({ participants, error, selected, onSelect }: Par
                   key={participant.name}
                   avatar={participant.name}
                   title={<AgentName name={participant.name} />}
+                  wrapTitle={participant.status === "retired" && Boolean(participant.successorName)}
                   subtitle={<WorkerModel model={participant.model} />}
-                  titleAddon={participant.status === "retired" ? <Pill>retired</Pill> : undefined}
+                  titleAddon={
+                    participant.status === "retired" ? (
+                      <Pill
+                        title={
+                          participant.successorName ? `Retired, replaced by ${participant.successorName}` : "Retired"
+                        }
+                      >
+                        {participant.successorName ? `retired → ${participant.successorName}` : "retired"}
+                      </Pill>
+                    ) : undefined
+                  }
                   selected={participant.name === selected}
                   onSelect={() => onSelect(participant.name)}
                   trailing={
                     <>
                       <StatusDot
                         status={agentDotStatus(participant.status)}
-                        label={participant.status === "retired" ? "Retired" : undefined}
+                        label={
+                          participant.status === "retired"
+                            ? participant.successorName
+                              ? `Retired, replaced by ${participant.successorName}`
+                              : "Retired"
+                            : undefined
+                        }
                       />
                       <CountBadge count={participant.unread} reserveSpace />
                     </>

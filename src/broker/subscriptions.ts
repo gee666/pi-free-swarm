@@ -10,6 +10,7 @@ import { BrokerError } from "./errors.js";
 import { createThread, insertMessage } from "./message-insert.js";
 import { actAs, requireSwarm } from "./validate.js";
 import { hasUserAttachment } from "./user-attachment.js";
+import { recordUserCommentAttention } from "../store/user-comment-attention.js";
 
 /** Automatic participation never reverses an explicit opt-out. Caller owns the write transaction. */
 export function autoSubscribe(db: SwarmDb, swarmId: number, postId: number, name: string): boolean {
@@ -66,8 +67,14 @@ export function setPostSubscription(
 }
 
 /** One durable message per comment, delivered through the ordinary native steering path. */
-export function notifyComment(db: SwarmDb, comment: CommentView, now: number): boolean {
+export function notifyComment(
+  db: SwarmDb,
+  comment: CommentView,
+  now: number,
+  mentionedRecipients: readonly string[] = [],
+): boolean {
   const { swarmId, postId, author } = comment;
+  const userAttention = recordUserCommentAttention(db, comment);
   const recipients = db.sql
     .prepare(
       `SELECT s.name FROM post_subscriptions s
@@ -77,9 +84,10 @@ export function notifyComment(db: SwarmDb, comment: CommentView, now: number): b
     .all(swarmId, postId, author)
     .map((row) => findParticipant(db, swarmId, str(row, "name")))
     .filter(
-      (person): person is ParticipantRef => person !== null && (person.kind === "agent" || person.kind === "user"),
+      (person): person is ParticipantRef =>
+        person !== null && !mentionedRecipients.includes(person.name) && person.kind === "agent",
     );
-  if (recipients.length === 0) return false;
+  if (recipients.length === 0) return userAttention;
   const threadId = createThread(db, swarmId, [SYSTEM_NAME, ...recipients.map((person) => person.name)], now);
   insertMessage(db, {
     swarmId,
@@ -89,11 +97,11 @@ export function notifyComment(db: SwarmDb, comment: CommentView, now: number): b
     commentSource: { postId, commentId: comment.id },
     recipients: recipients.map((person) => ({
       name: person.name,
-      status: person.kind === "user" ? "delivered" : "pending",
+      status: "pending",
     })),
     now,
   });
-  return recipients.some((person) => person.kind === "user");
+  return userAttention;
 }
 
 /** Called only when the current worker generation observed the complete durable message. */

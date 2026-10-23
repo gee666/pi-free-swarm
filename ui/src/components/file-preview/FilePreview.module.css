@@ -74,7 +74,43 @@
 }
 .actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+  .dialog {
+    width: calc(100vw - 2 * var(--space-2));
+    height: calc(100vh - 2 * var(--space-2));
+    height: calc(100dvh - 2 * var(--space-2));
+  }
+
+  .header,
+  .footer,
+  .body {
+    padding: var(--space-4);
+  }
+
+  .header,
+  .footer {
+    gap: var(--space-3);
+  }
+
+  .header > button {
+    flex: none;
+  }
+
+  .range {
+    overflow-wrap: anywhere;
+  }
+
+  .actions {
+    width: 100%;
+  }
+
+  .actions > button {
+    flex: 1;
+  }
 }
 .imageBody {
   display: flex;

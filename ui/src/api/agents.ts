@@ -38,8 +38,16 @@ export function fetchMailbox(
   if (query.box) params.set("box", query.box);
   if (query.count !== undefined) params.set("count", String(query.count));
   if (query.offset !== undefined) params.set("offset", String(query.offset));
+  if (query.unreadOnly) params.set("unreadOnly", "true");
   const url = `${swarmUrl(swarmId)}/participants/${encodeURIComponent(name)}/messages?${params}`;
-  return getJson<MailboxResponse>(url, signal);
+  return getJson<MailboxResponse>(url, signal).then((mailbox) => {
+    if (query.unreadOnly && !mailbox.unreadOnly) {
+      throw new Error(
+        "The running backend needs a reload to support unread-only filtering. Turn off the filter to see all messages.",
+      );
+    }
+    return mailbox;
+  });
 }
 
 export function fetchThread(swarmId: number | string, threadId: number, signal: AbortSignal): Promise<ThreadResponse> {

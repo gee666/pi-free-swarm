@@ -1,4 +1,4 @@
-// Wall writes: posts, comments and the per-reader "(new)" marks. Posts never wake anyone.
+// Wall writes and per-reader "(new)" marks. Posts wake agents only through explicit mentions.
 import type { CommentView, PostListResponse, PostSummary } from "../api-types.js";
 import type { SwarmDb } from "../store/db.js";
 import { insertEvent } from "../store/events.js";
@@ -9,6 +9,7 @@ import { BrokerError } from "./errors.js";
 import { autoSubscribe, notifyComment } from "./subscriptions.js";
 import { emitUserPostAttention } from "./user-post-subscription.js";
 import { notifyLocalMessage } from "./notify.js";
+import { notifyWallMentions } from "./mentions.js";
 import { actAs, checkPage, requireParticipant, requireSwarm, requireTitle } from "./validate.js";
 
 export function createPost(
@@ -18,7 +19,7 @@ export function createPost(
   input: { title: string; text: string },
   now: number,
 ): PostSummary {
-  return db.write(() => {
+  const result = db.write(() => {
     requireSwarm(db, swarmId);
     const participant = actAs(db, swarmId, author, now);
     const title = requireTitle(input.title);
@@ -40,8 +41,16 @@ export function createPost(
     const subscribed = autoSubscribe(db, swarmId, postId, participant.name);
     insertEvent(db, swarmId, "post.created", { post }, now);
     if (subscribed && participant.kind === "user") emitUserPostAttention(db, swarmId, postId, now);
+    notifyWallMentions(
+      db,
+      swarmId,
+      { postId, author: participant.name, text: `${title}\n${body}`, mentionText: `${title}\n${input.text}` },
+      now,
+    );
     return post;
   });
+  notifyLocalMessage(swarmId);
+  return result;
 }
 
 export function addComment(
@@ -67,7 +76,13 @@ export function addComment(
     if (row === undefined) throw new Error(`Comment #${commentId} vanished inside its transaction`);
     const result = { comment: commentOf(row), commentCount: post.commentCount + 1 };
     const subscribed = autoSubscribe(db, swarmId, postId, participant.name);
-    const userNotified = notifyComment(db, result.comment, now);
+    const mentioned = notifyWallMentions(
+      db,
+      swarmId,
+      { postId, commentId, author: participant.name, text: body, mentionText: text },
+      now,
+    );
+    const userNotified = notifyComment(db, result.comment, now, mentioned);
     insertEvent(db, swarmId, "comment.created", result, now);
     if (userNotified || (subscribed && participant.kind === "user")) emitUserPostAttention(db, swarmId, postId, now);
     return result;

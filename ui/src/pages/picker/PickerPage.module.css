@@ -60,3 +60,37 @@
   font-size: var(--fs-small);
   text-align: right;
 }
+
+@media (max-width: 640px) {
+  .row {
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    height: auto;
+    min-height: var(--row-h);
+    padding: var(--space-4);
+  }
+
+  .id {
+    min-width: 0;
+  }
+
+  .name {
+    flex: 1;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .prompt,
+  .time {
+    flex-basis: 100%;
+  }
+
+  .prompt {
+    order: 1;
+  }
+
+  .time {
+    order: 2;
+    text-align: left;
+  }
+}

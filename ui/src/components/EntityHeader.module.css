@@ -38,3 +38,21 @@
   align-items: center;
   gap: var(--space-3);
 }
+
+@media (max-width: 760px) {
+  .header {
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding: var(--space-4);
+  }
+  .text {
+    flex-basis: 50%;
+  }
+  .actions {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+  .actions button {
+    min-height: var(--control-touch-h);
+  }
+}

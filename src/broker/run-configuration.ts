@@ -45,7 +45,7 @@ export function configureRun(
   const ceilings = mergeBudgetRaises(requestedCeilings, getBudgetRaises(env.db, swarmId));
   if (ceilings.moneyUsd !== requestedCeilings.moneyUsd || ceilings.timeSeconds !== requestedCeilings.timeSeconds) {
     env.notifyUser(
-      "Retaining this swarm's approved runtime budget increases above the requested file ceilings. Cumulative consumption is unchanged.",
+      "Retaining this swarm's approved runtime budget ceilings instead of the requested file defaults. Cumulative consumption is unchanged.",
     );
   }
   const configuration: RunConfiguration = {

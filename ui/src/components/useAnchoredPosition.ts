@@ -32,13 +32,39 @@ export function useAnchoredPosition(
       const vertical: CSSProperties = opensDown
         ? { top: rect.bottom + GAP, maxHeight: spaceBelow - GAP - VIEWPORT_MARGIN }
         : { bottom: window.innerHeight - rect.top + GAP, maxHeight: rect.top - GAP - VIEWPORT_MARGIN };
+      const viewportWidth = window.innerWidth;
+      const maxWidth = Math.max(0, viewportWidth - 2 * VIEWPORT_MARGIN);
+      const anchorCenter = rect.left + rect.width / 2;
+      const nearRight = anchorCenter > viewportWidth / 2;
+      const center =
+        anchorCenter < viewportWidth / 4 || anchorCenter > (viewportWidth * 3) / 4 ? viewportWidth / 2 : anchorCenter;
       const horizontal: CSSProperties =
-        align === "end"
-          ? { right: window.innerWidth - rect.right }
-          : align === "center"
-            ? { left: rect.left + rect.width / 2, transform: "translateX(-50%)" }
-            : { left: rect.left };
-      setStyle({ position: "fixed", minWidth: matchWidth ? rect.width : undefined, ...vertical, ...horizontal });
+        align === "center"
+          ? { left: center, transform: "translateX(-50%)" }
+          : align === "end"
+            ? nearRight
+              ? { right: Math.max(VIEWPORT_MARGIN, viewportWidth - rect.right) }
+              : { left: VIEWPORT_MARGIN }
+            : nearRight
+              ? { right: VIEWPORT_MARGIN }
+              : { left: Math.max(VIEWPORT_MARGIN, rect.left) };
+      const availableWidth = Math.max(
+        0,
+        align === "center"
+          ? 2 * Math.min(center - VIEWPORT_MARGIN, viewportWidth - center - VIEWPORT_MARGIN)
+          : typeof horizontal.right === "number"
+            ? viewportWidth - horizontal.right - VIEWPORT_MARGIN
+            : typeof horizontal.left === "number"
+              ? viewportWidth - horizontal.left - VIEWPORT_MARGIN
+              : maxWidth,
+      );
+      setStyle({
+        position: "fixed",
+        minWidth: matchWidth ? Math.min(rect.width, availableWidth) : undefined,
+        maxWidth: Math.min(maxWidth, availableWidth),
+        ...vertical,
+        ...horizontal,
+      });
     };
     update();
     window.addEventListener("resize", update);

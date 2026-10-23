@@ -7,7 +7,7 @@ export function useRuntimeConfiguration(swarmId: string) {
   const stream = useSwarmStream();
   const state = useAsync((signal) => fetchConfiguration(swarmId, signal), [swarmId, stream.openCount]);
   useStreamListener(stream, (event) => {
-    if (event.type === "swarm.updated" || event.type === "usage.updated") state.reload();
+    if (event.type === "swarm.updated") state.reload();
   });
   return state;
 }

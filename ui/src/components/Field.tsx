@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type KeyboardEvent } from "react";
+import { useLayoutEffect, useRef, type KeyboardEvent, type RefObject, type TextareaHTMLAttributes } from "react";
 import { charCount } from "../../../src/limits";
 import { cx } from "../lib/cx";
 import styles from "./Field.module.css";
@@ -14,7 +14,11 @@ export function CharCounter({ text, limit }: { text: string; limit: number }) {
   );
 }
 
-interface AutoTextareaProps {
+interface AutoTextareaProps extends Pick<
+  TextareaHTMLAttributes<HTMLTextAreaElement>,
+  "onSelect" | "aria-autocomplete" | "aria-controls" | "aria-activedescendant"
+> {
+  inputRef?: RefObject<HTMLTextAreaElement>;
   value: string;
   onChange: (value: string) => void;
   label: string;
@@ -24,18 +28,29 @@ interface AutoTextareaProps {
 }
 
 /** Height follows content; CSS caps it at eight lines. */
-export function AutoTextarea({ value, onChange, label, placeholder, disabled, onKeyDown }: AutoTextareaProps) {
-  const ref = useRef<HTMLTextAreaElement>(null);
+export function AutoTextarea({
+  value,
+  onChange,
+  label,
+  placeholder,
+  disabled,
+  onKeyDown,
+  inputRef,
+  ...inputProps
+}: AutoTextareaProps) {
+  const internalRef = useRef<HTMLTextAreaElement>(null);
+  const ref = inputRef ?? internalRef;
   useLayoutEffect(() => {
     const element = ref.current;
     if (!element) return;
     element.style.height = "auto";
     element.style.height = `${element.scrollHeight + element.offsetHeight - element.clientHeight}px`;
-  }, [value]);
+  }, [value, ref]);
   return (
     <textarea
       ref={ref}
       className={cx(styles.control, styles.textarea)}
+      {...inputProps}
       value={value}
       aria-label={label}
       placeholder={placeholder}

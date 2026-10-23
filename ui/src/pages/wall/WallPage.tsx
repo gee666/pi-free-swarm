@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { FileQuestion, MessageSquare } from "lucide-react";
+import { USER_BODY_PREVIEW_CHARS } from "../../../../src/limits";
 import { useSwarmStream } from "../../api/SwarmStream";
 import { useSwarmDetail } from "../agents/useSwarmDetail";
 import { ComposeBox } from "../../components/compose/ComposeBox";
@@ -15,7 +16,7 @@ import { usePost } from "./usePost";
 import { usePosts } from "./usePosts";
 import { useSeenComments } from "./useSeenComments";
 import { useUserCommentRead } from "./useUserCommentRead";
-import { withComment, withCommentCount, withPost } from "./wallModel";
+import { withComment, withCommentCount, withPost, withPostContract, withPostListContract } from "./wallModel";
 
 /** `/s/:id/wall/new` opens the new-post form; any other value is a post id. */
 const NEW_POST_ROUTE = "new";
@@ -44,11 +45,16 @@ export function WallPage() {
     posts.update((current) => current && withCommentCount(current, comment.postId, commentCount));
   });
   const wallUrl = `/s/${swarmId}/wall`;
+  const mentionNames =
+    swarm.data?.participants
+      .filter((participant) => participant.kind === "agent" && participant.retiredAt == null)
+      .map((participant) => participant.name) ?? [];
 
   const reconnecting = stream.status === "reconnecting" && <ErrorBanner>Connection lost. Reconnecting…</ErrorBanner>;
   const newPost = route === NEW_POST_ROUTE && (
     <NewPostForm
       swarmId={swarmId}
+      mentionNames={mentionNames}
       banners={reconnecting}
       onCancel={() => navigate(wallUrl)}
       onCreated={(created) => {
@@ -64,6 +70,10 @@ export function WallPage() {
       <PostView
         detail={post.data}
         error={post.error}
+        onContractChange={(contract) => {
+          post.update((current) => current && withPostContract(current, contract));
+          posts.update((current) => current && withPostListContract(current, contract));
+        }}
         banners={
           <>
             {reconnecting}
@@ -106,11 +116,15 @@ export function WallPage() {
       compose={
         post.data && (
           <ComposeBox
+            key={postId}
+            uploadSwarmId={swarmId}
             text={composer.text}
             onTextChange={composer.setText}
             onSend={composer.send}
             placeholder="Write a comment…"
             sendLabel="Comment"
+            mentionNames={mentionNames}
+            attachmentThreshold={USER_BODY_PREVIEW_CHARS}
             busy={composer.busy}
           />
         )

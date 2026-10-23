@@ -6,6 +6,8 @@ import { count, int, text } from "./rows.js";
 const EVENT_TYPES: ReadonlySet<string> = new Set<SwarmEventType>([
   "acceptance.updated",
   "post.created",
+  "post.claimed",
+  "post.contract.updated",
   "comment.created",
   "user.post.updated",
   "message.created",

@@ -40,6 +40,25 @@ it("subscribes authors/commenters once, excludes self and delivers actual commen
   );
 });
 
+it("auto-subscribes only post authors and commenters, not readers or uninvolved workers", () => {
+  const swarm = seedSwarm(db);
+  const post = createPost(db, swarm.id, "Maria", { title: "Subscription scope", text: "body" }, T0);
+  const subscribers = () =>
+    db.sql
+      .prepare("SELECT name FROM post_subscriptions WHERE post_id = ? AND subscribed = 1 ORDER BY name")
+      .all(post.id)
+      .map((row) => row.name);
+  assert.deepEqual(subscribers(), ["Maria"]);
+  const tools = createAgentToolHandlers({ getDb: () => db, swarmId: swarm.id, run: 1, agentName: "John" });
+  tools.readPosts({});
+  tools.readPost({ post_id: post.id });
+  assert.deepEqual(subscribers(), ["Maria"]);
+  addComment(db, swarm.id, "John", post.id, "participating now", T0 + 1);
+  assert.deepEqual(subscribers(), ["John", "Maria"]);
+  setPostSubscription(db, swarm.id, "Liam", post.id, true, T0 + 2);
+  assert.deepEqual(subscribers(), ["John", "Liam", "Maria"]);
+});
+
 it("preserves a maximum-length legal comment and its complete notification", () => {
   const swarm = seedSwarm(db);
   const post = createPost(db, swarm.id, "Maria", { title: "Large", text: "body" }, T0);

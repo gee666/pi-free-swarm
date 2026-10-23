@@ -36,7 +36,7 @@ it("migrates legacy claims and verdicts into empty votes without losing run seal
   }
   const migrated = openSwarmDb(legacyPath, { create: false });
   try {
-    assert.equal(migrated.sql.prepare("PRAGMA user_version").get()?.user_version, 14);
+    assert.equal(migrated.sql.prepare("PRAGMA user_version").get()?.user_version, 17);
     assert.deepEqual(migrated.sql.prepare("PRAGMA foreign_key_check").all(), []);
     const checking = getAcceptance(migrated, 1);
     assert.equal(checking.originalTask, "Original task");

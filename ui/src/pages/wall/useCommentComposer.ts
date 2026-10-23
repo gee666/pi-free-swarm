@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CreateCommentResponse } from "../../../../src/api-types";
 import { createComment } from "../../api/wall";
+import { useComposerDraft } from "../../components/compose/ComposerDrafts";
 
 export interface CommentComposer {
   text: string;
@@ -10,19 +11,20 @@ export interface CommentComposer {
   error: string | undefined;
 }
 
-/** Comment box of the open post; the draft is dropped when another post opens. */
+/** Each post keeps its own unsent comment while the User navigates. */
 export function useCommentComposer(
   swarmId: string,
   postId: number | undefined,
   onCreated: (response: CreateCommentResponse) => void,
 ): CommentComposer {
   const revision = useRef(0);
-  const [text, setText] = useState("");
+  const [text, setText, clearSubmitted] = useComposerDraft(
+    postId === undefined ? undefined : `comment:${swarmId}:${postId}`,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   useEffect(() => {
     revision.current += 1;
-    setText("");
     setError(undefined);
   }, [swarmId, postId]);
 
@@ -34,7 +36,7 @@ export function useCommentComposer(
     createComment(swarmId, postId, { text })
       .then((response) => {
         onCreated(response);
-        if (revision.current === submittedRevision) setText("");
+        clearSubmitted();
       })
       .catch((failure: Error) => {
         if (revision.current === submittedRevision) setError(failure.message);

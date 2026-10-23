@@ -2,7 +2,8 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
-  min-width: 1280px;
+  height: 100dvh;
+  min-width: 0;
   overflow: hidden;
 }
 
@@ -35,7 +36,7 @@
   display: flex;
   flex: none;
   flex-direction: column;
-  width: var(--list-w);
+  width: var(--list-width, var(--list-w));
   min-height: 0;
 }
 
@@ -54,4 +55,39 @@
 
 .mainColumn > :first-child {
   flex: 1;
+}
+
+@media (max-width: 1000px) {
+  .list {
+    max-width: 40%;
+  }
+}
+
+@media (max-width: 760px) {
+  .body {
+    flex-direction: column;
+  }
+  .content {
+    padding: var(--space-3);
+  }
+  .columns {
+    flex-direction: column;
+  }
+  .list {
+    flex: 0 0 30%;
+    width: 100%;
+    max-width: none;
+    min-height: 120px;
+    max-height: 240px;
+  }
+}
+
+@media (max-width: 760px) and (max-height: 600px) {
+  .shell {
+    overflow-y: auto;
+  }
+  .body {
+    flex: none;
+    min-height: 640px;
+  }
 }

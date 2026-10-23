@@ -83,7 +83,14 @@ const PARTICIPANT_SELECT = `
   SELECT p.*,
     (SELECT COUNT(*) FROM message_recipients r
       WHERE r.swarm_id = p.swarm_id AND r.name = p.name AND r.status IN ('pending', 'delivered')) AS unread,
-    (SELECT COALESCE(SUM(u.cost), 0) FROM usage u WHERE u.swarm_id = p.swarm_id AND u.agent = p.name) AS cost
+    (SELECT COALESCE(SUM(u.cost), 0) FROM usage u WHERE u.swarm_id = p.swarm_id AND u.agent = p.name) AS cost,
+    (SELECT h.name FROM replacement_handoffs h
+      JOIN configuration_requests q ON q.swarm_id = h.swarm_id
+        AND json_extract(q.change, '$.handoffFile') = h.handoff_file
+      WHERE h.swarm_id = p.swarm_id AND p.retired_at IS NOT NULL
+        AND json_extract(q.change, '$.type') = 'retireAgent'
+        AND json_extract(q.change, '$.name') = p.name
+      ORDER BY q.id DESC LIMIT 1) AS successor_name
   FROM participants p`;
 
 function retiredAssignment(row: Row) {
@@ -110,6 +117,7 @@ function participantOf(row: Row): ParticipantView | null {
     name: text(row, "name"),
     status: agentStatusOf(row),
     retiredAt: intOrNull(row, "retired_at"),
+    successorName: typeof row.successor_name === "string" ? row.successor_name : null,
     firstIdleAt: intOrNull(row, "first_idle_at"),
     model: retiredAssignment(row),
     launchOrder: int(row, "launch_order"),

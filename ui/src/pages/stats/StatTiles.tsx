@@ -15,32 +15,34 @@ export function StatTiles({ totals }: { totals: StatsTotals }) {
     { label: "Messages · Posts", value: `${count.format(totals.messages)} · ${count.format(totals.posts)}` },
   ];
   return (
-    <section aria-label="Swarm usage totals">
-      <dl className={styles.tiles}>
-        {summary.map((tile) => (
-          <div key={tile.label} className={styles.tile}>
-            <dt className={styles.tileLabel}>{tile.label}</dt>
-            <dd className={cx(styles.tileValue, tile.accent && styles.accent)}>{tile.value}</dd>
-          </div>
-        ))}
-      </dl>
+    <section aria-label="Swarm usage totals" className={styles.totals}>
       <div className={styles.tokenHeading}>
-        <h3>Token usage and costs</h3>
+        <h3>Usage totals</h3>
         <p className={styles.cacheTotal}>
           Cache tokens <strong>{formatTokens(totals.cacheRead + totals.cacheWrite)}</strong> <span>read + write</span>
         </p>
       </div>
-      <dl className={styles.tiles}>
-        {TOKEN_CATEGORIES.map(({ key, label }) => (
-          <div key={key} className={styles.tile}>
-            <dt className={styles.tileLabel}>{label} tokens</dt>
-            <dd className={styles.tileValue}>{formatTokens(totals[key])}</dd>
-            <dd className={styles.tileCost}>
-              <UsageCost usage={totals} category={key} label={label} />
-            </dd>
-          </div>
-        ))}
-      </dl>
+      <div className={styles.tileGroups}>
+        <dl className={styles.tiles}>
+          {summary.map((tile) => (
+            <div key={tile.label} className={styles.tile}>
+              <dt className={styles.tileLabel}>{tile.label}</dt>
+              <dd className={cx(styles.tileValue, tile.accent && styles.accent)}>{tile.value}</dd>
+            </div>
+          ))}
+        </dl>
+        <dl className={styles.tiles}>
+          {TOKEN_CATEGORIES.map(({ key, label }) => (
+            <div key={key} className={styles.tile}>
+              <dt className={styles.tileLabel}>{label} tokens</dt>
+              <dd className={styles.tileValue}>{formatTokens(totals[key])}</dd>
+              <dd className={styles.tileCost}>
+                <UsageCost usage={totals} category={key} label={label} />
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </div>
       {hasIncompleteCosts(totals) && (
         <p className={styles.costNote}>
           Some per-type costs were not recorded. Known subtotals are labelled; missing costs are not treated as zero.

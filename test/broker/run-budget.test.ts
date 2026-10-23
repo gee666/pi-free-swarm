@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { after, mock, test } from "node:test";
+import { after, test } from "node:test";
 import { RunBudget } from "../../src/broker/run-budget.js";
 import type { RunEnvironment } from "../../src/broker/run-types.js";
 import { systemClock } from "../../src/clock.js";
@@ -22,23 +22,17 @@ function environment(): RunEnvironment {
   };
 }
 
-test("unlimited active runs skip budget polling entirely", () => {
-  const tracked = mock.method(temp.db.sql, "prepare", () => {
-    throw new Error("Unexpected budget query");
-  });
-  try {
-    const budget = new RunBudget(
-      environment(),
-      999,
-      1,
-      () => assert.fail("unexpected drain"),
-      () => false,
-      () => assert.fail("unexpected end"),
-    );
-    assert.equal(budget.check(), false);
-  } finally {
-    tracked.mock.restore();
-  }
+test("unlimited active runs remain running after checking durable budget policy", () => {
+  const { id } = seedSwarm(temp.db);
+  const budget = new RunBudget(
+    environment(),
+    id,
+    1,
+    () => assert.fail("unexpected drain"),
+    () => false,
+    () => assert.fail("unexpected end"),
+  );
+  assert.equal(budget.check(), false);
 });
 
 test("a new accounting gap refuses continuing money enforcement without fabricating budget exhaustion or votes", () => {

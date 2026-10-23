@@ -17,16 +17,32 @@
   flex-direction: column;
 }
 
-.controls > textarea {
+.controls textarea {
   padding-right: calc(var(--control-compact-h) + var(--space-8));
 }
 
-.controls:has(.footer > [data-character-counter]) > textarea {
+.controls:has(.footer > [data-character-counter]) textarea {
   padding-right: calc(var(--control-compact-h) + 90px);
+}
+
+.controls.withUploads textarea {
+  padding-right: calc(2 * var(--control-compact-h) + var(--space-8));
+}
+
+.controls.withUploads:has(.footer > [data-character-counter]) textarea {
+  padding-right: calc(2 * var(--control-compact-h) + 90px);
 }
 
 .dimmed {
   opacity: 0.5;
+}
+
+.attachmentNotice {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: var(--fs-small);
+  line-height: var(--lh-body);
 }
 
 .threadLine {

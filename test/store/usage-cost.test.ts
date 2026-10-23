@@ -84,11 +84,11 @@ test("v12 migration preserves old totals without inventing category prices", () 
     const swarm = seedSwarm(temp.db);
     recordUsage(temp.db, swarm.id, "Maria", legacy, T0);
     temp.db.sql.exec(
-      "ALTER TABLE usage DROP COLUMN cost_input; ALTER TABLE usage DROP COLUMN cost_output; ALTER TABLE usage DROP COLUMN cost_cache_read; ALTER TABLE usage DROP COLUMN cost_cache_write; PRAGMA user_version = 12;",
+      "ALTER TABLE usage DROP COLUMN cost_input; ALTER TABLE usage DROP COLUMN cost_output; ALTER TABLE usage DROP COLUMN cost_cache_read; ALTER TABLE usage DROP COLUMN cost_cache_write; DROP TABLE user_comment_attention; DROP TABLE post_claims; DROP TABLE post_contracts; PRAGMA user_version = 12;",
     );
     const upgraded = openSwarmDb(temp.db.path, { create: false });
     try {
-      assert.equal(upgraded.sql.prepare("PRAGMA user_version").get()?.user_version, 14);
+      assert.equal(upgraded.sql.prepare("PRAGMA user_version").get()?.user_version, 17);
       assert.deepEqual(agentUsageTotals(upgraded, swarm.id, "Maria"), {
         input: 2,
         output: 3,

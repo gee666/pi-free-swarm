@@ -3,7 +3,7 @@ import { useSwarmStream } from "../../api/SwarmStream";
 import { useAsync, type AsyncState } from "../../api/useAsync";
 import { useStreamListener } from "../../api/useEventStream";
 import { fetchPost } from "../../api/wall";
-import { orderPost, withComment, withUserPostAttention } from "./wallModel";
+import { orderPost, withComment, withPostClaim, withPostContract, withUserPostAttention } from "./wallModel";
 
 /**
  * The open post with its comments, newest first; new comments arrive from the swarm stream. `data` is
@@ -18,6 +18,18 @@ export function usePost(swarmId: string, postId: number | undefined): AsyncState
   );
   const { update } = state;
   useStreamListener(stream, (event) => {
+    if (event.type === "post.contract.updated") {
+      update((current) => current && withPostContract(current, event.payload.contract));
+      return;
+    }
+    if (event.type === "post.claimed") {
+      update((current) => {
+        if (!current) return current;
+        const post = withPostClaim(current.post, event.payload.claim);
+        return post === current.post ? current : { ...current, post };
+      });
+      return;
+    }
     if (event.type === "user.post.updated") {
       update((current) => {
         if (!current) return current;

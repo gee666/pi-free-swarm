@@ -57,7 +57,7 @@ export function readConfigurationEdit(body: Record<string, unknown>): Configurat
       }
       patch[key] = amount;
     }
-    if (Object.keys(patch).length === 0) throw badRequest("change must raise moneyUsd or timeSeconds.", "change");
+    if (Object.keys(patch).length === 0) throw badRequest("change must set moneyUsd or timeSeconds.", "change");
     return { expectedRun, expectedRevision, change: { type, ...patch } };
   }
   throw badRequest("change.type must be addAgents, removeAgent or raiseBudget.", "change.type");

@@ -9,6 +9,8 @@ import { TITLE_MAX } from "../limits.js";
 import { replyToThread, sendMessage } from "../broker/messages.js";
 import { addComment, createPost } from "../broker/wall.js";
 import { setPostSubscription } from "../broker/subscriptions.js";
+import { claimPostRole } from "../broker/post-claims.js";
+import { BrokerError } from "../broker/errors.js";
 import { snoozeReminders } from "../broker/reminder-snooze.js";
 import { requestRetirement } from "../broker/retirement.js";
 import type { SwarmDb } from "../store/db.js";
@@ -22,6 +24,7 @@ import { readFreshPostsTool } from "./fresh-post-read.js";
 import { agentToolResult as textResult } from "./agent-tool-result.js";
 import { createRetirementTool, retirementToolParameters } from "./retirement-tool.js";
 import { formatAgentVoteResult } from "./agent-vote-result.js";
+import { executePostContractTool, postContractDescription, postContractParameters } from "./post-contract-tool.js";
 
 export interface AgentToolIdentity {
   getDb(): SwarmDb;
@@ -82,6 +85,14 @@ const POST = Type.Object({
 });
 const COMMENT = Type.Object({ post_id: Type.Integer({ minimum: 1 }), text: TEXT });
 const SUBSCRIPTION = Type.Object({ post_id: Type.Integer({ minimum: 1 }) });
+const CLAIM = Type.Object({
+  post_id: Type.Integer({ minimum: 1 }),
+  role: Type.String({
+    minLength: 1,
+    pattern: "\\S",
+    description: `Free-text role, one line, at most ${TITLE_MAX} characters after trimming.`,
+  }),
+});
 const MESSAGE = Type.Object({
   to: Type.Array(Type.String({ minLength: 1, pattern: "\\S" }), {
     minItems: 1,
@@ -123,6 +134,26 @@ export function createAgentToolHandlers(identity: AgentToolIdentity) {
     comment(params: Static<typeof COMMENT>): string {
       const { comment } = addComment(identity.getDb(), swarmId, agentName, params.post_id, params.text, clock.now());
       return `Commented #${comment.id} on post #${comment.postId}.`;
+    },
+    claim(params: Static<typeof CLAIM>): string {
+      const { claimed, claim } = claimPostRole(
+        identity.getDb(),
+        swarmId,
+        agentName,
+        params.post_id,
+        params.role,
+        clock.now(),
+      );
+      if (!claimed)
+        throw new BrokerError(
+          "validation",
+          `Role ${JSON.stringify(claim.role)} on post #${claim.postId} is already claimed by ${claim.agent}.`,
+          "role",
+        );
+      return `Claimed role ${JSON.stringify(claim.role)} on post #${claim.postId} for ${claim.agent}.`;
+    },
+    contract(params: Static<typeof postContractParameters>): string {
+      return executePostContractTool(identity.getDb(), swarmId, agentName, params, clock.now());
     },
     subscribe(params: Static<typeof SUBSCRIPTION>, subscribed = true): string {
       setPostSubscription(identity.getDb(), swarmId, agentName, params.post_id, subscribed, clock.now());
@@ -207,6 +238,27 @@ export function registerAgentTools(
     parameters: COMMENT,
     async execute(_toolCallId, params) {
       return textResult(run.comment(params));
+    },
+  });
+  pi.registerTool({
+    name: AGENT_TOOL.claim,
+    label: "Claim role",
+    promptSnippet: "Claim a free-text role on a wall post without duplicate ownership.",
+    description:
+      "Claim a free-text role on a wall post before starting work. Use the most common, convenient role name that others are likely to choose. The exact same trimmed role can have only one owner; a conflict is rejected with the winner's name. Different role strings are allowed. Read existing claims before choosing a role to avoid overlapping work. Does not comment or subscribe.",
+    parameters: CLAIM,
+    async execute(_toolCallId, params) {
+      return textResult(run.claim(params));
+    },
+  });
+  pi.registerTool({
+    name: AGENT_TOOL.contract,
+    label: "Post contract",
+    promptSnippet: "Read or revision-check edits to an optional post contract document.",
+    description: postContractDescription,
+    parameters: postContractParameters,
+    async execute(_toolCallId, params) {
+      return textResult(run.contract(params));
     },
   });
   for (const subscribed of [true, false]) {

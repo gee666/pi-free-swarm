@@ -88,7 +88,9 @@ test("additive v10 upgrade preserves pending messages and starts with no snoozes
   try {
     const swarm = seedSwarm(temp.db);
     const message = sendMessage(temp.db, swarm.id, "User", ["Maria"], "Preserve me", T0);
-    temp.db.sql.exec(`DROP TABLE reminder_snoozes;
+    temp.db.sql.exec(`DROP TABLE user_comment_attention;
+      DROP TABLE post_claims; DROP TABLE post_contracts;
+      DROP TABLE reminder_snoozes;
       DROP TABLE configuration_requests; DROP TABLE run_configuration_revisions;
       DROP TABLE replacement_post_baselines; DROP TABLE replacement_handoffs;
       DROP INDEX participants_active_roster; DROP INDEX participants_retired_history;
@@ -104,7 +106,7 @@ test("additive v10 upgrade preserves pending messages and starts with no snoozes
       PRAGMA user_version = 10;`);
     const upgraded = openSwarmDb(temp.db.path, { create: false });
     try {
-      assert.equal(upgraded.sql.prepare("PRAGMA user_version").get()?.user_version, 14);
+      assert.equal(upgraded.sql.prepare("PRAGMA user_version").get()?.user_version, 17);
       assert.equal(reminderSnoozedUntil(upgraded, swarm.id, "Maria"), 0);
       assert.equal(
         upgraded.sql.prepare("SELECT status FROM message_recipients WHERE message_id = ?").get(message.id)?.status,

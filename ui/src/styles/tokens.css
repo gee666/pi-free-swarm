@@ -79,6 +79,7 @@
   --button-primary-h: 34px;
   --button-secondary-h: 30px;
   --control-compact-h: 28px;
+  --control-touch-h: 44px;
   --input-h: 32px;
   --textarea-min-h: 36px;
   --textarea-max-h: calc(8 * 1em * var(--lh-body) + 2 * var(--space-4));
@@ -94,4 +95,15 @@
   --rail-tab-h: 68px;
 
   --transition: 120ms ease-out;
+}
+
+@media (max-width: 760px) {
+  :root {
+    --button-primary-h: var(--control-touch-h);
+    --button-secondary-h: var(--control-touch-h);
+    --control-compact-h: var(--control-touch-h);
+    --input-h: var(--control-touch-h);
+    --segment-h: var(--control-touch-h);
+    --menu-row-h: var(--control-touch-h);
+  }
 }

@@ -73,6 +73,19 @@
   overflow: visible;
 }
 
+.wrapTitle {
+  height: auto;
+  min-height: var(--row-h-lg);
+}
+
+.wrapTitle .main {
+  padding-block: var(--space-2);
+}
+
+.wrapTitle .titleLine {
+  flex-wrap: wrap;
+}
+
 .subtitle {
   overflow: hidden;
   color: var(--text-muted);

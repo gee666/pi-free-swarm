@@ -8,6 +8,93 @@
   max-width: 760px;
 }
 
+.contract {
+  max-width: 760px;
+  margin-top: var(--space-6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel-raised);
+}
+
+.contract summary {
+  padding: var(--space-4);
+  color: var(--text-primary);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+}
+
+.contract summary span {
+  margin-left: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
+}
+
+.contractText {
+  padding: var(--space-4);
+  border-top: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+.contractEditor {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.contractEditor textarea {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel);
+}
+
+.contractActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.claims {
+  max-width: 760px;
+  margin-top: var(--space-6);
+}
+
+.claims h2 {
+  margin-bottom: var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-medium);
+}
+
+.claims ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.claims li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel-raised);
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+}
+
+.claims strong {
+  min-width: 0;
+  color: var(--text-primary);
+  font-weight: var(--fw-medium);
+}
+
 .divider {
   max-width: 760px;
   margin: var(--space-6) 0;
@@ -70,4 +157,35 @@
 
 .postTitle input:focus-visible {
   box-shadow: none;
+}
+
+@media (max-width: 760px) {
+  .postBody {
+    min-width: 0;
+    padding: var(--space-3) var(--space-4) var(--space-4);
+  }
+
+  .postText,
+  .comments {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .divider {
+    margin: var(--space-4) 0;
+  }
+
+  .toolbar,
+  .postTitle {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .postTitle > :first-child {
+    flex-basis: 100%;
+  }
+
+  .newPost {
+    padding-inline: var(--space-3);
+  }
 }

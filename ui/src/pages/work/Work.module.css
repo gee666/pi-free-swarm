@@ -66,3 +66,29 @@
 .newPill:hover {
   background: var(--accent-soft-bg);
 }
+
+@media (max-width: 760px) {
+  .header {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    overflow-wrap: anywhere;
+  }
+
+  .feedFrame {
+    min-width: 0;
+  }
+
+  .feed {
+    min-width: 0;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3) var(--space-3);
+  }
+
+  .newPill {
+    max-width: calc(100% - 2 * var(--space-3));
+    min-height: var(--control-touch-h);
+    height: auto;
+    text-align: center;
+  }
+}

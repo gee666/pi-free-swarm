@@ -104,7 +104,13 @@ export function readRoutes(deps: ApiDeps): ApiRoute[] {
         const name = params.text("name");
         const participant = getParticipant(db, swarm.id, name);
         if (participant === null) throw notFound(`Participant ${name} not found.`);
-        return reply<MailboxResponse>(getMailbox(db, swarm.id, participant.name, box, page));
+        const filter = url.searchParams.get("unreadOnly");
+        if (filter !== null && filter !== "true" && filter !== "false")
+          throw new ApiFailure(400, "validation", "unreadOnly must be true or false.", "unreadOnly");
+        const unreadOnly = filter === "true";
+        if (unreadOnly && (participant.kind !== "user" || box !== "inbox"))
+          throw new ApiFailure(400, "validation", "unreadOnly is supported only for the User inbox.", "unreadOnly");
+        return reply<MailboxResponse>(getMailbox(db, swarm.id, participant.name, box, { ...page, unreadOnly }));
       },
     },
     {

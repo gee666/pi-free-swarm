@@ -1,6 +1,6 @@
 import { FileQuestion } from "lucide-react";
 import type { ReactNode } from "react";
-import type { CommentView, PostDetailResponse, UserPostAttention } from "../../../../src/api-types";
+import type { CommentView, PostContract, PostDetailResponse, UserPostAttention } from "../../../../src/api-types";
 import { displayName, USER_NAME } from "../../api/agents";
 import { ApiError } from "../../api/http";
 import { AuthoredEntry } from "../../components/AuthoredEntry";
@@ -14,16 +14,19 @@ import { formatTimestamp } from "../../lib/time";
 import styles from "./Wall.module.css";
 import { commentCountLabel } from "./wallModel";
 import { PostSubscriptionButton } from "./PostSubscriptionButton";
+import { PostClaims } from "./PostClaims";
+import { PostContractDocument } from "./PostContractDocument";
 
 interface PostViewProps {
   detail: PostDetailResponse | undefined;
   error: Error | undefined;
   banners: ReactNode;
   onSubscriptionChange?: (state: UserPostAttention) => void;
+  onContractChange?: (contract: PostContract) => void;
 }
 
 /** Main panel of the Wall tab: the post, then its comments. */
-export function PostView({ detail, error, banners, onSubscriptionChange }: PostViewProps) {
+export function PostView({ detail, error, banners, onSubscriptionChange, onContractChange }: PostViewProps) {
   if (!detail) {
     const missing = error instanceof ApiError && error.code === "not_found";
     return (
@@ -63,6 +66,13 @@ export function PostView({ detail, error, banners, onSubscriptionChange }: PostV
       />
       <PanelBody key={post.id} className={styles.postBody}>
         <RichText text={post.text} className={styles.postText} />
+        <PostClaims claims={post.claims} />
+        <PostContractDocument
+          key={post.id}
+          swarmId={post.swarmId}
+          contract={detail.contract}
+          onSaved={(contract) => onContractChange?.(contract)}
+        />
         <hr className={styles.divider} />
         <h2 className={styles.commentsTitle}>{commentCountLabel(comments.length)}</h2>
         <ol className={styles.comments}>

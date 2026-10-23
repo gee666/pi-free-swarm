@@ -75,7 +75,7 @@ test("v14 preserves usage records, high-water IDs, indexes and known category am
     legacy.close();
     const db = openSwarmDb(legacy.file, { create: false });
     try {
-      assert.equal(db.sql.prepare("PRAGMA user_version").get()?.user_version, 14);
+      assert.equal(db.sql.prepare("PRAGMA user_version").get()?.user_version, 17);
       assert.deepEqual(db.sql.prepare(`SELECT ${columns} FROM usage ORDER BY id`).all(), before);
       assert.deepEqual(
         db.sql

@@ -163,3 +163,59 @@
 .error {
   color: var(--accent);
 }
+
+@media (max-width: 760px) {
+  .header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-2);
+    min-height: var(--control-touch-h);
+    padding: var(--space-3);
+  }
+
+  .headerMain {
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+  }
+
+  .header > .time {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .chevron {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .title,
+  .toolName,
+  .meta {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .summary {
+    flex-basis: 100%;
+  }
+
+  .body {
+    min-width: 0;
+    padding: 0 var(--space-3) var(--space-3);
+  }
+
+  .section {
+    min-width: 0;
+  }
+
+  .system {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .systemText {
+    max-width: 100%;
+    min-width: 0;
+  }
+}

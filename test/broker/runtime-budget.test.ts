@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { after, describe, it } from "node:test";
 import { raiseSwarmBudget } from "../../src/broker/budget-policy.js";
+import type { RunConfiguration } from "../../src/run-configuration.js";
+import { RunBudget } from "../../src/broker/run-budget.js";
+import { systemClock } from "../../src/clock.js";
+import { loadSettings } from "../../src/settings.js";
 import { recordUsage } from "../../src/broker/agent-state.js";
 import { beginResume, endRun } from "../../src/broker/swarms.js";
 import { checkUsageAccounting, hasBudgetAccountingGap, getBudgetRaises, readBudget } from "../../src/store/budget.js";
@@ -14,7 +18,7 @@ const temp = createTempDb();
 after(() => temp.cleanup());
 const { db } = temp;
 
-function fixture() {
+function fixture(budget: RunConfiguration["budget"] = { moneyUsd: 10, timeSeconds: 60, gracefulShutdown: false }) {
   const swarm = seedSwarm(db);
   saveRunConfiguration(
     db,
@@ -41,7 +45,7 @@ function fixture() {
         reviveBackoffMs: [],
       },
       limits: { bodyMaxChars: 200, maxRpcFrameBytes: 100000 },
-      budget: { moneyUsd: 10, timeSeconds: 60, gracefulShutdown: false },
+      budget,
     },
     T0,
   );
@@ -91,11 +95,99 @@ describe("per-swarm durable budget changes", () => {
     }
   });
 
+  it("keeps the latest lower ceilings after earlier raises and preserves exhausted usage", () => {
+    const id = fixture();
+    recordUsage(
+      db,
+      id,
+      "Maria",
+      { kind: "message", input: 1, output: 1, cacheRead: 0, cacheWrite: 0, cost: 2, model: "worker" },
+      T0,
+    );
+    raiseSwarmBudget(db, id, { moneyUsd: 20, timeSeconds: 120 }, 0, T0);
+    const saved = raiseSwarmBudget(db, id, { moneyUsd: 1, timeSeconds: 1 }, 1, T0 + 2000);
+    assert.equal(saved.revision, 2);
+    assert.deepEqual(getBudgetRaises(db, id), { moneyUsd: 1, timeSeconds: 1 });
+    const budget = readBudget(db, id, { budgetMoneyUsd: 10, budgetTimeSeconds: 60 }, T0 + 2000);
+    assert.equal(budget.moneyUsd, 1);
+    assert.equal(budget.timeSeconds, 1);
+    assert.equal(budget.costUsd, 2);
+    assert.equal(budget.activeTimeMs, 2000);
+    assert.equal(budget.exhausted, "money");
+    assert.equal(saved.effective.budget.gracefulShutdown, false);
+    const reopened = openSwarmDb(db.path, { create: false });
+    try {
+      assert.deepEqual(getBudgetRaises(reopened, id), { moneyUsd: 1, timeSeconds: 1 });
+    } finally {
+      reopened.close();
+    }
+  });
+
+  it("sets finite ceilings on unlimited work and retains untouched dimensions", () => {
+    const id = fixture({ moneyUsd: null, timeSeconds: null, gracefulShutdown: true });
+    raiseSwarmBudget(db, id, { moneyUsd: 5 }, 0, T0);
+    const first = getRunConfiguration(db, id);
+    assert.deepEqual(first?.effective.budget, { moneyUsd: 5, timeSeconds: null, gracefulShutdown: true });
+    raiseSwarmBudget(db, id, { timeSeconds: 30 }, 1, T0);
+    assert.deepEqual(getBudgetRaises(db, id), { moneyUsd: 5, timeSeconds: 30 });
+    const budget = readBudget(db, id, {}, T0);
+    assert.equal(budget.moneyUsd, 5);
+    assert.equal(budget.timeSeconds, 30);
+    assert.equal(budget.gracefulShutdown, true);
+  });
+
+  it("enforces newly finite money and time ceilings on originally unlimited runs", () => {
+    for (const dimension of ["money", "time"] as const) {
+      const id = fixture({ moneyUsd: null, timeSeconds: null, gracefulShutdown: false });
+      const env = {
+        cwd: temp.cwd,
+        db,
+        runnerPid: process.pid,
+        clock: { ...systemClock, now: () => T0 + 2000 },
+        settings: loadSettings(temp.cwd, { globalFile: null }).settings,
+        launch: { extensionArgs: [], projectTrusted: false, model: null },
+        boardUrl: () => null,
+        notifyUser: () => undefined,
+      };
+      assert.equal(env.settings.budgetMoneyUsd, undefined);
+      assert.equal(env.settings.budgetTimeSeconds, undefined);
+      let drained = 0;
+      let ended = 0;
+      const guard = new RunBudget(
+        env,
+        id,
+        1,
+        () => drained++,
+        () => false,
+        () => ended++,
+      );
+      assert.equal(guard.check(), false);
+      if (dimension === "money") {
+        recordUsage(
+          db,
+          id,
+          "Maria",
+          { kind: "message", input: 1, output: 1, cacheRead: 0, cacheWrite: 0, cost: 2, model: "worker" },
+          T0,
+        );
+      }
+      raiseSwarmBudget(db, id, dimension === "money" ? { moneyUsd: 1 } : { timeSeconds: 1 }, 0, T0 + 2000);
+      assert.equal(guard.check(), true);
+      assert.equal(drained, 1);
+      assert.equal(ended, 1);
+      assert.equal(db.sql.prepare("SELECT reason FROM budget_stops WHERE swarm_id = ?").get(id)?.reason, dimension);
+      assert.equal(db.sql.prepare("SELECT COUNT(*) AS n FROM acceptance_votes WHERE swarm_id = ?").get(id)?.n, 0);
+    }
+  });
+
   it("rejects stale revisions and invalid mixed patches without extra requests", () => {
     const id = fixture();
     raiseSwarmBudget(db, id, { moneyUsd: 20 }, 0, T0);
     assert.throws(() => raiseSwarmBudget(db, id, { moneyUsd: 30 }, 0, T0), /revision changed/);
-    assert.throws(() => raiseSwarmBudget(db, id, { moneyUsd: 30, timeSeconds: 30 }, 1, T0), /timeSeconds must exceed/);
+    assert.throws(
+      () => raiseSwarmBudget(db, id, { moneyUsd: 30, timeSeconds: 0 }, 1, T0),
+      /timeSeconds must be a finite positive/,
+    );
     assert.equal(requestCount(id), 1);
     assert.equal(getRunConfiguration(db, id)?.effective.budget.moneyUsd, 20);
   });

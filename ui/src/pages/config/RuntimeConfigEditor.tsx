@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from "react";
+import type { BudgetStatus } from "../../../../src/budget";
 import type { RunConfiguration, WorkerAssignment } from "../../../../src/run-configuration";
 import type { ConfigurationChange } from "../../../../src/runtime-configuration";
 import { Button } from "../../components/Button";
 import { TextField } from "../../components/Field";
 import { ErrorBanner } from "../../components/States";
 import { WorkerModel } from "../../components/WorkerModel";
+import { RuntimeBudgetMetrics } from "./RuntimeBudgetMetrics";
 import styles from "./Config.module.css";
 
 export type BudgetRaise = Omit<Extract<ConfigurationChange, { type: "raiseBudget" }>, "type">;
@@ -12,6 +14,7 @@ export type BudgetRaise = Omit<Extract<ConfigurationChange, { type: "raiseBudget
 interface RuntimeConfigEditorProps {
   workers: readonly { name: string; model?: WorkerAssignment | null }[];
   budget: RunConfiguration["budget"] | null;
+  accounting?: BudgetStatus | null;
   disabled?: boolean;
   maxAgents?: number;
   onAdd: (count: number) => Promise<void>;
@@ -22,6 +25,7 @@ interface RuntimeConfigEditorProps {
 export function RuntimeConfigEditor({
   workers,
   budget,
+  accounting,
   disabled = false,
   maxAgents,
   onAdd,
@@ -61,7 +65,7 @@ export function RuntimeConfigEditor({
       setCount("1");
     });
   };
-  const raise = (event: FormEvent) => {
+  const saveBudget = (event: FormEvent) => {
     event.preventDefault();
     void submit(async () => {
       if (!budget) throw new Error("No saved budget policy is available.");
@@ -72,13 +76,10 @@ export function RuntimeConfigEditor({
       ] as const) {
         if (!input.trim()) continue;
         const value = Number(input);
-        const current = budget[key];
-        if (current === null) throw new Error(`${key} is already unlimited.`);
-        if (!Number.isFinite(value) || value <= current)
-          throw new Error(`${key} must exceed the current total ceiling of ${current}.`);
+        if (!Number.isFinite(value) || value <= 0) throw new Error(`${key} must be a finite positive total ceiling.`);
         patch[key] = value;
       }
-      if (Object.keys(patch).length === 0) throw new Error("Enter at least one higher budget ceiling.");
+      if (Object.keys(patch).length === 0) throw new Error("Enter at least one budget ceiling.");
       await onRaiseBudget(patch);
       setMoney("");
       setTime("");
@@ -88,69 +89,90 @@ export function RuntimeConfigEditor({
     <section className={styles.editor} aria-label="Edit swarm configuration">
       {error && <ErrorBanner>{error}</ErrorBanner>}
       {notice && <p role="status">{notice}</p>}
-      <h3>Active workers</h3>
-      <p>
-        {workers.length} active workers · {maxAgents === undefined ? "Maximum not recorded" : `maximum ${maxAgents}`}
-      </p>
-      <p>
-        Removing a worker stops it and removes its vote from the current 70% quorum denominator. Unfinished work may
-        need reassignment.
-      </p>
-      <ul className={styles.workers}>
-        {workers.map((worker) => (
-          <li key={worker.name}>
-            <span>
-              {worker.name}
-              <small>
-                <WorkerModel model={worker.model} />
-              </small>
-            </span>
-            <Button
-              size="sm"
-              disabled={locked || workers.length <= 1}
-              onClick={() => void submit(() => onRemove(worker.name))}
-            >
-              Remove {worker.name}
-            </Button>
-          </li>
-        ))}
-      </ul>
-      <form onSubmit={add} className={styles.editForm}>
-        <TextField label="Workers to add" value={count} onChange={setCount} disabled={locked} />
-        <Button type="submit" disabled={locked}>
-          Add workers
-        </Button>
-      </form>
-      <h3>Raise cumulative budget ceilings</h3>
-      <p>
-        These are new total ceilings, not extra allowances. Consumption and saved work are not reset. Empty fields leave
-        a ceiling unchanged.
-      </p>
-      <form onSubmit={raise} className={styles.editForm}>
-        <label>
-          Money ceiling, USD
-          <TextField
-            label="New money ceiling, USD"
-            value={money}
-            onChange={setMoney}
-            placeholder={budget?.moneyUsd == null ? "Unlimited" : String(budget.moneyUsd)}
-            disabled={locked || budget?.moneyUsd == null}
-          />
-        </label>
-        <label>
-          Active-time ceiling, seconds
-          <TextField
-            label="New active-time ceiling, seconds"
-            value={time}
-            onChange={setTime}
-            placeholder={budget?.timeSeconds == null ? "Unlimited" : String(budget.timeSeconds)}
-            disabled={locked || budget?.timeSeconds == null}
-          />
-        </label>
-        <Button type="submit" disabled={locked || !budget || (budget.moneyUsd === null && budget.timeSeconds === null)}>
-          Raise budgets
-        </Button>
-      </form>
+      <div className={styles.card}>
+        <div className={styles.sectionHeader}>
+          <div>
+            <h3>Active workers</h3>
+            <p>Manage your swarm's capacity.</p>
+          </div>
+          <span className={styles.badge}>
+            {workers.length} / {maxAgents ?? "—"} workers
+          </span>
+        </div>
+        <ul className={styles.workers}>
+          {workers.map((worker) => (
+            <li key={worker.name}>
+              <span className={styles.workerAvatar} aria-hidden="true">
+                {worker.name.slice(0, 1)}
+              </span>
+              <span className={styles.workerIdentity}>
+                <strong>{worker.name}</strong>
+                <small>
+                  <WorkerModel model={worker.model} />
+                </small>
+              </span>
+              <Button
+                size="sm"
+                disabled={locked || workers.length <= 1}
+                onClick={() => void submit(() => onRemove(worker.name))}
+              >
+                Remove {worker.name}
+              </Button>
+            </li>
+          ))}
+        </ul>
+        <form onSubmit={add} className={styles.addForm}>
+          <label className={styles.field}>
+            Workers to add
+            <TextField label="Workers to add" value={count} onChange={setCount} disabled={locked} />
+          </label>
+          <Button type="submit" disabled={locked}>
+            Add workers
+          </Button>
+        </form>
+        <p className={styles.hint}>Removing a worker stops it and excludes its vote. Reassign any unfinished work.</p>
+      </div>
+      <section className={styles.card} aria-labelledby="budget-editor-title">
+        <div className={styles.sectionHeader}>
+          <div>
+            <h3 id="budget-editor-title">Budget limits</h3>
+            <p>Set or adjust total ceilings. Usage is not reset.</p>
+          </div>
+          <span className={styles.badge}>{budget ? "Cumulative" : "Unavailable"}</span>
+        </div>
+        <RuntimeBudgetMetrics budget={budget} fallback={accounting} />
+        <form onSubmit={saveBudget} className={styles.editForm}>
+          <label className={styles.field}>
+            Money ceiling, USD
+            <TextField
+              label="New money ceiling, USD"
+              value={money}
+              onChange={setMoney}
+              placeholder={!budget ? "Unavailable" : budget.moneyUsd === null ? "Unlimited" : String(budget.moneyUsd)}
+              disabled={locked || !budget}
+            />
+          </label>
+          <label className={styles.field}>
+            Active-time ceiling, seconds
+            <TextField
+              label="New active-time ceiling, seconds"
+              value={time}
+              onChange={setTime}
+              placeholder={
+                !budget ? "Unavailable" : budget.timeSeconds === null ? "Unlimited" : String(budget.timeSeconds)
+              }
+              disabled={locked || !budget}
+            />
+          </label>
+          <Button type="submit" disabled={locked || !budget}>
+            Save budgets
+          </Button>
+        </form>
+        <p className={styles.hint}>
+          Leave a field empty to keep its current limit. A limit at or below current usage triggers the run's budget
+          stop policy.
+        </p>
+      </section>
     </section>
   );
 }

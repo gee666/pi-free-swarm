@@ -45,3 +45,18 @@
   color: var(--text-muted);
   font-size: var(--fs-small);
 }
+
+@media (max-width: 760px) {
+  .head {
+    flex-wrap: wrap;
+    row-gap: 0;
+  }
+  .author {
+    overflow-wrap: anywhere;
+    min-width: 0;
+  }
+  .time {
+    flex-basis: 100%;
+    margin-inline-start: 0;
+  }
+}

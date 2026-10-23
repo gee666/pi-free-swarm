@@ -8,15 +8,11 @@ export interface BudgetRaises {
   timeSeconds?: number;
 }
 
-/** Keep per-swarm UI raises when a resume still supplies older project defaults. */
+/** Explicit per-swarm ceilings survive resume, including reductions and formerly unlimited budgets. */
 export function mergeBudgetRaises(configured: BudgetCeilings, raises: BudgetRaises): BudgetCeilings {
   return {
-    moneyUsd:
-      configured.moneyUsd === null ? null : Math.max(configured.moneyUsd, raises.moneyUsd ?? configured.moneyUsd),
-    timeSeconds:
-      configured.timeSeconds === null
-        ? null
-        : Math.max(configured.timeSeconds, raises.timeSeconds ?? configured.timeSeconds),
+    moneyUsd: raises.moneyUsd ?? configured.moneyUsd,
+    timeSeconds: raises.timeSeconds ?? configured.timeSeconds,
   };
 }
 

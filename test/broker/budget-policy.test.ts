@@ -5,16 +5,16 @@ import { raiseBudgetPolicy } from "../../src/broker/budget-policy.js";
 
 const current = { moneyUsd: 10, timeSeconds: 60, gracefulShutdown: false };
 
-describe("runtime budget raises", () => {
-  it("preserves per-swarm raises on resume while honoring higher file ceilings", () => {
+describe("runtime budget edits", () => {
+  it("preserves explicit per-swarm ceilings on resume over file ceilings", () => {
     assert.deepEqual(mergeBudgetRaises(current, { moneyUsd: 20 }), { moneyUsd: 20, timeSeconds: 60 });
     assert.deepEqual(mergeBudgetRaises({ moneyUsd: 30, timeSeconds: 120 }, { moneyUsd: 20, timeSeconds: 90 }), {
-      moneyUsd: 30,
-      timeSeconds: 120,
+      moneyUsd: 20,
+      timeSeconds: 90,
     });
     assert.deepEqual(mergeBudgetRaises({ moneyUsd: null, timeSeconds: null }, { moneyUsd: 20, timeSeconds: 90 }), {
-      moneyUsd: null,
-      timeSeconds: null,
+      moneyUsd: 20,
+      timeSeconds: 90,
     });
     assert.deepEqual(mergeBudgetRaises(current, {}), { moneyUsd: 10, timeSeconds: 60 });
   });
@@ -37,18 +37,22 @@ describe("runtime budget raises", () => {
       assert.throws(() => raiseBudgetPolicy(current, { moneyUsd: value }), /moneyUsd must be a finite positive/);
       assert.throws(() => raiseBudgetPolicy(current, { timeSeconds: value }), /timeSeconds must be a finite positive/);
     }
-    assert.throws(() => raiseBudgetPolicy(current, { moneyUsd: 10 }), /must exceed its current total ceiling/);
-    assert.throws(() => raiseBudgetPolicy(current, { moneyUsd: 20, timeSeconds: 30 }), /timeSeconds must exceed/);
+    assert.throws(
+      () => raiseBudgetPolicy(current, { moneyUsd: 20, timeSeconds: 0 }),
+      /timeSeconds must be a finite positive/,
+    );
     assert.deepEqual(current, { moneyUsd: 10, timeSeconds: 60, gracefulShutdown: false });
   });
 
-  it("does not turn an unlimited dimension into an enforced limit or change its meaning", () => {
-    const unlimitedMoney = { ...current, moneyUsd: null };
-    assert.throws(() => raiseBudgetPolicy(unlimitedMoney, { moneyUsd: 100 }), /already unlimited/);
-    assert.deepEqual(raiseBudgetPolicy(unlimitedMoney, { timeSeconds: 120 }), { ...unlimitedMoney, timeSeconds: 120 });
-    assert.throws(
-      () => raiseBudgetPolicy({ ...current, timeSeconds: null }, { timeSeconds: 100 }),
-      /already unlimited/,
-    );
+  it("lowers finite ceilings and sets finite ceilings on unlimited dimensions", () => {
+    assert.deepEqual(raiseBudgetPolicy(current, { moneyUsd: 2, timeSeconds: 30 }), {
+      ...current,
+      moneyUsd: 2,
+      timeSeconds: 30,
+    });
+    const unlimited = { ...current, moneyUsd: null, timeSeconds: null };
+    assert.deepEqual(raiseBudgetPolicy(unlimited, { moneyUsd: 5 }), { ...unlimited, moneyUsd: 5 });
+    assert.deepEqual(raiseBudgetPolicy(unlimited, { timeSeconds: 20 }), { ...unlimited, timeSeconds: 20 });
+    assert.deepEqual(unlimited, { moneyUsd: null, timeSeconds: null, gracefulShutdown: false });
   });
 });

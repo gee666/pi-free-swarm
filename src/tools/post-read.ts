@@ -1,6 +1,7 @@
 import { BrokerError } from "../broker/errors.js";
 import { checkPage, requireParticipant, requireSwarm } from "../broker/validate.js";
 import { PAGE_DEFAULT_COUNT } from "../constants.js";
+import { charCount, clipWithSuffix, TEXT_MAX } from "../limits.js";
 import type { SwarmDb } from "../store/db.js";
 import { commentOf, int } from "../store/rows.js";
 import { getPost } from "../store/wall-queries.js";
@@ -62,7 +63,11 @@ export function readPostTool(
         }),
       ),
     );
-    const page = renderReadPage(`Post #${post.id} · ${post.title}`, items, position, count);
+    const claims = post.claims?.map((claim) => `${JSON.stringify(claim.role)}: ${claim.agent}`).join("; ");
+    const boundedClaims =
+      claims && charCount(claims) > TEXT_MAX ? clipWithSuffix(claims, "… more claims in the UI", TEXT_MAX) : claims;
+    const claimPreview = boundedClaims ? `\nClaims: ${boundedClaims}` : "";
+    const page = renderReadPage(`Post #${post.id} · ${post.title}${claimPreview}`, items, position, count);
     if (page.completeIds.includes(0)) markPostsCovered(db, swarmId, reader, [post.id]);
     markCommentsCovered(
       db,

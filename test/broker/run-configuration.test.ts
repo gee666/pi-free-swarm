@@ -154,7 +154,7 @@ it("keeps historical unknown maximums honest while capturing the new run's effec
   }
 });
 
-it("records applied UI ceiling raises on resume without ignoring later file increases", () => {
+it("retains explicit per-swarm budget ceilings across changed file defaults on resume", () => {
   const f = fixture();
   try {
     f.env.settings.budgetMoneyUsd = 10;
@@ -170,17 +170,14 @@ it("records applied UI ceiling raises on resume without ignoring later file incr
     configureRun(f.env, f.swarm.id, 2, ["Maria", "John", "Liam"], DEFAULT_TIMINGS);
     assert.equal(getRunConfiguration(f.db, f.swarm.id, 2)?.effective.budget.moneyUsd, 20);
     assert.equal(getRunConfiguration(f.db, f.swarm.id, 2)?.effective.budget.timeSeconds, 200);
-    assert.ok(f.notes.some((note) => note.includes("Retaining this swarm's approved runtime budget increases")));
+    assert.ok(f.notes.some((note) => note.includes("Retaining this swarm's approved runtime budget ceilings")));
     f.notes.length = 0;
     f.env.settings.budgetMoneyUsd = 25;
     f.env.settings.budgetTimeSeconds = 250;
     configureRun(f.env, f.swarm.id, 3, ["Maria", "John", "Liam"], DEFAULT_TIMINGS);
-    assert.equal(getRunConfiguration(f.db, f.swarm.id, 3)?.effective.budget.moneyUsd, 25);
-    assert.equal(getRunConfiguration(f.db, f.swarm.id, 3)?.effective.budget.timeSeconds, 250);
-    assert.equal(
-      f.notes.some((note) => note.includes("Retaining this swarm's approved runtime budget increases")),
-      false,
-    );
+    assert.equal(getRunConfiguration(f.db, f.swarm.id, 3)?.effective.budget.moneyUsd, 20);
+    assert.equal(getRunConfiguration(f.db, f.swarm.id, 3)?.effective.budget.timeSeconds, 200);
+    assert.ok(f.notes.some((note) => note.includes("Retaining this swarm's approved runtime budget ceilings")));
   } finally {
     f.cleanup();
   }

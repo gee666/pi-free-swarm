@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
-import { configuration } from "../../test/runConfigurationFixture";
+import { budget, configuration } from "../../test/runConfigurationFixture";
 import { RuntimeConfigEditor } from "./RuntimeConfigEditor";
 
 function fixture() {
@@ -20,7 +20,7 @@ function fixture() {
 it("requests worker additions and explains removal's active-quorum effect", async () => {
   const { actions, ...props } = fixture();
   render(<RuntimeConfigEditor {...props} {...actions} />);
-  expect(screen.getByText(/removes its vote from the current 70% quorum denominator/)).toBeInTheDocument();
+  expect(screen.getByText(/Removing a worker stops it and excludes its vote/)).toBeInTheDocument();
   const count = screen.getByRole("textbox", { name: "Workers to add" });
   await userEvent.clear(count);
   await userEvent.type(count, "2");
@@ -31,17 +31,27 @@ it("requests worker additions and explains removal's active-quorum effect", asyn
   expect(actions.onRemove).toHaveBeenCalledWith("John");
 });
 
-it("raises only entered cumulative ceilings without resetting consumption", async () => {
+it("saves only entered cumulative ceilings without resetting consumption", async () => {
   const { actions, ...props } = fixture();
   render(<RuntimeConfigEditor {...props} {...actions} />);
-  expect(screen.getByText(/Consumption and saved work are not reset/)).toBeInTheDocument();
+  expect(screen.getByText(/Usage is not reset/)).toBeInTheDocument();
   await userEvent.type(screen.getByRole("textbox", { name: "New money ceiling, USD" }), "20");
-  await userEvent.click(screen.getByRole("button", { name: "Raise budgets" }));
+  await userEvent.click(screen.getByRole("button", { name: "Save budgets" }));
   expect(actions.onRaiseBudget).toHaveBeenCalledWith({ moneyUsd: 20 });
   expect(screen.getByRole("textbox", { name: "New money ceiling, USD" })).toHaveValue("");
 });
 
-it("rejects malformed counts and non-increasing or empty ceiling edits locally", async () => {
+it("allows lower ceilings including below usage without resetting accounting", async () => {
+  const { actions, ...props } = fixture();
+  render(<RuntimeConfigEditor {...props} {...actions} accounting={{ ...budget, costUsd: 8, activeTimeMs: 120000 }} />);
+  await userEvent.type(screen.getByRole("textbox", { name: "New money ceiling, USD" }), "5");
+  await userEvent.type(screen.getByRole("textbox", { name: "New active-time ceiling, seconds" }), "60");
+  await userEvent.click(screen.getByRole("button", { name: "Save budgets" }));
+  expect(actions.onRaiseBudget).toHaveBeenCalledWith({ moneyUsd: 5, timeSeconds: 60 });
+  expect(screen.getByText(/Usage is not reset/)).toBeInTheDocument();
+});
+
+it("rejects malformed counts and nonpositive or empty ceiling edits locally", async () => {
   const { actions, ...props } = fixture();
   render(<RuntimeConfigEditor {...props} {...actions} />);
   const count = screen.getByRole("textbox", { name: "Workers to add" });
@@ -55,15 +65,15 @@ it("rejects malformed counts and non-increasing or empty ceiling edits locally",
   await userEvent.click(screen.getByRole("button", { name: "Add workers" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("recorded maximum of 5");
   expect(actions.onAdd).not.toHaveBeenCalled();
-  await userEvent.click(screen.getByRole("button", { name: "Raise budgets" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("at least one higher");
-  await userEvent.type(screen.getByRole("textbox", { name: "New money ceiling, USD" }), "9");
-  await userEvent.click(screen.getByRole("button", { name: "Raise budgets" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("must exceed the current total ceiling of 10");
+  await userEvent.click(screen.getByRole("button", { name: "Save budgets" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Enter at least one budget ceiling");
+  await userEvent.type(screen.getByRole("textbox", { name: "New money ceiling, USD" }), "0");
+  await userEvent.click(screen.getByRole("button", { name: "Save budgets" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("finite positive total ceiling");
   expect(actions.onRaiseBudget).not.toHaveBeenCalled();
 });
 
-it("does not offer a finite replacement for an unlimited budget or removal of the last worker", () => {
+it("allows finite ceilings on an unlimited budget but protects the last worker", async () => {
   const { actions, workers } = fixture();
   render(
     <RuntimeConfigEditor
@@ -73,8 +83,14 @@ it("does not offer a finite replacement for an unlimited budget or removal of th
     />,
   );
   expect(screen.getByRole("button", { name: "Remove Maria" })).toBeDisabled();
-  expect(screen.getByRole("textbox", { name: "New money ceiling, USD" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Raise budgets" })).toBeDisabled();
+  const money = screen.getByRole("textbox", { name: "New money ceiling, USD" });
+  const time = screen.getByRole("textbox", { name: "New active-time ceiling, seconds" });
+  expect(money).toBeEnabled();
+  expect(time).toBeEnabled();
+  await userEvent.type(money, "5");
+  await userEvent.type(time, "60");
+  await userEvent.click(screen.getByRole("button", { name: "Save budgets" }));
+  expect(actions.onRaiseBudget).toHaveBeenCalledWith({ moneyUsd: 5, timeSeconds: 60 });
 });
 
 it("keeps a failed request visible without claiming the edit was applied", async () => {
@@ -98,7 +114,7 @@ it("prevents overlapping edits while an operation is pending", async () => {
   render(<RuntimeConfigEditor {...props} {...actions} />);
   await userEvent.click(screen.getByRole("button", { name: "Add workers" }));
   expect(screen.getByRole("button", { name: "Remove John" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Raise budgets" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Save budgets" })).toBeDisabled();
   act(() => release());
   await waitFor(() => expect(screen.getByRole("button", { name: "Remove John" })).toBeEnabled());
 });

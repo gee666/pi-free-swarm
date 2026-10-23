@@ -34,6 +34,15 @@ async function request<T>(url: string, init: RequestInit): Promise<T> {
   return JSON.parse(text || "null");
 }
 
+export function postBytes<T>(url: string, body: Blob, signal?: AbortSignal): Promise<T> {
+  return request<T>(url, {
+    method: "POST",
+    body,
+    headers: { "Content-Type": "application/octet-stream" },
+    signal,
+  });
+}
+
 export function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   return request<T>(url, { signal });
 }

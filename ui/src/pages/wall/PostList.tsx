@@ -70,6 +70,19 @@ export function PostList({
                   onSelect={() => onSelect(post.id)}
                   trailing={
                     <>
+                      {post.contract && (
+                        <span className={styles.commentCount} title={`Contract revision ${post.contract.revision}`}>
+                          Contract r{post.contract.revision}
+                        </span>
+                      )}
+                      {post.claims && post.claims.length > 0 && (
+                        <span
+                          className={styles.commentCount}
+                          title={post.claims.map((claim) => `${claim.role}: ${claim.agent}`).join("\n")}
+                        >
+                          {post.claims.length} {post.claims.length === 1 ? "claim" : "claims"}
+                        </span>
+                      )}
                       {post.commentCount > 0 && (
                         <span className={styles.commentCount} title={commentCountLabel(post.commentCount)}>
                           💬 {post.commentCount}

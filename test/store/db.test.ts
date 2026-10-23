@@ -31,7 +31,7 @@ describe("openSwarmDb", () => {
     assert.equal(db.path, swarmDbPath(temp.cwd));
     assert.equal(db.dataDir, swarmDataDir(temp.cwd));
     assert.ok(hasSwarmDb(temp.cwd));
-    assert.equal(pragma(db, "user_version"), 14);
+    assert.equal(pragma(db, "user_version"), 17);
     assert.equal(pragma(db, "journal_mode"), "wal");
     assert.equal(pragma(db, "busy_timeout"), 5000);
     assert.equal(pragma(db, "foreign_keys"), 1);
@@ -39,7 +39,7 @@ describe("openSwarmDb", () => {
 
   it("reopens without migrating again", () => {
     const second = openSwarmDb(db.path, { create: false });
-    assert.equal(pragma(second, "user_version"), 14);
+    assert.equal(pragma(second, "user_version"), 17);
     second.close();
   });
 
@@ -58,7 +58,7 @@ describe("openSwarmDb", () => {
     try {
       other.db.sql.exec("PRAGMA user_version = 999");
       assert.throws(() => openSwarmDb(other.db.path, { create: false }), {
-        message: "swarm.db schema v999 is newer than this extension (v14). Update pi-free-swarm.",
+        message: "swarm.db schema v999 is newer than this extension (v17). Update pi-free-swarm.",
       });
     } finally {
       other.cleanup();

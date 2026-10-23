@@ -45,9 +45,12 @@ test("User badge counts survive snapshots and live events without clearing unsee
   assert.deepEqual(read.body, { updated: 1, userUnread: { messages: 1, comments: 1 }, userSubscribed: true });
   clock.advance(EVENTS_TAIL_MS);
   const status = await stream.next(
-    ({ event }) => event?.type === "message.status" && event.payload.recipient.name === "User",
+    ({ event }) =>
+      event?.type === "user.post.updated" &&
+      event.payload.userUnreadComments === 1 &&
+      event.payload.userUnread.messages === 1,
   );
-  assert.ok(status.event?.type === "message.status");
+  assert.ok(status.event?.type === "user.post.updated");
   assert.deepEqual(status.event.payload.userUnread, { messages: 1, comments: 1 });
   await postJson(`${board.base}/api/swarms/${swarm.id}/participants/User/read`, { messageIds: [message.id] });
   clock.advance(EVENTS_TAIL_MS);

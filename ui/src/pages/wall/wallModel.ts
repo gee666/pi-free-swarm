@@ -1,5 +1,7 @@
 import type {
   CommentView,
+  PostClaim,
+  PostContract,
   PostDetailResponse,
   PostListResponse,
   PostSummary,
@@ -42,6 +44,7 @@ export function withComment(
     return detail;
   }
   return {
+    ...detail,
     post: { ...detail.post, commentCount: Math.max(detail.post.commentCount, commentCount) },
     comments: insertNewest(detail.comments, comment),
   };
@@ -60,6 +63,43 @@ export function withUserPostListAttention(list: PostListResponse, attention: Use
   const target = list.posts.find((post) => post.id === attention.postId);
   if (!target) return list;
   const updated = withUserPostAttention(target, attention);
+  return updated === target ? list : { ...list, posts: list.posts.map((post) => (post === target ? updated : post)) };
+}
+
+export function withPostClaim(post: PostSummary, claim: PostClaim): PostSummary {
+  if (post.id !== claim.postId || post.claims?.some((existing) => existing.role === claim.role)) return post;
+  return { ...post, claims: [...(post.claims ?? []), claim] };
+}
+
+export function withPostListClaim(list: PostListResponse, claim: PostClaim): PostListResponse {
+  const target = list.posts.find((post) => post.id === claim.postId);
+  if (!target) return list;
+  const updated = withPostClaim(target, claim);
+  return updated === target ? list : { ...list, posts: list.posts.map((post) => (post === target ? updated : post)) };
+}
+
+export function withContractMetadata(post: PostSummary, contract: PostContract): PostSummary {
+  if (post.id !== contract.postId || (post.contract?.revision ?? 0) >= contract.revision) return post;
+  return {
+    ...post,
+    contract: {
+      postId: contract.postId,
+      revision: contract.revision,
+      updatedBy: contract.updatedBy,
+      updatedAt: contract.updatedAt,
+    },
+  };
+}
+
+export function withPostContract(detail: PostDetailResponse, contract: PostContract): PostDetailResponse {
+  if (detail.post.id !== contract.postId || (detail.contract?.revision ?? 0) >= contract.revision) return detail;
+  return { ...detail, post: withContractMetadata(detail.post, contract), contract };
+}
+
+export function withPostListContract(list: PostListResponse, contract: PostContract): PostListResponse {
+  const target = list.posts.find((post) => post.id === contract.postId);
+  if (!target) return list;
+  const updated = withContractMetadata(target, contract);
   return updated === target ? list : { ...list, posts: list.posts.map((post) => (post === target ? updated : post)) };
 }
 
