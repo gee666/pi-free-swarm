@@ -21,6 +21,7 @@ import { readPostTool } from "./post-read.js";
 import { readFreshPostsTool } from "./fresh-post-read.js";
 import { agentToolResult as textResult } from "./agent-tool-result.js";
 import { createRetirementTool, retirementToolParameters } from "./retirement-tool.js";
+import { formatAgentVoteResult } from "./agent-vote-result.js";
 
 export interface AgentToolIdentity {
   getDb(): SwarmDb;
@@ -147,9 +148,8 @@ export function createAgentToolHandlers(identity: AgentToolIdentity) {
       return `Idle reminders snoozed for 5 minutes, until ${new Date(until).toISOString()}. Direct messages and subscribed comments still arrive.`;
     },
     acceptance(params: Static<typeof acceptanceToolParameters>): string {
-      return JSON.stringify(
-        executeAcceptanceTool(identity.getDb(), swarmId, agentName, params, clock.now(), identity.run),
-      );
+      const record = executeAcceptanceTool(identity.getDb(), swarmId, agentName, params, clock.now(), identity.run);
+      return params.action === "vote" ? formatAgentVoteResult(record, agentName) : JSON.stringify(record);
     },
   };
 }

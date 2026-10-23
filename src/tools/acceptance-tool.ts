@@ -34,6 +34,7 @@ export const acceptanceToolDescription =
   "Your latest vote replaces your previous vote. Judge the whole original task, not just your own work. " +
   "Accepted or blocked requires matching votes from at least ceil(workers in the current roster * 0.70); retired workers and Watcher are excluded. Incomplete is not terminal. " +
   "Inspect returns the original task, acceptance criteria, individual votes, counts and threshold. " +
+  "Successful agent votes return only your recorded judgment, tally and revision. " +
   "Reasons need no structured evidence or criterion-by-criterion assessment.";
 
 /** Pi-independent handler; the registering adapter owns tool result/error formatting. */
