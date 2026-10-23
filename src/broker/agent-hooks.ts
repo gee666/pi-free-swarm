@@ -12,6 +12,7 @@ import { guardRunAction } from "./run-failure.js";
 export interface AgentHooksContext {
   db: SwarmDb;
   swarmId: number;
+  run?: number;
   name: string;
   clock: Clock;
   /** True once the run is ending: endRun writes the final statuses, so stop() transitions are dropped. */
@@ -22,8 +23,8 @@ export interface AgentHooksContext {
 
 export function createAgentHooks(ctx: AgentHooksContext): SupervisorHooks {
   const { db, swarmId, name, clock } = ctx;
-  const write = (action: () => void) => {
-    if (ctx.isEnding()) return;
+  const write = (action: () => void, allowWhileEnding = false) => {
+    if (!allowWhileEnding && ctx.isEnding()) return;
     if (ctx.onError) guardRunAction(action, ctx.onError);
     else action();
   };
@@ -39,10 +40,14 @@ export function createAgentHooks(ctx: AgentHooksContext): SupervisorHooks {
       }),
     onPostsRead: (ids) => write(() => markPostsCovered(db, swarmId, name, ids)),
     onUsage: (sample) =>
+      // Closing children can still report attributable usage; other callbacks remain fenced.
       write(() => {
-        recordUsage(db, swarmId, name, sample, clock.now());
-        checkUsageAccounting(db, swarmId, name, sample, clock.now());
-      }),
+        const issue = db.write(() => {
+          recordUsage(db, swarmId, name, sample, clock.now(), ctx.run);
+          return checkUsageAccounting(db, swarmId, name, sample, clock.now(), ctx.run);
+        });
+        if (issue) throw issue;
+      }, true),
     onCrash: (crash) => write(() => ctx.onCrash(crash)),
   };
 }

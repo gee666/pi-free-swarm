@@ -15,6 +15,11 @@ export interface ProtocolHandlers {
   onActivity(activity: AgentActivity | null): void;
 }
 
+export function forwardUsage(event: RpcRecord, handlers: Pick<ProtocolHandlers, "onUsage">): void {
+  const usage = extractUsage(event);
+  if (usage) handlers.onUsage(usage);
+}
+
 /** Events that prove the agent made progress. */
 const SEMANTIC_EVENT_TYPES = new Set([
   "message_end",
@@ -44,8 +49,7 @@ export function createProtocolHandler(watchdog: StallWatchdog, handlers: Protoco
 
     const activity = activityOf(event);
     if (activity !== undefined) handlers.onActivity(activity);
-    const usage = extractUsage(event);
-    if (usage) handlers.onUsage(usage);
+    forwardUsage(event, handlers);
     const userText = extractUserText(event);
     if (userText !== null) handlers.onUserMessage(userText);
 

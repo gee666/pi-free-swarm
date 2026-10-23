@@ -80,15 +80,16 @@ export function hasBudgetAccountingGap(db: SwarmDb, swarmId: number): boolean {
   return db.sql.prepare("SELECT 1 FROM budget_accounting_gaps WHERE swarm_id = ? LIMIT 1").get(swarmId) !== undefined;
 }
 
-/** Preserve known usage before callers stop a money-limited run on incomplete attribution. */
+/** Return the fatal issue so callers can commit usage and gap together before throwing. */
 export function checkUsageAccounting(
   db: SwarmDb,
   swarmId: number,
   agent: string,
   sample: UsageSample,
   now: number,
-): void {
-  const config = getRunConfiguration(db, swarmId);
+  originRun?: number,
+): Error | undefined {
+  const config = getRunConfiguration(db, swarmId, originRun);
   const assigned = config?.effective.workers.find((worker) => worker.name === agent);
   const archived = !assigned
     ? db.sql
@@ -106,7 +107,7 @@ export function checkUsageAccounting(
       .run(swarmId, agent, reason, now),
   );
   if (config && config.effective.budget.moneyUsd !== null) {
-    throw new Error(
+    return new Error(
       `Money budget accounting is incomplete for ${agent}: ${reason}. Execution stopped; costs are not zero. Inspect usage and pricing before resuming without a money limit.`,
     );
   }

@@ -15,7 +15,7 @@ export type { AgentCrash, DeliveryOutcome, PromptPayload, SupervisorHooks } from
 import type { AgentExitInfo } from "./agent-process.js";
 import { spawnAgentTransport, type AgentTransport, type AgentTransportFactory } from "./transport.js";
 import type { AgentLaunchSpec } from "./launch.js";
-import { createProtocolHandler } from "./protocol.js";
+import { createProtocolHandler, forwardUsage } from "./protocol.js";
 import { PostObservation } from "./post-observation.js";
 import { dialogRequestId, type RpcRecord } from "./rpc-events.js";
 import { MessageObservation } from "./message-observation.js";
@@ -277,7 +277,8 @@ export class AgentSupervisor {
   }
 
   #onEvent(life: Life, event: RpcRecord): void {
-    if (life !== this.#life || this.#stopped || this.#status === "crashed") return;
+    if (life !== this.#life || this.#status === "crashed") return;
+    if (this.#stopped) return forwardUsage(event, this.#hooks);
     const dialogId = dialogRequestId(event);
     if (dialogId) life.proc.write({ type: "extension_ui_response", id: dialogId, cancelled: true });
     // Dialogs included: every record is liveness for the watchdog.
