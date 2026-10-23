@@ -1,0 +1,104 @@
+import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { expect, it, vi } from "vitest";
+import { configuration } from "../../test/runConfigurationFixture";
+import { RuntimeConfigEditor } from "./RuntimeConfigEditor";
+
+function fixture() {
+  const actions = {
+    onAdd: vi.fn().mockResolvedValue(undefined),
+    onRemove: vi.fn().mockResolvedValue(undefined),
+    onRaiseBudget: vi.fn().mockResolvedValue(undefined),
+  };
+  const workers = [
+    { name: "Maria", model: configuration.effective.workers[0] },
+    { name: "John", model: null },
+  ];
+  return { actions, workers, budget: configuration.effective.budget, maxAgents: 5 };
+}
+
+it("requests worker additions and explains removal's active-quorum effect", async () => {
+  const { actions, ...props } = fixture();
+  render(<RuntimeConfigEditor {...props} {...actions} />);
+  expect(screen.getByText(/removes its vote from the current 70% quorum denominator/)).toBeInTheDocument();
+  const count = screen.getByRole("textbox", { name: "Workers to add" });
+  await userEvent.clear(count);
+  await userEvent.type(count, "2");
+  await userEvent.click(screen.getByRole("button", { name: "Add workers" }));
+  expect(actions.onAdd).toHaveBeenCalledWith(2);
+  expect(await screen.findByRole("status")).toHaveTextContent("Change requested");
+  await userEvent.click(screen.getByRole("button", { name: "Remove John" }));
+  expect(actions.onRemove).toHaveBeenCalledWith("John");
+});
+
+it("raises only entered cumulative ceilings without resetting consumption", async () => {
+  const { actions, ...props } = fixture();
+  render(<RuntimeConfigEditor {...props} {...actions} />);
+  expect(screen.getByText(/Consumption and saved work are not reset/)).toBeInTheDocument();
+  await userEvent.type(screen.getByRole("textbox", { name: "New money ceiling, USD" }), "20");
+  await userEvent.click(screen.getByRole("button", { name: "Raise budgets" }));
+  expect(actions.onRaiseBudget).toHaveBeenCalledWith({ moneyUsd: 20 });
+  expect(screen.getByRole("textbox", { name: "New money ceiling, USD" })).toHaveValue("");
+});
+
+it("rejects malformed counts and non-increasing or empty ceiling edits locally", async () => {
+  const { actions, ...props } = fixture();
+  render(<RuntimeConfigEditor {...props} {...actions} />);
+  const count = screen.getByRole("textbox", { name: "Workers to add" });
+  await userEvent.clear(count);
+  await userEvent.type(count, "-1");
+  await userEvent.click(screen.getByRole("button", { name: "Add workers" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("positive integer");
+  expect(actions.onAdd).not.toHaveBeenCalled();
+  await userEvent.clear(count);
+  await userEvent.type(count, "4");
+  await userEvent.click(screen.getByRole("button", { name: "Add workers" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("recorded maximum of 5");
+  expect(actions.onAdd).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Raise budgets" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("at least one higher");
+  await userEvent.type(screen.getByRole("textbox", { name: "New money ceiling, USD" }), "9");
+  await userEvent.click(screen.getByRole("button", { name: "Raise budgets" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("must exceed the current total ceiling of 10");
+  expect(actions.onRaiseBudget).not.toHaveBeenCalled();
+});
+
+it("does not offer a finite replacement for an unlimited budget or removal of the last worker", () => {
+  const { actions, workers } = fixture();
+  render(
+    <RuntimeConfigEditor
+      workers={workers.slice(0, 1)}
+      budget={{ moneyUsd: null, timeSeconds: null, gracefulShutdown: false }}
+      {...actions}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "Remove Maria" })).toBeDisabled();
+  expect(screen.getByRole("textbox", { name: "New money ceiling, USD" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Raise budgets" })).toBeDisabled();
+});
+
+it("keeps a failed request visible without claiming the edit was applied", async () => {
+  const { actions, ...props } = fixture();
+  actions.onAdd.mockRejectedValue(new Error("Configuration revision changed. Reload before trying again."));
+  render(<RuntimeConfigEditor {...props} {...actions} />);
+  await userEvent.click(screen.getByRole("button", { name: "Add workers" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Configuration revision changed");
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+});
+
+it("prevents overlapping edits while an operation is pending", async () => {
+  const { actions, ...props } = fixture();
+  let release = () => {};
+  actions.onAdd.mockImplementation(
+    () =>
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+  );
+  render(<RuntimeConfigEditor {...props} {...actions} />);
+  await userEvent.click(screen.getByRole("button", { name: "Add workers" }));
+  expect(screen.getByRole("button", { name: "Remove John" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Raise budgets" })).toBeDisabled();
+  act(() => release());
+  await waitFor(() => expect(screen.getByRole("button", { name: "Remove John" })).toBeEnabled());
+});

@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AgentsPage } from "./pages/agents/AgentsPage";
 import { PickerPage } from "./pages/picker/PickerPage";
+import { ConfigPage } from "./pages/config/ConfigPage";
 import { StatsPage } from "./pages/stats/StatsPage";
 import { WallPage } from "./pages/wall/WallPage";
 import { WatcherPage } from "./pages/watcher/WatcherPage";
@@ -19,6 +20,7 @@ export function App() {
           <Route path="work/:name?" element={<WorkPage />} />
           <Route path="watcher" element={<WatcherPage />} />
           <Route path="stats" element={<StatsPage />} />
+          <Route path="config" element={<ConfigPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

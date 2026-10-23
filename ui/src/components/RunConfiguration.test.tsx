@@ -1,33 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
-import type { SavedRunConfiguration } from "../../../src/run-configuration";
+import { configuration } from "../test/runConfigurationFixture";
 import { RunConfiguration } from "./RunConfiguration";
 import { WorkerModel } from "./WorkerModel";
-
-const configuration: SavedRunConfiguration = {
-  run: 2,
-  recordedAt: 123,
-  changes: ["budget"],
-  effective: {
-    version: 1,
-    workers: [{ name: "Maria", provider: "provider-a", modelId: "model-a", thinkingLevel: "high" }],
-    launch: { projectTrusted: true, noExtensions: true, extensionArgs: [] },
-    timing: {
-      staggerSeconds: 1,
-      idleReminderDelay: 500,
-      idleReminderDigestSize: 3,
-      heartbeatMs: 1000,
-      deliveryPollMs: 100,
-      completionCheckMs: 100,
-      progressMs: 1000,
-      resumeStaggerMs: 100,
-      reviveBackoffMs: [100, 200],
-    },
-    limits: { bodyMaxChars: 200, maxRpcFrameBytes: 1048576 },
-    budget: { moneyUsd: 10, timeSeconds: 300, gracefulShutdown: false },
-  },
-};
 
 it("renders saved assignments, budget, resume differences and effective launch settings", async () => {
   render(<RunConfiguration configuration={configuration} />);
@@ -39,6 +15,14 @@ it("renders saved assignments, budget, resume differences and effective launch s
   expect(screen.getByText(/Project trusted: yes · extensions: disabled/)).toBeInTheDocument();
   expect(screen.getByText("Worker stagger, seconds: 1")).toBeInTheDocument();
   expect(screen.getByText("Startup watchdog, ms: not recorded")).toBeInTheDocument();
+});
+
+it("distinguishes live revision changes from resume-time differences", async () => {
+  render(<RunConfiguration configuration={{ ...configuration, revision: 2, changes: ["workers"] }} />);
+  await userEvent.click(screen.getByRole("button", { name: "Run configuration" }));
+  expect(screen.getByText("Changed in runtime revision 2: workers")).toBeInTheDocument();
+  expect(screen.getByText("Run 2 · configuration version 1 · runtime revision 2")).toBeInTheDocument();
+  expect(screen.queryByText(/Changed on resume/)).not.toBeInTheDocument();
 });
 
 it("does not invent historical metadata", async () => {

@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
-import type { BudgetStatus } from "../../../src/budget";
+import { budget } from "../test/runConfigurationFixture";
 import { BudgetSummary } from "./BudgetSummary";
 import { SwarmStreamProvider } from "../api/SwarmStream";
 import { useSwarmDetail } from "../pages/agents/useSwarmDetail";
@@ -18,19 +18,6 @@ function LiveBudget() {
   const snapshot = useSwarmDetail("3");
   return <BudgetSummary budget={snapshot.data?.swarm.budget} />;
 }
-
-const budget: BudgetStatus = {
-  moneyUsd: 10,
-  timeSeconds: 300,
-  costUsd: 10.5,
-  activeTimeMs: 301000,
-  gracefulShutdown: false,
-  exhausted: "money",
-  stopReason: "budget-exhausted",
-  moneyOvershootUsd: 0.5,
-  timeOvershootSeconds: 1,
-  accounting: "Worker and Watcher usage only; Main excluded. Delayed accounting may overshoot.",
-};
 
 it("shows cumulative consumption, exhaustion, overshoot and immediate shutdown", async () => {
   render(<BudgetSummary budget={budget} />);

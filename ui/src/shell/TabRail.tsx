@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { ChartColumn, MessageSquare, SquareTerminal, Users, type LucideIcon } from "lucide-react";
+import { ChartColumn, MessageSquare, Settings, SquareTerminal, Users, type LucideIcon } from "lucide-react";
 import { cx } from "../lib/cx";
 import { Icon } from "../components/Icon";
 import styles from "./TabRail.module.css";
@@ -10,6 +10,7 @@ const TABS: ReadonlyArray<{ path: string; label: string; icon: LucideIcon }> = [
   { path: "work", label: "Work", icon: SquareTerminal },
   { path: "watcher", label: "Watcher", icon: MessageSquare },
   { path: "stats", label: "Stats", icon: ChartColumn },
+  { path: "config", label: "Config", icon: Settings },
 ];
 
 /** Vertical tab rail; `basePath` is the swarm root, e.g. "/s/3". */
