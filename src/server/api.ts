@@ -3,11 +3,13 @@ import { watcherRoutes } from "./api-watcher.js";
 import { configurationRoutes } from "./api-config.js";
 import { acceptanceHistoryRoutes } from "./api-acceptance-history.js";
 import { readRoutes } from "./api-read.js";
+import { createFileRoutes } from "./api-files.js";
 import { matchRoute, sendError, type ApiDeps } from "./api-util.js";
 import { writeRoutes } from "./api-write.js";
 import { sendJson, type RouteHandler } from "./http.js";
 
 export function createApiRoutes(deps: ApiDeps): RouteHandler {
+  const files = createFileRoutes(deps);
   const routes = [
     ...readRoutes(deps),
     ...writeRoutes(deps),
@@ -16,6 +18,7 @@ export function createApiRoutes(deps: ApiDeps): RouteHandler {
     ...acceptanceHistoryRoutes(deps),
   ];
   return async (req, res, url) => {
+    if (await files(req, res, url)) return true;
     for (const route of routes) {
       if (route.method !== req.method) continue;
       const params = matchRoute(route.pattern, url.pathname);
