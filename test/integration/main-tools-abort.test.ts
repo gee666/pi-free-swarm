@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { after, it } from "node:test";
+import type { Model } from "@earendil-works/pi-ai";
 import type { RunProgress } from "../../src/broker/run-progress.js";
 import { createMainRuntime, type BoardHost } from "../../src/main-runtime.js";
 import { listParticipants } from "../../src/store/swarm-queries.js";
@@ -10,6 +11,18 @@ import { createMainToolHandlers } from "../../src/tools/main-tools.js";
 import { createFakePiRun, SCENARIOS, useFakePi, waitFor } from "../fixtures/fake-pi/harness.js";
 
 useFakePi();
+const model: Model<"anthropic-messages"> = {
+  id: "test",
+  name: "Test model",
+  provider: "fixture",
+  api: "anthropic-messages",
+  baseUrl: "https://fixture.invalid",
+  reasoning: false,
+  input: ["text"],
+  cost: { input: 1, output: 1, cacheRead: 1, cacheWrite: 1 },
+  contextWindow: 1000,
+  maxTokens: 100,
+};
 const fake = createFakePiRun(SCENARIOS.settle);
 mkdirSync("tmp", { recursive: true });
 const cwd = mkdtempSync(path.resolve("tmp/pi-free-swarm-abort-"));
@@ -40,7 +53,7 @@ it("aborting the tool signal stops every agent and returns the stopped result", 
     { swarm_name: "toy", task_prompt: "Create hello.txt", acceptance_criteria: ["hello.txt exists"], agent_amount: 2 },
     abort.signal,
     (partial) => (latest = partial.details),
-    { model: undefined, thinkingLevel: undefined, isProjectTrusted: () => false },
+    { model, thinkingLevel: "off", isProjectTrusted: () => false },
   );
   await waitFor(() => latest !== null && latest.agents.idle === 2, "both agents idle", 10_000);
   abort.abort();
