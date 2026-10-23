@@ -6,6 +6,7 @@ import { WATCHER_NAME } from "../constants.js";
 import { runAgentFactory } from "./run-agent-factory.js";
 import { LiveWorkers } from "./live-workers.js";
 import { RunControls } from "./run-controls.js";
+import { RunCompletion } from "./run-completion.js";
 import { RunRecovery } from "./run-recovery.js";
 import { readRunOwnership } from "./run-ownership.js";
 import { configureRun } from "./run-configuration.js";
@@ -20,7 +21,7 @@ import { readBudget, assertBudgetPricing } from "./budget.js";
 import { RunBudget } from "./run-budget.js";
 import { IdleReminders } from "./idle-reminder.js";
 import { inspectAcceptance } from "./acceptance.js";
-import { closeRunAdmission, prepareRunCompletion } from "./run-acceptance.js";
+import { closeRunAdmission } from "./run-acceptance.js";
 import type { AcceptanceRecord } from "../store/acceptance-types.js";
 import { RunAgent } from "./run-agent.js";
 import { readRunProgress } from "./run-progress.js";
@@ -60,6 +61,7 @@ export class SwarmRun {
   readonly #recovery: RunRecovery;
   readonly #liveWorkers: LiveWorkers;
   readonly #controls: RunControls;
+  readonly #completion: RunCompletion;
   readonly #admittedWorkers = new Set<string>();
   readonly #done: Promise<RunOutcome>;
   #settle: { resolve(outcome: RunOutcome): void; reject(error: unknown): void } = {
@@ -182,6 +184,22 @@ export class SwarmRun {
       agents: this.#agents,
       onError: this.#fail,
     });
+    this.#completion = new RunCompletion({
+      env,
+      swarmId: swarm.id,
+      run,
+      controls: this.#controls,
+      reminders: this.#reminders,
+      canRun: () => this.#canRun(),
+      ending: () => this.#isEnding,
+      closed: (acceptance) => {
+        this.#acceptance = acceptance;
+        void this.#end(this.#budgetStop ? "stopped" : "finished");
+      },
+      lost: () => {
+        void this.#end("interrupted", true);
+      },
+    });
   }
 
   #workers(): RunAgent[] {
@@ -227,7 +245,7 @@ export class SwarmRun {
         ),
       );
     });
-    this.#timers.push(clock.every(timings.completionCheckMs, () => this.#guard(() => this.#checkCompletion())));
+    this.#timers.push(clock.every(timings.completionCheckMs, () => this.#guard(() => this.#completion.check())));
     this.#timers.push(clock.every(timings.progressMs, () => this.#guard(() => this.#reportProgress())));
     this.#reportProgress();
     const { signal } = this.#options;
@@ -266,24 +284,6 @@ export class SwarmRun {
     }
     if (admit && (!this.#lifecycle.admitsWork || ownership === "closed")) return false;
     return !this.#budget.check();
-  }
-
-  async #checkCompletion(): Promise<void> {
-    if (!this.#canRun()) return;
-    await this.#controls.update();
-    if (!this.#canRun()) return;
-    this.#reminders.update();
-    const { db, runnerPid, clock } = this.#env;
-    const decision = prepareRunCompletion(db, {
-      swarmId: this.#swarm.id,
-      run: this.#run,
-      runnerPid,
-      now: clock.now(),
-    });
-    if (decision.kind === "closed") {
-      this.#acceptance = decision.acceptance;
-      void this.#end("finished");
-    } else if (decision.kind === "lost") void this.#end("interrupted", true);
   }
 
   #reportProgress(): void {
