@@ -7,11 +7,14 @@ import { systemClock } from "../../src/clock.js";
 import { WATCHER_NAME } from "../../src/constants.js";
 import { loadSettings } from "../../src/settings.js";
 import { getRunConfiguration } from "../../src/store/run-configuration.js";
+import { applyRosterConfiguration } from "../../src/store/active-roster.js";
+import { listAgentSessions } from "../../src/store/swarm-queries.js";
+import { beginResume, endRun } from "../../src/broker/swarms.js";
 import { createTempDb, seedSwarm } from "../helpers/temp-db.js";
 
 function fixture() {
   const temp = createTempDb();
-  const swarm = seedSwarm(temp.db, { agents: ["Maria", "John", "Liam"] });
+  const swarm = seedSwarm(temp.db, { agents: ["Maria", "John", "Liam"], now: Date.now() });
   const notes: string[] = [];
   const env: RunEnvironment = {
     cwd: temp.cwd,
@@ -53,6 +56,7 @@ it("persists exact named allocations and launches their actual model, leaving Wa
       ["Maria", "John", "Liam"],
     );
     assert.equal(saved?.effective.launch.projectTrusted, true);
+    assert.equal(saved?.effective.limits.maxAgents, f.env.settings.maxAgents);
     assert.equal(saved?.effective.workers[2]?.thinkingLevel, "high");
   } finally {
     f.cleanup();
@@ -91,6 +95,92 @@ it("records effective watchdog overrides and surfaces recovery policy changes on
     timing.watchdog.startupRetries = 2;
     configureRun(f.env, f.swarm.id, 2, ["Maria", "John", "Liam"], timing);
     assert.ok(getRunConfiguration(f.db, f.swarm.id, 2)?.changes.includes("timing"));
+  } finally {
+    f.cleanup();
+  }
+});
+
+it("resumes the revised named assignments without rewriting the original run snapshot", () => {
+  const f = fixture();
+  try {
+    configureRun(f.env, f.swarm.id, 1, ["Maria", "John", "Liam"], DEFAULT_TIMINGS);
+    const initial = getRunConfiguration(f.db, f.swarm.id, 1);
+    assert.ok(initial);
+    const effective = structuredClone(initial.effective);
+    effective.workers = effective.workers.filter((worker) => worker.name !== "Liam");
+    effective.workers.push(
+      { name: "Alice", provider: "b", modelId: "two", thinkingLevel: "high" },
+      { name: "James", provider: "a", modelId: "one", thinkingLevel: "off" },
+    );
+    applyRosterConfiguration(f.db, f.swarm.id, 1, effective, 0, Date.now());
+    assert.ok(listAgentSessions(f.db, f.swarm.id).some((worker) => worker.name === "Liam"));
+    const active = listAgentSessions(f.db, f.swarm.id, { activeOnly: true }).map((worker) => worker.name);
+    assert.equal(active.includes("Liam"), false);
+    assert.ok(active.includes("Alice"));
+    assert.equal(endRun(f.db, f.swarm.id, process.pid, "stopped", Date.now(), 1), true);
+    const next = beginResume(f.db, f.swarm.id, process.pid, Date.now());
+    const resumed = configureRun(f.env, f.swarm.id, next.run, active, DEFAULT_TIMINGS);
+    assert.equal(resumed.size, 4);
+    assert.equal(resumed.get("Alice")?.modelId, "two");
+    assert.equal(resumed.get("James")?.modelId, "one");
+    assert.equal(resumed.has("Liam"), false);
+    const original = f.db.sql
+      .prepare("SELECT configuration FROM run_configurations WHERE swarm_id = ? AND run = 1")
+      .get(f.swarm.id);
+    assert.ok(original);
+    assert.ok(String(original.configuration).includes("Liam"));
+    assert.equal(String(original.configuration).includes("Alice"), false);
+  } finally {
+    f.cleanup();
+  }
+});
+
+it("keeps historical unknown maximums honest while capturing the new run's effective limit", () => {
+  const f = fixture();
+  try {
+    configureRun(f.env, f.swarm.id, 1, ["Maria", "John", "Liam"], DEFAULT_TIMINGS);
+    f.db.sql
+      .prepare(
+        "UPDATE run_configurations SET configuration = json_remove(configuration, '$.limits.maxAgents') WHERE swarm_id = ?",
+      )
+      .run(f.swarm.id);
+    assert.equal(getRunConfiguration(f.db, f.swarm.id, 1)?.effective.limits.maxAgents, undefined);
+    f.env.settings.maxAgents++;
+    configureRun(f.env, f.swarm.id, 2, ["Maria", "John", "Liam"], DEFAULT_TIMINGS);
+    assert.equal(getRunConfiguration(f.db, f.swarm.id, 2)?.effective.limits.maxAgents, f.env.settings.maxAgents);
+    assert.equal(getRunConfiguration(f.db, f.swarm.id, 1)?.effective.limits.maxAgents, undefined);
+  } finally {
+    f.cleanup();
+  }
+});
+
+it("records applied UI ceiling raises on resume without ignoring later file increases", () => {
+  const f = fixture();
+  try {
+    f.env.settings.budgetMoneyUsd = 10;
+    f.env.settings.budgetTimeSeconds = 100;
+    configureRun(f.env, f.swarm.id, 1, ["Maria", "John", "Liam"], DEFAULT_TIMINGS);
+    f.db.sql
+      .prepare(
+        "INSERT INTO configuration_requests (swarm_id, run, expected_revision, change, requested_by, status, created_at) VALUES (?, 1, 0, ?, 'User', 'applied', ?)",
+      )
+      .run(f.swarm.id, JSON.stringify({ type: "raiseBudget", moneyUsd: 20, timeSeconds: 200 }), Date.now());
+    f.env.settings.budgetMoneyUsd = 15;
+    f.env.settings.budgetTimeSeconds = 150;
+    configureRun(f.env, f.swarm.id, 2, ["Maria", "John", "Liam"], DEFAULT_TIMINGS);
+    assert.equal(getRunConfiguration(f.db, f.swarm.id, 2)?.effective.budget.moneyUsd, 20);
+    assert.equal(getRunConfiguration(f.db, f.swarm.id, 2)?.effective.budget.timeSeconds, 200);
+    assert.ok(f.notes.some((note) => note.includes("Retaining this swarm's approved runtime budget increases")));
+    f.notes.length = 0;
+    f.env.settings.budgetMoneyUsd = 25;
+    f.env.settings.budgetTimeSeconds = 250;
+    configureRun(f.env, f.swarm.id, 3, ["Maria", "John", "Liam"], DEFAULT_TIMINGS);
+    assert.equal(getRunConfiguration(f.db, f.swarm.id, 3)?.effective.budget.moneyUsd, 25);
+    assert.equal(getRunConfiguration(f.db, f.swarm.id, 3)?.effective.budget.timeSeconds, 250);
+    assert.equal(
+      f.notes.some((note) => note.includes("Retaining this swarm's approved runtime budget increases")),
+      false,
+    );
   } finally {
     f.cleanup();
   }

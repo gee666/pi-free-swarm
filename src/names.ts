@@ -108,12 +108,17 @@ const RESERVED = new Set(RESERVED_NAMES.map((name) => name.toLowerCase()));
 
 export const AGENT_NAMES: readonly string[] = NAME_POOL.filter((name) => !RESERVED.has(name.toLowerCase()));
 
-/** `count` distinct names in random order; throws when the pool is too small. */
-export function pickAgentNames(count: number, random: () => number = Math.random): string[] {
-  if (!Number.isInteger(count) || count < 0 || count > AGENT_NAMES.length) {
-    throw new Error(`Cannot pick ${count} agent names (pool has ${AGENT_NAMES.length}).`);
+/** `count` fresh names; archived identities stay excluded so their history cannot be reassigned. */
+export function pickAgentNames(
+  count: number,
+  random: () => number = Math.random,
+  excluded: readonly string[] = [],
+): string[] {
+  const used = new Set(excluded.map((name) => name.toLowerCase()));
+  const pool = AGENT_NAMES.filter((name) => !used.has(name.toLowerCase()));
+  if (!Number.isInteger(count) || count < 0 || count > pool.length) {
+    throw new Error(`Cannot pick ${count} agent names (pool has ${pool.length}).`);
   }
-  const pool = [...AGENT_NAMES];
   for (let i = 0; i < count; i++) {
     const j = i + Math.floor(random() * (pool.length - i));
     [pool[i], pool[j]] = [pool[j], pool[i]];

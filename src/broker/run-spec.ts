@@ -18,7 +18,12 @@ export function buildRunSpec(
     cwd: env.cwd,
     sessionFile,
     systemPromptFile: path.join(path.dirname(sessionFile), SYSTEM_PROMPT_FILE),
-    context: model ? { ...env.launch, model } : env.launch,
+    context: model
+      ? {
+          ...env.launch,
+          model: { provider: model.provider, modelId: model.modelId, thinkingLevel: model.thinkingLevel },
+        }
+      : env.launch,
     maxRpcFrameBytes: env.settings.maxRpcFrameBytes,
     env: buildAgentEnv(env.settings, { dbPath: env.db.path, swarmId, run, agentName: name, runnerPid: env.runnerPid }),
   };

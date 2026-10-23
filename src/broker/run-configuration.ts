@@ -1,10 +1,12 @@
 import { DEFAULT_MAX_RPC_FRAME_BYTES } from "../agents/jsonl.js";
 import { watchdogConfigFromEnv } from "../agents/watchdog.js";
 import { WATCHER_NAME } from "../constants.js";
+import { mergeBudgetRaises } from "../budget.js";
 import { resolveModelAssignments } from "../model-allocation.js";
 import type { RunConfiguration, WorkerAssignment } from "../run-configuration.js";
 import type { ModelSelection } from "../runtime-types.js";
 import { getRunConfiguration, saveRunConfiguration } from "../store/run-configuration.js";
+import { getBudgetRaises } from "../store/budget.js";
 import type { RunEnvironment, RunTimings } from "./run-types.js";
 
 /** Named assignments outlive process instances. A resume never silently reassigns a worker. */
@@ -36,6 +38,16 @@ export function configureRun(
   }
   validateRetainedModels(assignments, env);
   const watchdog = timing.watchdog ?? watchdogConfigFromEnv();
+  const requestedCeilings = {
+    moneyUsd: env.settings.budgetMoneyUsd ?? null,
+    timeSeconds: env.settings.budgetTimeSeconds ?? null,
+  };
+  const ceilings = mergeBudgetRaises(requestedCeilings, getBudgetRaises(env.db, swarmId));
+  if (ceilings.moneyUsd !== requestedCeilings.moneyUsd || ceilings.timeSeconds !== requestedCeilings.timeSeconds) {
+    env.notifyUser(
+      "Retaining this swarm's approved runtime budget increases above the requested file ceilings. Cumulative consumption is unchanged.",
+    );
+  }
   const configuration: RunConfiguration = {
     version: 1,
     workers: assignments,
@@ -61,10 +73,10 @@ export function configureRun(
     limits: {
       bodyMaxChars: env.settings.bodyMaxChars,
       maxRpcFrameBytes: env.settings.maxRpcFrameBytes ?? DEFAULT_MAX_RPC_FRAME_BYTES,
+      maxAgents: env.settings.maxAgents,
     },
     budget: {
-      moneyUsd: env.settings.budgetMoneyUsd ?? null,
-      timeSeconds: env.settings.budgetTimeSeconds ?? null,
+      ...ceilings,
       gracefulShutdown: env.settings.gracefulShutdownOnBudget ?? false,
     },
   };

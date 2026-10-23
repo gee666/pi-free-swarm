@@ -42,7 +42,9 @@ it("passes each allocated effective model and thinking into launch arguments wit
     ["first", "first", "second"],
   );
   models.forEach((model, slot) => {
-    const spec = buildRunSpec(env, swarm.id, `worker-${slot}`, path.join(cwd, `${slot}.jsonl`), 1, model);
+    const assignment = { name: `worker-${slot}`, ...model };
+    const spec = buildRunSpec(env, swarm.id, assignment.name, path.join(cwd, `${slot}.jsonl`), 1, assignment);
+    assert.deepEqual(spec.context.model, model, "worker identity must not split identical launch/model groups");
     const args = buildAgentArgs(spec);
     assert.equal(args[args.indexOf("--model") + 1], `${model.provider}/${model.modelId}`);
     assert.equal(args[args.indexOf("--thinking") + 1], model.thinkingLevel);

@@ -30,6 +30,32 @@ describe("names", () => {
     assert.equal(pickAgentNames(AGENT_NAMES.length).length, AGENT_NAMES.length);
   });
 
+  it("never reuses current or archived names and rejects exhaustion before selection", () => {
+    const used = AGENT_NAMES.slice(0, 5).map((name) => name.toLowerCase());
+    assert.deepEqual(
+      pickAgentNames(3, () => 0, used),
+      AGENT_NAMES.slice(5, 8),
+    );
+    let calls = 0;
+    assert.throws(
+      () =>
+        pickAgentNames(
+          1,
+          () => {
+            calls++;
+            return 0;
+          },
+          AGENT_NAMES,
+        ),
+      /pool has 0/,
+    );
+    assert.equal(calls, 0);
+    assert.deepEqual(
+      pickAgentNames(0, () => 0, AGENT_NAMES),
+      [],
+    );
+  });
+
   it("refuses more names than the pool has", () => {
     assert.throws(() => pickAgentNames(AGENT_NAMES.length + 1), /Cannot pick/);
     assert.throws(() => pickAgentNames(-1), /Cannot pick/);
