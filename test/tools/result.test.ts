@@ -61,6 +61,65 @@ describe("buildRunResultText", () => {
     assert.match(text, /external effects are uncertain/);
     assert.match(text, /No completion verdict was finalized/);
   });
+  it("shows configured ceilings and coverage after an under-budget accepted finish", () => {
+    const swarm = fixture("under-budget");
+    for (const agent of AGENTS.slice(0, 4)) vote(swarm.id, agent, "accepted", "Verified.");
+    const text = buildRunResultText(
+      db,
+      {
+        ...outcomeOf(swarm.id, "finished"),
+        budget: readBudget(db, swarm.id, { budgetMoneyUsd: 20 }, END),
+      },
+      BOARD,
+      END,
+    );
+    assert.match(text, /Budget stop reason: none recorded/);
+    assert.match(text, /Cumulative reported/);
+    assert.match(text, /\/ \$20/);
+    assert.match(text, /Main and external billing are excluded/);
+    assert.match(text, /Task verdict: accepted/);
+    assert.doesNotMatch(text, /Resume only after user agreement/);
+  });
+
+  it("discloses unpriced reports even when no money or time limit was configured", () => {
+    const swarm = fixture("unknown-unlimited");
+    db.sql
+      .prepare(
+        "INSERT INTO budget_accounting_gaps (swarm_id, agent, reason, created_at) VALUES (?, 'Maria', 'missing USD usage total', ?)",
+      )
+      .run(swarm.id, T0);
+    const text = buildRunResultText(
+      db,
+      {
+        ...outcomeOf(swarm.id, "stopped"),
+        budget: readBudget(db, swarm.id, {}, END),
+      },
+      BOARD,
+      END,
+    );
+    assert.match(text, /Accounting is incomplete/);
+    assert.match(text, /missing cost is not free usage/);
+    assert.match(text, /Budget stop reason: none recorded/);
+    assert.doesNotMatch(text, /Stop reason: budget-exhausted/);
+  });
+
+  it("reports interrupted timing uncertainty even without configured limits", () => {
+    const swarm = fixture("interrupted-time");
+    endRun(db, swarm.id, process.pid, "interrupted", END, 1);
+    const text = buildRunResultText(
+      db,
+      {
+        ...outcomeOf(swarm.id, "interrupted"),
+        budget: readBudget(db, swarm.id, {}, END),
+      },
+      BOARD,
+      END,
+    );
+    assert.match(text, /unobserved final interval/);
+    assert.match(text, /not the later discovery time/);
+    assert.match(text, /Budget stop reason: none recorded/);
+  });
+
   it("renders the closure snapshot with every vote reason, including dissent", () => {
     const swarm = fixture();
     for (const agent of AGENTS.slice(0, 4)) vote(swarm.id, agent, "accepted", `${agent} checked the whole task.`);
