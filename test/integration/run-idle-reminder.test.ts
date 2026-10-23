@@ -50,7 +50,10 @@ it("idle agents are repeatedly woken until a terminal vote, without a reminder c
   assert.equal(getSwarm(run.db, id, Date.now())?.status, "running");
   const reminders = promptTexts(run.fake).filter((text) => text.startsWith(IDLE_REMINDER_HEADER));
   assert.ok(reminders.some((text) => text.includes("Latest gap")));
-  assert.ok(reminders.every((text) => text.includes("70%")));
+  assert.ok(
+    reminders.every((text) => text.includes("Quorum: 1/1 for the same accepted or blocked verdict.")),
+    "every reminder retains the current whole-task quorum tally",
+  );
   for (const table of ["messages", "threads"]) {
     assert.equal(run.db.sql.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get()?.n, 0);
   }
