@@ -30,5 +30,6 @@ export interface BudgetStatus {
   stopReason: "budget-exhausted" | null;
   moneyOvershootUsd: number;
   timeOvershootSeconds: number;
+  hasAccountingGaps?: boolean;
   accounting: string;
 }
