@@ -1,14 +1,12 @@
 import { useSwarmDetail } from "../pages/agents/useSwarmDetail";
 import { Outlet, useNavigate, useParams } from "react-router-dom";
-import { fetchSwarms, withSwarm } from "../api/swarms";
-import { SwarmStreamProvider, useSwarmStream } from "../api/SwarmStream";
-import { useAsync } from "../api/useAsync";
-import { useStreamListener } from "../api/useEventStream";
+import { SwarmStreamProvider } from "../api/SwarmStream";
+import { useSwarmList } from "../api/SwarmList";
 import { AppShell } from "./AppShell";
 import { TabRail } from "./TabRail";
 import { TopBar } from "./TopBar";
 
-/** Shell for every `/s/:id/*` page; owns the swarm's single event stream. */
+/** Keep the global selector live while activity remains on its separate swarm-filtered stream. */
 export function SwarmLayout() {
   const { id = "" } = useParams();
   return (
@@ -20,12 +18,8 @@ export function SwarmLayout() {
 
 function SwarmFrame({ swarmId }: { swarmId: string }) {
   const navigate = useNavigate();
+  const { list } = useSwarmList();
   const detail = useSwarmDetail(swarmId);
-  const stream = useSwarmStream();
-  const list = useAsync(fetchSwarms, [stream.openCount]);
-  useStreamListener(stream, (event) => {
-    if (event.type === "swarm.updated") list.update((current) => withSwarm(current, event.payload.swarm));
-  });
   const swarms = list.data?.swarms ?? [];
   return (
     <AppShell

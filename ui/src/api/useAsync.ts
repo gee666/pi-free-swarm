@@ -17,13 +17,18 @@ interface Snapshot<T> {
   loading: boolean;
 }
 
-/** Runs `load` whenever `deps` change, aborting the previous request. */
-export function useAsync<T>(load: (signal: AbortSignal) => Promise<T>, deps: DependencyList): AsyncState<T> {
+/** When enabled, runs `load` as `deps` change and aborts the previous request. */
+export function useAsync<T>(
+  load: (signal: AbortSignal) => Promise<T>,
+  deps: DependencyList,
+  enabled = true,
+): AsyncState<T> {
   const [snapshot, setSnapshot] = useState<Snapshot<T>>({ data: undefined, error: undefined, loading: true });
   const [generation, setGeneration] = useState(0);
   const pending = useRef<{ updates: ((current: T | undefined) => T | undefined)[] } | null>(null);
 
   useEffect(() => {
+    if (!enabled) return;
     const controller = new AbortController();
     const request: { updates: ((current: T | undefined) => T | undefined)[] } = { updates: [] };
     pending.current = request;
@@ -49,7 +54,7 @@ export function useAsync<T>(load: (signal: AbortSignal) => Promise<T>, deps: Dep
       if (pending.current === request) pending.current = null;
     };
     // `load` is a fresh closure every render; callers list what it depends on in `deps`.
-  }, [...deps, generation]);
+  }, [enabled, ...deps, generation]);
 
   const reload = useCallback(() => setGeneration((value) => value + 1), []);
   const update = useCallback((updater: (current: T | undefined) => T | undefined) => {

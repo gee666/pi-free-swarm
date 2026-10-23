@@ -1,8 +1,8 @@
+import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Network } from "lucide-react";
-import { fetchSwarms, withSwarm } from "../../api/swarms";
-import { useAsync } from "../../api/useAsync";
-import { useEventStream, useStreamListener } from "../../api/useEventStream";
+import { latestRunningSwarm } from "../../api/swarms";
+import { useSwarmList } from "../../api/SwarmList";
 import { Panel, PanelBody, PanelHeader } from "../../components/Panel";
 import { RowList } from "../../components/RowList";
 import { EmptyState, ErrorBanner, SkeletonRows } from "../../components/States";
@@ -14,11 +14,14 @@ import { SwarmRow } from "./SwarmRow";
 /** Home: every swarm of this folder, newest first. */
 export function PickerPage() {
   const navigate = useNavigate();
-  const stream = useEventStream("/events");
-  const list = useAsync(fetchSwarms, [stream.openCount]);
-  useStreamListener(stream, (event) => {
-    if (event.type === "swarm.updated") list.update((current) => withSwarm(current, event.payload.swarm));
-  });
+  const { list, stream } = useSwarmList();
+  const initialChoice = useRef(false);
+  useEffect(() => {
+    if (initialChoice.current || list.loading || list.error || list.data === undefined) return;
+    initialChoice.current = true;
+    const current = latestRunningSwarm(list.data.swarms);
+    if (current) navigate(`/s/${current.id}/agents`, { replace: true });
+  }, [list.data, list.loading, list.error, navigate]);
   const swarms = list.data?.swarms ?? [];
   const open = (id: number) => navigate(`/s/${id}/agents`);
 
