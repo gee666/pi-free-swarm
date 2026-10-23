@@ -2,7 +2,6 @@ import { useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { UserX } from "lucide-react";
 import type { ThreadView } from "../../../../src/api-types";
-import { TEXT_MAX } from "../../../../src/limits";
 import { USER_NAME } from "../../api/agents";
 import { useSwarmStream } from "../../api/SwarmStream";
 import { ComposeBox } from "../../components/compose/ComposeBox";
@@ -79,7 +78,6 @@ export function AgentsPage() {
             text={composer.text}
             onTextChange={composer.setText}
             onSend={composer.send}
-            limit={detail.data?.bodyMaxChars ?? TEXT_MAX}
             recipients={{ names: composer.to, options: agents, onChange: composer.setTo }}
             thread={composer.thread && { id: composer.thread.id, onCancel: composer.cancelReply }}
             disabled={composer.disabled}

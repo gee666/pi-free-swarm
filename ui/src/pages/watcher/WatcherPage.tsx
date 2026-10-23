@@ -85,7 +85,6 @@ function WatcherChat({ swarmId }: { swarmId: string }) {
         text={text}
         onTextChange={setText}
         onSend={() => void send()}
-        limit={detail.data?.bodyMaxChars ?? 0}
         busy={sending}
         disabled={!detail.data}
         disabledNotice="Watcher starts with the next run"

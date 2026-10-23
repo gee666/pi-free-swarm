@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import type { PostSummary } from "../../../../src/api-types";
-import { checkTitle, TEXT_MAX, TITLE_MAX } from "../../../../src/limits";
+import { checkTitle, TITLE_MAX } from "../../../../src/limits";
 import { createPost } from "../../api/wall";
 import { IconButton } from "../../components/Button";
 import { ComposeBox } from "../../components/compose/ComposeBox";
@@ -12,13 +12,12 @@ import styles from "./Wall.module.css";
 
 interface NewPostFormProps {
   swarmId: string;
-  bodyMaxChars?: number;
   banners: ReactNode;
   onCreated: (post: PostSummary) => void;
   onCancel: () => void;
 }
 
-export function NewPostForm({ swarmId, bodyMaxChars = TEXT_MAX, banners, onCreated, onCancel }: NewPostFormProps) {
+export function NewPostForm({ swarmId, banners, onCreated, onCancel }: NewPostFormProps) {
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -44,7 +43,6 @@ export function NewPostForm({ swarmId, bodyMaxChars = TEXT_MAX, banners, onCreat
         text={text}
         onTextChange={setText}
         onSend={submit}
-        limit={bodyMaxChars}
         placeholder="Write a post…"
         textareaLabel="Body"
         sendLabel="Post"

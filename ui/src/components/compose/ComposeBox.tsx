@@ -29,8 +29,8 @@ export interface ComposeBoxProps {
   onTextChange: (text: string) => void;
   /** Called by the button and by ⌘/Ctrl+Enter, only when the text is sendable. */
   onSend: () => void;
-  /** Sending is blocked above this character limit. */
-  limit: number;
+  /** Omit for uncapped User input. Worker-facing forms may retain a bound. */
+  limit?: number;
   /** Omit for the wall comment variant without a "To" row. */
   recipients?: ComposeRecipients;
   /** Thread mode: "Replying in thread #id" with cancel; chips become read-only. */
@@ -64,7 +64,7 @@ export function ComposeBox({
   children,
 }: ComposeBoxProps) {
   const hasRecipients = recipients === undefined || recipients.names.length > 0;
-  const canSend = !disabled && !busy && !sendDisabled && hasRecipients && checkText(text, limit).ok;
+  const canSend = !disabled && !busy && !sendDisabled && hasRecipients && checkText(text, limit ?? Infinity).ok;
   const send = () => {
     if (canSend) onSend();
   };
@@ -103,7 +103,7 @@ export function ComposeBox({
           onKeyDown={onKeyDown}
         />
         <div className={styles.footer}>
-          <CharCounter text={text} limit={limit} />
+          {limit !== undefined && <CharCounter text={text} limit={limit} />}
           <Tooltip content={`Send (${sendModifierLabel()}+Enter)`}>
             <IconButton icon={Send} label={sendLabel} className={styles.send} disabled={!canSend} onClick={send} />
           </Tooltip>

@@ -115,15 +115,31 @@ describe("AgentsPage", () => {
     expect(screen.getByRole("button", { name: "Remove Emma" })).toBeInTheDocument();
   });
 
-  it("uses the server allowance for messages", async () => {
+  it("sends uncapped User messages without applying the worker body allowance", async () => {
     serve();
-    api.on("GET", "/api/swarms/3", () => ({ ...detail(), bodyMaxChars: 8000 }));
-    mount("/s/3/agents/John");
-    await screen.findByText("Signed state or nonce?");
+    api.on("POST", "/api/swarms/3/messages", () => ({ message: kickoff }));
+    await renderAgents();
+    const text = ` \n${"λ😀".repeat(24000)}\n `;
     const user = userEvent.setup();
     await user.click(textbox());
-    await user.paste("x".repeat(6400));
-    expect(screen.getByText("6400/8000")).toBeInTheDocument();
+    await user.paste(text);
+    expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
+    expect(screen.queryByText(/72000\//)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(api.callsTo("POST", "/api/swarms/3/messages")[0]?.body).toEqual({ to: ["John"], text }));
+  });
+
+  it("sends the complete long User reply to the selected thread", async () => {
+    serve();
+    api.on("POST", "/api/swarms/3/threads/2/reply", () => ({ message: kickoff }));
+    await renderAgents();
+    await expandScopes();
+    await userEvent.click(screen.getByRole("button", { name: "Reply" }));
+    const text = "reply".repeat(15000);
+    await userEvent.click(textbox());
+    await userEvent.paste(text);
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(api.callsTo("POST", "/api/swarms/3/threads/2/reply")[0]?.body).toEqual({ text }));
   });
   it("keeps stable order for equal activity timestamps and shows unread badges", async () => {
     serve();

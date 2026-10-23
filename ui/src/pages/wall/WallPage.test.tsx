@@ -94,19 +94,32 @@ const seen = () => JSON.parse(window.localStorage.getItem("pi-swarm:wall-seen:3"
 const emit = (event: SwarmEvent) => act(() => source().emit(event));
 
 describe("WallPage", () => {
-  it("uses the configured allowance for new posts and comments", async () => {
-    api.on("GET", "/api/swarms/3", () => ({ ...detail(), bodyMaxChars: 8000 }));
+  it("submits complete uncapped User post and comment bodies while retaining title validation", async () => {
+    const created = post(3, "User", "Long user post", 0);
+    api.on("POST", "/api/swarms/3/posts", () => ({ post: created }));
+    api.on("GET", "/api/swarms/3/posts/3", () => ({ post: created, comments: [] }));
+    api.on("POST", "/api/swarms/3/posts/1/comments", () => ({
+      comment: comment(12, 1, "User", "Saved preview"),
+      commentCount: 3,
+    }));
     await renderWall("/s/3/wall/new");
     const user = userEvent.setup();
+    const text = ` \n${"long user body😀".repeat(6000)}\n `;
     const body = within(postList()).getByRole("textbox", { name: "Body" });
     await user.click(body);
-    await user.paste("x".repeat(6400));
-    expect(screen.getByText("6400/8000")).toBeInTheDocument();
+    await user.paste(text);
+    expect(screen.getByRole("button", { name: "Post" })).toBeDisabled();
+    await user.type(within(postList()).getByRole("textbox", { name: "Title" }), "Long user post");
+    await user.click(screen.getByRole("button", { name: "Post" }));
+    await waitFor(() =>
+      expect(api.callsTo("POST", "/api/swarms/3/posts")[0]?.body).toEqual({ title: "Long user post", text }),
+    );
     await user.click(within(postList()).getByText("Plan: split OAuth work"));
     const commentBox = await screen.findByRole("textbox", { name: "Write a comment…" });
     await user.click(commentBox);
-    await user.paste("x".repeat(6400));
-    expect(screen.getByText("6400/8000")).toBeInTheDocument();
+    await user.paste(text);
+    await user.click(screen.getByRole("button", { name: "Comment" }));
+    await waitFor(() => expect(api.callsTo("POST", "/api/swarms/3/posts/1/comments")[0]?.body).toEqual({ text }));
   });
   it("lists posts with author, nonzero comment counts and unread badges from localStorage", async () => {
     window.localStorage.setItem("pi-swarm:wall-seen:3", JSON.stringify({ 1: 1 }));

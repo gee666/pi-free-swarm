@@ -85,6 +85,18 @@ it("pins compose below oldest-first messages and keeps activity outside scrollin
   expect(api.callsTo("POST", "/api/swarms/3/participants/User/read")[0]?.body).toEqual({ messageIds: [101] });
 });
 
+it("submits the complete long User question without applying worker text limits", async () => {
+  serve();
+  mount();
+  const composer = await screen.findByRole("textbox", { name: "Ask about the swarm…" });
+  const text = ` \n${"question😀".repeat(9000)}\n `;
+  await userEvent.click(composer);
+  await userEvent.paste(text);
+  expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
+  await userEvent.click(screen.getByRole("button", { name: "Send" }));
+  await waitFor(() => expect(api.callsTo("POST", "/api/swarms/3/watcher")[0]?.body).toEqual({ text }));
+});
+
 it("opens at the bottom, follows new replies, and preserves the position while reading older messages", async () => {
   let height = 600;
   vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(() => height);
