@@ -15,6 +15,11 @@ export class MessageObservation {
     this.#prompts.delete(token);
   }
 
+  settled(): void {
+    this.#prompts.clear();
+    this.#observed.clear();
+  }
+
   observed(text: string): number[] {
     const authorized = new Set([...this.#prompts.values()].flatMap((ids) => [...ids]));
     const fresh = headerMessageIds(text).filter((id) => authorized.has(id) && !this.#observed.has(id));

@@ -5,7 +5,7 @@ import { USER_NAME, WATCHER_NAME } from "../constants.js";
 import { findDirectThread } from "../store/message-queries.js";
 import { listAgentSessions } from "../store/swarm-queries.js";
 import { readRecentActivity } from "./session-recent.js";
-import { watcherFallback } from "./watcher-fallback.js";
+import { pendingWatcherQuestion, watcherFallback } from "./watcher-fallback.js";
 import { readUserJsonBody, reply, requireSwarmItem, stringField, type ApiDeps, type ApiRoute } from "./api-util.js";
 
 export function watcherRoutes(deps: ApiDeps): ApiRoute[] {
@@ -18,6 +18,7 @@ export function watcherRoutes(deps: ApiDeps): ApiRoute[] {
         const swarm = requireSwarmItem(deps, params.id("swarmId"));
         const thread = findDirectThread(db, swarm.id, USER_NAME, WATCHER_NAME);
         if (!thread) return reply<WatcherResponse | null>(null);
+        if (!pendingWatcherQuestion(thread)) return reply<WatcherResponse>(thread);
         const watcher = listAgentSessions(db, swarm.id).find((agent) => agent.name === WATCHER_NAME);
         const recent = watcher ? await readRecentActivity(watcher.sessionFile) : null;
         const fallback = recent ? watcherFallback(thread, recent.entries) : undefined;

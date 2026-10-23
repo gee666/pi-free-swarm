@@ -10,6 +10,10 @@ export class PostObservation {
     this.prompts.delete(text);
   }
 
+  settled(): void {
+    this.prompts.clear();
+  }
+
   observed(text: string): number[] {
     const ids = new Set<number>();
     for (const [sentText, postIds] of this.prompts) {

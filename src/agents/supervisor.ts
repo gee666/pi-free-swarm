@@ -4,7 +4,13 @@ import type { AgentActivity, ParticipantStatus } from "../api-types.js";
 import { systemClock, type Clock, type TimerHandle } from "../clock.js";
 import { STARTUP_RETRY_BASE_BACKOFF_MS } from "../constants.js";
 import { classifyTransportExit } from "./exit-classification.js";
-import type { AgentCrash, DeliveryOutcome, PromptPayload, SupervisorHooks } from "./supervisor-types.js";
+import type {
+  AgentCrash,
+  DeliveryOutcome,
+  PromptPayload,
+  SupervisorHooks,
+  WorkerLife as Life,
+} from "./supervisor-types.js";
 export type { AgentCrash, DeliveryOutcome, PromptPayload, SupervisorHooks } from "./supervisor-types.js";
 import type { AgentExitInfo } from "./agent-process.js";
 import { spawnAgentTransport, type AgentTransport, type AgentTransportFactory } from "./transport.js";
@@ -13,20 +19,7 @@ import { createProtocolHandler } from "./protocol.js";
 import { PostObservation } from "./post-observation.js";
 import { dialogRequestId, type RpcRecord } from "./rpc-events.js";
 import { MessageObservation } from "./message-observation.js";
-import { StallWatchdog, watchdogConfigFromEnv, type StallKind, type WatchdogConfig } from "./watchdog.js";
-
-/** One spawn of the agent's process and the state that dies with it. */
-interface Life {
-  proc: AgentTransport;
-  watchdog: StallWatchdog;
-  handle(event: RpcRecord): void;
-  stall: { kind: StallKind; message: string } | null;
-  promptsInFlight: number;
-  deferredSettle: boolean;
-  runStarts: number;
-  posts: PostObservation;
-  messages: MessageObservation;
-}
+import { StallWatchdog, watchdogConfigFromEnv, type WatchdogConfig } from "./watchdog.js";
 
 export class AgentSupervisor {
   readonly name: string;
@@ -294,6 +287,10 @@ export class AgentSupervisor {
   #applySettle(life: Life): void {
     if (life === this.#life && this.#status === "working") {
       life.watchdog.disarm();
+      // Unobserved content stays durable and can be recovered; settled turns need no retained proof strings.
+      life.posts.settled();
+      life.messages.settled();
+      if (this.#launch) this.#launch.prompt = null;
       this.#setStatus("idle");
     }
   }

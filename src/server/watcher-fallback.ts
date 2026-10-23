@@ -1,14 +1,23 @@
-import type { ThreadResponse, WatcherResponse } from "../api-types.js";
+import type { MessageView, ThreadResponse, WatcherResponse } from "../api-types.js";
 import { USER_NAME, WATCHER_NAME } from "../constants.js";
 import { headerMessageIds } from "../agents/rpc-events.js";
 import type { SessionEntry } from "./session-parse.js";
 
+export function pendingWatcherQuestion(thread: ThreadResponse): MessageView | undefined {
+  for (let index = thread.messages.length - 1; index >= 0; index--) {
+    const question = thread.messages[index];
+    if (question.sender !== USER_NAME) continue;
+    return thread.messages.some((message) => message.sender === WATCHER_NAME && message.id > question.id)
+      ? undefined
+      : question;
+  }
+  return undefined;
+}
+
 /** A session answer is evidence, not a fabricated message or a retry of a failed write. */
 export function watcherFallback(thread: ThreadResponse, entries: readonly SessionEntry[]): WatcherResponse["fallback"] {
-  const question = [...thread.messages].reverse().find((message) => message.sender === USER_NAME);
-  if (!question || thread.messages.some((message) => message.sender === WATCHER_NAME && message.id > question.id)) {
-    return undefined;
-  }
+  const question = pendingWatcherQuestion(thread);
+  if (!question) return undefined;
   let start = -1;
   entries.forEach((entry, index) => {
     if (entry.kind === "user" && headerMessageIds(entry.text).includes(question.id)) start = index;

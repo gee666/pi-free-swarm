@@ -1,5 +1,23 @@
 import type { AgentActivity, ParticipantStatus } from "../api-types.js";
 import type { UsageSample } from "../runtime-types.js";
+import type { MessageObservation } from "./message-observation.js";
+import type { PostObservation } from "./post-observation.js";
+import type { RpcRecord } from "./rpc-events.js";
+import type { AgentTransport } from "./transport.js";
+import type { StallKind, StallWatchdog } from "./watchdog.js";
+
+/** One process generation; all observation authorization dies with this state. */
+export interface WorkerLife {
+  proc: AgentTransport;
+  watchdog: StallWatchdog;
+  handle(event: RpcRecord): void;
+  stall: { kind: StallKind; message: string } | null;
+  promptsInFlight: number;
+  deferredSettle: boolean;
+  runStarts: number;
+  posts: PostObservation;
+  messages: MessageObservation;
+}
 
 export interface PromptPayload {
   text: string;

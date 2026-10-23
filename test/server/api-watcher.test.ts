@@ -43,6 +43,22 @@ it("uses one User/Watcher thread, exposes replies, and queues questions after th
   assert.equal((await getJson(`${board.base}/api/swarms/999/watcher`)).status, 404);
 });
 
+it("does not read the session file when the latest question already has a durable answer", async (t) => {
+  const board = await startTestBoard();
+  t.after(() => board.close());
+  const swarm = seedSwarm(board.temp.db, { now: Date.now() });
+  const url = `${board.base}/api/swarms/${swarm.id}/watcher`;
+  const question = (await postJson<SendMessageResponse>(url, { text: "Who leads?" })).body.message;
+  const watcher = listAgentSessions(board.temp.db, swarm.id).find((agent) => agent.name === WATCHER_NAME);
+  assert.ok(watcher);
+  mkdirSync(watcher.sessionFile, { recursive: true });
+  replyToThread(board.temp.db, swarm.id, WATCHER_NAME, question.threadId, "Saved answer", Date.now());
+  const chat = await getJson<WatcherResponse>(url);
+  assert.equal(chat.status, 200);
+  assert.equal(chat.body.fallback, undefined);
+  assert.equal(chat.body.messages.at(-1)?.text, "Saved answer");
+});
+
 it("surfaces an unanswered Watcher session fallback after schema-mismatch tool failures without replaying writes", async (t) => {
   const board = await startTestBoard();
   t.after(() => board.close());
