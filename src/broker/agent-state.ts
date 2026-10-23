@@ -81,18 +81,33 @@ export function setAgentActivity(
 }
 
 /** Emits the agent's cumulative totals; compactions add tokens and cost but not turns. */
-export function recordUsage(db: SwarmDb, swarmId: number, name: string, sample: UsageSample, now: number): void {
+export function recordUsage(
+  db: SwarmDb,
+  swarmId: number,
+  name: string,
+  sample: UsageSample,
+  now: number,
+  originRun?: number,
+): void {
   db.write(() => {
     const agent = agentRow(db, swarmId, name).name;
+    const current = db.sql.prepare("SELECT run_count FROM swarms WHERE id = ?").get(swarmId);
+    const run = originRun ?? (current ? int(current, "run_count") : 0);
+    if (
+      !Number.isSafeInteger(run) ||
+      run < 1 ||
+      !db.sql.prepare("SELECT 1 FROM swarm_runs WHERE swarm_id = ? AND run = ?").get(swarmId, run)
+    )
+      throw new BrokerError("validation", "Usage must belong to an existing originating run.");
     db.sql
       .prepare(
         `INSERT INTO usage (swarm_id, agent, run, kind, input, output, cache_read, cache_write, cost, model, created_at)
-         VALUES (?, ?, ${RUN_OF_SWARM}, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         swarmId,
         agent,
-        swarmId,
+        run,
         sample.kind,
         sample.input,
         sample.output,
