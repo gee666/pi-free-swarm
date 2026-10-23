@@ -8,6 +8,7 @@ import { TITLE_MAX } from "../limits.js";
 import { replyToThread, sendMessage } from "../broker/messages.js";
 import { addComment, createPost } from "../broker/wall.js";
 import { setPostSubscription } from "../broker/subscriptions.js";
+import { snoozeReminders } from "../broker/reminder-snooze.js";
 import type { SwarmDb } from "../store/db.js";
 import { formatSent } from "./agent-tool-format.js";
 import { acceptanceToolDescription, acceptanceToolParameters, executeAcceptanceTool } from "./acceptance-tool.js";
@@ -131,6 +132,10 @@ export function createAgentToolHandlers(identity: AgentToolIdentity) {
     readThread(params: Static<typeof READ_THREAD>): string {
       return readThreadTool(identity.getDb(), swarmId, agentName, params, clock.now());
     },
+    snooze(): string {
+      const until = snoozeReminders(identity.getDb(), swarmId, agentName, clock.now());
+      return `Idle reminders snoozed for 5 minutes, until ${new Date(until).toISOString()}. Direct messages and subscribed comments still arrive.`;
+    },
     acceptance(params: Static<typeof acceptanceToolParameters>): string {
       return JSON.stringify(
         executeAcceptanceTool(identity.getDb(), swarmId, agentName, params, clock.now(), identity.run),
@@ -239,6 +244,17 @@ export function registerAgentTools(
     },
   });
   if (identity.agentName === WATCHER_NAME) return;
+  pi.registerTool({
+    name: AGENT_TOOL.snooze,
+    label: "Snooze reminders",
+    description:
+      "Pause new idle reminders for exactly 5 minutes when no useful work is available. If the swarm is still unfinished, reminders resume afterward. Already queued reminders may still arrive. Direct messages and subscribed comments still arrive; this does not pause the run, budgets or quorum. No arguments.",
+    promptSnippet: "Snooze your idle reminders for 5 minutes; messages still arrive.",
+    parameters: Type.Object({}, { additionalProperties: false }),
+    async execute() {
+      return textResult(run.snooze());
+    },
+  });
   pi.registerTool({
     name: AGENT_TOOL.acceptance,
     label: "Acceptance",

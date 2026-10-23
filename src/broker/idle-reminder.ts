@@ -1,4 +1,5 @@
 import type { ParticipantStatus } from "../api-types.js";
+import type { PromptPayload } from "../agents/supervisor.js";
 import type { Clock, TimerHandle } from "../clock.js";
 import { IDLE_REMINDER_HEADER, PAGE_MAX_COUNT, WATCHER_NAME } from "../constants.js";
 import type { SwarmSettings } from "../settings.js";
@@ -8,9 +9,11 @@ import { listFreshPosts } from "../store/wall-coverage.js";
 import { inspectAcceptance } from "./acceptance.js";
 import type { DeliveryTarget } from "./delivery.js";
 import { guardRunAction } from "./run-failure.js";
+import { reminderSnoozedUntil } from "./reminder-snooze.js";
 
 interface ReminderState {
   timer: TimerHandle | null;
+  scheduledFor: number;
   inFlight: boolean;
 }
 
@@ -34,6 +37,7 @@ export class IdleReminders {
       if (name === WATCHER_NAME) continue;
       this.#states.set(name, {
         timer: null,
+        scheduledFor: 0,
         inFlight: false,
       });
     }
@@ -55,11 +59,18 @@ export class IdleReminders {
     const open = this.#openRecipients();
     for (const [name, state] of this.#states) {
       if (decided || open.has(name) || agents.get(name)?.status !== "idle") this.#cancel(name);
-      else if (!state.timer && !state.inFlight) {
-        state.timer = clock.after(settings.idleReminderDelay, () => {
-          state.timer = null;
-          guardRunAction(() => this.#send(name, state), this.#options.onError);
-        });
+      else {
+        const until = reminderSnoozedUntil(this.#options.db, this.#options.swarmId, name);
+        const now = clock.now();
+        if (until > now && state.timer && state.scheduledFor !== until) this.#cancel(name);
+        if (!state.timer && !state.inFlight) {
+          const delay = until > now ? until - now : settings.idleReminderDelay;
+          state.scheduledFor = now + delay;
+          state.timer = clock.after(delay, () => {
+            state.timer = null;
+            guardRunAction(() => this.#send(name, state), this.#options.onError);
+          });
+        }
       }
     }
     return [...this.#states.values()].some((state) => state.timer !== null || state.inFlight);
@@ -88,10 +99,11 @@ export class IdleReminders {
   }
 
   async #send(name: string, state: ReminderState): Promise<void> {
-    const { db, swarmId, agents, settings } = this.#options;
+    const { db, swarmId, agents, settings, clock } = this.#options;
     const agent = agents.get(name);
     if (this.#stopped || state.inFlight || !agent || agent.status !== "idle" || this.#openRecipients().has(name))
       return;
+    if (reminderSnoozedUntil(db, swarmId, name) > clock.now()) return;
     const acceptance = inspectAcceptance(db, swarmId);
     if (acceptance.verdict === "accepted" || acceptance.verdict === "blocked") return;
     const page = listFreshPosts(db, swarmId, name, Math.min(settings.idleReminderDigestSize, PAGE_MAX_COUNT));
@@ -103,10 +115,14 @@ export class IdleReminders {
     try {
       const { counts, threshold, totalAgents } = acceptance;
       const tally = `Votes: ${counts.accepted} accepted, ${counts.incomplete} incomplete, ${counts.blocked} blocked. Quorum: ${threshold}/${totalAgents} for the same accepted or blocked verdict.`;
-      await agent.deliver({
+      const prompt: PromptPayload = {
         text: [IDLE_REMINDER_HEADER, tally, digest].filter(Boolean).join("\n\n"),
         messageIds: [],
         postIds: page.posts.map((post) => post.id),
+      };
+      await agent.deliver({
+        ...prompt,
+        beforeSend: () => (this.#stopped || reminderSnoozedUntil(db, swarmId, name) > clock.now() ? null : prompt),
       });
     } finally {
       state.inFlight = false;

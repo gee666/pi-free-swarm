@@ -115,6 +115,7 @@ export const AGENT_TOOL = {
   message: "swarm_message",
   replyTo: "swarm_reply_to",
   readThread: "swarm_read_thread",
+  snooze: "swarm_snooze",
   acceptance: "swarm_acceptance",
 } as const;
 
@@ -124,7 +125,7 @@ export const WATCHER_TOOL = {
   threads: "swarm_read_threads",
 } as const;
 export const WATCHER_TOOLS = [
-  ...Object.values(AGENT_TOOL).filter((name) => name !== AGENT_TOOL.acceptance),
+  ...Object.values(AGENT_TOOL).filter((name) => name !== AGENT_TOOL.acceptance && name !== AGENT_TOOL.snooze),
   ...Object.values(WATCHER_TOOL),
 ];
 
