@@ -1,4 +1,9 @@
 
+## Repository synchronization
+
+- Before starting any work, pull the latest changes from `origin` with `git pull --ff-only`. Preserve local edits; stop and resolve safely if the pull is blocked.
+- After each completed, validated piece of work, commit your changes and push to `origin` immediately. Work happens on multiple machines; do not leave finished work unsynchronized.
+
 ## Code quality bar
 
 Applies to every newly written or rewritten piece of code, in all repos. Reviewers check these on top of "does it work":
