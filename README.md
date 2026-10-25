@@ -223,6 +223,8 @@ npm run check:package
 
 `npm test` and standalone `npm run test:ui` each refresh the four declared Pi SDK packages at `@latest` with `--save-dev --ignore-scripts`, then run backend/UI typechecking before their test suite. `npm run check` runs both entrypoints plus formatting, file-size and package-content checks. Network access is required, and a newer Pi release can update `package.json` and `package-lock.json`. Keep those changes together.
 
+`npm run test:evergreen` also runs live delegation/resume e2e tests using the globally installed `$EVERGREEN_PI_BIN` (or `pi` on PATH) and the required `$EVERGREEN_E2E_MODEL`. These need working credentials/network and spend tokens. See [EVERGREEN.md](EVERGREEN.md) for intent, coverage and compatibility seams.
+
 Validation covers backend behavior, SDK integration and UI component tests. Tool snippet tests check registered text and bounds, not model behavior. Terminal renderer tests use test themes; UI tests do not establish live browser or terminal theme compatibility. These checks are not a live multi-agent/model run.
 
 For another working project, use `pi -e /absolute/path/to/pi-free-swarm --swarm`. Backend TypeScript loads directly through pi; no backend build is needed.

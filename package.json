@@ -12,6 +12,7 @@
     "src/",
     "ui_dist/",
     "README.md",
+    "EVERGREEN.md",
     "docs/file-previews.md",
     "LICENSE"
   ],
@@ -34,6 +35,8 @@
   "scripts": {
     "pretest": "npm install --save-dev --ignore-scripts @earendil-works/pi-agent-core@latest @earendil-works/pi-ai@latest @earendil-works/pi-coding-agent@latest @earendil-works/pi-tui@latest && npm run typecheck",
     "test": "node --import tsx/esm --test \"test/**/*.test.ts\"",
+    "test:e2e": "node --import tsx/esm --test \"test/e2e/*.e2e.ts\"",
+    "test:evergreen": "npm test -- --test-concurrency=1 && npm run test:ui && npm run test:e2e",
     "pretest:ui": "npm run pretest",
     "test:ui": "vitest run --config ui/vite.config.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p ui/tsconfig.json",

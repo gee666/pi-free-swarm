@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
+import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { insertEvent, scanEventsAfter, latestEventId, pruneEvents, eventRetentionGap } from "../../src/store/events.js";
 import { openSwarmDb } from "../../src/store/db.js";
@@ -18,7 +19,7 @@ function unknownRows(db: ReturnType<typeof createTempDb>["db"], swarmId: number,
 
 describe("raw outbox scan and retention", () => {
   it("adds retention metadata to a v4 database without inventing historical deletion evidence", () => {
-    const dir = mkdtempSync(path.resolve("tmp/swarm-implementation/event-migration-"));
+    const dir = mkdtempSync(path.join(tmpdir(), "swarm-event-migration-"));
     const file = path.join(dir, "swarm.db");
     try {
       const legacy = new DatabaseSync(file);
