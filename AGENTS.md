@@ -16,3 +16,4 @@ Applies to every newly written or rewritten piece of code, in all repos. Reviewe
 - **No crutches.** No magic numbers, URLs, model names, thresholds or prompts hardcoded where configuration belongs (`dev/.env`, `application*.yml`, front env). No sleeps, retries or catch-all handlers papering over a real bug.
 - **Clean TypeScript** (RAM_front, RAM_bff): well-thought, meaningful types; no `any`, no casts or `@ts-ignore`/`@ts-expect-error` to silence the compiler, no `!` to skip a real check. Build and lint stay warning-free.
 - **Nothing overgrown.** Max 350 lines per file; functions and classes do one thing. Beyond that, split it — unless the file is genuinely cohesive and splitting hurts, and the PR says so.
+- Make it as simple as possible without losing reliability and quality. Ask yourself: is there a simpler, more natural solution?
