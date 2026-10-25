@@ -23,10 +23,7 @@ it("shares one current-route detail request between the real shell and Agents pa
   api.on("GET", "/api/swarms/3", () => current);
   api.on("GET", "/api/swarms/3/participants/John/messages", () => mailbox("John", "inbox", []));
   const view = render(
-    <MemoryRouter
-      initialEntries={["/s/3/agents/John"]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={["/s/3/agents/John"]}>
       <SwarmListProvider>
         <Routes>
           <Route path="/s/:id" element={<SwarmLayout />}>

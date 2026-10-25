@@ -37,7 +37,7 @@ async function renderWall(claims: PostClaim[] = []) {
   api.on("GET", "/api/swarms/3/posts", () => ({ posts: [snapshot], total: 1 }));
   api.on("GET", "/api/swarms/3/posts/1", () => ({ post: snapshot, comments: [] }));
   render(
-    <MemoryRouter initialEntries={["/s/3/wall/1"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter initialEntries={["/s/3/wall/1"]}>
       <SwarmViewProvider swarmId="3">
         <Routes>
           <Route path="/s/:id/wall/:postId?" element={<WallPage />} />

@@ -52,7 +52,7 @@ export function useSessionFeed({ swarmId, agent, stream, onBeforePrepend }: Sess
   const [newerError, setNewerError] = useState<Error>();
   const [attempt, setAttempt] = useState(0);
   // Async callbacks read the latest feed and flags from refs; state only drives rendering.
-  const current = useRef<FeedData>();
+  const current = useRef<FeedData | undefined>(undefined);
   const lifetime = useRef(new AbortController());
   const olderBusy = useRef(false);
   const newer = useRef({ running: false, again: false });

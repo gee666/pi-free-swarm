@@ -25,6 +25,7 @@ export function TabRail({ basePath, unread }: { basePath: string; unread?: UserU
           <NavLink
             key={tab.path}
             to={`${basePath}/${tab.path}`}
+            aria-label={count > 0 ? `${tab.label} ${count} unread ${tab.unread}` : undefined}
             className={({ isActive }) => cx(styles.tab, isActive && styles.active)}
           >
             <Icon icon={tab.icon} size="rail" />

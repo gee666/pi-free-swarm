@@ -6,7 +6,7 @@ import type { Composer } from "./useComposer";
 export function useComposeRequest(
   participants: readonly ParticipantView[] | undefined,
   address: Composer["address"],
-  slot: RefObject<HTMLDivElement>,
+  slot: RefObject<HTMLDivElement | null>,
 ) {
   const [query, setQuery] = useSearchParams();
   const requested = query.get("compose");

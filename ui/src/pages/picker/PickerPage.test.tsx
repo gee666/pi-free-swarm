@@ -16,7 +16,7 @@ function Selected() {
 }
 function mount(path = "/") {
   return render(
-    <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter initialEntries={[path]}>
       <SwarmListProvider>
         <Routes>
           <Route path="/" element={<PickerPage />} />
@@ -94,11 +94,7 @@ it("waits for a pending reconnect snapshot before defaulting when returning to t
     );
   }
   render(
-    <MemoryRouter
-      initialEntries={["/", "/s/3/stats"]}
-      initialIndex={1}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={["/", "/s/3/stats"]} initialIndex={1}>
       <SwarmListProvider>
         <Routes>
           <Route path="/" element={<PickerPage />} />

@@ -24,6 +24,8 @@ test(
   async () => {
     const run = createRunFixture(SCENARIOS.settle, {
       reminders: { idleReminderDelay: 100, idleReminderDigestSize: 2 },
+      // Avoid thousands of unrelated database polls during the five-minute jump.
+      timings: { completionCheckMs: 1000, progressMs: 1000, heartbeatMs: 1000 },
     });
     const clock = new FakeClock();
     const cancel = new AbortController();
@@ -88,7 +90,7 @@ test(
       assert.doesNotMatch(reminders()[0], /This real comment must wake/);
       assert.match(reminders()[0], /fresh post during snooze/);
       voteAll(run.db, swarmId, "accepted", "Comment delivery and snooze deadline verified.");
-      clock.advance(25);
+      clock.advance(1000);
       assert.equal((await outcome).end, "finished");
     } finally {
       cancel.abort();

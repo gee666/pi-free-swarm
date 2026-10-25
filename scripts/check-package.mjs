@@ -29,6 +29,7 @@ const exactFiles = new Set([
   "index.ts",
   "package.json",
   "README.md",
+  "EVERGREEN.md",
   "LICENSE",
   "docs/file-previews.md",
   "src/store/schema.sql",

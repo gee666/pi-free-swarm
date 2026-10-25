@@ -44,7 +44,7 @@ async function renderWall(document: PostContract | null = null) {
   api.on("GET", "/api/swarms/3/posts", () => snapshot);
   api.on("GET", "/api/swarms/3/posts/1", () => ({ post: snapshot.posts[0], comments: [], contract: document }));
   render(
-    <MemoryRouter initialEntries={["/s/3/wall/1"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter initialEntries={["/s/3/wall/1"]}>
       <SwarmViewProvider swarmId="3">
         <Routes>
           <Route path="/s/:id/wall/:postId?" element={<WallPage />} />

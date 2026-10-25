@@ -31,7 +31,7 @@ it("keeps selectors live across scoped pages and selection changes with one shar
   api.on("GET", "/api/swarms/3", () => detail());
   api.on("GET", "/api/swarms/4", () => detail(next));
   const view = render(
-    <MemoryRouter initialEntries={["/s/3/config"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter initialEntries={["/s/3/config"]}>
       <SwarmListProvider>
         <Routes>
           <Route path="/s/:id" element={<SwarmLayout />}>

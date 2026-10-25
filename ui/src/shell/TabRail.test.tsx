@@ -6,7 +6,7 @@ import { TabRail } from "./TabRail";
 
 it("links Config to the current swarm and retains every existing section", async () => {
   render(
-    <MemoryRouter initialEntries={["/s/7/agents"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter initialEntries={["/s/7/agents"]}>
       <TabRail basePath="/s/7" />
     </MemoryRouter>,
   );

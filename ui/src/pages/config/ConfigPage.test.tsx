@@ -26,7 +26,7 @@ function snapshot(): RuntimeConfigurationView {
 }
 function mount() {
   render(
-    <MemoryRouter initialEntries={["/s/3/config"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter initialEntries={["/s/3/config"]}>
       <SwarmViewProvider swarmId="3">
         <Routes>
           <Route path="/s/:id/config" element={<ConfigPage />} />

@@ -43,7 +43,7 @@ function serve(running = true, busy = false) {
 
 function mount() {
   render(
-    <MemoryRouter initialEntries={["/s/3/watcher"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter initialEntries={["/s/3/watcher"]}>
       <SwarmViewProvider swarmId="3">
         <TabRail basePath="/s/3" />
         <Routes>

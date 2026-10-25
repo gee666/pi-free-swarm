@@ -40,6 +40,8 @@ The board is unauthenticated localhost tooling, not a sandbox or multi-user serv
 ## Tests
 Run `npm run test:evergreen`: backend unit/integration tests, UI tests, then live Pi e2e.
 Backend/UI pretests refresh Pi SDK dependencies to latest and typecheck both projects.
+UI files run serially to avoid jsdom contention. Delivery coverage uses an explicit fake-peer
+barrier rather than a short busy window; snooze tests reduce unrelated polling during time jumps.
 `test/integration/evergreen-workflow.test.ts` connects Main's tool, real runner, SQLite and
 HTTP board with fake Pi peers: split votes stay running, quorum closes, dissent/evidence
 survive and Main receives the review warning and board link.
@@ -47,13 +49,15 @@ Existing run-acceptance, run-delivery, run-resume, retirement, budget and cleanu
 protect fresh quorum, durable communication, preserved identity and bounded execution.
 UI suites cover board components, not a live browser or real TUI Esc.
 `test/e2e/evergreen.e2e.ts` launches the globally installed `$EVERGREEN_PI_BIN` (default `pi`)
-with stdin ignored, and requires `$EVERGREEN_E2E_MODEL` for model calls.
+with stdin ignored and only this extension enabled, and requires `$EVERGREEN_E2E_MODEL` for model calls.
 It checks delegated file output, wall evidence, worker voting/session persistence, Main's read
 and resume with changed output and a new vote in the same worker session.
 Live tests cost tokens; failures retain /tmp projects. They do not establish multi-model
 quality, browser rendering, host takeover or crash recovery.
-Initialization blocker: supplied Pi 1.4.0 is Bun-compiled and cannot import node:sqlite;
-the live gate fails at extension loading. This repo requires Node Pi; Bun remains unsupported.
+Pi 1.4.0 live delegation/resume passes with the npm CLI under Node (set EVERGREEN_PI_BIN
+to a Node Pi launcher). The supplied Bun-compiled binary cannot import node:sqlite and fails
+at extension loading; Bun remains unsupported. CLI prompts use `--` after extension flags.
+Live model/tool latency can exhaust the cumulative three-minute test budget.
 ## Relevant changelog topics
 Watch extension tool registration/exposure/termination, lifecycle/settlement and cancellation;
 CLI flags/trust/extension loading; RPC queue/framing/event ordering; session JSONL migration;

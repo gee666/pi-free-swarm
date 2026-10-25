@@ -26,7 +26,7 @@ export function StatsPage() {
   const stats = useAsync((signal) => fetchStats(id, signal), [id, stream.openCount]);
   const detail = useSwarmDetail(id);
   const live = detail.data !== undefined && isSwarmLive(detail.data.swarm.status);
-  const refresh = useRef<ReturnType<typeof setTimeout>>();
+  const refresh = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
     if (!live) return;
     const timer = setInterval(stats.reload, STATS_CLOCK_MS);

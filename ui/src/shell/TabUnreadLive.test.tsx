@@ -60,7 +60,7 @@ it("patches live badge totals without refetches and clears only the rendered pos
       }),
   );
   render(
-    <MemoryRouter initialEntries={["/s/3/wall/1"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter initialEntries={["/s/3/wall/1"]}>
       <SwarmViewProvider swarmId="3">
         <Badges />
         <Routes>

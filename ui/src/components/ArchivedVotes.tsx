@@ -10,7 +10,7 @@ export function ArchivedVotes({ swarmId }: { swarmId: number }) {
   const state = useAsync((signal) => fetchAcceptanceHistory(swarmId, signal), [swarmId]);
   const [paging, setPaging] = useState(false);
   const [pageError, setPageError] = useState<Error>();
-  const pending = useRef<AbortController>();
+  const pending = useRef<AbortController | undefined>(undefined);
   useEffect(() => () => pending.current?.abort(), [swarmId]);
   const refresh = () => {
     setPageError(undefined);

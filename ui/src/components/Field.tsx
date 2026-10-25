@@ -18,7 +18,7 @@ interface AutoTextareaProps extends Pick<
   TextareaHTMLAttributes<HTMLTextAreaElement>,
   "onSelect" | "aria-autocomplete" | "aria-controls" | "aria-activedescendant"
 > {
-  inputRef?: RefObject<HTMLTextAreaElement>;
+  inputRef?: RefObject<HTMLTextAreaElement | null>;
   value: string;
   onChange: (value: string) => void;
   label: string;

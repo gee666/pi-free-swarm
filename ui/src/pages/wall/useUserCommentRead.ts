@@ -14,7 +14,7 @@ export function useUserCommentRead(
   const subscribed = detail?.post.userSubscribed;
   const unread = detail?.post.userUnreadComments;
   const [error, setError] = useState<string>();
-  const active = useRef<{ controller: AbortController; through: number; busy: boolean }>();
+  const active = useRef<{ controller: AbortController; through: number; busy: boolean } | undefined>(undefined);
   useLayoutEffect(() => {
     latest.current = detail;
   }, [detail]);

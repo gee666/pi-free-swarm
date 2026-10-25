@@ -2,7 +2,7 @@
 
 A pi extension that runs a leaderless group of agents on one task, in one shared working tree. Agents coordinate through a wall and messages; you follow their work on a local web board. The main agent reviews the actual changes when they finish.
 
-Tested against Pi 1.4.0
+Tested against Pi 1.4.0 (Node.js CLI; Bun is unsupported)
 
 ## Requirements and installation
 

@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { writeFileSync } from "node:fs";
+import path from "node:path";
 import { afterEach, it } from "node:test";
 import { resumeSwarm, startSwarm, stopAllRuns } from "../../src/broker/swarm-run.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
@@ -83,9 +85,14 @@ it(
   "native comment delivery and tool reads share observed coverage with fresh reminders",
   { timeout: 20_000 },
   async () => {
-    const run = createRunFixture(SCENARIOS.steer, {
-      reminders: { idleReminderDelay: 30, idleReminderDigestSize: 2 },
-    });
+    const run = createRunFixture(
+      {
+        runs: [[{ type: "waitForFile", file: "release-comments" }, { type: "reply" }], [{ type: "reply" }]],
+      },
+      {
+        reminders: { idleReminderDelay: 30, idleReminderDigestSize: 2 },
+      },
+    );
     fixture = run;
     const { db } = run;
     const outcome = startSwarm(
@@ -135,6 +142,7 @@ it(
       0,
       "no self notices",
     );
+    writeFileSync(path.join(run.cwd, "release-comments"), "");
     await waitFor(
       () => listFreshComments(db, swarmId, author, post.id, 10).total === 0,
       "comments observed in context",

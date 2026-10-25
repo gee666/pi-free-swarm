@@ -5,7 +5,7 @@ import { TabRail } from "./TabRail";
 
 function rail(messages: number, comments: number) {
   return (
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter>
       <TabRail basePath="/s/3" unread={{ messages, comments }} />
     </MemoryRouter>
   );
@@ -32,7 +32,7 @@ describe("User unread tab badges", () => {
 
   it("keeps legacy detail responses without summary metadata usable", () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <TabRail basePath="/s/4" />
       </MemoryRouter>,
     );

@@ -39,7 +39,7 @@ afterEach(() => {
 async function mount(path: string) {
   const source = installFakeEventSource();
   render(
-    <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter initialEntries={[path]}>
       <SwarmViewProvider swarmId="3">
         <nav>
           <Link to="/s/3/stats">Stats tab</Link>

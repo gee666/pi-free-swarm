@@ -47,10 +47,7 @@ it("preserves retired mailbox evidence but excludes retired workers from new-mes
     mailbox("Maria", "inbox", [mailboxThread(thread(9, ["User", "Maria"]), [evidence], "Maria")]),
   );
   render(
-    <MemoryRouter
-      initialEntries={["/s/3/agents/Maria?compose=Maria"]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={["/s/3/agents/Maria?compose=Maria"]}>
       <SwarmViewProvider swarmId="3">
         <Routes>
           <Route path="/s/:id/agents/:name" element={<AgentsPage />} />

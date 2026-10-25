@@ -14,7 +14,7 @@ interface UploadOptions {
   scope?: string;
   text: string;
   onChange: (text: string) => void;
-  controls: RefObject<HTMLDivElement>;
+  controls: RefObject<HTMLDivElement | null>;
   disabled: boolean;
 }
 
@@ -22,7 +22,7 @@ export function useComposerUploads({ swarmId, scope, text, onChange, controls, d
   const picker = useRef<HTMLInputElement>(null);
   const latest = useRef({ text, onChange, swarmId, scope });
   latest.current = { text, onChange, swarmId, scope };
-  const controller = useRef<AbortController>();
+  const controller = useRef<AbortController | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string>();
   const [cursor, setCursor] = useState<number | null>(null);
