@@ -5,7 +5,7 @@
   "type": "module",
   "main": "index.ts",
   "engines": {
-    "node": ">=22.13"
+    "node": ">=22.19"
   },
   "files": [
     "index.ts",
@@ -32,7 +32,9 @@
   },
   "license": "MIT",
   "scripts": {
+    "pretest": "npm install --save-dev --ignore-scripts @earendil-works/pi-agent-core@latest @earendil-works/pi-ai@latest @earendil-works/pi-coding-agent@latest @earendil-works/pi-tui@latest && npm run typecheck",
     "test": "node --import tsx/esm --test \"test/**/*.test.ts\"",
+    "pretest:ui": "npm run pretest",
     "test:ui": "vitest run --config ui/vite.config.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p ui/tsconfig.json",
     "build:ui": "vite build --config ui/vite.config.ts",
@@ -41,20 +43,20 @@
     "format:check": "prettier --check .",
     "check:size": "node scripts/check-size.mjs",
     "check:package": "node scripts/check-package.mjs",
-    "check": "npm run typecheck && npm run format:check && npm run check:size && npm test && npm run test:ui && npm run check:package"
+    "check": "npm test && npm run test:ui && npm run format:check && npm run check:size && npm run check:package"
   },
   "peerDependencies": {
-    "@earendil-works/pi-agent-core": "*",
-    "@earendil-works/pi-ai": "*",
-    "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-tui": "*",
+    "@earendil-works/pi-agent-core": ">=1.4.0",
+    "@earendil-works/pi-ai": ">=1.4.0",
+    "@earendil-works/pi-coding-agent": ">=1.4.0",
+    "@earendil-works/pi-tui": ">=1.4.0",
     "typebox": "*"
   },
   "devDependencies": {
-    "@earendil-works/pi-agent-core": "^0.87.1",
-    "@earendil-works/pi-ai": "^0.87.1",
-    "@earendil-works/pi-coding-agent": "^0.87.1",
-    "@earendil-works/pi-tui": "^0.87.1",
+    "@earendil-works/pi-agent-core": "^1.4.0",
+    "@earendil-works/pi-ai": "^1.4.0",
+    "@earendil-works/pi-coding-agent": "^1.4.0",
+    "@earendil-works/pi-tui": "^1.4.0",
     "@fontsource/inter": "^5.2.6",
     "@fontsource/jetbrains-mono": "^5.2.6",
     "@testing-library/jest-dom": "^6.6.4",

@@ -2,13 +2,15 @@
 
 A pi extension that runs a leaderless group of agents on one task, in one shared working tree. Agents coordinate through a wall and messages; you follow their work on a local web board. The main agent reviews the actual changes when they finish.
 
+Tested against Pi 1.4.0
+
 ## Requirements and installation
 
-- **Node.js ≥22.13**, for built-in SQLite. Bun is not supported.
-- **pi ≥0.87**, with a configured model and credentials.
+- **Node.js ≥22.19**, as required by Pi, with built-in SQLite. Bun is not supported.
+- **Pi ≥1.4.0**, with a configured model and credentials. Only the latest npm Pi release is tested.
 - **Linux or macOS**: process-tree cleanup currently uses POSIX process groups; Windows is not supported.
 
-Native retirement continuation suppression is verified on installed pi/core 1.4. Older native termination behavior is not verified; the baseline minimum above is not a conformance claim for that feature.
+The native retirement test exercises continuation suppression with the installed Pi/core SDK. Older Pi releases are not tested.
 
 ```sh
 pi install npm:oira666_pi-free-swarm
@@ -218,6 +220,10 @@ npm run check            # types, formatting, size, backend/UI tests, package co
 npm run build:ui
 npm run check:package
 ```
+
+`npm test` and standalone `npm run test:ui` each refresh the four declared Pi SDK packages at `@latest` with `--save-dev --ignore-scripts`, then run backend/UI typechecking before their test suite. `npm run check` runs both entrypoints plus formatting, file-size and package-content checks. Network access is required, and a newer Pi release can update `package.json` and `package-lock.json`. Keep those changes together.
+
+Validation covers backend behavior, SDK integration and UI component tests. Tool snippet tests check registered text and bounds, not model behavior. Terminal renderer tests use test themes; UI tests do not establish live browser or terminal theme compatibility. These checks are not a live multi-agent/model run.
 
 For another working project, use `pi -e /absolute/path/to/pi-free-swarm --swarm`. Backend TypeScript loads directly through pi; no backend build is needed.
 

@@ -119,7 +119,7 @@ export class FakeExtensionApi implements SwarmExtensionApi {
   }
 
   settleAgent(): void {
-    for (const handler of this.settledHandlers) handler({ type: "agent_settled" });
+    for (const handler of this.settledHandlers) handler({ type: "agent_settled", aborted: false });
   }
 
   async shutdownSession(): Promise<void> {
