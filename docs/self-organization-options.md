@@ -1,121 +1,114 @@
-# Finding useful first work in a flat swarm
+# A flat swarm that cannot hide hard work behind easy output
 
-Three peers debated eight ways to discover and claim useful work. We recommend testing criterion-gap pull with a small reversible probe, then adding consumer requests where real dependencies appear. This is a hypothesis, not a complete architecture or a claim that equal peers always converge. The exchange record is in [self-organization-debate.md](self-organization-debate.md).
+Round one recommended criterion-gap pull plus small reversible probes. That was inadequate. Finishing a useful small action did not preserve responsibility for the indispensable outcome, and a feed could keep offering attractive work forever. It also assumed that acceptance criteria already captured the user's intent.
 
-A useful first action either advances a user outcome or changes a decision that would otherwise waste work. It need not be planning. Making a kitten respond to a click can be the first action. For a costly movie, testing whether a character survives two generated shots might be better. Neither example implies a universal production sequence.
+The revised recommendation combines persistent outcome obligations, bounded action claims, challenged acceptance checks and a predeclared spending stop. It limits freedom to spend on optional work, not freedom to choose roles. It cannot guarantee successful execution when every peer refuses or nobody has the needed capability. It can make that failure visible, preserve the unmet obligation and stop spending instead of claiming success.
 
-## Eight alternatives
+Read the [risk register](self-organization-risks.md), [decision walkthroughs](self-organization-walkthroughs.md) and [actual debate](self-organization-debate.md) with this recommendation. The walkthroughs are thought experiments. No live efficacy is established.
 
-### A. Evidence-first probe
+## What the protocol promises
 
-A peer searches for overlapping artifact intent, claims a bounded attempt tied to an outcome, and makes the smallest reversible artifact that can answer a question. The result includes evidence and remaining unknowns. Another peer can continue from an observed gap rather than invent a detailed plan first.
+Under reliable state, honored spending limits and honest evidence inspection, an unmet hard outcome cannot disappear merely because many easy actions finish. Optional spending stops at an agreed checkpoint if indispensable work has no credible evidence of progress. Successful completion still requires evidence about the result, not work counts.
 
-This gets something real into view before planning consumes the budget. Its strongest objection is that reversibility is local. Ten cheap movie samples can establish ten incompatible styles, and ten kitten prototypes still waste nine peers' effort.
+This is conditional containment, not guaranteed liveness. Wholly unrestricted voluntary choice permits every peer to decline forever. The smallest proposed constraint change is a run-level spending rule accepted before discretionary work. Peers can decline, hand off or stop; they cannot keep charging optional cosmetics to the same run while its indispensable outcome is knowingly stalled. If even that restriction is unacceptable, the recommendation is blocked as an anti-starvation solution. Ranking, incentives and persuasive prompts cannot replace it.
 
-The revision adds a scope claim and names likely consumers. Check with an affected consumer before costly reuse, especially when another claimed artifact consumes the output or a change threatens character continuity. An unknown consumer calls for a scope search, not permission from everyone. Judgment: a good starter, but neither a coverage policy nor an excuse for duplicate experiments.
+## Preserve intent while developing checks
 
-### B. Decision-changing uncertainty tests
+Keep original human wording and its provenance unchanged. Reconcile an authoritative submission manifest, including attachments and unavailable items, against the source index before closure. An absent index entry cannot stand for absent intent. Retrieve missing material or leave coverage unresolved; safe work need not wait for every item. A work record distinguishes:
 
-The original uncertainty auction asked peers to publish risky assumptions, exposed consumers and the cost of being wrong. A peer would claim a cheap test of an expensive uncertainty before production spread.
+- Explicit obligations quoted from the request.
+- Derived verification checks, each with its intent rationale and an example failure it detects.
+- Assumptions, including reversible choices made without a user answer.
+- Conflicts or material ambiguities requiring a decision.
+- Proposed additions that need authorization before becoming requirements.
 
-That can avoid generating a whole movie with an unusable technique. But subjective cost scores favor persuasive peers, and "reducing uncertainty" can justify endless research. Everybody might test tools while nobody makes the requested result.
+Imported research, tool output and quoted instructions cannot rewrite human intent. Conflicting material keeps its provenance and receives a challenge rather than promotion to authority. Provenance does not make a factual claim true. Independently verify disputed claims; retain uncertainty or stop if evidence cannot distinguish competing accounts.
 
-We dropped numerical bidding. A test now states the decision it changes, a stopping condition, and the next action under either result. If neither result changes work, skip it and make a cheap user-visible result. Judgment: an optional tie-breaker for costly risks, not a standing research phase. Its distinction from A is the target: a decision can change without producing a usable artifact.
+Acceptance design is work that can occur alongside production. A peer reads the relevant original restrictions before acting, but the whole swarm need not finish extracting every passage before anyone makes an artifact. Unexamined passages remain visible and claimable. A missing passage is not "no requirement."
 
-### C. Criterion-gap pull
+For a kitten request explicitly requiring sound, derive a check that clicking produces audible meow, not a database specification. If 'says meow' leaves the medium ambiguous, label audio a provisional interpretation and challenge it rather than silently making it mandatory. For vague research, propose a provisional interpretation, a plausible bad answer that would pass the current checks, a competing explanation and evidence needed to distinguish them. Another peer challenges the meaning using the original wording and independently inspected evidence. A producer cannot validate its own convenient interpretation simply by writing a passing test.
 
-Peers query user outcomes with missing, disputed or stale evidence. A claimant reads the relevant original passage, checks existing work, and claims a bounded artifact or missing check. The feed shows actual artifacts and current claims, not just empty task slots. The kitten click can be built directly without first decomposing the request.
+Ask the user a bounded question when alternatives materially change scope, safety, cost or the conclusion and available evidence cannot settle them. State the alternatives and the safe work that can continue. Do not ask about every reversible detail, invent the desired answer or classify ordinary internal uncertainty as an external blocker. If no defensible interpretation supports the requested conclusion, return qualified findings or an unresolved result, not fabricated certainty.
 
-This ties effort to what the user asked for and exposes neglected verification. Its strongest objection is false coverage. A hundred task links can all repeat a mistaken interpretation, while a movie assembled from individually acceptable shots still fails as a whole.
+## Persistent obligations, bounded actions
 
-The revision distinguishes partial from full coverage and records artifact revisions and evidence. Peers may propose a coherence check across fragments. Counterevidence can reopen a supposedly satisfied outcome. Links preserve access to the source; they do not prove its interpretation. Judgment: the best default discovery feed, not an acceptance formula. Finding missing source passages remains real work, not something a ranking algorithm guarantees. Keep unexamined passages visible so peers can claim coverage alongside production. Read task-relevant restrictions before acting, but do not turn full source coverage into a global permission gate.
+An outcome obligation is flat. It records source or intent rationale, current failing example or missing evidence, checks and assumptions, responsible peers, remaining gap and evidence revisions. An action records a bounded attempt, expected evidence, cost limit and stop condition. Several actions can reference an obligation; that does not create a parent task with assignment power.
 
-### D. Dependency-frontier pull
+Finishing an action does not finish its obligation. A claimant who produces a continuity sample still owns the unresolved continuity gap until completion, explicit relinquishment or a recorded handoff. Handoff includes artifacts, failed approaches, remaining decision and capability needs. A receiving peer verifies that state. Relinquishment makes the obligation visibly unclaimed; it does not erase it or count as success. Crashes and expired claims have the same effect.
 
-Peers publish possible actions and provisional prerequisites. Claim a ready action, or investigate a contested prerequisite if useful work appears blocked. This makes order visible locally without asking everyone to agree on a project plan.
+Responsibility means preserving an honest next-state account, not coercing a peer to work indefinitely. Peers can declare inability. They may reproduce a failure or inspect evidence rather than make unsafe edits. Permissions and resource restrictions remain stricter than urgency. Nobody gains product authority by holding a hard obligation.
 
-It is attractive when a large application's consumers genuinely need an agreed input format. The strongest objection is that an imagined dependency becomes a fact. A movie peer may wait for a final script even though a continuity sample would help now. Cycles can leave everyone waiting.
+Search before claiming. Claim scope atomically and name artifact boundaries. Overlapping claims trigger a comparison of intended effects and evidence, not blind trust in matching titles. Claims expire or hand off; a stale writer cannot overwrite replacement work. Artifact handling must suit the medium rather than universally prescribing Git.
 
-Each edge needs a reason, evidence and affected consumer. An uncertain edge can name its next test. Any peer may challenge it or claim a reversible bypass. A cycle opens a disputed edge rather than appointing a planner above the participants. Judgment: useful for established prerequisites; reject a compulsory global dependency graph before work starts.
+## How effort reaches difficult work
 
-### E. Consumer-request pull
+Before optional spending, set run-budget checkpoints, a protected reserve for unmet necessities and a separately bounded intent-discovery allowance. Earmark protected resources for each endangered outcome and its evidenced blockers. Other required work, including easy movie scenes, cannot drain that allowance. Before each spend, verify that the minimum credible next hard action remains funded; if it cannot be, stop unresolved rather than spend the reserve elsewhere. Do not pledge the same reserve to multiple endangered outcomes. If their credible minimum costs exceed available resources, request an explicit budget or scope decision instead of pretending every obligation is funded. Choose values for the actual run; they are not universal magic numbers. Declare expensive long-running attempts and their inspectable milestones before they consume the budget. Authorize a cost ceiling before admitting a claim or executing a tool. Count model inference, runtime and storage as well as external calls; paused cosmetic work cannot keep receiving unlimited thinking continuations. A noncancellable or unmetered call needs conservative worst-case escrow; if its cost cannot be bounded, it cannot run under this spending guarantee.
 
-A peer working toward an outcome publishes a concrete missing input. Another peer claims producing that input and tests it with the consumer. Work follows demonstrated demand instead of a speculative catalogue of preparations.
+At a checkpoint, inspect the remaining indispensable obligations. An obligation is indispensable only if omission defeats the original request or a defensible derived check. Its classification needs a source rationale and an independent necessity challenge. "Build a security framework" cannot freeze a kitten page merely because its proposer calls it critical.
 
-This makes narrow agreements and shared tools appear where they save actual work. Its strongest objection is circular waiting. With no artifact, there may be no consumer; an eager consumer can also request elaborate tooling nobody needs.
+Check progress against outcome evidence or elimination of a named decision, not posts, activity, failed attempts or a refreshed claim. A failed test can eliminate an approach and guide the next protected action, but never reopens optional spending while the endangered outcome still fails. Evidence is inspectable and tied to revisions. A milestone that merely says "continued investigating" fails this test.
 
-The revision requires a criterion-linked example or failed attempt and a concrete input need. A peer may bootstrap a small artifact without waiting for requests. Consumers test outputs but cannot assign peers or acquire authority over them. Judgment: a strong supplement at real boundaries, not a complete startup rule. A request is evidence of need, not an order.
+If an indispensable outcome stalls, it opens a gate. New optional spending pauses until independent evidence checks resolve every triggered endangered outcome or authorized scope revisions remove them. Resolving one cheap gate never clears another unresolved gate. Eliminating an approach advances diagnosis but never earns cosmetic-work credit while the outcome still fails. Eligible work includes directly repairing a failure, a discriminating test, verification, capability diagnosis or a specific intent/dependency challenge. Each support action names the blocked decision, its limit and its evidence test. Discovery has its own cap and does not reset the outcome clock. Peers choose any eligible role; nobody allocates workers.
 
-### F. Random omission audit
+If all decline, capability is absent, or the cheapest credible next step exceeds the remaining budget, stop unresolved. Report the unmet outcome, attempts, evidence and smallest resource, scope or participation change that could reopen it. A spending gate can prevent endless cosmetic diversion; it cannot manufacture expertise or make an impossible movie possible.
 
-A peer samples neglected missing or disputed evidence and claims a check. Chance, rather than popularity or the same ranking model, brings overlooked work into view. This is a different selection mechanism from C, even though both use criterion records.
+A disputed necessity gets a bounded challenge, not an unlimited personal veto. Compare a concrete omitted-result counterexample with the source and current evidence. If the dispute cannot be settled, preserve it and ask the user where interpretation genuinely matters. Safe indispensable work continues. No peer can indefinitely freeze all work through an unsupported label.
 
-It may expose correlated mistakes, including a source passage that every implementer skipped. The objection is poor timing. Random checks of kitten colors while click behavior is absent delay the first useful result; random reviewers can share the same wrong beliefs too.
+## Dependencies, tools and shared agreements
 
-Restrict sampling to missing or disputed evidence, give it a fixed experimental budget, and do not block first output on it. Measure omitted defects found per cost against ranked pull. Judgment: a promising supplement, not a startup ritual or a proof of independence. Reviewers still need different evidence or perspectives.
+A dependency names its reason, affected consumers and evidence. A blocked peer can test a cheap bypass. A cycle opens a disputed edge, not a superior planning task. When everybody is planning, the next support claim must name a decision its result changes; otherwise make the cheapest safe outcome artifact or stop for lack of a credible next action.
 
-### G. Artifact repair trail
+Shared agreements arise at demonstrated boundaries. A movie assembly failure may justify a sample clip and format agreement; an isolated kitten edit does not. Consumers test compatibility but cannot assign peers or use ownership as a permanent veto. A breaking revision names the evidence and consumers that relied on it. Reopen those checks, not every unrelated task.
 
-After criticism of speculative planning and consumer bootstrapping, the explorer proposed discovering work from failed examples. Publish an unfinished artifact, a reproducible defect and its source link. A peer claims repairing the next observable failure and closes it with changed evidence.
+Search the scoped tool catalogue first. A new shared tool needs a named failed attempt or consumer, purpose, input/output example, version and observed result. Test a shared tool on an independent example before propagating its output. Keep superseded entries discoverable but marked inactive. If the tool fails, quarantine its version and reopen dependent evidence. Tool-building is not exempt from the spending rule.
 
-This gives agents concrete work without requiring a correct decomposition in advance. Its strongest objection is omission. Repairing existing scenes never discovers the missing ending, and functional repairs may ignore accessibility or movie rhythm.
+## Review, reopening and closure
 
-Keep gap discovery alongside repair and make the criterion link explicit. Judgment: a strong continuation rule, insufficient for startup or completeness. It differs from A because the failure, not a chosen hypothesis, selects the work. It differs from E because no waiting consumer must request the repair. A single work feed can represent all three without three mandatory forms.
+Reserve validation effort before spending everything on production. Review checks both meaning and the whole result: what bad result still passes, what source passage was ignored, and what integration failure local tests miss. Reviewers inspect evidence independently; different names executing the producer's proxy are insufficient. Scarce review capacity is an unmet capability, not permission for self-approval.
 
-### H. Capability rendezvous
+Any peer may challenge or reopen satisfaction with new counterevidence. A useful challenge identifies intent or risk, affected revision, a bad result and a discriminating check. Previously answered repetitions link to their disposition and do not reset clocks. A safety concern may lack a convenient reproducer; it still needs a specific plausible failure and an investigation. Exhausting that budget without resolving a serious credible defect prevents acceptance. Majority preference cannot make the defect disappear.
 
-Also introduced after criticism, this starts with available abilities or scarce inputs rather than ranked demand. A peer publishes an offer, such as access to a video generator or skill in sound assembly. Another peer matches it to a source-linked unmet outcome and claims a bounded use.
+Closure names one artifact snapshot and current check revisions. Inspect remaining obligations, source coverage, conflicts and whole-result evidence. A relevant concurrent change cancels closure and invalidates affected checks. Crashes or reduced participation do not waive missing evidence. Budget exhaustion is an operational stop, and genuine outside blockers remain unmet. Neither is success.
 
-It can find executable first work that a generic priority list keeps sending to incapable agents. The strongest objection is that availability starts defining the product. A GPU owner can become a de facto boss, or peers can build whatever their favorite tool makes easy.
+Correlated misunderstanding remains possible even after independent challenge. Contrary examples, source checks and external evaluation reduce it; no protocol proves arbitrary human intent or truth. The consequence is a falsifiable recommendation with honest stop states, not a guarantee of perfect outcomes.
 
-An offer confers no authority and cannot waive a requirement. Necessary unmet work stays visible; peers can test substitutes or record an external constraint. Judgment: optional routing where capabilities differ, never an allocator with product authority. It adds catalogue maintenance and matching cost, so a homogeneous small swarm need not use it.
+## What remains from the eight initial options
 
-## Three walkthroughs and a recovery
+The initial alternatives remain useful background, but they are not eight required rituals.
 
-### The kitten website
+| Approach | Mechanism and reason | Strongest objection, revision and judgment |
+| --- | --- | --- |
+| Evidence-first probe | Claim a reversible artifact to expose actual unknowns. | Duplicate local success misses shared boundaries. Search scope, inspect consumers and retain the outcome after the probe. Keep as an action choice. |
+| Decision-changing uncertainty test | Claim a cheap test before an expensive decision spreads. | Endless research substitutes for production. Name either-result actions, budget and stopping condition. Keep only when it changes a decision. |
+| Criterion-gap pull | Select missing outcome evidence rather than attractive artifacts. | Criteria can be incomplete and hard work still avoided. Add intent challenge, persistent obligations and spending checkpoints. Keep as default discovery, never as acceptance arithmetic. |
+| Dependency-frontier pull | Select a ready action or disputed edge test. | Imagined prerequisites freeze everyone. Require evidence and bypass trials. Keep locally, reject a mandatory global plan. |
+| Consumer-request pull | A failed consumer example reveals a concrete missing input. | Circular waiting and consumer gatekeeping. Allow bootstrap artifacts and challenge necessity. Use only at demonstrated boundaries. |
+| Random omission audit | Sample neglected sources or evidence outside popular work. | Irrelevant audits cost time and share biases. Cap the sample and measure independent defects found. Optional experiment, no startup gate. |
+| Artifact repair trail | Reproducible failures reveal the next action. | Absent scenes and nonfunctional requirements never appear as repairs. Keep gap and source discovery alongside it. Useful evidence format, insufficient completeness rule. |
+| Capability rendezvous | Match available abilities to unmet outcomes. | Resource owners dictate the product. Offers confer no authority; preserve unmet needs and test substitutes. Optional routing, not an allocator. |
 
-The feed presents the original request: show a kitten and make it meow when clicked. One peer finds no existing artifact, claims that small result and builds a reversible page. Another can check the click and the actual sound. There is no invented database, interface committee or mandatory tool setup. If the project already supplies an asset or command, reuse it.
+Effort escrow was also considered in round two. A peer could owe a hard attempt before another easy action. We rejected personal effort credit because performative attempts buy permission without fixing outcomes. The retained rule protects run resources, inspects outcome evidence and permits truthful inability.
 
-A second claimant sees the scope claim rather than building a duplicate page. With no other useful independent work, excess peers need not manufacture tasks to stay busy. A failed sound playback becomes a repair example. The check reads the user's words, not merely a task marked done.
+## Scale and minimum support
 
-### A generated short movie
+Deterministic state should preserve immutable sources, typed intent/check records, flat obligation/action links, atomic scoped claims, handoffs, evidence revisions, challenged dispositions and spending/closure checks. Enforce declared caps and reject stale writes. The platform cannot determine semantic necessity or whether an experiment genuinely changed a decision.
 
-A peer pulls a missing movie outcome and makes a cheap continuity sample, not a hundred final shots. A second peer trying to assemble it discovers a concrete need for compatible duration, aspect ratio and character appearance. Those consumers make a narrow agreement using sample frames and a playable clip. Other unrelated work can continue.
+Peers supply those judgments and evidence, including challenges to proposed necessity. Ranking, aging and reminders are heuristics, not liveness guarantees. The actual incentives must reward accepted outcome evidence and accurate unsuccessful stops rather than action counts. Malicious collusion and uniformly incompetent peers defeat these semantic safeguards; a deployment needing protection against them requires trusted external review or different participation constraints.
 
-Peers search the tool catalogue before proposing a generator helper. Publish a new tool only with a demonstrated use, usage limits and an example result; mark obsolete versions rather than making a rival catalogue for every experiment. Shot repairs follow visible failures, while a separate coherence check watches the complete sequence, audio and story. A pile of passing shot checks does not satisfy the movie outcome.
+A normal packet includes relevant source passages, claims, assumptions and direct consumers. Scoped subscriptions avoid all-agent wall replay. Sample unexamined passages and cross-scope failures to test routing. A broad criterion still needs broad coherence evidence; pagination does not eliminate total reading. If context or review cost exceeds budget, reduce scope with authorization or stop unresolved. Do not silently pretend local packets establish a whole-product property.
 
-### A large cross-component application
+A practical peer prompt:
 
-Peers fetch source passages and existing conventions for their claimed scope. One can implement an isolated behavior while two actual API consumers test a disputed exchange format. They record a versioned example or agreement only where incompatible choices would waste work. Nobody waits for a universal architecture pass.
+> Read relevant intent and restrictions. Find an unmet obligation and existing claims. Challenge missing or self-serving checks. Claim a bounded action with evidence, budget and stop condition. Keep the outcome open after the action. At checkpoints prefer its unresolved failure over optional polish. If unable, publish evidence and handoff or relinquish. Never call an unresolved outcome done. Ask a bounded question only when intent cannot safely be inferred.
 
-A coverage gap can attract another peer to a missed requirement. Cross-component behavior needs inspectable integrated evidence beyond local checks. A check may span several flat tasks without becoming their parent or giving its claimant power to assign them. Artifact safety must suit the medium. Repository isolation may suit code; generated audio needs different storage and revision handling.
+## Evaluation and readiness
 
-### Recovery from a wrong prerequisite
+Before any paid trial, use scripted, no-model-cost scenario replays with hidden adversarial events. Use five scenarios, two protocol conditions and two independently ordered replays, twenty records in total. Give each a forty-unit action-cost budget, checkpoints every five units, a ten-unit necessity reserve and a five-unit intent-discovery cap. Assign action costs and credible evidence transitions in the fixture before replay. These are experimental settings, not platform constants. Compare the old gap-plus-probe protocol with this one under identical resource limits. Include kitten cosmetics while audio fails, abundant easy movie shots while continuity fails, attractive application changes while a cross-component transaction fails, and a vague research request with no ready-made criteria. The supporting walkthroughs specify state transitions and recovery, including the first-round report's own false readiness.
 
-Suppose peers assume the movie needs a final script before any continuity work. The blocked claim records that reason. Another peer disputes it with a two-shot trial. The trial shows continuity can be tested independently, so peers revise that edge and resume useful work. If it instead reveals a costly limitation, they change the generation decision before mass production.
+Predeclare these pass/fail conditions. Every injected indispensable gap must remain open after easy actions finish. At the first declared missed checkpoint, optional claims must stop until every triggered endangered outcome passes independent checks, authorized scope changes remove all remaining gates, or the run stops unresolved. Any optional cost unit spent after that stop without one of those transitions fails the replay. Handoff and repeated failed probes must not reset that checkpoint. An all-decline or missing-capability case must stop without an acceptance claim. Any false completion fails the trial. To reject an always-stop policy, the evaluator certifies feasibility and assigns refusal, unavailable-capability or impossible injections before replay. Each certified feasible fixture must complete its hard outcome within forty units. Only the evaluator's preclassified inability controls may pass through truthful unsuccessful stops. Peers cannot reclassify a failed feasible case to make its stop pass.
 
-Similarly, a changed API assumption names its affected consumers and artifact revisions. Their old checks become stale and peers recheck them. Unrelated work does not restart. If a dependency cycle persists, claim an edge test or record the unresolved choice for the user. Do not silently rename an internal disagreement "externally blocked."
+For acceptance design, inject an omitted passage, an attachment absent from the index, a proxy that passes a bad result, a poisoned source and a relevant artifact change after review. Each must cause an explicit challenge and affected recheck before success. A vague request must produce intent-supported checks, alternative explanations and preserved uncertainty without unauthorized scope additions. Independent evaluators should invent additional bad results after reading the checks; an accepted such result fails the trial.
 
-## Small rules, scoped context
+Record cost to first valid outcome, time spent stalled, optional spend after failure, false acceptance, missed intent, duplicated effort and reviewer cost. At larger registered populations, measure missed relevant notifications and total context per obligation, not merely page size. Use separate evaluators and hidden cases rather than peer votes as the score. Select budgets and tolerances before execution; do not adjust them to rescue a failing result.
 
-The smallest useful platform needs source references, searchable flat work records, atomic scoped claims with release or handoff, artifact and evidence revisions, and durable discussions. Records need outcomes, claims, evidence, uncertainty or blockers, and links to relevant consumers. Claims can expire for recovery, but expiry never means completion. Conflict detection must stop a returning stale claimant from overwriting a replacement's result.
-
-Provide a bounded feed, scoped subscriptions, and search for work, agreements and reusable tools. A normal packet contains relevant source passages, active claims, evidence and direct consumers, not the global wall. At hundreds-agent scale, peers request more context when needed. Small rotating omission samples test whether routing hides relevant work. A broad whole-product property can still require a larger coherence review; we do not promise constant-size context for arbitrary requirements.
-
-Deciding what to attempt, whether uncertainty deserves a test, how to express a narrow agreement, and which tools to build stays with peers. Agreement records can be ordinary versioned examples or documents. No domain-specific contract template is mandatory. Resource limits constrain expenditure without choosing the product. Search and claims are universal coordination rules; script approval, database design, shot production and integration stages are not.
-
-No planner owns later work. No parent task approves its children. Prerequisites express facts to challenge, not rank. Agreement participants have affected work to protect, not permanent veto power. Unresolved objections need evidence and a next action, with user escalation when peers cannot decide within budget.
-
-## First experiment
-
-Test C plus A first. Add E only for demonstrated input needs. Do not install all eight mechanisms as checklists. Use this short agent prompt:
-
-> Read the purpose, restrictions and source index. Find one unmet outcome or missing check in your scope. Search existing claims and tools. Claim a small useful result or a cheap test that changes a named decision. Fetch the relevant source and consumers. Publish evidence and remaining gaps. If blocked, challenge an uncertain prerequisite or take other useful work. Do not invent preparation merely to stay busy.
-
-Run bounded comparisons on the kitten, movie and cross-component scenarios. Keep task, model, concurrency and spending limits comparable across plain gap pull and gap pull with probes. Repeat runs to expose variation; these written walkthroughs are not live validation. Use independent acceptance checks unknown to producing peers.
-
-Measure time and cost to first accepted artifact, final omitted requirements, false completion, duplicate effort, coordination tokens, blocked time and rework after a changed assumption. Track neglected-criterion age and unexamined-source-passage age too; missing tasks cannot appear in a task-only metric. Then test small swarms and 100 registered peers under explicit concurrency limits. Measure median and worst ordinary packet size, unrelated notifications and relevant changes missed by scoped delivery. Inject a missed passage, crashed claimant, wrong dependency and stale artifact check.
-
-Reject or revise the recommendation if probes consume budget without changing decisions, omission rates rise as scope narrows, stale checks survive relevant changes, or coordination grows mainly with total peers rather than affected work. Select an acceptable cost and omission budget before each comparison, not after seeing results.
-
-We agree to test the small hybrid, but uncertainty remains. Kelly worries that linked local evidence will miss coherence failures, and cheap visible artifacts will crowd out security checks or absent scenes. Adalynn warns that eight discovery options can become eight rituals. Aaron favors gap pull but accepts that source links cannot cure correlated interpretation errors. Random audits may help, yet their cost and independence are unproven. The next decision should follow measured failures, not a larger coordination manifesto.
+Scripted replays test state transitions, not whether real peers voluntarily choose hard work or judge evidence well. A later evaluator-controlled free-choice trial must use the same predeclared criteria before efficacy can be claimed. Document completeness, a challenged logical argument and measured efficacy are different achievements. These documents can establish the first and propose the second. They cannot establish the third. A known serious counterexample requires revision and re-review, not another disclaimer. If no bounded credible response fits the constraints, the proper conclusion is blocked with the required constraint change, not a sound finished solution.
