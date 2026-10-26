@@ -31,11 +31,14 @@ function parseArgsPrefix(raw: string | undefined): string[] {
   return parsed;
 }
 
-/** Re-runs the node binary and pi entrypoint of this process, so no shell or PATH lookup is needed. */
+/** Reuses this Pi executable or runtime and entrypoint without a shell or PATH lookup. */
 export function getPiCommand(env: NodeJS.ProcessEnv = process.env): { command: string; argsPrefix: string[] } {
   const override = env[PI_COMMAND_ENV];
   if (override) return { command: override, argsPrefix: parseArgsPrefix(env[PI_ARGS_PREFIX_ENV]) };
   const entrypoint = process.argv[1];
+  if (process.versions.bun && entrypoint?.startsWith("/$bunfs/")) {
+    return { command: process.execPath, argsPrefix: [] };
+  }
   if (entrypoint && !entrypoint.startsWith("-")) {
     const resolved = path.resolve(entrypoint);
     if (fs.statSync(resolved, { throwIfNoEntry: false })?.isFile()) {

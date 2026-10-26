@@ -2,11 +2,11 @@
 
 A pi extension that runs a leaderless group of agents on one task, in one shared working tree. Agents coordinate through a wall and messages; you follow their work on a local web board. The main agent reviews the actual changes when they finish.
 
-Tested against Pi 1.4.0 (Node.js CLI; Bun is unsupported)
+Tested against Pi 1.4.0 with the Bun 1.3.14 compiled binary and the Node.js CLI.
 
 ## Requirements and installation
 
-- **Node.js ≥22.19**, as required by Pi, with built-in SQLite. Bun is not supported.
+- Pi's compiled Bun binary, or the Node.js CLI with **Node.js ≥22.19**. SQLite is built into both runtimes.
 - **Pi ≥1.4.0**, with a configured model and credentials. Only the latest npm Pi release is tested.
 - **Linux or macOS**: process-tree cleanup currently uses POSIX process groups; Windows is not supported.
 

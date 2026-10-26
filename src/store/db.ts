@@ -1,12 +1,56 @@
-// The one SQLite handle per process. node:sqlite is synchronous, so a transaction can never span an await.
+// Both runtimes use synchronous SQLite; a transaction can never span an await.
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync, SQLInputValue, SQLOutputValue, StatementSync } from "node:sqlite";
 import { BUSY_TIMEOUT_MS, DB_FILE, SESSION_FILE, SESSIONS_DIR, SWARM_DIR } from "../constants.js";
+
+type Statement = {
+  all(...params: SQLInputValue[]): ReturnType<StatementSync["all"]>;
+  get(...params: SQLInputValue[]): ReturnType<StatementSync["get"]>;
+  run(...params: SQLInputValue[]): ReturnType<StatementSync["run"]>;
+};
+type SqlDatabase = Pick<DatabaseSync, "exec" | "close" | "isTransaction"> & {
+  prepare(query: string): Statement;
+  function(name: string, fn: (...args: SQLOutputValue[]) => SQLInputValue): void;
+};
+type BunDatabase = Pick<SqlDatabase, "exec" | "close" | "function"> & {
+  readonly inTransaction: boolean;
+  prepare(query: string): Pick<Statement, "all" | "run"> & {
+    get(...params: SQLInputValue[]): Record<string, SQLOutputValue> | null;
+  };
+};
+
+function openSqlite(file: string): SqlDatabase {
+  const require = createRequire(import.meta.url);
+  if (!process.versions.bun) {
+    const { DatabaseSync }: typeof import("node:sqlite") = require("node:sqlite");
+    return new DatabaseSync(file);
+  }
+  const { Database }: { Database: new (file: string) => BunDatabase } = require("bun:sqlite");
+  const db = new Database(file);
+  return {
+    exec: (query) => db.exec(query),
+    close: () => db.close(),
+    function: (name, fn) => db.function(name, fn),
+    get isTransaction() {
+      return db.inTransaction;
+    },
+    prepare(query) {
+      const statement = db.prepare(query);
+      return {
+        all: (...params) => statement.all(...params),
+        run: (...params) => statement.run(...params),
+        // Store queries distinguish missing rows from SQL NULL column values.
+        get: (...params: SQLInputValue[]) => statement.get(...params) ?? undefined,
+      };
+    },
+  };
+}
 
 /** SQL access scoped to a synchronous state-plus-outbox mutation. */
 export interface WriteTransaction {
-  readonly sql: DatabaseSync;
+  readonly sql: SqlDatabase;
 }
 
 export interface SwarmDb {
@@ -14,7 +58,7 @@ export interface SwarmDb {
   readonly path: string;
   /** `dirname(path)` = `<project>/.pi/swarm`. */
   readonly dataDir: string;
-  readonly sql: DatabaseSync;
+  readonly sql: SqlDatabase;
   /** BEGIN IMMEDIATE … COMMIT, ROLLBACK on throw. Reentrant: nested calls join the outer transaction. */
   write<T>(fn: (transaction: WriteTransaction) => T): T;
   close(): void;
@@ -64,7 +108,7 @@ export function openSwarmDb(dbPath: string, options: { create: boolean }): Swarm
   if (options.create) mkdirSync(path.dirname(absolute), { recursive: true });
   else if (!existsSync(absolute)) throw new Error(`Swarm database not found: ${absolute}`);
 
-  const sql = new DatabaseSync(absolute);
+  const sql = openSqlite(absolute);
   // busy_timeout first: switching to WAL needs a lock another process may hold.
   sql.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`);
   sql.exec("PRAGMA journal_mode = WAL");

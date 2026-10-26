@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { it } from "node:test";
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
@@ -22,6 +21,7 @@ async function runPi(cwd: string, prompt: string, session: string): Promise<Json
     const child = spawn(
       pi,
       [
+        "-p",
         "--mode",
         "json",
         "--model",
@@ -34,7 +34,7 @@ async function runPi(cwd: string, prompt: string, session: string): Promise<Json
         "--no-prompt-templates",
         "--approve",
         "-e",
-        path.resolve("index.ts"),
+        path.resolve("."),
         "--swarm",
         "--",
         prompt,
@@ -68,7 +68,8 @@ it(
   "installed Pi delegates real work, preserves peer evidence and resumes the same worker session",
   { timeout: 510_000 },
   async () => {
-    const cwd = mkdtempSync(path.join(tmpdir(), "pi-free-swarm-evergreen-"));
+    mkdirSync(path.resolve("tmp"), { recursive: true });
+    const cwd = mkdtempSync(path.resolve("tmp/pi-free-swarm-evergreen-"));
     mkdirSync(path.join(cwd, ".pi/swarm"), { recursive: true });
     writeFileSync(
       path.join(cwd, ".pi/swarm/settings.json"),

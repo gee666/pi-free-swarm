@@ -20,8 +20,12 @@ for (const graceful of [false, true]) {
     { timeout: 25_000 },
     async () => {
       const run = createRunFixture({ spawns: [SCENARIOS.longTool(1800), SCENARIOS.settle] }, { staggerSeconds: 20 });
+      const startedAt = Date.now();
+      let pendingStartup = true;
       const env = {
         ...run.env,
+        // Process startup must not exhaust the budget before the test can publish its evidence.
+        clock: { ...run.env.clock, now: () => (pendingStartup ? startedAt : Date.now()) },
         settings: { ...run.env.settings, budgetTimeSeconds: 1, gracefulShutdownOnBudget: graceful },
       };
       const cancel = new AbortController();
@@ -65,6 +69,7 @@ for (const graceful of [false, true]) {
           .get(comment.id);
         assert.ok(row && typeof row.message_id === "number");
         const notificationId = row.message_id;
+        pendingStartup = false;
         const stopped = await first;
         assert.equal(stopped.stopReason, "budget-exhausted");
         assert.equal(recipientStatus(run.db, notificationId, names[1]), "pending");
