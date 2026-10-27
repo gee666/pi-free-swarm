@@ -23,7 +23,14 @@ describe("events outbox", () => {
   const swarm = seedSwarm(db);
 
   it("writes one row per change, with typed payloads", () => {
-    assert.deepEqual(eventTypes(db), ["swarm.updated"]);
+    assert.deepEqual(eventTypes(db), [
+      "criterion.changed",
+      "task.changed",
+      "task.changed",
+      "criterion.changed",
+      "project.changed",
+      "swarm.updated",
+    ]);
     assert.deepEqual(
       emitted(() => createPost(db, swarm.id, "Maria", { title: "t", text: "x" }, T0)),
       ["participant.updated", "post.created"],

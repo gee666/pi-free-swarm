@@ -15,6 +15,7 @@ import { requireAcceptanceCriteria } from "./validate.js";
 import { cleanupRun, type RunEndStatus } from "./run-cleanup.js";
 import { interruptedActiveUntil } from "./interrupted-time.js";
 import { reopenAcceptance } from "./run-acceptance.js";
+import { seedWorkGraph } from "./project.js";
 
 export type { RunEndStatus } from "./run-cleanup.js";
 
@@ -81,6 +82,7 @@ export function createSwarm(
       agent.run(swarmId, agentName, sessionFile, order);
     });
     ensureWatcher(db, swarmId);
+    seedWorkGraph(db, swarmId, input.taskPrompt, acceptanceCriteria, now);
     emitSwarmUpdated(db, swarmId, now);
     return swarmOrThrow(db, swarmId, now);
   });
@@ -124,7 +126,7 @@ export function beginResume(
     db.sql
       .prepare(
         `UPDATE swarms SET run_count = ?, status = 'starting',
-           started_at = ?, finished_at = NULL
+           started_at = ?, finished_at = NULL, outcome = NULL
          WHERE id = ?`,
       )
       .run(run, now, swarmId);

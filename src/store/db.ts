@@ -61,6 +61,7 @@ export interface SwarmDb {
   readonly sql: SqlDatabase;
   /** BEGIN IMMEDIATE … COMMIT, ROLLBACK on throw. Reentrant: nested calls join the outer transaction. */
   write<T>(fn: (transaction: WriteTransaction) => T): T;
+  afterCommit(callback: () => void): void;
   close(): void;
 }
 
@@ -118,6 +119,7 @@ export function openSwarmDb(dbPath: string, options: { create: boolean }): Swarm
   sql.exec("PRAGMA synchronous = NORMAL");
 
   let depth = 0;
+  let afterCommit: (() => void)[] = [];
   const db: SwarmDb = {
     path: absolute,
     dataDir: path.dirname(absolute),
@@ -126,16 +128,25 @@ export function openSwarmDb(dbPath: string, options: { create: boolean }): Swarm
       if (depth > 0) return assertSync(fn({ sql }));
       sql.exec("BEGIN IMMEDIATE");
       depth++;
+      let result: T;
       try {
-        const result = assertSync(fn({ sql }));
+        result = assertSync(fn({ sql }));
         sql.exec("COMMIT");
-        return result;
       } catch (error) {
         sql.exec("ROLLBACK");
+        afterCommit = [];
         throw error;
       } finally {
         depth--;
       }
+      const committed = afterCommit;
+      afterCommit = [];
+      for (const callback of committed) callback();
+      return result;
+    },
+    afterCommit(callback) {
+      if (depth === 0) callback();
+      else afterCommit.push(callback);
     },
     close: () => sql.close(),
   };

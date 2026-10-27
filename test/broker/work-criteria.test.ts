@@ -1,0 +1,257 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { archiveCriterion, editCriterion, restoreCriterion } from "../../src/broker/criteria.js";
+import { assessCriterion } from "../../src/broker/criterion-status.js";
+import { voteCriterion } from "../../src/broker/votes.js";
+import { decideCriterionBlocker, recordCriterionBlocker } from "../../src/broker/blockers.js";
+import { editTask } from "../../src/broker/tasks.js";
+import { handoffTask } from "../../src/broker/task-ownership.js";
+import { reopenTask } from "../../src/broker/task-transitions.js";
+import {
+  criterionVoteContext,
+  getTaskDetail,
+  searchCriterionCandidates,
+  searchTaskCandidates,
+} from "../../src/broker/work-queries.js";
+import { listCriteria } from "../../src/store/criteria.js";
+import { workFixture } from "../helpers/work-graph.js";
+
+function blockedFixture(t: Parameters<typeof workFixture>[0]) {
+  const f = workFixture(t);
+  const task = f.task(f.criterion.id, [], true);
+  const block = () =>
+    recordCriterionBlocker(f.db, {
+      ...f.input(),
+      criterionId: f.criterion.id,
+      reason: "Need credentials",
+      missing: "Production token",
+      attempted: "Requested access",
+      unblock: "User provides token",
+    });
+  const vote = (actor: string) =>
+    voteCriterion(f.db, {
+      ...f.input(actor),
+      criterionId: f.criterion.id,
+      verdict: "blocked",
+      reason: "Confirmed missing credentials",
+    });
+  return { ...f, taskRecord: task, block, vote };
+}
+
+test("criterion fields, archival history, User-only restore and scope revisions", (t) => {
+  const f = workFixture(t);
+  assert.equal(assessCriterion(f.db, f.swarmId, f.criterion.id).status, "unlinked");
+  const before = f.db.sql.prepare("SELECT scope_revision FROM swarms WHERE id = ?").get(f.swarmId)?.scope_revision;
+  const edited = editCriterion(f.db, {
+    ...f.input(),
+    id: f.criterion.id,
+    expectedRevision: 1,
+    fields: { group: "QA", source: "req.md", verification: "Run QA" },
+  });
+  assert.equal(edited.revision, 2);
+  assert.equal(edited.group, "QA");
+  assert.equal(
+    f.db.sql.prepare("SELECT scope_revision FROM swarms WHERE id = ?").get(f.swarmId)?.scope_revision,
+    Number(before) + 1,
+  );
+  assert.throws(
+    () => editCriterion(f.db, { ...f.input(), id: f.criterion.id, expectedRevision: 1, fields: { title: "Lost" } }),
+    /Reread/,
+  );
+  archiveCriterion(f.db, { ...f.input(), id: f.criterion.id, expectedRevision: 2 });
+  assert.equal(
+    listCriteria(f.db, f.swarmId).some((criterion) => criterion.id === f.criterion.id),
+    false,
+  );
+  assert.equal(
+    listCriteria(f.db, f.swarmId, true).some((criterion) => criterion.id === f.criterion.id),
+    true,
+  );
+  assert.throws(() => restoreCriterion(f.db, { ...f.input(), id: f.criterion.id }), /Only User/);
+  const restored = restoreCriterion(f.db, { ...f.input("User"), id: f.criterion.id });
+  assert.equal(restored.revision, 4);
+  assert.equal(restored.archivedAt, null);
+});
+
+test("satisfaction needs every owner and independent current votes, with any current negative vote vetoing", (t) => {
+  const f = workFixture(t);
+  const first = f.task();
+  const second = f.task();
+  assert.throws(
+    () => voteCriterion(f.db, { ...f.input(), criterionId: f.criterion.id, verdict: "satisfied", reason: "Done" }),
+    /all linked tasks accepted/,
+  );
+  f.accept(first.id);
+  f.accept(second.id, "Ben", "Ann");
+  const vote = (actor: string, verdict: "satisfied" | "incomplete" = "satisfied") =>
+    voteCriterion(f.db, { ...f.input(actor), criterionId: f.criterion.id, verdict, reason: "Checked" });
+  vote("Ann");
+  assert.deepEqual(assessCriterion(f.db, f.swarmId, f.criterion.id).missingSatisfied, ["Ben", "independent"]);
+  vote("Ben");
+  assert.equal(assessCriterion(f.db, f.swarmId, f.criterion.id).status, "incomplete");
+  vote("User");
+  assert.equal(assessCriterion(f.db, f.swarmId, f.criterion.id).status, "satisfied");
+  vote("Cam", "incomplete");
+  const incomplete = assessCriterion(f.db, f.swarmId, f.criterion.id);
+  assert.equal(incomplete.status, "incomplete");
+  assert.ok(incomplete.reasons.some((reason) => reason.includes("Cam: incomplete")));
+  vote("Cam");
+  assert.equal(assessCriterion(f.db, f.swarmId, f.criterion.id).status, "satisfied");
+});
+
+test("criterion edits, task edits, link changes and reopen keep visible stale votes", (t) => {
+  const f = workFixture(t);
+  const task = f.task();
+  const accepted = f.accept(task.id);
+  const vote = () => {
+    for (const actor of ["Ann", "Ben"])
+      voteCriterion(f.db, { ...f.input(actor), criterionId: f.criterion.id, verdict: "satisfied", reason: "Checked" });
+  };
+  vote();
+  const editedCriterion = editCriterion(f.db, {
+    ...f.input(),
+    id: f.criterion.id,
+    expectedRevision: f.criterion.revision,
+    fields: { title: "Better requirement" },
+  });
+  assert.ok(assessCriterion(f.db, f.swarmId, f.criterion.id).votes.every((vote) => vote.stale));
+  vote();
+  const editedTask = editTask(f.db, {
+    ...f.input(),
+    id: task.id,
+    expectedRevision: accepted.revision,
+    fields: { body: "Clarified work" },
+  });
+  assert.ok(assessCriterion(f.db, f.swarmId, f.criterion.id).votes.every((vote) => vote.stale));
+  vote();
+  const planning = listCriteria(f.db, f.swarmId).find((criterion) => criterion.group === "Planning");
+  assert.ok(planning);
+  editTask(f.db, {
+    ...f.input(),
+    id: task.id,
+    expectedRevision: editedTask.revision,
+    fields: { criteria: [{ criterionId: planning.id, contribution: "Coverage" }] },
+  });
+  const unlinked = assessCriterion(f.db, f.swarmId, f.criterion.id);
+  assert.equal(unlinked.status, "unlinked");
+  assert.ok(unlinked.votes.every((vote) => vote.stale));
+  assert.equal(unlinked.revision, editedCriterion.revision);
+  reopenTask(f.db, { ...f.input(), id: task.id, reason: "Fix it" });
+  assert.equal(assessCriterion(f.db, f.swarmId, planning.id).status, "incomplete");
+});
+
+test("offline linked owners block agreement until an active agent takes the task", (t) => {
+  const f = workFixture(t);
+  const task = f.task();
+  f.accept(task.id);
+  for (const actor of ["Ann", "Ben"])
+    voteCriterion(f.db, { ...f.input(actor), criterionId: f.criterion.id, verdict: "satisfied", reason: "Verified" });
+  f.db.sql.prepare("UPDATE participants SET status = 'stopped' WHERE swarm_id = ? AND name = 'Ann'").run(f.swarmId);
+  const offline = assessCriterion(f.db, f.swarmId, f.criterion.id);
+  assert.equal(offline.status, "incomplete");
+  assert.ok(offline.reasons.includes(`owner offline — hand off task #${task.id}`));
+  handoffTask(f.db, { ...f.input("Cam"), id: task.id, to: "Cam" });
+  for (const actor of ["Cam", "Ben"])
+    voteCriterion(f.db, { ...f.input(actor), criterionId: f.criterion.id, verdict: "satisfied", reason: "Rechecked" });
+  assert.equal(assessCriterion(f.db, f.swarmId, f.criterion.id).status, "satisfied");
+});
+
+test("blockers need agreement, only User decides, edit invalidates votes and exception", (t) => {
+  const f = blockedFixture(t);
+  assert.throws(() => f.vote("Ann"), /blocker record/);
+  const blocker = f.block();
+  assert.throws(
+    () => decideCriterionBlocker(f.db, { ...f.input("User"), criterionId: f.criterion.id, decision: "approve" }),
+    /must agree/,
+  );
+  f.vote("Ann");
+  f.vote("Ben");
+  assert.equal(assessCriterion(f.db, f.swarmId, f.criterion.id).status, "blocked");
+  assert.throws(
+    () => decideCriterionBlocker(f.db, { ...f.input(), criterionId: f.criterion.id, decision: "approve" }),
+    /Only User/,
+  );
+  decideCriterionBlocker(f.db, { ...f.input("User"), criterionId: f.criterion.id, decision: "reject" });
+  assert.equal(assessCriterion(f.db, f.swarmId, f.criterion.id).exception, "rejected");
+  assert.equal(getTaskDetail(f.db, f.swarmId, f.taskRecord.id).deferred, false);
+  decideCriterionBlocker(f.db, {
+    ...f.input("User"),
+    criterionId: f.criterion.id,
+    decision: "approve",
+    expectedRevision: blocker.revision,
+  });
+  assert.equal(getTaskDetail(f.db, f.swarmId, f.taskRecord.id).deferred, true);
+  assert.ok(
+    searchTaskCandidates(f.db, f.swarmId, "Ann", { deferred: true }).some((task) => task.id === f.taskRecord.id),
+  );
+  const edited = f.block();
+  assert.equal(edited.revision, blocker.revision + 1);
+  const state = assessCriterion(f.db, f.swarmId, f.criterion.id);
+  assert.equal(state.status, "incomplete");
+  assert.equal(state.exception, "pending");
+  assert.ok(state.votes.every((vote) => vote.stale));
+  assert.equal(getTaskDetail(f.db, f.swarmId, f.taskRecord.id).deferred, false);
+});
+
+test("task is deferred only if every linked criterion has an approved blocked exception", (t) => {
+  const f = blockedFixture(t);
+  f.block();
+  f.vote("Ann");
+  f.vote("Ben");
+  decideCriterionBlocker(f.db, { ...f.input("User"), criterionId: f.criterion.id, decision: "approve" });
+  const planning = listCriteria(f.db, f.swarmId).find((criterion) => criterion.group === "Planning");
+  assert.ok(planning);
+  editTask(f.db, {
+    ...f.input(),
+    id: f.taskRecord.id,
+    expectedRevision: f.taskRecord.revision,
+    fields: {
+      criteria: [
+        { criterionId: f.criterion.id, contribution: "Implementation" },
+        { criterionId: planning.id, contribution: "Planning" },
+      ],
+    },
+  });
+  assert.equal(getTaskDetail(f.db, f.swarmId, f.taskRecord.id).deferred, false);
+});
+
+test("SQL filters and vote context include ownership, author, group, archive and missing votes", (t) => {
+  const f = workFixture(t);
+  const task = f.task(f.criterion.id, [], true);
+  const filters = {
+    mine: true,
+    author: "Ann",
+    criterionId: f.criterion.id,
+    group: "Delivery",
+    status: ["claimed"],
+  } satisfies Parameters<typeof searchTaskCandidates>[3];
+  assert.deepEqual(
+    searchTaskCandidates(f.db, f.swarmId, "Ann", filters).map((task) => task.id),
+    [task.id],
+  );
+  assert.deepEqual(searchTaskCandidates(f.db, f.swarmId, "Ben", filters), []);
+  const criterionFilters = {
+    group: "Delivery",
+    author: "Ann",
+    taskId: task.id,
+    status: ["incomplete"],
+    needsMyVote: true,
+  } satisfies Parameters<typeof searchCriterionCandidates>[3];
+  assert.deepEqual(
+    searchCriterionCandidates(f.db, f.swarmId, "Ann", criterionFilters).map((criterion) => criterion.id),
+    [f.criterion.id],
+  );
+  const firstPage = criterionVoteContext(f.db, f.swarmId, "Ann", 0, 1);
+  assert.ok(firstPage.nextAfter);
+  const context = criterionVoteContext(f.db, f.swarmId, "Ann", firstPage.nextAfter, 1);
+  assert.equal(context.nextAfter, null);
+  assert.equal(context.tasks[0]?.id, task.id);
+  assert.equal(context.criteria[0]?.tasks[0]?.owner, "Ann");
+  assert.ok(context.criteria[0]?.missingSatisfied.includes("Ann"));
+  archiveCriterion(f.db, { ...f.input(), id: f.criterion.id });
+  assert.deepEqual(searchCriterionCandidates(f.db, f.swarmId, "Ann", criterionFilters), []);
+  assert.equal(
+    searchCriterionCandidates(f.db, f.swarmId, "Ann", { ...criterionFilters, includeArchived: true }).length,
+    1,
+  );
+});

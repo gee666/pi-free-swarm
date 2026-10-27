@@ -1,5 +1,6 @@
 import type { CriterionLink, TaskEvent, TaskEventKind, TaskRecord } from "../api-work-types.js";
 import type { SwarmDb } from "./db.js";
+import { PAGE_MAX_COUNT } from "../constants.js";
 import { count, int, text } from "./rows.js";
 import { taskEventOf, taskOf } from "./work-rows.js";
 
@@ -107,7 +108,7 @@ export function addTaskEvent(
     )
     .run(task.swarmId, task.id, actor, kind, body, evidence, now);
 }
-export function taskTimeline(db: SwarmDb, taskId: number, after = 0, limit = 100): TaskEvent[] {
+export function taskTimeline(db: SwarmDb, taskId: number, after = 0, limit = PAGE_MAX_COUNT): TaskEvent[] {
   return db.sql
     .prepare("SELECT * FROM task_events WHERE task_id = ? AND id > ? ORDER BY id LIMIT ?")
     .all(taskId, after, limit)

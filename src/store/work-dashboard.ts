@@ -22,11 +22,11 @@ export function workVelocity(db: SwarmDb, swarmId: number, now: number, remainin
   const row = db.sql
     .prepare(
       `SELECT started_at,
-    (SELECT count(*) FROM tasks WHERE swarm_id = ? AND status = 'accepted' AND accepted_at >= ?) AS short_count,
-    (SELECT count(*) FROM tasks WHERE swarm_id = ? AND status = 'accepted' AND accepted_at >= ?) AS long_count
+    (SELECT count(*) FROM tasks WHERE swarm_id = ? AND status = 'accepted' AND accepted_at BETWEEN ? AND ?) AS short_count,
+    (SELECT count(*) FROM tasks WHERE swarm_id = ? AND status = 'accepted' AND accepted_at BETWEEN ? AND ?) AS long_count
     FROM swarms WHERE id = ?`,
     )
-    .get(swarmId, now - WORK_VELOCITY_SHORT_MS, swarmId, now - WORK_VELOCITY_LONG_MS, swarmId);
+    .get(swarmId, now - WORK_VELOCITY_SHORT_MS, now, swarmId, now - WORK_VELOCITY_LONG_MS, now, swarmId);
   const shortCount = row ? int(row, "short_count") : 0;
   const longCount = row ? int(row, "long_count") : 0;
   const startedAt = row ? intOrNull(row, "started_at") : null;
