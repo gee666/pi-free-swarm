@@ -1,11 +1,9 @@
 import type {
-  BlockerException,
   CriterionBlocker,
   CriterionLink,
   CriterionRecord,
   CriterionStatus,
   CriterionVote,
-  ProjectRecord,
   TaskEvent,
   TaskRecord,
   TaskStatus,
@@ -55,10 +53,8 @@ export interface VoteProgress {
 }
 export interface CriterionListItem extends CriterionRecord {
   status: CriterionStatus;
-  exception: BlockerException;
   linkedTaskCount: number;
   voteProgress: VoteProgress;
-  exceptionPending: boolean;
   reasons: string[];
 }
 export type CriteriaResponse = SearchPage<CriterionListItem>;
@@ -82,7 +78,6 @@ export interface CriterionDetailResponse extends CriterionListItem {
   missingBlocked: string[];
   blocker: CriterionBlocker | null;
   agreement: VoteProgress;
-  decision: BlockerException | null;
   linkedPosts: PostSummary[];
 }
 export interface TaskListItem extends TaskRecord {
@@ -164,7 +159,7 @@ export interface BlockCriterionRequest extends RevisionRequest {
   unblock: string;
 }
 export interface BlockerDecisionRequest extends RevisionRequest {
-  decision: "approve" | "reject";
+  decision: "reject";
 }
 export type CriterionMutationResponse = CriterionRecord;
 export type CriterionVoteResponse = CriterionVote;
@@ -194,5 +189,3 @@ export interface ReopenTaskRequest extends RevisionRequest {
   reason: string;
 }
 export type TaskMutationResponse = TaskRecord;
-export type ScopeApprovalRequest = RevisionRequest;
-export type ScopeApprovalResponse = ProjectRecord;

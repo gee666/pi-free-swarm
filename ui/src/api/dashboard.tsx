@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
-import type { DashboardResponse, RunHeaderState, ScopeApprovalResponse } from "../../../src/api-types";
-import { getJson, postJson } from "./http";
+import type { DashboardResponse, RunHeaderState } from "../../../src/api-types";
+import { getJson } from "./http";
 import { useAsync, type AsyncState } from "./useAsync";
 import { useSwarmStream } from "./SwarmStream";
 import { useStreamListener } from "./useEventStream";
@@ -8,7 +8,6 @@ import { REFRESH_DEBOUNCE_MS } from "../lib/useDebounced";
 
 export const RUN_LABELS: Record<RunHeaderState, string> = {
   running: "Running",
-  awaiting_user: "Awaiting you",
   completed: "Completed",
   stopped_with_blockers: "Stopped with blockers",
   stopped: "Stopped",
@@ -48,10 +47,4 @@ export function useDashboard() {
   const state = useContext(DashboardContext);
   if (!state) throw new Error("useDashboard requires DashboardProvider");
   return state;
-}
-
-export function approveScope(swarmId: string, expectedRevision: number) {
-  return postJson<ScopeApprovalResponse>(`/api/swarms/${encodeURIComponent(swarmId)}/scope/approve`, {
-    expectedRevision,
-  });
 }

@@ -198,4 +198,4 @@ export const MAIN_FEEDBACK_POST_SUFFIX = "…see your messages";
 export const REVIVE_PROMPT_HEADER = "[swarm] You were restarted after a crash or stall.";
 export const RESUME_PROMPT_HEADER = "[swarm resumed by Main]";
 export const IDLE_REMINDER_HEADER =
-  "[swarm] The work graph is unfinished. Check your queue, review or vote where needed, then claim runnable work. Keep dependencies pending and move on; do not invent work while awaiting User.";
+  "[swarm] The work graph is unfinished. Check your queue, review or vote where needed, then claim runnable work. Keep dependencies pending and move on; the swarm finishes on its own.";

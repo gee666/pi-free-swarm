@@ -33,7 +33,7 @@ test("criterion audit keeps creator and editor distinct and records every mutati
   });
   for (const actor of ["Ann", "Ben"])
     voteCriterion(f.db, { ...f.input(actor), criterionId: f.criterion.id, verdict: "blocked", reason: "Confirmed" });
-  decideCriterionBlocker(f.db, { ...f.input("User"), criterionId: f.criterion.id, decision: "approve" });
+  decideCriterionBlocker(f.db, { ...f.input("User"), criterionId: f.criterion.id, decision: "reject" });
   const rows = f.db.sql
     .prepare("SELECT actor, kind, created_at FROM criterion_events WHERE criterion_id = ? ORDER BY id")
     .all(f.criterion.id);
@@ -67,8 +67,8 @@ test("criterion audit keeps creator and editor distinct and records every mutati
     voteCriterion(f.db, {
       ...f.input("Ben"),
       criterionId: f.criterion.id,
-      verdict: "blocked",
-      reason: "Still blocked",
+      verdict: "incomplete",
+      reason: "Still working",
     });
   assert.equal(recentWorkActivity(f.db, f.swarmId, 20).length, 20);
   assert.ok(recentWorkActivity(f.db, f.swarmId, 20).every((row) => row.kind === "voted"));

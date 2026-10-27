@@ -71,7 +71,6 @@ export function blockerOf(row: Row): CriterionBlocker {
     unblock: text(row, "unblock"),
     author: text(row, "author"),
     updatedAt: int(row, "updated_at"),
-    approvedRevision: intOrNull(row, "approved_revision"),
     rejectedRevision: intOrNull(row, "rejected_revision"),
     decidedAt: intOrNull(row, "decided_at"),
   };
@@ -114,9 +113,6 @@ export function projectOf(row: Row): ProjectRecord {
     intentPath: textOrNull(row, "intent_path"),
     intentUpdatedBy: textOrNull(row, "intent_updated_by"),
     intentRevision: int(row, "intent_revision"),
-    scopeRevision: int(row, "scope_revision"),
-    scopeApprovedRevision: intOrNull(row, "scope_approved_revision"),
-    scopeApprovedAt: intOrNull(row, "scope_approved_at"),
     outcome:
       row.outcome === null ? null : enumText<WorkOutcome>(row, "outcome", ["completed", "stopped_with_blockers"]),
   };

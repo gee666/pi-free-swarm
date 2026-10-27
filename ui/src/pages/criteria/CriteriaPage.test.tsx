@@ -175,40 +175,44 @@ describe("Criteria work board", () => {
     open("/s/3/criteria/12");
     expect(await screen.findByRole("radio", { name: "Satisfied" })).toBeEnabled();
   });
-  it.each([
-    ["Accept exception", "approve"],
-    ["Reject", "reject"],
-  ])("confirms %s with the blocker revision", async (label, decision) => {
-    api.on("GET", "/api/swarms/3/criteria/12", () =>
-      criterion({
-        exceptionPending: true,
-        blocker: {
-          criterionId: 12,
-          revision: 4,
-          reason: "Unavailable",
-          missing: "Token",
-          attempted: "Requested token",
-          unblock: "Provide token",
-          author: "Ann",
-          updatedAt: 1,
-          approvedRevision: null,
-          rejectedRevision: null,
-          decidedAt: null,
-        },
-        agreement: { current: 2, required: 2, label: "2/2" },
-      }),
-    );
-    api.on("POST", "/api/swarms/3/criteria/12/blocker-decision", () => ({}));
+  it("confirms rejection with the blocker revision and requires a revised blocker before voting", async () => {
+    let value = criterion({
+      status: "blocked",
+      blocker: {
+        criterionId: 12,
+        revision: 4,
+        reason: "Unavailable",
+        missing: "Token",
+        attempted: "Requested token",
+        unblock: "Provide token",
+        author: "Ann",
+        updatedAt: 1,
+        rejectedRevision: null,
+        decidedAt: null,
+      },
+      agreement: { current: 2, required: 2, label: "2/2" },
+    });
+    api.on("GET", "/api/swarms/3/criteria/12", () => value);
+    api.on("POST", "/api/swarms/3/criteria/12/blocker-decision", () => {
+      if (!value.blocker) throw new Error("Missing blocker");
+      value = { ...value, status: "incomplete", blocker: { ...value.blocker, rejectedRevision: 4 } };
+      return value.blocker;
+    });
     open("/s/3/criteria/12");
-    await userEvent.click(await screen.findByRole("button", { name: label }));
+    await userEvent.click(await screen.findByRole("button", { name: "Reject blocker" }));
+    expect(screen.getByText("Agreed by all voters")).toBeInTheDocument();
+    expect(screen.getByText("Reject this blocker? Voters will be asked to keep working.")).toBeInTheDocument();
     expect(api.callsTo("POST", "/api/swarms/3/criteria/12/blocker-decision")).toHaveLength(0);
     await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
     await waitFor(() =>
       expect(api.callsTo("POST", "/api/swarms/3/criteria/12/blocker-decision")[0]?.body).toEqual({
         expectedRevision: 4,
-        decision,
+        decision: "reject",
       }),
     );
+    expect(await screen.findByText("Blocker rejected")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reject blocker" })).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Blocked" })).toBeDisabled();
   });
   it("saves long requirements, sends expectedRevision and reloads conflicts", async () => {
     let value = criterion();

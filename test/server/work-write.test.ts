@@ -6,7 +6,6 @@ import type {
   CriterionDetailResponse,
   CriterionRecord,
   CriterionBlocker,
-  ProjectRecord,
   TaskDetailResponse,
   TaskRecord,
 } from "../../src/api-types.js";
@@ -51,7 +50,7 @@ describe("criteria writes", () => {
     assert.equal(restored.body.archivedAt, null);
   });
 
-  it("records a blocker, counts owner and independent agreement, and decides it", async () => {
+  it("records a blocker, counts owner and independent agreement, and allows User to reject it", async () => {
     const criterion = await createHttpCriterion(board);
     const task = await createHttpTask(board, criterion.id, { claim: true });
     await action(board, task.id, "handoff", { to: "Maria" });
@@ -64,7 +63,7 @@ describe("criteria writes", () => {
       expectedRevision: 0,
     });
     assert.equal(blocker.status, 200);
-    const early = await postJson(board.url(`${path}/blocker-decision`), { decision: "approve" });
+    const early = await postJson(board.url(`${path}/blocker-decision`), { decision: "reject" });
     assert.equal(early.status, 400);
     voteCriterion(board.temp.db, {
       swarmId: board.swarm.id,
@@ -89,12 +88,15 @@ describe("criteria writes", () => {
       ],
     );
     const decision = await postJson<CriterionBlocker>(board.url(`${path}/blocker-decision`), {
-      decision: "approve",
+      decision: "reject",
       expectedRevision: blocker.body.revision,
     });
     assert.equal(decision.status, 200);
-    assert.equal(decision.body.approvedRevision, blocker.body.revision);
-    assert.equal((await postJson(board.url(`${path}/blocker-decision`), { decision: "reject" })).status, 200);
+    assert.equal(decision.body.rejectedRevision, blocker.body.revision);
+    const rejected = await getJson<CriterionDetailResponse>(board.url(path));
+    assert.equal(rejected.body.status, "incomplete");
+    assert.ok(rejected.body.votes.every((vote) => vote.stale));
+    assert.equal((await postJson(board.url(`${path}/blocker-decision`), { decision: "approve" })).status, 400);
     const stale = await postJson<ApiErrorBody>(board.url(`${path}/block`), {
       reason: "Changed",
       missing: "Access",
@@ -207,18 +209,10 @@ describe("task writes", () => {
   });
 });
 
-describe("User identity and scope", () => {
-  it("approves the current scope, conflicts on stale scope and refuses supplied identity", async () => {
-    const project = await postJson<ProjectRecord>(board.url("/scope/approve"), {});
-    assert.equal(project.status, 200);
-    assert.equal(project.body.scopeApprovedRevision, project.body.scopeRevision);
-    await createHttpCriterion(board);
-    const conflict = await postJson<ApiErrorBody>(board.url("/scope/approve"), {
-      expectedRevision: project.body.scopeRevision,
-    });
-    assert.equal(conflict.status, 409);
-    for (const path of ["/scope/approve", "/criteria/1/restore", "/criteria/1/blocker-decision"]) {
-      const spoof = await postJson(board.url(path), { actor: "Maria", decision: "approve" });
+describe("User identity", () => {
+  it("refuses supplied identity", async () => {
+    for (const path of ["/criteria/1/restore", "/criteria/1/blocker-decision"]) {
+      const spoof = await postJson(board.url(path), { actor: "Maria", decision: "reject" });
       assert.equal(spoof.status, 400);
     }
   });

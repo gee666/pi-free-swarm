@@ -1,14 +1,16 @@
 ## Summary
 
-Pi peers work as a flat swarm in one shared working tree. A work graph links grouped acceptance criteria to tasks, dependencies, reviews and criterion votes. User approval and five deterministic gates decide completion. Main still reviews the artifacts.
+Pi peers work as a flat swarm in one shared working tree. A work graph links grouped acceptance criteria to tasks, dependencies, reviews and criterion votes. Four deterministic gates decide completion without requiring the user. Main still reviews the artifacts.
 
 The extension uses public Pi tools, commands, events, CLI/RPC and session JSONL. Workers reuse the running Pi executable or CLI entrypoint. No private Pi imports or internal API calls are used.
 
 ## Intent
 
-There are no agent roles or task hierarchies. Agents record intent, develop testable criteria, take ownership of tasks, provide evidence and review each other's work. Votes belong to individual criteria and become stale when their inputs change. The user approves the current scope and decides agreed blocker exceptions. A task awaiting another task is not a blocker.
+There are no agent roles or task hierarchies. Agents record intent, develop testable criteria, take ownership of tasks, provide evidence and review each other's work. Votes belong to individual criteria and become stale when their inputs change. Agreed blockers are final. The user may optionally reject one, staling the blocked votes and asking voters to keep working. The user may also join discussions or edit work at any time, like any participant. A task awaiting another task is not a blocker.
 
-The five gates require current scope approval, links for every active criterion, accepted or deferred tasks, satisfied criteria or approved exceptions, and no tasks in review. Idleness, interruption and budget stops do not mean completion. The board and agent tools share the same persisted domain rules.
+The four gates require at least one active criterion and links for each, accepted or deferred tasks, satisfied or blocked active criteria, and no tasks in review. A task is deferred only when it is not accepted and every linked criterion is blocked. Idleness, interruption and budget stops do not mean completion. The board and agent tools share the same persisted domain rules.
+
+Resume appends the full request update to the brief under `## Update for run N` and seeds a Main-authored task linked to Planning. Workers derive criteria and tasks from that section before the run can finish. Main's tools block until the run ends, including when resume attaches to an active local run.
 
 ## Pi integration (public APIs)
 
@@ -28,7 +30,7 @@ RPC ordering, startup failures and process cleanup affect recovery. Budget repor
 
 `npm run test:evergreen` runs backend tests, UI tests and live Pi e2e tests. Backend and UI pretests refresh Pi SDK dependencies to latest and typecheck both projects. Live tests use `$EVERGREEN_PI_BIN` or `pi` on PATH and require `$EVERGREEN_E2E_MODEL`, credentials and network access. They spend tokens; failures retain projects under `tmp/`.
 
-Work-graph tests should cover task transitions and dependencies, criterion votes and staleness, scope approval, blocker decisions and all five completion gates. Integration tests exercise the runner, SQLite and board with fake peers. UI tests cover components, not a live browser or terminal. Runtime e2e checks extension loading, SQLite, the board and worker relaunch with the installed Pi binary. Live e2e checks delegation and resume, not multi-model quality, scale, host takeover or crash recovery.
+Work-graph tests should cover task transitions and dependencies, criterion votes and staleness, blocker agreement and rejection, resume updates and all four completion gates. Integration tests exercise the runner, SQLite and board with fake peers. UI tests cover components, not a live browser or terminal. Runtime e2e checks extension loading, SQLite, the board and worker relaunch with the installed Pi binary. Live e2e checks delegation and resume, not multi-model quality, scale, host takeover or crash recovery.
 
 ## Relevant changelog topics
 

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { beginResume, endRun } from "../../src/broker/swarms.js";
-import { approveScope, ensureWorkGraphInitialized, readProject } from "../../src/broker/project.js";
+import { ensureWorkGraphInitialized, readProject } from "../../src/broker/project.js";
 import { evaluateCompletion } from "../../src/broker/completion.js";
 import { test } from "node:test";
 import { openSwarmDb, SCHEMA_VERSION } from "../../src/store/db.js";
@@ -64,9 +64,7 @@ test("work graph migrates populated v17, preserving communication and dropping r
           ["Main", "Main", "Keep Unicode 😀"],
         ],
       );
-      assert.equal(upgraded.sql.prepare("SELECT scope_revision FROM swarms").get()?.scope_revision, 2);
       assert.equal(upgraded.sql.prepare("SELECT admission_closed_run FROM swarms").get()?.admission_closed_run, 1);
-      approveScope(upgraded, { swarmId: swarm.id, actor: "User", now: T0 + 1 });
       assert.equal(evaluateCompletion(upgraded, swarm.id).done, false);
       endRun(upgraded, swarm.id, process.pid, "stopped", T0 + 2);
       beginResume(upgraded, swarm.id, process.pid, T0 + 3);

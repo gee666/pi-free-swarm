@@ -34,9 +34,6 @@ ALTER TABLE swarms ADD COLUMN intent_summary TEXT;
 ALTER TABLE swarms ADD COLUMN intent_path TEXT;
 ALTER TABLE swarms ADD COLUMN intent_updated_by TEXT;
 ALTER TABLE swarms ADD COLUMN intent_revision INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE swarms ADD COLUMN scope_revision INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE swarms ADD COLUMN scope_approved_revision INTEGER;
-ALTER TABLE swarms ADD COLUMN scope_approved_at INTEGER;
 ALTER TABLE swarms ADD COLUMN outcome TEXT CHECK (outcome IN ('completed','stopped_with_blockers'));
 
 CREATE TABLE criteria (
@@ -74,7 +71,6 @@ SELECT s.id, 'Main', substr(j.value, 1, 60), j.value, 'Verify the requirement ag
 FROM swarms s, json_each(s.acceptance_criteria) j;
 INSERT INTO criterion_events(swarm_id, criterion_id, actor, kind, body, created_at)
 SELECT swarm_id, id, author, 'created', body, created_at FROM criteria;
-UPDATE swarms SET scope_revision = (SELECT count(*) FROM criteria WHERE swarm_id = swarms.id);
 ALTER TABLE swarms DROP COLUMN acceptance_criteria;
 
 CREATE TABLE criterion_blockers (
@@ -86,7 +82,6 @@ CREATE TABLE criterion_blockers (
   unblock TEXT NOT NULL,
   author TEXT NOT NULL,
   updated_at INTEGER NOT NULL,
-  approved_revision INTEGER,
   rejected_revision INTEGER,
   decided_at INTEGER
 );

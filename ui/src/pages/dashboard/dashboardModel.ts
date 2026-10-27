@@ -1,31 +1,25 @@
 import type { CompletionGate, DashboardResponse } from "../../../../src/api-types";
 
 export const GATE_LABELS: Record<CompletionGate["key"], string> = {
-  scope: "Scope approved",
   linked: "Every criterion linked",
   tasks: "Every task accepted",
   criteria: "Every criterion agreed",
   review: "No pending reviews",
 };
 export const GATE_FILTERS: Record<CompletionGate["key"], string> = {
-  scope: "criteria",
   linked: "criteria?status=unlinked",
   tasks: "tasks?status=new,claimed,in_progress,review",
-  criteria: "criteria?status=unlinked,incomplete,blocked",
+  criteria: "criteria?status=unlinked,incomplete",
   review: "tasks?status=review",
 };
 export function gateDetail(data: DashboardResponse, gate: CompletionGate): string {
   switch (gate.key) {
-    case "scope":
-      return `rev ${data.project.scopeRevision} ${gate.ok ? "approved" : "needs approval"}`;
     case "linked":
       return `${gate.count} unlinked`;
     case "tasks":
       return `${gate.count} open, ${data.counts.deferred} deferred`;
-    case "criteria": {
-      const pending = data.attention.blockerDecisions.length;
-      return `${gate.count} awaiting votes${pending ? ` · ${pending} blocker${pending === 1 ? "" : "s"} awaiting you` : ""}`;
-    }
+    case "criteria":
+      return `${gate.count} awaiting votes`;
     case "review":
       return `${gate.count} in review`;
   }
@@ -35,10 +29,9 @@ export function activityLabel(kind: string) {
   const labels: Record<string, string> = {
     review_accepted: "accepted",
     review_requested: "requested review",
-    criterion_created: "created",
-    criterion_vote: "voted on",
-    criterion_blocker: "recorded blocker on",
-    criterion_decision: "decided exception on",
+    voted: "voted on",
+    blocker_recorded: "recorded blocker on",
+    blocker_decided: "rejected blocker on",
   };
   return labels[kind] ?? kind.replaceAll("_", " ");
 }

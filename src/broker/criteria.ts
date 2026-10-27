@@ -1,8 +1,6 @@
 import type { CriterionRecord } from "../api-work-types.js";
 import type { SwarmDb } from "../store/db.js";
 import { insertCriterion, saveCriterion, addCriterionEvent, type CriterionFields } from "../store/criteria.js";
-import { insertEvent } from "../store/events.js";
-import { bumpScope } from "../store/project.js";
 import { BrokerError } from "./errors.js";
 import { storedWorkText } from "./work-text.js";
 import {
@@ -36,15 +34,10 @@ function fieldsFor(
     source: field("source"),
   };
 }
-function scopeChanged(db: SwarmDb, input: WorkInput): void {
-  bumpScope(db, input.swarmId);
-  insertEvent(db, input.swarmId, "project.changed", { id: input.swarmId }, input.now);
-}
 export function createCriterion(db: SwarmDb, input: WorkInput & CriterionFields): CriterionRecord {
   return writeWork(db, input, (actor) => {
     const fields = fieldsFor(db, input, actor, input);
     const id = insertCriterion(db, input.swarmId, fields, actor, input.now);
-    scopeChanged(db, input);
     return requireCriterion(db, input.swarmId, id);
   });
 }
@@ -65,7 +58,6 @@ export function editCriterion(
     };
     saveCriterion(db, updated);
     addCriterionEvent(db, input.swarmId, criterion.id, actor, "edited", updated.body, input.now);
-    scopeChanged(db, input);
     return updated;
   });
 }
@@ -95,7 +87,6 @@ function setArchived(
     };
     saveCriterion(db, updated);
     addCriterionEvent(db, input.swarmId, criterion.id, actor, archive ? "archived" : "restored", "", input.now);
-    scopeChanged(db, input);
     return updated;
   });
 }

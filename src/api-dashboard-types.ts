@@ -1,8 +1,7 @@
 import type { CompletionResult, ProjectRecord, TaskRecord } from "./api-work-types.js";
 import type { CriterionListItem } from "./api-work-http-types.js";
 
-export type RunHeaderState =
-  "running" | "awaiting_user" | "completed" | "stopped_with_blockers" | "stopped" | "interrupted";
+export type RunHeaderState = "running" | "completed" | "stopped_with_blockers" | "stopped" | "interrupted";
 export interface RunHeader {
   state: RunHeaderState;
   run: number;
@@ -51,10 +50,8 @@ export interface DashboardResponse {
   criteriaCoverage: CriteriaCoverage[];
   recentActivity: WorkActivityRow[];
   attention: {
-    scopeApprovalNeeded: boolean;
-    blockerDecisions: CriterionListItem[];
+    agreedBlockers: CriterionListItem[];
     unreadUserMessages: number;
-    unlinkedCriteria: CriterionListItem[];
   };
   queue: {
     tasks: TaskRecord[];

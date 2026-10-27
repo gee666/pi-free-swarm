@@ -2,13 +2,12 @@ import { createTask } from "../../src/broker/tasks.js";
 import { claimTask } from "../../src/broker/task-ownership.js";
 import { requestTaskReview, reviewTask, startTask } from "../../src/broker/task-transitions.js";
 import { voteCriterion } from "../../src/broker/votes.js";
-import { approveScope } from "../../src/broker/project.js";
 import { listCriteria, criterionTasks } from "../../src/store/criteria.js";
 import { listTasks } from "../../src/store/tasks.js";
 import { listParticipants } from "../../src/store/swarm-queries.js";
 import type { SwarmDb } from "../../src/store/db.js";
 
-export function finishWork(db: SwarmDb, swarmId: number, approve = true): void {
+export function finishWork(db: SwarmDb, swarmId: number): void {
   const owner =
     listParticipants(db, swarmId).find(
       (p) => p.kind === "agent" && p.name !== "Watcher" && !["crashed", "stopped", "retired"].includes(p.status),
@@ -55,6 +54,5 @@ export function finishWork(db: SwarmDb, swarmId: number, approve = true): void {
         reason: "Independent fixture verification",
       });
     }
-    if (approve) approveScope(db, input("User"));
   });
 }

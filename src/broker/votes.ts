@@ -26,6 +26,11 @@ export function voteCriterion(
     }
     if (input.verdict === "blocked" && blocker === null)
       throw new BrokerError("validation", "A blocked vote requires a blocker record. Call swarm_criteria_block first.");
+    if (input.verdict === "blocked" && blocker !== null && blocker.rejectedRevision === blocker.revision)
+      throw new BrokerError(
+        "validation",
+        "This blocker was rejected. Keep working or record a revised blocker before voting blocked.",
+      );
     const vote: CriterionVote = {
       criterionId: criterion.id,
       voter: actor,

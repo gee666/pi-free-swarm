@@ -131,10 +131,6 @@ export function workDashboard(db: SwarmDb, swarmId: number, now: number, actor =
     },
     velocity: workVelocity(db, swarmId, now, remaining),
     recentActivity: recentWorkActivity(db, swarmId, WORK_ACTIVITY_LIMIT),
-    attention: criteria.filter(
-      (criterion) =>
-        criterion.status === "unlinked" || (criterion.status === "blocked" && criterion.exception === "pending"),
-    ),
     queue: ownWorkQueue(db, swarmId, actor),
     runnable: filteredTaskCandidates(db, swarmId, actor, { runnable: true }).slice(0, WORK_QUEUE_LIMIT),
   };

@@ -66,25 +66,3 @@ function independentRecipient(
   const recipient = chooseWorkRecipient(workRoster(db, swarmId), owners);
   return recipient !== null && !notified.has(recipient) ? recipient : null;
 }
-export function notifyBlockerDecision(
-  db: SwarmDb,
-  swarmId: number,
-  criterionId: number,
-  decision: "approve" | "reject",
-  now: number,
-): void {
-  const assessment = assessCriterion(db, swarmId, criterionId);
-  const owners = criterionTasks(db, criterionId).flatMap((task) => (task.owner === null ? [] : [task.owner]));
-  const independent = assessment.votes
-    .filter((vote) => !vote.stale && vote.verdict === "blocked" && !owners.includes(vote.voter))
-    .map((vote) => vote.voter);
-  for (const recipient of new Set([...assessment.requiredOwners, ...independent])) {
-    notifyWork(
-      db,
-      swarmId,
-      recipient,
-      `User ${decision === "approve" ? "approved" : "rejected"} blocker #${criterionId}.${decision === "reject" ? " Keep working." : ""} Call swarm_criteria_get.`,
-      now,
-    );
-  }
-}

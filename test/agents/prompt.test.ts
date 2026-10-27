@@ -34,14 +34,14 @@ test("worker prompt covers the v2 workflow in order without inlining the brief",
     path,
     "swarm_intent_update",
     "exhaustive",
-    "versioned",
+    "make them findable",
     "end-to-end",
     "independent",
     "parallel",
     "not a task state",
     "you will be notified",
     "stale",
-    "User approves",
+    "swarm finishes on its own",
     "no task is in review",
     "never a blocker",
     "swarm_skills_search",
@@ -54,10 +54,14 @@ test("worker prompt covers the v2 workflow in order without inlining the brief",
     "Build",
   ])
     assert.ok(prompt.includes(text), text);
-  assert.doesNotMatch(prompt, /swarm-task|swarm_acceptance|70%|quorum|bodyMaxChars/);
+  assert.doesNotMatch(
+    prompt,
+    /swarm-task|swarm_acceptance|70%|quorum|bodyMaxChars|versioned|user approval|wait for User/i,
+  );
 });
 
 test("kickoff starts with project discovery; recovery preserves the graph and avoids replay", () => {
+  assert.match(buildResumePrompt({ messages: "" }), /brief file has a new "Update for run N" section/);
   assert.equal(buildKickoffPrompt({ messages: "" }), "Start: call swarm_project.");
   for (const prompt of [buildResumePrompt({ messages: "Feedback" }), buildRevivePrompt({ messages: "Feedback" })]) {
     assert.match(prompt, /swarm_project/);

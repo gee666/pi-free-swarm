@@ -30,10 +30,8 @@ export function criterion(patch: Partial<CriterionDetailResponse> = {}): Criteri
     createdAt: at,
     updatedAt: at,
     status: "incomplete",
-    exception: "pending",
     linkedTaskCount: 1,
     voteProgress: { current: 0, required: 2, label: "votes 0/2" },
-    exceptionPending: false,
     reasons: ["Linked tasks not accepted"],
     tasks: [],
     votes: [],
@@ -44,7 +42,6 @@ export function criterion(patch: Partial<CriterionDetailResponse> = {}): Criteri
     missingBlocked: [],
     blocker: null,
     agreement: { current: 0, required: 2, label: "0/2 agreed" },
-    decision: null,
     linkedPosts: [],
     ...patch,
   };

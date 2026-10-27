@@ -4,7 +4,6 @@ import type { DeliveryOutcome, PromptPayload } from "../../src/agents/supervisor
 import { workReminder } from "../../src/broker/work-reminder.js";
 import { IdleReminders } from "../../src/broker/idle-reminder.js";
 import { snoozeReminders } from "../../src/broker/reminder-snooze.js";
-import { approveScope } from "../../src/broker/project.js";
 import { requestTaskReview, startTask } from "../../src/broker/task-transitions.js";
 import { workFixture } from "../helpers/work-graph.js";
 import { FakeClock } from "../agents/fake-clock.js";
@@ -43,7 +42,7 @@ test("reminders contain unmet gates, own queue, reviews, votes, five runnable ta
   clock.advance(100);
   await Promise.resolve();
   const text = prompts[0]?.text ?? "";
-  assert.match(text, /scope \(1\)|linked \(1\)|tasks \(/);
+  assert.match(text, /linked \(1\)|tasks \(/);
   assert.match(text, new RegExp(`#${owned.id} \\[claimed\\]`));
   assert.match(text, /Reviews:|Votes needed:|Unlinked criteria: 1/);
   const runnable = text.split("Runnable unclaimed:\n")[1]?.split("\nUnlinked")[0] ?? "";
@@ -52,7 +51,7 @@ test("reminders contain unmet gates, own queue, reviews, votes, five runnable ta
   idle.stop();
 });
 
-test("awaitingUser and completion cancel reminders, including already scheduled ones", async (t) => {
+test("completion cancels reminders, including already scheduled ones", async (t) => {
   const f = workFixture(t);
   const { clock, prompts, idle } = reminders(f);
   idle.update();
@@ -61,7 +60,6 @@ test("awaitingUser and completion cancel reminders, including already scheduled 
   clock.advance(100);
   await Promise.resolve();
   assert.equal(prompts.length, 0);
-  approveScope(f.db, f.input("User"));
   assert.equal(idle.update(), false);
 });
 

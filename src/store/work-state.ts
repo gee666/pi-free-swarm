@@ -1,4 +1,4 @@
-import type { CriterionStatus, BlockerException } from "../api-work-types.js";
+import type { CriterionStatus } from "../api-work-types.js";
 import type { SwarmDb } from "./db.js";
 import { int, text, type Row } from "./rows.js";
 import { enumText } from "./work-rows.js";
@@ -21,7 +21,7 @@ export const WORK_STATE_CTE = `WITH
     SELECT v.* FROM criterion_votes v JOIN criteria c ON c.id = v.criterion_id
       JOIN work_links l ON l.criterion_id = c.id LEFT JOIN criterion_blockers b ON b.criterion_id = c.id
     WHERE v.criterion_revision = c.revision AND v.links_signature = l.links_signature
-      AND (v.verdict <> 'blocked' OR v.blocker_revision = b.revision)
+      AND (v.verdict <> 'blocked' OR (v.blocker_revision = b.revision AND (b.rejected_revision IS NULL OR b.rejected_revision <> b.revision)))
   ),
   work_owners AS (
     SELECT DISTINCT l.criterion_id, t.owner,
@@ -47,15 +47,13 @@ export const WORK_STATE_CTE = `WITH
         SELECT 1 FROM work_owners o WHERE o.criterion_id = c.id AND o.owner = v.voter
       )) AS independent_blocked,
       EXISTS (SELECT 1 FROM work_votes v WHERE v.criterion_id = c.id AND v.verdict <> 'satisfied') AS negative_vote,
-      CASE WHEN b.approved_revision = b.revision THEN 'approved'
-        WHEN b.rejected_revision = b.revision THEN 'rejected' ELSE 'pending' END AS exception,
       b.revision AS blocker_revision
     FROM work_links l JOIN criteria c ON c.id = l.criterion_id
       LEFT JOIN criterion_blockers b ON b.criterion_id = c.id
   ),
   work_criteria AS (
     SELECT c.*, a.links_signature, a.task_count, a.unaccepted_count, a.offline_count,
-      a.missing_satisfied, a.missing_blocked, a.independent_satisfied, a.independent_blocked, a.exception,
+      a.missing_satisfied, a.missing_blocked, a.independent_satisfied, a.independent_blocked,
       CASE WHEN a.task_count = 0 THEN 'unlinked'
         WHEN a.offline_count = 0 AND a.blocker_revision IS NOT NULL AND a.missing_blocked = 0 AND a.independent_blocked = 1 THEN 'blocked'
         WHEN a.offline_count = 0 AND a.unaccepted_count = 0 AND a.missing_satisfied = 0
@@ -69,14 +67,13 @@ export const WORK_STATE_CTE = `WITH
         WHERE d.task_id = t.id AND dep.status <> 'accepted') AS waiting,
       t.status <> 'accepted' AND EXISTS (SELECT 1 FROM task_criteria l WHERE l.task_id = t.id)
         AND NOT EXISTS (SELECT 1 FROM task_criteria l JOIN work_criteria c ON c.id = l.criterion_id
-          WHERE l.task_id = t.id AND (c.work_status <> 'blocked' OR c.exception <> 'approved')) AS deferred
+          WHERE l.task_id = t.id AND c.work_status <> 'blocked') AS deferred
     FROM tasks t WHERE t.swarm_id = ?
   )`;
 
 export interface CriterionState {
   id: number;
   status: CriterionStatus;
-  exception: BlockerException;
   linksSignature: string;
   taskCount: number;
   unacceptedCount: number;
@@ -86,7 +83,6 @@ function criterionStateOf(row: Row): CriterionState {
   return {
     id: int(row, "id"),
     status: enumText(row, "work_status", ["unlinked", "incomplete", "satisfied", "blocked"]),
-    exception: enumText(row, "exception", ["pending", "approved", "rejected"]),
     linksSignature: text(row, "links_signature"),
     taskCount: int(row, "task_count"),
     unacceptedCount: int(row, "unaccepted_count"),

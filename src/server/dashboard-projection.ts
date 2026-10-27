@@ -10,7 +10,7 @@ function runState(swarm: SwarmListItem, work: ReturnType<typeof workDashboard>):
   if (swarm.status === "interrupted") return "interrupted";
   if (swarm.status === "stopped") return "stopped";
   if (swarm.status === "finished") return work.project.outcome ?? "stopped";
-  return work.completion.awaitingUser ? "awaiting_user" : "running";
+  return "running";
 }
 export function dashboard(db: SwarmDb, swarm: SwarmListItem, now: number): DashboardResponse {
   const work = workDashboard(db, swarm.id, now);
@@ -43,10 +43,8 @@ export function dashboard(db: SwarmDb, swarm: SwarmListItem, now: number): Dashb
     criteriaCoverage: criteriaCoverage(criteria),
     recentActivity: work.recentActivity,
     attention: {
-      scopeApprovalNeeded: work.project.scopeApprovedRevision !== work.project.scopeRevision,
-      blockerDecisions: criteria.filter((criterion) => criterion.exceptionPending),
+      agreedBlockers: criteria.filter((criterion) => criterion.status === "blocked"),
       unreadUserMessages: userUnreadSummary(db, swarm.id).messages,
-      unlinkedCriteria: criteria.filter((criterion) => criterion.status === "unlinked"),
     },
     queue: work.queue,
     runnable: work.runnable,

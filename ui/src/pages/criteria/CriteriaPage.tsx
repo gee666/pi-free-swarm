@@ -6,9 +6,7 @@ import { getJson } from "../../api/http";
 import { useAsync } from "../../api/useAsync";
 import { Button } from "../../components/Button";
 import { TextField } from "../../components/Field";
-import { UnreadDot } from "../../components/Indicators";
 import { Panel, PanelBody, PanelHeader } from "../../components/Panel";
-import { Pill } from "../../components/Pill";
 import { RowList, rowFocusProps } from "../../components/RowList";
 import { EmptyState, ErrorBanner, SkeletonRows } from "../../components/States";
 import { StatusGlyph } from "../../components/StatusGlyph";
@@ -75,19 +73,12 @@ export function CriteriaPage() {
       >
         <StatusGlyph status={item.status} />
         <span className={styles.rowText}>
-          <span className={styles.title}>
-            {item.title} <UnreadDot unread={item.exceptionPending} />
-          </span>
+          <span className={styles.title}>{item.title}</span>
           <span className={styles.subtitle}>
             {query && `${item.group} · `}#{item.id} · {item.linkedTaskCount} tasks ·{" "}
             <VoteBadge {...item.voteProgress} />
           </span>
         </span>
-        {item.exceptionPending && (
-          <Pill>
-            <span className={styles.pink}>Decide</span>
-          </Pill>
-        )}
       </button>
     ));
   return (

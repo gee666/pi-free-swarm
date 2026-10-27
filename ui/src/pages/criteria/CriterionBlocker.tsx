@@ -19,7 +19,7 @@ export function CriterionBlocker({
   onChanged: () => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [confirm, setConfirm] = useState<"approve" | "reject">();
+  const [confirm, setConfirm] = useState(false);
   const anchor = useRef<HTMLButtonElement>(null);
   const blocker = detail.blocker;
   const [fields, setFields] = useState({
@@ -30,13 +30,13 @@ export function CriterionBlocker({
   });
   const mutation = useWorkMutation(swarmId, () => {
     setEditing(false);
-    setConfirm(undefined);
+    setConfirm(false);
     onChanged();
   });
-  const decide = (decision: "approve" | "reject") =>
+  const reject = () =>
     void mutation.mutate(`criteria/${detail.id}/blocker-decision`, {
       expectedRevision: blocker?.revision ?? 0,
-      decision,
+      decision: "reject",
     });
   return (
     <Section
@@ -93,35 +93,28 @@ export function CriterionBlocker({
               </div>
             ))}
             <p className={styles.muted}>
-              {detail.agreement.current}/{detail.agreement.required} agreed
+              {detail.status === "blocked"
+                ? "Agreed by all voters"
+                : `${detail.agreement.current}/${detail.agreement.required} agreed`}
             </p>
-            {detail.exceptionPending ? (
+            {detail.status === "blocked" ? (
               <div className={styles.actions}>
-                <Button ref={anchor} variant="primary" onClick={() => setConfirm("approve")}>
-                  Accept exception
+                <Button ref={anchor} onClick={() => setConfirm(true)}>
+                  Reject blocker
                 </Button>
-                <Button onClick={() => setConfirm("reject")}>Reject</Button>
-                <Popover anchorRef={anchor} open={confirm !== undefined} onClose={() => setConfirm(undefined)}>
+                <Popover anchorRef={anchor} open={confirm} onClose={() => setConfirm(false)}>
                   <div className={styles.form}>
-                    <p>{confirm === "approve" ? "Accept exception?" : "Reject exception?"}</p>
-                    <Button variant="primary" disabled={mutation.busy} onClick={() => confirm && decide(confirm)}>
+                    <p>Reject this blocker? Voters will be asked to keep working.</p>
+                    <Button variant="primary" disabled={mutation.busy} onClick={reject}>
                       Confirm
                     </Button>
-                    <Button onClick={() => setConfirm(undefined)}>Cancel</Button>
+                    <Button onClick={() => setConfirm(false)}>Cancel</Button>
                   </div>
                 </Popover>
               </div>
-            ) : (
-              detail.decision && (
-                <p>
-                  {detail.decision === "approved"
-                    ? "Exception accepted"
-                    : detail.decision === "rejected"
-                      ? "Exception rejected"
-                      : "Awaiting agreement"}
-                </p>
-              )
-            )}
+            ) : blocker.rejectedRevision === blocker.revision ? (
+              <p>Blocker rejected</p>
+            ) : null}
           </>
         )
       )}

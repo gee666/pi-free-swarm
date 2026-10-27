@@ -51,7 +51,7 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
   register(
     T.project,
     S.empty,
-    "Read brief path, intent, scope approval, stop gates, your queue and tool guide. Start here.",
+    "Read brief path, intent, stop gates, your queue and tool guide. Start here.",
     run.project,
   );
   register(
@@ -101,12 +101,7 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
   );
   register(T.messagesRead, S.messagesRead, "Read a page of your 1:1 conversation with one peer.", run.messagesRead);
   if (identity.agentName === WATCHER_NAME) return;
-  register(
-    T.intentUpdate,
-    S.intentUpdate,
-    "Register the user intent summary and file path. Changes require User scope approval.",
-    run.intentUpdate,
-  );
+  register(T.intentUpdate, S.intentUpdate, "Register the user intent summary and file path.", run.intentUpdate);
   register(
     T.criteriaCreate,
     S.criteriaCreate,
@@ -116,10 +111,10 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
   register(
     T.criteriaEdit,
     S.criteriaEdit,
-    "Edit a criterion at expected_revision; reread on conflict. Invalidates votes and scope approval.",
+    "Edit a criterion at expected_revision; reread on conflict. Invalidates votes.",
     run.criteriaEdit,
   );
-  register(T.criteriaArchive, S.byId, "Archive a criterion. Scope must be reapproved by User.", run.criteriaArchive);
+  register(T.criteriaArchive, S.byId, "Archive a criterion.", run.criteriaArchive);
   register(
     T.criteriaBlock,
     S.criteriaBlock,
@@ -129,7 +124,7 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
   register(
     T.criteriaVote,
     S.criteriaVote,
-    "Vote satisfied, incomplete or blocked with evidence. Re-vote when work changes; User decides agreed blocker exceptions.",
+    "Vote satisfied, incomplete or blocked with evidence. Re-vote when work changes. Agreed blockers are final; User may optionally reject them.",
     run.criteriaVote,
   );
   register(

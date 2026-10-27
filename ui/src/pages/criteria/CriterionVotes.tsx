@@ -24,7 +24,12 @@ export function CriterionVotes({
   const [reason, setReason] = useState("");
   const mutation = useWorkMutation(swarmId, onChanged);
   const allAccepted = detail.tasks.length > 0 && detail.tasks.every((task) => task.status === "accepted");
-  const disabled = (verdict === "satisfied" && !allAccepted) || (verdict === "blocked" && !detail.blocker);
+  const blockedReason = !detail.blocker
+    ? "Record a blocker first"
+    : detail.blocker.rejectedRevision === detail.blocker.revision
+      ? "Revise the rejected blocker before voting blocked"
+      : undefined;
+  const disabled = (verdict === "satisfied" && !allAccepted) || (verdict === "blocked" && blockedReason !== undefined);
   return (
     <Section title="Votes">
       {detail.votes.map((vote) => (
@@ -70,7 +75,7 @@ export function CriterionVotes({
             {
               value: "blocked",
               label: "Blocked",
-              disabledReason: detail.blocker ? undefined : "Record a blocker first",
+              disabledReason: blockedReason,
             },
           ]}
         />

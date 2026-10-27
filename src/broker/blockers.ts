@@ -3,7 +3,6 @@ import { getBlocker, saveBlocker, addCriterionEvent, type BlockerFields } from "
 import type { SwarmDb } from "../store/db.js";
 import { assessCriterion } from "./criterion-status.js";
 import { BrokerError } from "./errors.js";
-import { notifyBlockerDecision } from "./work-notifications.js";
 import { storedWorkText } from "./work-text.js";
 import { checkRevision, requireCriterion, userOnly, type RevisionInput, type WorkInput } from "./work-validation.js";
 import { writeWork } from "./work-write.js";
@@ -25,7 +24,6 @@ export function recordCriterionBlocker(
       unblock: storedWorkText(db, input.swarmId, input.unblock, "unblock", actor),
       author: actor,
       updatedAt: input.now,
-      approvedRevision: null,
       rejectedRevision: null,
       decidedAt: null,
     };
@@ -36,7 +34,7 @@ export function recordCriterionBlocker(
 }
 export function decideCriterionBlocker(
   db: SwarmDb,
-  input: WorkInput & RevisionInput & { criterionId: number; decision: "approve" | "reject" },
+  input: WorkInput & RevisionInput & { criterionId: number; decision: "reject" },
 ): CriterionBlocker {
   return writeWork(db, input, (actor) => {
     userOnly(actor);
@@ -44,25 +42,20 @@ export function decideCriterionBlocker(
     const blocker = getBlocker(db, input.criterionId);
     if (!blocker) throw new BrokerError("not_found", "No blocker record. Record one and collect blocked votes first.");
     checkRevision(blocker.revision, input.expectedRevision);
-    if (input.decision !== "approve" && input.decision !== "reject")
-      throw new BrokerError("validation", "Decision must be approve or reject.");
+    if (input.decision !== "reject") throw new BrokerError("validation", "Decision must be reject.");
     const assessment = assessCriterion(db, input.swarmId, input.criterionId);
     if (assessment.status !== "blocked")
       throw new BrokerError(
         "validation",
-        "Required owners and an independent voter must agree with current blocked votes before User decides.",
+        "Required owners and an independent voter must agree with current blocked votes before User rejects it.",
       );
-    if (assessment.exception === (input.decision === "approve" ? "approved" : "rejected"))
-      throw new BrokerError("validation", "This blocker decision is already recorded.");
     const updated: CriterionBlocker = {
       ...blocker,
-      approvedRevision: input.decision === "approve" ? blocker.revision : null,
-      rejectedRevision: input.decision === "reject" ? blocker.revision : null,
+      rejectedRevision: blocker.revision,
       decidedAt: input.now,
     };
     saveBlocker(db, updated);
     addCriterionEvent(db, input.swarmId, input.criterionId, actor, "blocker_decided", input.decision, input.now);
-    notifyBlockerDecision(db, input.swarmId, input.criterionId, input.decision, input.now);
     return updated;
   });
 }

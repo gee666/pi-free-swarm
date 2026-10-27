@@ -97,7 +97,7 @@ export function CriterionDetail({
         )}
         {mutation.error && <ErrorBanner>{mutation.error.message}</ErrorBanner>}
         <div className={styles.line}>
-          <StatusPill status={detail.status} label={detail.exceptionPending ? "Blocked · awaiting you" : undefined} />
+          <StatusPill status={detail.status} />
           <span className={styles.muted}>{detail.reasons.join(" · ")}</span>
         </div>
         <Section title="Requirement">

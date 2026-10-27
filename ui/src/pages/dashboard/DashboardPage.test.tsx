@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -8,6 +8,7 @@ import { FilePreviewProvider } from "../../components/FilePreview";
 import { installDialogFixture } from "../../test/dialogFixture";
 import { installFakeApi, jsonResponse, type FakeApi } from "../../test/fakeApi";
 import { installFakeEventSource, type FakeEventSource } from "../../test/fakeEventSource";
+import { criterion } from "../work-items/testFixtures";
 import { DashboardPage } from "./DashboardPage";
 import { agent, eventBase } from "../agents/testFixtures";
 import { dashboardFixture } from "./testFixture";
@@ -44,21 +45,17 @@ function mount() {
   act(() => source().open());
 }
 
-it("renders five gates, linked intent, numbers, coverage, and recent activity", async () => {
+it("renders four gates, linked intent, numbers, coverage, and recent activity", async () => {
   const data = dashboardFixture();
-  data.gates[0].ok = true;
   data.gates[1].detail = "Active criteria without linked tasks.";
-  data.attention.scopeApprovalNeeded = false;
   api.on("GET", "/api/swarms/3/dashboard", () => data);
   mount();
-  expect(await screen.findByRole("heading", { name: "Awaiting you" })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Running" })).toBeInTheDocument();
   const rules = screen.getByRole("heading", { name: "Stop rules" }).closest("section");
   if (!rules) throw new Error("Stop rules missing");
-  expect(within(rules).getByText("Scope approved")).toBeInTheDocument();
   expect(within(rules).getAllByRole("link")).toHaveLength(4);
   expect(within(rules).getByText("3 unlinked")).toBeInTheDocument();
   expect(within(rules).getByText("14 open, 2 deferred")).toBeInTheDocument();
-  expect(within(rules).getByText("rev 7 approved")).toBeInTheDocument();
   expect(within(rules).getByRole("link", { name: /Every criterion linked/ })).toHaveAttribute(
     "href",
     "/s/3/criteria?status=unlinked",
@@ -81,37 +78,24 @@ it("renders five gates, linked intent, numbers, coverage, and recent activity", 
   );
 });
 
-it("approves the exact scope revision and refetches after success", async () => {
-  let data = dashboardFixture();
+it("shows agreed blockers and unread messages without requiring attention", async () => {
+  const data = dashboardFixture();
+  data.attention.agreedBlockers = [criterion({ status: "blocked", title: "Missing credentials" })];
   api.on("GET", "/api/swarms/3/dashboard", () => data);
-  api.on("POST", "/api/swarms/3/scope/approve", () => {
-    data = { ...data, attention: { ...data.attention, scopeApprovalNeeded: false } };
-    return data.project;
-  });
   mount();
-  await userEvent.click(await screen.findByRole("button", { name: "Approve scope" }));
-  const dialog = screen.getByRole("dialog", { name: "Approve scope rev 7" });
-  expect(within(dialog).getByText("42 active criteria in 2 groups")).toBeInTheDocument();
-  expect(within(dialog).getByText("Later changes to the intent or criteria need approval again.")).toBeInTheDocument();
-  await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
-  expect(api.callsTo("POST", "/api/swarms/3/scope/approve")).toHaveLength(0);
-  await userEvent.click(screen.getByRole("button", { name: "Approve scope" }));
-  await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Approve" }));
-  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-  expect(api.callsTo("POST", "/api/swarms/3/scope/approve")[0]?.body).toEqual({ expectedRevision: 7 });
-  await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/dashboard")).toHaveLength(2));
+  expect(await screen.findByText("Worth a look")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Reject" })).toHaveAttribute("href", "/s/3/criteria/12");
+  expect(screen.getByText("2 unread messages to User")).toBeInTheDocument();
 });
 
-it("keeps a failed approval open with an error", async () => {
-  api.on("GET", "/api/swarms/3/dashboard", dashboardFixture);
-  api.on("POST", "/api/swarms/3/scope/approve", () =>
-    jsonResponse(409, { error: "validation", message: "Scope changed" }),
-  );
+it("makes optional participation clear when there is nothing to inspect", async () => {
+  const data = dashboardFixture();
+  data.attention.unreadUserMessages = 0;
+  api.on("GET", "/api/swarms/3/dashboard", () => data);
   mount();
-  await userEvent.click(await screen.findByRole("button", { name: "Approve scope" }));
-  await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Approve" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Scope changed");
-  expect(screen.getByRole("dialog")).toBeInTheDocument();
+  expect(
+    await screen.findByText("Nothing needs your attention — the swarm is working on its own."),
+  ).toBeInTheDocument();
 });
 
 it("debounces project, task and criterion events into one live refetch", async () => {

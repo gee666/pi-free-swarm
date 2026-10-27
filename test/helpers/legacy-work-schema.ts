@@ -25,9 +25,6 @@ export function removeWorkSchema(db: SwarmDb): void {
       "intent_path",
       "intent_updated_by",
       "intent_revision",
-      "scope_revision",
-      "scope_approved_revision",
-      "scope_approved_at",
       "outcome",
       "admission_closed_run",
     ]) {

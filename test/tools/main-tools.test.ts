@@ -102,7 +102,12 @@ describe("registerMainTools", () => {
     assert.match(swarm.description, /If the user did not provide criteria, derive them from the task before launching/);
     assert.match(swarm.description, /Returns stop gates, outcome and board link/);
     assert.doesNotMatch(swarm.description, /wall digest/);
-    for (const tool of pi.tools) assert.ok(tool.promptSnippet);
+    for (const tool of pi.tools) {
+      assert.ok(tool.promptSnippet);
+      assert.match(tool.description, /Blocks until the run ends\./);
+      assert.doesNotMatch(tool.description, /awaits User|only User decisions|approve scope/);
+    }
+    assert.match(pi.tool(MAIN_TOOL.resumeSwarm).description, /Appends the full update to the brief/);
   });
 
   it("names an invalid settings file in the description instead of failing to load", () => {

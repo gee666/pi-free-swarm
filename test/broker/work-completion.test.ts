@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import { approveScope, readProject, updateProjectIntent } from "../../src/broker/project.js";
+import { readProject, updateProjectIntent } from "../../src/broker/project.js";
 import { evaluateCompletion } from "../../src/broker/completion.js";
 import { prepareWorkRunCompletion } from "../../src/broker/work-run-completion.js";
 import { archiveCriterion, editCriterion, restoreCriterion } from "../../src/broker/criteria.js";
@@ -57,20 +57,18 @@ test("swarm creation writes full brief and seeds Planning tasks and Main criteri
   );
 });
 
-test("five stop gates fail independently and idleness never completes work", (t) => {
+test("four stop gates fail independently and idleness never completes work", (t) => {
   const f = workFixture(t);
   const initial = evaluateCompletion(f.db, f.swarmId);
   assert.deepEqual(
     initial.gates.map((gate) => [gate.key, gate.ok]),
     [
-      ["scope", false],
       ["linked", false],
       ["tasks", false],
       ["criteria", false],
       ["review", true],
     ],
   );
-  assert.equal(initial.awaitingUser, false);
   assert.equal(initial.outcome, null);
   const task = f.task();
   claimTask(f.db, { ...f.input(), id: task.id });
@@ -84,14 +82,9 @@ test("five stop gates fail independently and idleness never completes work", (t)
   );
 });
 
-test("scope re-approval is required after criterion edits, archive/restore and intent changes", (t) => {
+test("intent edits do not gate completion, but criterion edits stale votes", (t) => {
   const f = workFixture(t);
   f.settle();
-  const waiting = evaluateCompletion(f.db, f.swarmId);
-  assert.equal(waiting.awaitingUser, true);
-  assert.equal(waiting.done, false);
-  assert.throws(() => approveScope(f.db, f.input()), /Only User/);
-  const approved = approveScope(f.db, f.input("User"));
   assert.equal(evaluateCompletion(f.db, f.swarmId).done, true);
   const intent = updateProjectIntent(f.db, {
     ...f.input(),
@@ -100,19 +93,15 @@ test("scope re-approval is required after criterion edits, archive/restore and i
     expectedRevision: 0,
   });
   assert.equal(intent.intentRevision, 1);
-  assert.equal(intent.scopeRevision, approved.scopeRevision + 1);
-  assert.equal(evaluateCompletion(f.db, f.swarmId).awaitingUser, true);
-  assert.throws(() => approveScope(f.db, { ...f.input("User"), expectedRevision: approved.scopeRevision }), /Reread/);
-  approveScope(f.db, f.input("User"));
+  assert.equal(evaluateCompletion(f.db, f.swarmId).done, true);
   editCriterion(f.db, {
     ...f.input(),
     id: f.criterion.id,
     expectedRevision: f.criterion.revision,
     fields: { verification: "Run regression suite" },
   });
-  assert.equal(evaluateCompletion(f.db, f.swarmId).gates.find((gate) => gate.key === "scope")?.ok, false);
+  assert.equal(evaluateCompletion(f.db, f.swarmId).done, false);
   archiveCriterion(f.db, { ...f.input(), id: f.criterion.id });
-  approveScope(f.db, f.input("User"));
   assert.equal(evaluateCompletion(f.db, f.swarmId).done, true);
   restoreCriterion(f.db, { ...f.input("User"), id: f.criterion.id });
   assert.equal(evaluateCompletion(f.db, f.swarmId).done, false);
@@ -121,7 +110,6 @@ test("scope re-approval is required after criterion edits, archive/restore and i
 test("completed outcome is persisted only by an owning active runner", (t) => {
   const f = workFixture(t);
   f.settle();
-  approveScope(f.db, f.input("User"));
   assert.equal(evaluateCompletion(f.db, f.swarmId).outcome, "completed");
   assert.equal(readProject(f.db, f.swarmId).outcome, null);
   assert.equal(
@@ -141,7 +129,7 @@ test("completed outcome is persisted only by an owning active runner", (t) => {
   assert.ok(evaluateCompletion(f.db, f.swarmId).gates.every((gate) => gate.ok));
 });
 
-test("pending/rejected exceptions do not complete, approved exceptions defer tasks and yield stopped_with_blockers", (t) => {
+test("agreed blockers defer tasks and yield stopped_with_blockers without User input", (t) => {
   const f = workFixture(t);
   for (const criterion of listCriteria(f.db, f.swarmId)) {
     if (criterion.id !== f.criterion.id) archiveCriterion(f.db, { ...f.input(), id: criterion.id });
@@ -150,13 +138,6 @@ test("pending/rejected exceptions do not complete, approved exceptions defer tas
   for (const task of listTasks(f.db, f.swarmId)) f.accept(task.id);
   f.task(f.criterion.id, [], true);
   agreement(f, f.criterion.id);
-  approveScope(f.db, f.input("User"));
-  const pending = evaluateCompletion(f.db, f.swarmId);
-  assert.equal(pending.done, false);
-  assert.equal(pending.awaitingUser, true, "only User can approve the exception that defers this task");
-  decideCriterionBlocker(f.db, { ...f.input("User"), criterionId: f.criterion.id, decision: "reject" });
-  assert.equal(evaluateCompletion(f.db, f.swarmId).done, false);
-  decideCriterionBlocker(f.db, { ...f.input("User"), criterionId: f.criterion.id, decision: "approve" });
   const completed = evaluateCompletion(f.db, f.swarmId);
   assert.equal(completed.done, true);
   assert.equal(completed.outcome, "stopped_with_blockers");
@@ -169,29 +150,28 @@ test("pending/rejected exceptions do not complete, approved exceptions defer tas
   assert.equal(readProject(f.db, f.swarmId).outcome, "stopped_with_blockers");
 });
 
-test("pending exception is awaitingUser when all linked tasks are accepted", (t) => {
+test("User rejection stales blocked votes even when all linked tasks are accepted", (t) => {
   const f = workFixture(t);
   f.settle();
   agreement(f, f.criterion.id);
-  approveScope(f.db, f.input("User"));
-  assert.equal(evaluateCompletion(f.db, f.swarmId).awaitingUser, true);
+  assert.equal(evaluateCompletion(f.db, f.swarmId).done, true);
   decideCriterionBlocker(f.db, { ...f.input("User"), criterionId: f.criterion.id, decision: "reject" });
-  assert.equal(evaluateCompletion(f.db, f.swarmId).awaitingUser, false);
+  assert.equal(evaluateCompletion(f.db, f.swarmId).done, false);
 });
 
-test("pending exceptions do not hide unfinished mixed-criterion tasks or reviews", (t) => {
+test("agreed blockers do not bypass pending reviews", (t) => {
   const f = workFixture(t);
   f.settle();
   const task = f.task(f.criterion.id, [], true);
   agreement(f, f.criterion.id);
-  assert.equal(evaluateCompletion(f.db, f.swarmId).awaitingUser, true);
+  assert.equal(evaluateCompletion(f.db, f.swarmId).done, true);
   startTask(f.db, { ...f.input(), id: task.id });
   requestTaskReview(f.db, { ...f.input(), id: task.id, evidence: "Checks pass" });
   agreement(f, f.criterion.id);
-  assert.equal(evaluateCompletion(f.db, f.swarmId).awaitingUser, false);
+  assert.equal(evaluateCompletion(f.db, f.swarmId).done, false);
 });
 
-test("a task with another linked criterion cannot be waived by one pending exception", (t) => {
+test("a task with another linked criterion cannot be deferred by one blocker", (t) => {
   const f = workFixture(t);
   f.settle();
   const other = listCriteria(f.db, f.swarmId).find((criterion) => criterion.id !== f.criterion.id);
@@ -208,13 +188,12 @@ test("a task with another linked criterion cannot be waived by one pending excep
   });
   archiveCriterion(f.db, { ...f.input(), id: other.id });
   agreement(f, f.criterion.id);
-  assert.equal(evaluateCompletion(f.db, f.swarmId).awaitingUser, false);
+  assert.equal(evaluateCompletion(f.db, f.swarmId).done, false);
 });
 
 test("stopped/interrupted runs never receive a completion outcome", (t) => {
   const f = workFixture(t);
   f.settle();
-  approveScope(f.db, f.input("User"));
   endRun(f.db, f.swarmId, process.pid, "stopped", T0, 1);
   assert.equal(
     prepareWorkRunCompletion(f.db, { swarmId: f.swarmId, run: 1, runnerPid: process.pid, now: T0 }).kind,

@@ -96,7 +96,7 @@ export class IdleReminders {
   #decided(): boolean {
     const { db, swarmId } = this.#options;
     const completion = evaluateCompletion(db, swarmId);
-    return completion.done || completion.awaitingUser;
+    return completion.done;
   }
 
   #openRecipients(): Set<string> {

@@ -94,7 +94,13 @@ export function feedbackPostBody(feedback: string, max: number): string {
   return clipWithSuffix(feedback, MAIN_FEEDBACK_POST_SUFFIX, max);
 }
 
-export function sendMainFeedback(db: SwarmDb, swarmId: number, text: string, now: number): MessageView {
+export function sendMainFeedback(
+  db: SwarmDb,
+  swarmId: number,
+  text: string,
+  now: number,
+  instructions = "",
+): MessageView {
   return db.write(() => {
     requireSwarm(db, swarmId);
     const value = requireText(text, MAIN_FEEDBACK_MAX, "message");
@@ -106,7 +112,14 @@ export function sendMainFeedback(db: SwarmDb, swarmId: number, text: string, now
         const threadId =
           findDirectThreadView(db, swarmId, sender.name, peer.name)?.id ??
           createThread(db, swarmId, [sender.name, peer.name], now);
-        return sendToThread(db, { swarmId, threadId, sender, recipients: [peer], text: value, now }).message;
+        return sendToThread(db, {
+          swarmId,
+          threadId,
+          sender,
+          recipients: [peer],
+          text: instructions ? `${value}\n\n${instructions}` : value,
+          now,
+        }).message;
       });
     const first = messages[0];
     if (!first) throw new BrokerError("validation", "No active workers to receive feedback.");

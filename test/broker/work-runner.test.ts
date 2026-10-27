@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { RunCompletion } from "../../src/broker/run-completion.js";
-import { approveScope, readProject } from "../../src/broker/project.js";
+import { updateProjectIntent, readProject } from "../../src/broker/project.js";
 import { onWorkChanged } from "../../src/broker/work-write.js";
 import { loadSettings } from "../../src/settings.js";
 import { systemClock } from "../../src/clock.js";
@@ -10,7 +10,6 @@ import { workFixture } from "../helpers/work-graph.js";
 test("completion poll uses graph gates and refuses completion during budget/pause drain", async (t) => {
   const f = workFixture(t);
   f.settle();
-  approveScope(f.db, f.input("User"));
   let closed = 0;
   let canRun = false;
   const completion = new RunCompletion({
@@ -74,7 +73,7 @@ test("committed work mutations invoke the runner completion check immediately", 
     if (id === f.swarmId) void completion.check();
   });
   t.after(remove);
-  approveScope(f.db, f.input("User"));
+  updateProjectIntent(f.db, { ...f.input(), summary: "Verified output", path: "intent.md" });
   assert.equal(closed, true);
   assert.equal(readProject(f.db, f.swarmId).outcome, null, "outcome waits for the final atomic recheck");
 });

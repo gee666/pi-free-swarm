@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { evaluateCompletion } from "../../src/broker/completion.js";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { listTasks, taskLinks } from "../../src/store/tasks.js";
+import { readProject } from "../../src/broker/project.js";
 import { listCriteria } from "../../src/store/criteria.js";
-import { approveScope } from "../../src/broker/project.js";
 import { getMessages } from "../../src/store/message-queries.js";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -60,30 +63,34 @@ describe("resume_swarm", () => {
       const sessions = spawnsOf(run.fake).map((spawn) => spawn.session);
 
       const secondRun = resumeSwarm(run.env, { swarmId, message: FEEDBACK }, {});
-      const feedbackCriterion = listCriteria(db, swarmId).find((criterion) => criterion.group === "Feedback");
-      assert.ok(feedbackCriterion);
-      assert.equal(feedbackCriterion.author, "Main");
-      assert.equal(Array.from(feedbackCriterion.title).length, 60);
-      assert.match(feedbackCriterion.body, /full text:/);
-      assert.equal(evaluateCompletion(db, swarmId).done, false);
-      assert.deepEqual(
-        evaluateCompletion(db, swarmId)
-          .gates.filter((gate) => !gate.ok)
-          .map((gate) => gate.key),
-        ["scope", "linked", "criteria"],
+      const updateTask = listTasks(db, swarmId).find(
+        (task) => task.title === "Derive criteria from the update for run 2",
       );
+      assert.ok(updateTask);
+      assert.equal(updateTask.author, "Main");
+      assert.equal(updateTask.status, "new");
+      const planning = listCriteria(db, swarmId).find((criterion) => criterion.group === "Planning");
+      assert.ok(planning);
+      assert.deepEqual(taskLinks(db, updateTask.id), [
+        { criterionId: planning.id, contribution: "Update the criteria and tasks for the new request" },
+      ]);
+      const briefPath = readProject(db, swarmId).briefPath;
+      assert.ok(briefPath);
+      assert.ok(readFileSync(path.join(run.cwd, briefPath), "utf8").endsWith(`## Update for run 2\n\n${FEEDBACK}\n`));
+      assert.equal(evaluateCompletion(db, swarmId).done, false);
+      assert.ok(evaluateCompletion(db, swarmId).gates.some((gate) => gate.key === "tasks" && !gate.ok));
       await waitForWorkersIdle(run, swarmId);
       assert.equal(getSwarm(db, swarmId, Date.now())?.status, "running");
-      finishWork(db, swarmId, false);
-      assert.equal(evaluateCompletion(db, swarmId).done, false, "finishing tasks and votes still needs scope approval");
-      approveScope(db, { swarmId, actor: "User", now: Date.now() });
+      finishWork(db, swarmId);
       const second = await secondRun;
       assert.equal(second.end, "finished");
       assert.equal(second.run, 2);
       assert.equal(second.swarm.runCount, 2);
 
       const [feedback] = mainMessages(run, swarmId);
-      assert.equal(feedback.body, FEEDBACK.trim());
+      assert.ok(feedback.body.startsWith(`${FEEDBACK.trim()}\n\n`));
+      assert.match(feedback.body, /brief file .* has a new section "Update for run 2"/);
+      assert.match(feedback.body, /derive criteria and tasks/);
       for (const message of mainMessages(run, swarmId))
         assert.ok(getMessages(db, [message.id])[0]?.recipients.every((recipient) => recipient.status === "read"));
       const [post] = listPosts(db, swarmId, { count: 10, offset: 0 }).posts;
@@ -165,6 +172,9 @@ describe("resume_swarm", () => {
     // Never persisted a session: they start with the kickoff, the feedback among their messages.
     const kickoffs = promptTexts(run.fake).filter((text) => text.startsWith("Start: call swarm_project."));
     assert.equal(kickoffs.length, 2);
-    for (const text of kickoffs) assert.ok(text.includes('"Carry on."'));
+    for (const text of kickoffs) {
+      assert.ok(text.includes("Carry on."));
+      assert.match(text, /derive criteria and tasks/);
+    }
   });
 });

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Check, LayoutDashboard, ListChecks, MessageSquare } from "lucide-react";
 import type { DashboardResponse } from "../../../../src/api-types";
@@ -16,7 +15,6 @@ import { Tooltip } from "../../components/Tooltip";
 import { Coverage } from "./Coverage";
 import { activityLabel, gateDetail, GATE_FILTERS, GATE_LABELS } from "./dashboardModel";
 import { relativeTime, shortDuration } from "../../lib/time";
-import { ScopeDialog } from "./ScopeDialog";
 import styles from "./Dashboard.module.css";
 
 function timeAgo(epochMs: number): string {
@@ -66,7 +64,6 @@ export function DashboardPage() {
   const { id: swarmId = "" } = useParams();
   const state = useDashboard();
   const data = state.data;
-  const [scopeOpen, setScopeOpen] = useState(false);
   const root = `/s/${swarmId}/`;
   return (
     <Panel aria-label="Dashboard">
@@ -87,11 +84,6 @@ export function DashboardPage() {
                     {data.header.startedAt === null ? "not started" : `started ${timeAgo(data.header.startedAt)}`}
                   </p>
                 </div>
-                {data.attention.scopeApprovalNeeded && (
-                  <Button variant="primary" onClick={() => setScopeOpen(true)}>
-                    Approve scope
-                  </Button>
-                )}
               </header>
               <Panel inset>
                 <PanelHeader title="Stop rules" />
@@ -155,23 +147,16 @@ export function DashboardPage() {
               <Coverage swarmId={swarmId} groups={data.criteriaCoverage} />
               <div className={styles.columns}>
                 <Panel inset>
-                  <PanelHeader title="Needs you" />
+                  <PanelHeader title="Worth a look" />
                   <RowList>
-                    {data.attention.scopeApprovalNeeded && (
-                      <button {...rowFocusProps} className={styles.attention} onClick={() => setScopeOpen(true)}>
-                        Approve scope rev {data.project.scopeRevision}
-                      </button>
-                    )}
-                    {data.attention.blockerDecisions.map((criterion) => (
-                      <Link
-                        {...rowFocusProps}
-                        key={criterion.id}
-                        className={styles.attention}
-                        to={root + `criteria/${criterion.id}`}
-                      >
+                    {data.attention.agreedBlockers.map((criterion) => (
+                      <div key={criterion.id} className={styles.attention}>
                         <StatusGlyph status="blocked" />
-                        <span>{criterion.title} · awaiting you</span>
-                      </Link>
+                        <span>{criterion.title}</span>
+                        <Link {...rowFocusProps} to={root + `criteria/${criterion.id}`}>
+                          Reject
+                        </Link>
+                      </div>
                     ))}
                     {data.attention.unreadUserMessages > 0 && (
                       <Link {...rowFocusProps} className={styles.attention} to={root + "agents"}>
@@ -179,11 +164,12 @@ export function DashboardPage() {
                         {data.attention.unreadUserMessages} unread messages to User
                       </Link>
                     )}
-                    {!data.attention.scopeApprovalNeeded &&
-                      data.attention.blockerDecisions.length === 0 &&
-                      data.attention.unreadUserMessages === 0 && (
-                        <EmptyState icon={ListChecks} text="Nothing needs you" />
-                      )}
+                    {data.attention.agreedBlockers.length === 0 && data.attention.unreadUserMessages === 0 && (
+                      <EmptyState
+                        icon={ListChecks}
+                        text="Nothing needs your attention — the swarm is working on its own."
+                      />
+                    )}
                   </RowList>
                 </Panel>
                 <Panel inset>
@@ -205,14 +191,6 @@ export function DashboardPage() {
                   )}
                 </Panel>
               </div>
-              {scopeOpen && (
-                <ScopeDialog
-                  swarmId={swarmId}
-                  data={data}
-                  onClose={() => setScopeOpen(false)}
-                  onApproved={state.reload}
-                />
-              )}
             </>
           )}
         </div>

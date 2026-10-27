@@ -27,9 +27,6 @@ function SwarmFrame({ swarmId }: { swarmId: string }) {
   const { list } = useSwarmList();
   const detail = useSwarmDetail(swarmId);
   const dashboard = useDashboard().data;
-  const attention = dashboard
-    ? Number(dashboard.attention.scopeApprovalNeeded) + dashboard.attention.blockerDecisions.length
-    : 0;
   const swarms = list.data?.swarms ?? [];
   return (
     <AppShell
@@ -42,7 +39,7 @@ function SwarmFrame({ swarmId }: { swarmId: string }) {
           onSelectSwarm={(id) => navigate(`/s/${id}/dashboard`)}
         />
       }
-      rail={<TabRail basePath={`/s/${swarmId}`} unread={detail.data?.userUnread} attention={attention} />}
+      rail={<TabRail basePath={`/s/${swarmId}`} unread={detail.data?.userUnread} />}
     >
       <Outlet />
     </AppShell>

@@ -31,20 +31,12 @@ const TABS: ReadonlyArray<{ path: string; label: string; icon: LucideIcon; unrea
 ];
 
 /** Vertical tab rail; `basePath` is the swarm root, e.g. "/s/3". */
-export function TabRail({
-  basePath,
-  unread,
-  attention = 0,
-}: {
-  basePath: string;
-  unread?: UserUnreadSummary;
-  attention?: number;
-}) {
+export function TabRail({ basePath, unread }: { basePath: string; unread?: UserUnreadSummary }) {
   return (
     <nav className={styles.rail} aria-label="Sections">
       {TABS.map((tab) => {
-        const count = tab.path === "criteria" ? attention : tab.unread && unread ? unread[tab.unread] : 0;
-        const label = tab.path === "criteria" ? "attention items" : `unread ${tab.unread}`;
+        const count = tab.unread && unread ? unread[tab.unread] : 0;
+        const label = `unread ${tab.unread}`;
         return (
           <NavLink
             key={tab.path}

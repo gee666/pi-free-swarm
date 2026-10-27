@@ -72,7 +72,9 @@ function assess(
   const blocker = getBlocker(db, id);
   const votes = criterionVotes(db, id).map((vote) => ({
     ...vote,
-    stale: !voteIsCurrent(vote, criterion.revision, state.linksSignature, blocker?.revision ?? null),
+    stale:
+      !voteIsCurrent(vote, criterion.revision, state.linksSignature, blocker?.revision ?? null) ||
+      (vote.verdict === "blocked" && blocker !== null && blocker.rejectedRevision === blocker.revision),
   }));
   const missing = (verdict: "satisfied" | "blocked") => {
     const current = votes.filter((vote) => !vote.stale && vote.verdict === verdict);
@@ -86,7 +88,7 @@ function assess(
   const reasons: string[] = [];
   if (state.status === "unlinked") reasons.push("No linked tasks. Create or link a task.");
   for (const taskId of offlineTasks) reasons.push(`owner offline — hand off task #${taskId}`);
-  if (state.status === "blocked") reasons.push(`Blocker exception ${state.exception}.`);
+  if (state.status === "blocked") reasons.push("All required voters agree on the current blocker.");
   if (state.status === "incomplete") {
     for (const task of tasks.filter((item) => item.status !== "accepted"))
       reasons.push(`task #${task.id} ${task.status}`);

@@ -22,8 +22,7 @@ export function projectText(identity: AgentToolIdentity): string {
   return [
     `Brief: ${project.briefPath ?? "not recorded"}`,
     `Intent r${project.intentRevision}: ${project.intentSummary ?? "not recorded"} · ${project.intentPath ?? "no file"}`,
-    `Scope r${project.scopeRevision}; approved r${project.scopeApprovedRevision ?? "none"}`,
-    `Outcome: ${completion.outcome ?? (completion.awaitingUser ? "awaiting User" : "unfinished")}`,
+    `Outcome: ${completion.outcome ?? "unfinished"}`,
     ...completion.gates.map((gate) => `${gate.ok ? "OK" : "UNMET"} ${gate.key} (${gate.count}): ${gate.detail}`),
     "Own tasks:",
     ...queue.tasks.map(taskLine),
@@ -48,7 +47,7 @@ export function createWorkHandlers(identity: AgentToolIdentity) {
     project: () => projectText(identity),
     intentUpdate(params: Static<typeof S.intentUpdate>) {
       const project = updateProjectIntent(db(), { ...params, ...input() });
-      return `Project #${identity.swarmId} r${project.intentRevision} [scope approval needed r${project.scopeRevision}].`;
+      return `Project #${identity.swarmId} r${project.intentRevision}.`;
     },
     criteriaGet: ({ id }: Static<typeof S.byId>) => JSON.stringify(getCriterionDetail(db(), identity.swarmId, id)),
     criteriaCreate(params: Static<typeof S.criteriaCreate>) {
@@ -62,7 +61,7 @@ export function createWorkHandlers(identity: AgentToolIdentity) {
     },
     criteriaBlock({ criterion_id, ...fields }: Static<typeof S.criteriaBlock>) {
       const blocker = recordCriterionBlocker(db(), { ...fields, criterionId: criterion_id, ...input() });
-      return `${criterionResult(criterion_id)} Blocker r${blocker.revision}; gather current blocked votes, then User decides. Waiting for another task is a dependency, not a blocker.`;
+      return `${criterionResult(criterion_id)} Blocker r${blocker.revision}; gather current blocked votes from every required owner and an independent voter to finalize the blocker. User may optionally reject it. Waiting for another task is a dependency, not a blocker.`;
     },
     criteriaVote({ criterion_id, ...fields }: Static<typeof S.criteriaVote>) {
       voteCriterion(db(), { ...fields, criterionId: criterion_id, ...input() });

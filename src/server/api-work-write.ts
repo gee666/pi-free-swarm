@@ -2,7 +2,6 @@ import type {
   CriterionBlockerResponse,
   CriterionMutationResponse,
   CriterionVoteResponse,
-  ScopeApprovalResponse,
   TaskMutationResponse,
 } from "../api-types.js";
 import { createCriterion, editCriterion, archiveCriterion, restoreCriterion } from "../broker/criteria.js";
@@ -11,7 +10,6 @@ import { recordCriterionBlocker, decideCriterionBlocker } from "../broker/blocke
 import { createTask, editTask } from "../broker/tasks.js";
 import { claimTask, releaseTask, handoffTask } from "../broker/task-ownership.js";
 import { startTask, requestTaskReview, reviewTask, reopenTask } from "../broker/task-transitions.js";
-import { approveScope } from "../broker/project.js";
 import { USER_NAME } from "../constants.js";
 import {
   integerField,
@@ -118,7 +116,7 @@ export function workWriteRoutes(deps: ApiDeps): ApiRoute[] {
         decideCriterionBlocker(db, {
           ...input,
           criterionId: params.id("criterionId"),
-          decision: choice(body.decision, ["approve", "reject"], "decision"),
+          decision: choice(body.decision, ["reject"], "decision"),
         }),
       ),
     ),
@@ -157,6 +155,5 @@ export function workWriteRoutes(deps: ApiDeps): ApiRoute[] {
       ),
     ),
     route("tasks/:taskId/reopen", (ctx) => transition(ctx, "reopen")),
-    route("scope/approve", ({ input }) => reply<ScopeApprovalResponse>(approveScope(db, input))),
   ];
 }

@@ -49,10 +49,8 @@ function listCriterion(detail: CriterionDetail): CriterionListItem {
     createdAt: detail.createdAt,
     updatedAt: detail.updatedAt,
     status: detail.status,
-    exception: detail.exception,
     linkedTaskCount: detail.tasks.length,
     voteProgress: progress(detail, blocked ? "blocked" : "satisfied"),
-    exceptionPending: detail.status === "blocked" && detail.exception === "pending",
     reasons: detail.reasons,
   };
 }
@@ -115,7 +113,6 @@ export function criterionDetail(db: SwarmDb, swarmId: number, id: number): Crite
     missingBlocked: detail.missingBlocked,
     blocker: detail.blocker,
     agreement: progress(detail, "blocked"),
-    decision: detail.blocker === null ? null : detail.exception,
     linkedPosts: linkedPosts(db, swarmId, detail.linkedPosts),
   };
 }

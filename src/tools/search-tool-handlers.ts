@@ -67,7 +67,7 @@ export function createSearchHandlers(identity: AgentToolIdentity) {
       });
       return resultLines(result, (item) => {
         const criterion = getCriterionDetail(db, identity.swarmId, Number(item.id));
-        return `#${item.id} [${criterion.archivedAt ? "archived" : criterion.status}] ${item.title} · ${criterion.group}${criterion.exception ? ` · exception ${criterion.exception}` : ""}`;
+        return `#${item.id} [${criterion.archivedAt ? "archived" : criterion.status}] ${item.title} · ${criterion.group}`;
       });
     },
     async postsSearch(params: Static<typeof S.postsSearch>, helper?: SearchHelper) {

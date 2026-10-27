@@ -122,10 +122,10 @@ export function saveBlocker(db: SwarmDb, blocker: CriterionBlocker): void {
   db.sql
     .prepare(
       `INSERT INTO criterion_blockers(criterion_id, revision, reason, missing, attempted, unblock, author,
-    updated_at, approved_revision, rejected_revision, decided_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    updated_at, rejected_revision, decided_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(criterion_id) DO UPDATE SET revision = excluded.revision, reason = excluded.reason,
     missing = excluded.missing, attempted = excluded.attempted, unblock = excluded.unblock, author = excluded.author,
-    updated_at = excluded.updated_at, approved_revision = excluded.approved_revision, rejected_revision = excluded.rejected_revision,
+    updated_at = excluded.updated_at, rejected_revision = excluded.rejected_revision,
     decided_at = excluded.decided_at`,
     )
     .run(
@@ -137,7 +137,6 @@ export function saveBlocker(db: SwarmDb, blocker: CriterionBlocker): void {
       blocker.unblock,
       blocker.author,
       blocker.updatedAt,
-      blocker.approvedRevision,
       blocker.rejectedRevision,
       blocker.decidedAt,
     );

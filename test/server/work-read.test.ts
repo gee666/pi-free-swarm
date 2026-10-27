@@ -176,10 +176,9 @@ describe("dashboard", () => {
     assert.equal(data.header.startedAt, board.swarm.startedAt);
     assert.deepEqual(
       data.gates.map((gate) => gate.key),
-      ["scope", "linked", "tasks", "criteria", "review"],
+      ["linked", "tasks", "criteria", "review"],
     );
-    assert.equal(data.attention.scopeApprovalNeeded, true);
-    assert.equal(data.attention.blockerDecisions[0].id, criterion.id);
+    assert.equal(data.attention.agreedBlockers[0].id, criterion.id);
     assert.equal(data.attention.unreadUserMessages, 1);
     assert.deepEqual(
       data.criteriaCoverage.find((group) => group.group === "HTTP"),
@@ -204,7 +203,7 @@ describe("dashboard", () => {
     );
   });
 
-  it("reports awaiting User and applies both ETA thresholds without a guessed estimate", async () => {
+  it("reports running and applies both ETA thresholds without a guessed estimate", async () => {
     const criterion = await createHttpCriterion(board);
     for (let index = 0; index < 3; index++) await createHttpTask(board, criterion.id);
     const main = listCriteria(board.temp.db, board.swarm.id).find((item) => item.group === "Main");
@@ -234,7 +233,7 @@ describe("dashboard", () => {
       });
     }
     const fresh = await getJson<DashboardResponse>(board.url("/dashboard"));
-    assert.equal(fresh.body.header.state, "awaiting_user");
+    assert.equal(fresh.body.header.state, "running");
     assert.equal(fresh.body.etaMs, null);
     const now = Date.now();
     board.temp.db.sql.prepare("UPDATE swarms SET started_at = ? WHERE id = ?").run(now - 31 * 60_000, board.swarm.id);
@@ -247,7 +246,7 @@ describe("dashboard", () => {
     assert.equal((await getJson<DashboardResponse>(board.url("/dashboard"))).body.etaMs, null);
   });
 
-  it("does not report stopped or interrupted runs as awaiting User", async () => {
+  it("reports stopped and interrupted run states", async () => {
     board.temp.db.sql.prepare("UPDATE swarms SET status = 'stopped' WHERE id = ?").run(board.swarm.id);
     assert.equal((await getJson<DashboardResponse>(board.url("/dashboard"))).body.header.state, "stopped");
     board.temp.db.sql.prepare("UPDATE swarms SET status = 'interrupted' WHERE id = ?").run(board.swarm.id);

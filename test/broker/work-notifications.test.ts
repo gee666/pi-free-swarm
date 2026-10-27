@@ -111,7 +111,7 @@ test("dependencies ready, dependency reopen and stale votes notify exactly the a
   assert.deepEqual(notices(f.db, cursor), [], "already stale votes are not repeatedly notified");
 });
 
-test("User blocker decisions notify required owners and independent voters once", (t) => {
+test("User blocker rejection notify required owners and independent voters once", (t) => {
   const f = workFixture(t);
   f.task(f.criterion.id, [], true);
   recordCriterionBlocker(f.db, {
@@ -133,7 +133,7 @@ test("User blocker decisions notify required owners and independent voters once"
   assert.ok(notices(f.db, cursor).every((message) => message.body.includes("Keep working")));
   assert.throws(
     () => decideCriterionBlocker(f.db, { ...f.input("User"), criterionId: f.criterion.id, decision: "reject" }),
-    /already recorded/,
+    /must agree/,
   );
   assert.equal(notices(f.db, cursor).length, 2);
 });

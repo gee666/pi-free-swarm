@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { archiveCriterion, createCriterion } from "../../src/broker/criteria.js";
 import { editTask } from "../../src/broker/tasks.js";
 import { evaluateCompletion } from "../../src/broker/completion.js";
-import { approveScope, readProject } from "../../src/broker/project.js";
+import { readProject } from "../../src/broker/project.js";
 import { endRun } from "../../src/broker/swarms.js";
 import { prepareWorkRunCompletion } from "../../src/broker/work-run-completion.js";
 import { recordCriterionBlocker, decideCriterionBlocker } from "../../src/broker/blockers.js";
@@ -22,7 +22,6 @@ test("worker tool writes are fenced by run identity and admission, but User can 
   const fields = { group: "Safety", title: "New requirement", body: "Verify", verification: "Test", source: "" };
   assert.throws(() => tools(999).criteriaCreate(fields), /run is closing\/ended/);
   f.settle();
-  approveScope(f.db, f.input("User"));
   const close = () =>
     prepareWorkRunCompletion(f.db, { swarmId: f.swarmId, run: 1, runnerPid: process.pid, now: f.input().now });
   assert.equal(close().kind, "closed");
@@ -32,7 +31,6 @@ test("worker tool writes are fenced by run identity and admission, but User can 
   assert.equal(readProject(f.db, f.swarmId).outcome, null);
   assert.doesNotThrow(() => tools(1).criteriaCreate({ ...fields, title: "Admission reopened" }));
   f.settle();
-  approveScope(f.db, f.input("User"));
   assert.equal(close().kind, "closed");
   assert.equal(endRun(f.db, f.swarmId, process.pid, "finished", f.input().now, 1), true);
   assert.throws(() => tools(1).criteriaCreate(fields), /run is closing\/ended/);
@@ -42,10 +40,8 @@ test("no active criteria cannot pass the linked gate", (t) => {
   const f = workFixture(t);
   for (const criterion of criterionStates(f.db, f.swarmId))
     archiveCriterion(f.db, { ...f.input("User"), id: criterion.id });
-  approveScope(f.db, f.input("User"));
   const completion = evaluateCompletion(f.db, f.swarmId);
   assert.equal(completion.done, false);
-  assert.equal(completion.awaitingUser, false);
   assert.equal(completion.gates.find((gate) => gate.key === "linked")?.count, 1);
 });
 
@@ -66,7 +62,7 @@ test("retired owners remain offline after the run ends, non-retired stopped owne
   assert.equal(criterionStates(f.db, f.swarmId).find((criterion) => criterion.id === f.criterion.id)?.offlineCount, 1);
 });
 
-test("mixed approved and pending blocked links remain awaiting User until the last decision", (t) => {
+test("mixed blocked links defer a task only while all agreements remain current", (t) => {
   const f = workFixture(t);
   f.settle();
   const second = createCriterion(f.db, {
@@ -101,11 +97,9 @@ test("mixed approved and pending blocked links remain awaiting User until the la
     for (const actor of ["Ann", "Ben"])
       voteCriterion(f.db, { ...f.input(actor), criterionId: id, verdict: "blocked", reason: "Confirmed" });
   }
-  approveScope(f.db, f.input("User"));
-  assert.equal(evaluateCompletion(f.db, f.swarmId).awaitingUser, true);
-  decideCriterionBlocker(f.db, { ...f.input("User"), criterionId: f.criterion.id, decision: "approve" });
-  assert.equal(evaluateCompletion(f.db, f.swarmId).awaitingUser, true);
-  assert.equal(taskStates(f.db, f.swarmId).find((state) => state.id === task.id)?.deferred, false);
-  decideCriterionBlocker(f.db, { ...f.input("User"), criterionId: second.id, decision: "approve" });
   assert.equal(evaluateCompletion(f.db, f.swarmId).done, true);
+  assert.equal(taskStates(f.db, f.swarmId).find((state) => state.id === task.id)?.deferred, true);
+  decideCriterionBlocker(f.db, { ...f.input("User"), criterionId: second.id, decision: "reject" });
+  assert.equal(evaluateCompletion(f.db, f.swarmId).done, false);
+  assert.equal(taskStates(f.db, f.swarmId).find((state) => state.id === task.id)?.deferred, false);
 });

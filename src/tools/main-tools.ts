@@ -19,8 +19,7 @@ import {
   renderSwarmCall,
   renderToolResult,
 } from "./render.js";
-import { evaluateCompletion } from "../broker/completion.js";
-import { boundRunResult, buildRunResultText, awaitingUserText, type RunToolResult } from "./result.js";
+import { boundRunResult, buildRunResultText, type RunToolResult } from "./result.js";
 import { buildRunEnvironment, gitignoreHint, type LaunchSource } from "./run-environment.js";
 
 /** The runner entry points; tests replace them to exercise the tools without agents. */
@@ -84,7 +83,7 @@ export function swarmDescription(cwd: string, maxAgents?: number): string {
     "Use it when the user asks for a swarm, after the requirements are written to files.",
     `Keep task_prompt concise and point to those files. ${range}.`,
     "Acceptance criteria are the most important part of preparing a swarm run: they define what agents must deliver and what they judge as complete. Before launching, make them specific and verifiable. Specify the required deliverables and their locations/formats, minimum counts or coverage where relevant, quality requirements, tests and other validation, required evidence, and the scope and independence of verification. State constraints and exclusions explicitly. Avoid vague goals such as 'improve quality' or 'test thoroughly'; define observable completion conditions. If the user did not provide criteria, derive them from the task before launching, without inventing extra scope. Clear criteria strongly influence run quality, but votes do not replace Main's inspection of the result.",
-    "Blocks until the run ends or only User decisions remain. Returns stop gates, outcome and board link. Ask the user to approve scope or decide blockers on the board; never decide on their behalf. Review the real work before summarising.",
+    "Blocks until the run ends. The swarm finishes on its own; the user may join discussions or edit anything at any time, and their input counts like any participant's. Returns stop gates, outcome and board link. Review the real work before summarising.",
   ].join(" ");
 }
 
@@ -117,25 +116,10 @@ export function createMainToolHandlers(runtime: MainRuntime, runner: SwarmRunner
     await runtime.host.ensure();
     assertEnabled();
     const env = buildRunEnvironment(runtime, db, request.settings, request.ctx);
-    let returned = false;
-    let release: (progress: RunProgress) => void = () => undefined;
-    const waiting = new Promise<RunProgress>((resolve) => {
-      release = resolve;
-    });
     const onProgress = (progress: RunProgress) => {
-      if (returned) return;
       onUpdate?.(toolResult(progressLines(progress, PLAIN_THEME).join("\n"), progress));
-      if (evaluateCompletion(db, progress.swarmId).awaitingUser) release(progress);
     };
-    const running = request.start(env, { signal: request.signal, onProgress });
-    const result = await Promise.race([
-      running.then((outcome) => ({ kind: "ended" as const, outcome })),
-      waiting.then((progress) => ({ kind: "waiting" as const, progress })),
-    ]);
-    returned = true;
-    if (result.kind === "waiting")
-      return toolResult(awaitingUserText(db, result.progress.swarmId, runtime.host.boardUrl()), result.progress);
-    const outcome = result.outcome;
+    const outcome = await request.start(env, { signal: request.signal, onProgress });
     const now = systemClock.now();
     const boardUrl = runtime.host.boardUrl();
     const final = { ...readRunProgress(db, outcome.swarm.id, now, boardUrl), status: outcome.end };
@@ -221,7 +205,7 @@ export function registerMainTools(pi: Pick<ExtensionAPI, "registerTool">, runtim
     name: MAIN_TOOL.resumeSwarm,
     label: "Resume swarm",
     description:
-      "Attach to an active swarm or resume an ended one with feedback to every active worker. Preserves the work graph and re-evaluates old votes. Blocks until the run ends or awaits User decisions.",
+      "Attach to an active swarm or resume an ended one with feedback to every active worker. Appends the full update to the brief and seeds a Planning task to derive criteria and tasks. Preserves the work graph and re-evaluates old votes. Blocks until the run ends.",
     promptSnippet: "Resume a swarm with feedback on its work.",
     parameters: RESUME_PARAMS,
     execute: (_toolCallId, params, signal, onUpdate, ctx) => handlers.resume(params, signal, onUpdate, ctx),

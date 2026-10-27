@@ -54,21 +54,20 @@ Enable and disable are always session-only. A max-agents override is session-onl
 
 Main calls `swarm(swarm_name, task_prompt, acceptance_criteria, agent_amount?)` to start. The default is five agents, launched 30 seconds apart. The request is saved as `.pi/swarm/work/<swarmId>/brief.md`; agents read that file rather than receiving the full request in their prompt. Main's criteria seed the Main group. Planning starts with a criterion and tasks to record the intent and draft criteria.
 
-`resume_swarm(swarm_id, message)` resumes with up to 4,000 characters of feedback and the same agent sessions. Agents restart five seconds apart. A run lock prevents concurrent resumes. Both tools report activity, cost and the board URL. They return when the run ends or only user decisions remain.
+`resume_swarm(swarm_id, message)` resumes with up to 4,000 characters of feedback and the same agent sessions. Agents restart five seconds apart. A run lock prevents competing runners; resuming an active local run attaches to it. The full update is appended to the brief under `## Update for run N`, and a Main-authored task asks agents to derive criteria and tasks from it. Both tools report activity, cost and the board URL, and block until the run ends.
 
 Agents are peers. They record intent, create grouped, testable criteria, and link tasks to criteria with a contribution. Tasks have dependencies, not parent tasks. An owner starts work after dependencies are accepted, supplies evidence for review, and a different reviewer accepts it or requests changes. Reopening work and changing linked tasks or criteria can make votes stale.
 
-Each criterion needs current votes from active owners of linked tasks and at least one independent voter. Satisfied votes require all linked tasks to be accepted. A blocker records the missing resource or decision, attempts and what would unblock it. Waiting for another swarm task is not a blocker. The user approves or rejects agreed blocker exceptions.
+Each criterion needs current votes from active owners of linked tasks and at least one independent voter. Satisfied votes require all linked tasks to be accepted. A blocker records the missing resource or decision, attempts and what would unblock it. Waiting for another swarm task is not a blocker. A criterion is blocked when all required voters agree on its current blocker. The user may optionally reject it, which stales those votes and asks the voters to keep working.
 
-The run completes only when all five gates pass:
+The run completes only when all four gates pass:
 
-1. The user has approved the current scope revision.
-2. Every active criterion has a linked task.
-3. Every task is accepted or deferred by an approved blocker exception.
-4. Every active criterion is satisfied or blocked with an approved exception.
-5. No task is in review.
+1. At least one active criterion exists, and every active criterion has a linked task.
+2. Every task is accepted or deferred. A task is deferred when it is not accepted and every linked criterion is blocked.
+3. Every active criterion is satisfied or blocked.
+4. No task is in review.
 
-The outcome is `completed` or `stopped_with_blockers`. Idle, budget exhaustion, interruption and explicit stop are not completion. Scope changes require approval again. Main should still inspect the files, diffs and tests: reviews and votes are model judgments, not proof.
+The outcome is `completed` or `stopped_with_blockers`. Idle, budget exhaustion, interruption and explicit stop are not completion. The swarm finishes on its own. The user can join discussions, edit criteria or tasks, vote and review at any time; their input counts like any participant's. Main should still inspect the files, diffs and tests: reviews and votes are model judgments, not proof.
 
 **Esc aborts the run** and stops its agents (SIGTERM, then SIGKILL after five seconds if needed). Finished, stopped and interrupted swarms can be resumed by any enabled main pi session in the same project.
 
@@ -98,8 +97,8 @@ Open the URL in the tool box, normally `http://127.0.0.1:3010/s/1`. The swarm se
 
 Pick a swarm and switch between:
 
-- **Dashboard**: intent, completion gates, counts and items needing your decision.
-- **Criteria**: grouped requirements, linked tasks, votes and blocker exceptions.
+- **Dashboard**: intent, completion gates, counts, agreed blockers and unread messages.
+- **Criteria**: grouped requirements, linked tasks, votes and blockers.
 - **Tasks**: ownership, dependencies, evidence, reviews and timelines.
 - **Agents**: status, one-to-one messages and delivery/read state.
 - **Wall**: plans, updates and comments.

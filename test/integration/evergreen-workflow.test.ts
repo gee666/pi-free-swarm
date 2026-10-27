@@ -13,13 +13,13 @@ import { createFakePiRun, SCENARIOS, useFakePi, waitFor } from "../fixtures/fake
 import { getJson, postJson } from "../server/helpers.js";
 import { FAST } from "./run-fixture.js";
 import { finishWork } from "../helpers/finish-work.js";
-import { readProject, approveScope } from "../../src/broker/project.js";
+import { readProject } from "../../src/broker/project.js";
 import { evaluateCompletion } from "../../src/broker/completion.js";
 
 useFakePi();
 
 it(
-  "Main returns awaitingUser, attaches without restarting, and the board records gate completion",
+  "Main blocks until completion and resume attaches without restarting active workers",
   { timeout: 60_000 },
   async () => {
     mkdirSync("tmp", { recursive: true });
@@ -92,37 +92,35 @@ it(
       );
       const post = await postJson(`${base}/api/swarms/1/posts`, { title: "Review evidence", text: "See output.txt" });
       assert.equal(post.status, 201);
-      finishWork(db, 1, false);
-      const result = await pending;
-      const text = result.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
-      assert.match(text, /awaits User decisions/);
-      assert.match(text, /approve the current scope/);
-      assert.ok(text.includes(`${base}/s/1`));
-      assert.equal(evaluateCompletion(db, 1).awaitingUser, true);
+      let ended = false;
+      void pending.then(() => {
+        ended = true;
+      });
+      assert.equal(ended, false);
       const before = fake.log().filter((entry) => entry.fake === "spawn").length;
       const attachedRun = tools.resume(
-        { swarm_id: 1, message: "Wait for the User scope decision." },
+        { swarm_id: 1, message: "Add regression checks for the output." },
         undefined,
         undefined,
         ctx,
       );
       await waitFor(
         () =>
-          db.sql.prepare("SELECT 1 FROM criteria WHERE swarm_id = 1 AND group_name = 'Feedback'").get() !== undefined,
-        "feedback criterion created",
+          db.sql
+            .prepare("SELECT 1 FROM tasks WHERE swarm_id = 1 AND title = 'Derive criteria from the update for run 1'")
+            .get() !== undefined,
+        "update task created",
       );
-      finishWork(db, 1, false);
-      const attached = await attachedRun;
-      assert.match(
-        attached.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n"),
-        /awaits User/,
-      );
+      assert.equal(ended, false);
+      assert.equal(evaluateCompletion(db, 1).done, false);
+      finishWork(db, 1);
+      const [result, attached] = await Promise.all([pending, attachedRun]);
+      for (const output of [result, attached]) {
+        const text = output.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
+        assert.match(text, /Outcome: completed/);
+        assert.ok(text.includes(`${base}/s/1`));
+      }
       assert.equal(fake.log().filter((entry) => entry.fake === "spawn").length, before);
-      approveScope(db, { swarmId: 1, actor: "User", now: Date.now() });
-      await waitFor(
-        () => db.sql.prepare("SELECT status FROM swarms WHERE id = 1").get()?.status === "finished",
-        "scope-approved graph completes",
-      );
       assert.equal(readProject(db, 1).outcome, "completed");
       const final = await getJson<SwarmDetailResponse>(`${base}/api/swarms/1`);
       assert.equal(final.body.swarm.status, "finished");

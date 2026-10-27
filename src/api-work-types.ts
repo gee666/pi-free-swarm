@@ -2,7 +2,6 @@ export type TaskStatus = "new" | "claimed" | "in_progress" | "review" | "accepte
 export type CriterionStatus = "unlinked" | "incomplete" | "satisfied" | "blocked";
 export type VoteVerdict = "satisfied" | "incomplete" | "blocked";
 export type WorkOutcome = "completed" | "stopped_with_blockers";
-export type BlockerException = "pending" | "approved" | "rejected";
 
 export interface TaskRecord {
   id: number;
@@ -56,7 +55,6 @@ export interface CriterionBlocker {
   unblock: string;
   author: string;
   updatedAt: number;
-  approvedRevision: number | null;
   rejectedRevision: number | null;
   decidedAt: number | null;
 }
@@ -95,13 +93,10 @@ export interface ProjectRecord {
   intentPath: string | null;
   intentUpdatedBy: string | null;
   intentRevision: number;
-  scopeRevision: number;
-  scopeApprovedRevision: number | null;
-  scopeApprovedAt: number | null;
   outcome: WorkOutcome | null;
 }
 export interface CompletionGate {
-  key: "scope" | "linked" | "tasks" | "criteria" | "review";
+  key: "linked" | "tasks" | "criteria" | "review";
   ok: boolean;
   count: number;
   detail: string;
@@ -110,5 +105,4 @@ export interface CompletionResult {
   done: boolean;
   outcome: WorkOutcome | null;
   gates: CompletionGate[];
-  awaitingUser: boolean;
 }

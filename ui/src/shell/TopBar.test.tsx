@@ -7,7 +7,6 @@ import { TopBar } from "./TopBar";
 
 it.each([
   ["running", "Running"],
-  ["awaiting_user", "Awaiting you"],
   ["completed", "Completed"],
   ["stopped_with_blockers", "Stopped with blockers"],
   ["stopped", "Stopped"],

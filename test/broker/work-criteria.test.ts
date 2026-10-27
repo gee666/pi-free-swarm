@@ -38,10 +38,9 @@ function blockedFixture(t: Parameters<typeof workFixture>[0]) {
   return { ...f, taskRecord: task, block, vote };
 }
 
-test("criterion fields, archival history, User-only restore and scope revisions", (t) => {
+test("criterion fields, archival history, User-only restore", (t) => {
   const f = workFixture(t);
   assert.equal(assessCriterion(f.db, f.swarmId, f.criterion.id).status, "unlinked");
-  const before = f.db.sql.prepare("SELECT scope_revision FROM swarms WHERE id = ?").get(f.swarmId)?.scope_revision;
   const edited = editCriterion(f.db, {
     ...f.input(),
     id: f.criterion.id,
@@ -50,10 +49,6 @@ test("criterion fields, archival history, User-only restore and scope revisions"
   });
   assert.equal(edited.revision, 2);
   assert.equal(edited.group, "QA");
-  assert.equal(
-    f.db.sql.prepare("SELECT scope_revision FROM swarms WHERE id = ?").get(f.swarmId)?.scope_revision,
-    Number(before) + 1,
-  );
   assert.throws(
     () => editCriterion(f.db, { ...f.input(), id: f.criterion.id, expectedRevision: 1, fields: { title: "Lost" } }),
     /Reread/,
@@ -156,49 +151,54 @@ test("offline linked owners block agreement until an active agent takes the task
   assert.equal(assessCriterion(f.db, f.swarmId, f.criterion.id).status, "satisfied");
 });
 
-test("blockers need agreement, only User decides, edit invalidates votes and exception", (t) => {
+test("blockers are final by agreement; only User may reject and voters must keep working", (t) => {
   const f = blockedFixture(t);
   assert.throws(() => f.vote("Ann"), /blocker record/);
   const blocker = f.block();
-  assert.throws(
-    () => decideCriterionBlocker(f.db, { ...f.input("User"), criterionId: f.criterion.id, decision: "approve" }),
-    /must agree/,
-  );
+  const reject = (actor = "User") =>
+    decideCriterionBlocker(f.db, {
+      ...f.input(actor),
+      criterionId: f.criterion.id,
+      decision: "reject",
+      expectedRevision: blocker.revision,
+    });
+  assert.throws(() => reject(), /must agree/);
   f.vote("Ann");
   f.vote("Ben");
   assert.equal(assessCriterion(f.db, f.swarmId, f.criterion.id).status, "blocked");
-  assert.throws(
-    () => decideCriterionBlocker(f.db, { ...f.input(), criterionId: f.criterion.id, decision: "approve" }),
-    /Only User/,
-  );
-  decideCriterionBlocker(f.db, { ...f.input("User"), criterionId: f.criterion.id, decision: "reject" });
-  assert.equal(assessCriterion(f.db, f.swarmId, f.criterion.id).exception, "rejected");
-  assert.equal(getTaskDetail(f.db, f.swarmId, f.taskRecord.id).deferred, false);
-  decideCriterionBlocker(f.db, {
-    ...f.input("User"),
-    criterionId: f.criterion.id,
-    decision: "approve",
-    expectedRevision: blocker.revision,
-  });
   assert.equal(getTaskDetail(f.db, f.swarmId, f.taskRecord.id).deferred, true);
   assert.ok(
     searchTaskCandidates(f.db, f.swarmId, "Ann", { deferred: true }).some((task) => task.id === f.taskRecord.id),
   );
+  assert.throws(() => reject("Ann"), /Only User/);
+  reject();
+  const rejected = assessCriterion(f.db, f.swarmId, f.criterion.id);
+  assert.equal(rejected.status, "incomplete");
+  assert.ok(rejected.votes.every((vote) => vote.stale));
+  assert.equal(getTaskDetail(f.db, f.swarmId, f.taskRecord.id).deferred, false);
+  assert.throws(() => f.vote("Ann"), /rejected/);
+  assert.throws(() => reject(), /must agree/);
+  for (const voter of ["Ann", "Ben"]) {
+    assert.ok(
+      f.db.sql
+        .prepare(
+          "SELECT body FROM messages WHERE swarm_id = ? AND body LIKE 'User rejected blocker%' AND id IN (SELECT message_id FROM message_recipients WHERE name = ?)",
+        )
+        .get(f.swarmId, voter),
+    );
+  }
   const edited = f.block();
   assert.equal(edited.revision, blocker.revision + 1);
-  const state = assessCriterion(f.db, f.swarmId, f.criterion.id);
-  assert.equal(state.status, "incomplete");
-  assert.equal(state.exception, "pending");
-  assert.ok(state.votes.every((vote) => vote.stale));
-  assert.equal(getTaskDetail(f.db, f.swarmId, f.taskRecord.id).deferred, false);
+  f.vote("Ann");
+  f.vote("Ben");
+  assert.equal(assessCriterion(f.db, f.swarmId, f.criterion.id).status, "blocked");
 });
 
-test("task is deferred only if every linked criterion has an approved blocked exception", (t) => {
+test("task is deferred only if every linked criterion is blocked", (t) => {
   const f = blockedFixture(t);
   f.block();
   f.vote("Ann");
   f.vote("Ben");
-  decideCriterionBlocker(f.db, { ...f.input("User"), criterionId: f.criterion.id, decision: "approve" });
   const planning = listCriteria(f.db, f.swarmId).find((criterion) => criterion.group === "Planning");
   assert.ok(planning);
   editTask(f.db, {

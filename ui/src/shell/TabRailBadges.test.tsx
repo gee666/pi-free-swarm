@@ -30,13 +30,13 @@ describe("User unread tab badges", () => {
     expect(screen.queryByText(/unread comments/)).not.toBeInTheDocument();
   });
 
-  it("shows scope and blocker attention separately from unread messages", () => {
+  it("does not badge criteria while retaining unread message counts", () => {
     render(
       <MemoryRouter>
-        <TabRail basePath="/s/3" attention={3} unread={{ messages: 5, comments: 0 }} />
+        <TabRail basePath="/s/3" unread={{ messages: 5, comments: 0 }} />
       </MemoryRouter>,
     );
-    expect(screen.getByRole("link", { name: "Criteria 3 attention items" })).toHaveAttribute("href", "/s/3/criteria");
+    expect(screen.getByRole("link", { name: "Criteria" })).toHaveAttribute("href", "/s/3/criteria");
     expect(screen.getByRole("link", { name: "Agents 5 unread messages" })).toBeInTheDocument();
   });
 

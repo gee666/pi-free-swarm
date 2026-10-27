@@ -2,10 +2,9 @@ import type { DashboardResponse } from "../../../../src/api-types";
 
 export function dashboardFixture(): DashboardResponse {
   const gates: DashboardResponse["gates"] = [
-    { key: "scope", ok: false, count: 1, detail: "rev 7 needs approval" },
     { key: "linked", ok: false, count: 3, detail: "3 unlinked" },
     { key: "tasks", ok: false, count: 14, detail: "14 open, 2 deferred" },
-    { key: "criteria", ok: false, count: 9, detail: "9 awaiting votes · 1 blocker awaiting you" },
+    { key: "criteria", ok: false, count: 9, detail: "9 awaiting votes" },
     { key: "review", ok: false, count: 2, detail: "2 in review" },
   ];
   return {
@@ -16,14 +15,11 @@ export function dashboardFixture(): DashboardResponse {
       intentPath: "intent.md",
       intentRevision: 3,
       intentUpdatedBy: "Ann",
-      scopeRevision: 7,
-      scopeApprovedRevision: null,
-      scopeApprovedAt: null,
       outcome: null,
     },
-    completion: { done: false, outcome: null, gates, awaitingUser: true },
+    completion: { done: false, outcome: null, gates },
     gates,
-    header: { state: "awaiting_user", run: 2, agentCount: 14, startedAt: Date.now() - 4320000 },
+    header: { state: "running", run: 2, agentCount: 14, startedAt: Date.now() - 4320000 },
     counts: {
       tasks: 97,
       accepted: 61,
@@ -45,7 +41,7 @@ export function dashboardFixture(): DashboardResponse {
       { group: "Search", total: 9, satisfied: 7, blocked: 1, incomplete: 1, unlinked: 0 },
       { group: "Main", total: 4, satisfied: 0, blocked: 0, incomplete: 1, unlinked: 3 },
     ],
-    attention: { scopeApprovalNeeded: true, blockerDecisions: [], unreadUserMessages: 2, unlinkedCriteria: [] },
+    attention: { agreedBlockers: [], unreadUserMessages: 2 },
     recentActivity: [
       {
         id: "task-event:1",

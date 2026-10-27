@@ -5,7 +5,6 @@ import path from "node:path";
 import { it } from "node:test";
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { evaluateCompletion } from "../../src/broker/completion.js";
-import { approveScope } from "../../src/broker/project.js";
 import { swarmDbPath, openSwarmDb } from "../../src/store/db.js";
 import { listAgentSessions, listSwarms } from "../../src/store/swarm-queries.js";
 import { listPosts } from "../../src/store/wall-queries.js";
@@ -114,7 +113,6 @@ it(
         const [swarm] = listSwarms(db, Date.now());
         assert.ok(swarm);
         swarmId = swarm.id;
-        if (evaluateCompletion(db, swarmId).awaitingUser) approveScope(db, { swarmId, actor: "User", now: Date.now() });
         assert.equal(evaluateCompletion(db, swarmId).done, true);
         assert.ok(
           listPosts(db, swarmId, { count: 100, offset: 0 }).posts.some((post) => post.text.includes("result.txt")),
@@ -144,8 +142,6 @@ it(
       const reopened = openSwarmDb(swarmDbPath(cwd), { create: false });
       try {
         assert.equal(listSwarms(reopened, Date.now()).length, 1, "resume must not create a new swarm");
-        if (evaluateCompletion(reopened, swarmId).awaitingUser)
-          approveScope(reopened, { swarmId, actor: "User", now: Date.now() });
         assert.equal(evaluateCompletion(reopened, swarmId).done, true);
         assert.ok(listAgentSessions(reopened, swarmId).some((agent) => agent.sessionFile === workerSession));
         const continued = readFileSync(workerSession, "utf8");

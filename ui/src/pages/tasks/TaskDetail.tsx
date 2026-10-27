@@ -134,7 +134,7 @@ export function TaskDetail({ swarmId, id, onChanged }: { swarmId: string; id: nu
         <TaskStepper task={detail} />
         {detail.deferred && (
           <Pill>
-            Deferred — blocker exception on{" "}
+            Deferred — blocked criteria{" "}
             {detail.criteria
               .filter((item) => item.status === "blocked")
               .map((item) => `#${item.criterionId}`)

@@ -33,7 +33,11 @@ export function writeWork<T>(db: SwarmDb, input: WorkInput, mutate: (actor: stri
           db,
           input.swarmId,
           vote.voter,
-          `Vote on criterion #${id} is stale. Call swarm_criteria_get then swarm_criteria_vote.`,
+          state.blocker !== null &&
+            state.blocker.rejectedRevision === state.blocker.revision &&
+            old?.blocker?.rejectedRevision !== state.blocker.rejectedRevision
+            ? `User rejected blocker #${id}. Keep working. Read the criterion and revise the blocker if needed.`
+            : `Vote on criterion #${id} is stale. Call swarm_criteria_get then swarm_criteria_vote.`,
           input.now,
         );
       }

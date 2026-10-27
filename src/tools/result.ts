@@ -62,12 +62,7 @@ export function buildRunResultText(db: SwarmDb, outcome: RunOutcome, boardUrl: s
         "Resume only after user agreement: raise the swarm's ceiling in Config or raise budgetMoneyUsd/budgetTimeSeconds in .pi/swarm/settings.json, then call resume_swarm. Consumption is not reset. Inspect interrupted actions before repeating them.",
       );
   }
-  const completion = evaluateCompletion(db, swarm.id);
   lines.push(...completionLines(db, swarm.id, boardUrl));
-  if (completion.awaitingUser)
-    lines.push(
-      "Ask the user to approve the current scope and decide pending blockers on the board. Agents wait for that decision; the run remains available.",
-    );
   if (crashed.length > 0) lines.push(`Crashed and not revived: ${crashed.join(", ")}.`);
   lines.push("", url === null ? "Board: not running." : `Board: ${url}`);
   lines.push(userMessagesLine(db, swarm.id), "", ...nextSteps(swarm.id, end));
@@ -81,18 +76,10 @@ export function completionLines(db: SwarmDb, swarmId: number, boardUrl: string |
   return [
     `Brief: ${project.briefPath ?? "not recorded"}`,
     `Intent: ${project.intentSummary ?? "not recorded"} · ${project.intentPath ?? "no file"}`,
-    `Outcome: ${project.outcome ?? completion.outcome ?? (completion.awaitingUser ? "awaiting User" : "unfinished")}`,
+    `Outcome: ${project.outcome ?? completion.outcome ?? "unfinished"}`,
     ...completion.gates.map((gate) => `${gate.ok ? "OK" : "UNMET"} ${gate.key} (${gate.count}): ${gate.detail}`),
     url === null ? "Board: not running." : `Board: ${url}`,
   ];
-}
-
-export function awaitingUserText(db: SwarmDb, swarmId: number, boardUrl: string | null): string {
-  return [
-    `Swarm #${swarmId} awaits User decisions. The run remains active.`,
-    ...completionLines(db, swarmId, boardUrl),
-    "Ask the user to approve the current scope and decide pending blockers on the board. Do not approve scope or blocker exceptions on the user's behalf.",
-  ].join("\n");
 }
 
 function userMessagesLine(db: SwarmDb, swarmId: number): string {
