@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { ListChecks } from "lucide-react";
 import type { CriterionDetailResponse } from "../../../../src/api-types";
 import { AgentName } from "../../components/AgentName";
@@ -13,11 +12,12 @@ import { Section } from "../../components/Section";
 import { EmptyState, ErrorBanner, SkeletonRows } from "../../components/States";
 import { StatusGlyph } from "../../components/StatusGlyph";
 import { StatusPill } from "../../components/StatusPill";
-import { formatTimestamp } from "../../lib/time";
+import { relativeTime } from "../../lib/time";
 import { Discussions, discussionUrl } from "../work-items/Discussions";
 import { FilterMenu } from "../work-items/FilterMenu";
 import { useWorkDetail } from "../work-items/useWorkData";
 import { useWorkMutation } from "../work-items/useWorkMutation";
+import { useWorkEditor } from "../work-items/useWorkEditor";
 import styles from "../work-items/WorkItems.module.css";
 import { CriterionBlocker } from "./CriterionBlocker";
 import { CriterionForm } from "./CriterionForm";
@@ -34,8 +34,9 @@ export function CriterionDetail({
   groups: string[];
   onChanged: () => void;
 }) {
+  const navigate = useNavigate();
   const state = useWorkDetail<CriterionDetailResponse>(swarmId, `criteria/${id}`);
-  const [editing, setEditing] = useState(false);
+  const editor = useWorkEditor<CriterionDetailResponse>(swarmId, `criteria/${id}`);
   const changed = () => {
     state.reload();
     onChanged();
@@ -52,19 +53,20 @@ export function CriterionDetail({
         )}
       </Panel>
     );
-  if (editing)
+  if (editor.snapshot)
     return (
       <CriterionForm
-        key={detail.revision}
+        key={editor.snapshot.revision}
         swarmId={swarmId}
-        criterion={detail}
+        criterion={editor.snapshot}
         groups={groups}
-        onCancel={() => setEditing(false)}
+        onCancel={() => editor.edit(undefined)}
         onSaved={() => {
-          setEditing(false);
+          editor.edit(undefined);
           changed();
         }}
-        onReload={state.reload}
+        onReload={editor.reload}
+        reloadError={editor.error}
       />
     );
   return (
@@ -72,11 +74,11 @@ export function CriterionDetail({
       <EntityHeader
         avatar={<StatusGlyph status={detail.status} />}
         title={detail.title}
-        subtitle={`#${id} · ${detail.group} · rev ${detail.revision} · by ${detail.author} · ${formatTimestamp(detail.updatedAt)}`}
+        subtitle={`#${id} · ${detail.group} · rev ${detail.revision} · by ${detail.author} · ${relativeTime(detail.updatedAt)}`}
         actions={
           <>
-            <Button onClick={() => setEditing(true)}>Edit</Button>
-            <Link to={discussionUrl(swarmId, "criterion", id)}>Start discussion</Link>
+            <Button onClick={() => editor.edit(detail)}>Edit</Button>
+            <Button onClick={() => navigate(discussionUrl(swarmId, "criterion", id))}>Start discussion</Button>
             <FilterMenu
               label="More"
               items={[

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TITLE_MAX } from "../../../../src/limits";
 import type { CriterionLink, TaskDetailResponse, TaskRecord } from "../../../../src/api-types";
 import { ApiError, postJson } from "../../api/http";
 import { Button } from "../../components/Button";
@@ -20,12 +21,14 @@ export function TaskForm({
   onSaved,
   onCancel,
   onReload,
+  reloadError,
 }: {
   swarmId: string;
   task?: TaskDetailResponse;
   onSaved: (id: number) => void;
   onCancel: () => void;
   onReload?: () => void;
+  reloadError?: Error;
 }) {
   const [title, setTitle] = useState(task?.title ?? "");
   const [body, setBody] = useState(task?.body ?? "");
@@ -65,12 +68,15 @@ export function TaskForm({
             void save();
           }}
         >
+          {reloadError && (
+            <ErrorBanner action={<Button onClick={onReload}>Retry</Button>}>{reloadError.message}</ErrorBanner>
+          )}
           {error && (
             <ErrorBanner action={conflict && <Button onClick={onReload}>Reload</Button>}>
               {conflict ? "Changed by someone else — reload" : error.message}
             </ErrorBanner>
           )}
-          <TextField label="Title" placeholder="Title" limit={60} value={title} onChange={setTitle} />
+          <TextField label="Title" placeholder="Title" limit={TITLE_MAX} value={title} onChange={setTitle} />
           <LongField label="Description" value={body} onChange={setBody} />
           <div className={styles.field}>
             <span>Criteria links</span>

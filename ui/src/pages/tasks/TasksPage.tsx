@@ -11,7 +11,7 @@ import { EmptyState, ErrorBanner, SkeletonRows } from "../../components/States";
 import { StatusGlyph } from "../../components/StatusGlyph";
 import { PanelLayout } from "../../shell/AppShell";
 import { cx } from "../../lib/cx";
-import { formatTimestamp } from "../../lib/time";
+import { relativeTime } from "../../lib/time";
 import { FilterMenu, FilterPill } from "../work-items/FilterMenu";
 import { useDebounced, useWorkList } from "../work-items/useWorkData";
 import styles from "../work-items/WorkItems.module.css";
@@ -38,7 +38,8 @@ export function TasksPage() {
   const navigate = useNavigate();
   const swarm = useSwarmDetail(swarmId);
   const query = useDebounced(search);
-  const status = params.get("status") ?? "open";
+  const selectedStatus = params.get("status");
+  const status = selectedStatus === "new,claimed,in_progress,review" ? "open" : (selectedStatus ?? "open");
   const owner = params.get("owner") ?? "";
   const criterion = params.get("criterion");
   const filter = (key: string, value: string) =>
@@ -139,7 +140,7 @@ export function TasksPage() {
                               : task.status.replace("_", " ")}
                       </span>
                     </span>
-                    <span className={styles.muted}>{formatTimestamp(task.updatedAt)}</span>
+                    <span className={styles.muted}>{relativeTime(task.updatedAt)}</span>
                   </button>
                 ))}
               </RowList>

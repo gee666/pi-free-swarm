@@ -31,11 +31,6 @@ export function gateDetail(data: DashboardResponse, gate: CompletionGate): strin
   }
 }
 
-export function shortDuration(ms: number): string {
-  const minutes = Math.floor(Math.max(0, ms) / 60000);
-  const hours = Math.floor(minutes / 60);
-  return hours > 0 ? `${hours} h ${minutes % 60} min` : `${minutes} min`;
-}
 export function activityLabel(kind: string) {
   const labels: Record<string, string> = {
     review_accepted: "accepted",

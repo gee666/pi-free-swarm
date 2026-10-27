@@ -23,6 +23,53 @@ const list = () => screen.getByRole("region", { name: "Criteria" });
 const calls = () => api.callsTo("GET", "/api/swarms/3/criteria");
 
 describe("Criteria work board", () => {
+  it("operates status menus from the keyboard", async () => {
+    open();
+    await within(list()).findByText("Rank matches");
+    const status = screen.getByRole("button", { name: "Status" });
+    status.focus();
+    await userEvent.keyboard("{Enter}{ArrowDown}{Enter}");
+    await waitFor(() => expect(calls().at(-1)?.query.get("status")).toBe("unlinked"));
+  });
+  it("keeps global group coverage across cursor pages and shows search notes", async () => {
+    api.on("GET", "/api/swarms/3/criteria/groups", () => ({
+      groups: [{ group: "Search", satisfied: 3, blocked: 0, incomplete: 4, unlinked: 0, total: 7 }],
+    }));
+    api.on("GET", "/api/swarms/3/criteria", ({ query }) =>
+      page(query.has("cursor") ? [criterion({ id: 13, title: "Next criterion" })] : [criterion()], {
+        nextCursor: query.has("cursor") ? null : "next",
+        notes: ["Lexical search only"],
+      }),
+    );
+    open();
+    await within(list()).findByText("3/7");
+    expect(screen.getByText("Lexical search only")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+    await within(list()).findByText("Next criterion");
+    expect(within(list()).getByText("Rank matches")).toBeInTheDocument();
+    expect(within(list()).getByText("3/7")).toBeInTheDocument();
+    expect(calls().at(-1)?.query.get("cursor")).toBe("next");
+  });
+  it("records a blocker with all four required fields", async () => {
+    api.on("POST", "/api/swarms/3/criteria/12/block", () => ({}));
+    open("/s/3/criteria/12");
+    const record = await screen.findByRole("button", { name: "Record blocker" });
+    const section = record.closest("section");
+    if (!section) throw new Error("Missing blocker section");
+    await userEvent.click(record);
+    for (const label of ["Reason", "Missing", "Attempted", "Would unblock"])
+      await userEvent.type(within(section).getByRole("textbox", { name: label }), label);
+    await userEvent.click(within(section).getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(api.callsTo("POST", "/api/swarms/3/criteria/12/block")[0]?.body).toEqual({
+        expectedRevision: 0,
+        reason: "Reason",
+        missing: "Missing",
+        attempted: "Attempted",
+        unblock: "Would unblock",
+      }),
+    );
+  });
   it("preselects dashboard filters, groups rows and removes filter pills", async () => {
     open("/s/3/criteria?status=blocked&group=Search");
     await within(list()).findByText("Rank matches");
@@ -156,6 +203,10 @@ describe("Criteria work board", () => {
     });
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     value = criterion({ revision: 4, body: "Concurrent edit" });
+    const before = api.callsTo("GET", "/api/swarms/3/criteria/12").length;
+    act(() => source().emit({ ...eventBase, type: "criterion.changed", payload: { id: 12 } }));
+    await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/criteria/12")).toHaveLength(before + 1));
+    expect(requirement).toHaveValue("x".repeat(201));
     await user.click(screen.getByRole("button", { name: "Reload" }));
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Requirement" })).toHaveValue("Concurrent edit"));
     expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();

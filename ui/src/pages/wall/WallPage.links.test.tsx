@@ -40,6 +40,14 @@ afterEach(() => {
 const open = (path = "/s/3/wall/1") => renderWork(path, "/s/:id/wall/:postId?", <WallPage />, source);
 
 describe("Wall work links and search", () => {
+  it("accepts discussion links from navigation state and resolves their title and status", async () => {
+    renderWork("/s/3/wall/new", "/s/:id/wall/:postId?", <WallPage />, source, { criterionId: 12 });
+    const form = screen.getByRole("region", { name: "New post" });
+    const link = within(form).getByRole("link", { name: "#12" });
+    await waitFor(() => expect(within(form).getByRole("img", { name: "Incomplete" })).toBeInTheDocument());
+    await userEvent.hover(link.parentElement ?? link);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Rank matches");
+  });
   it("prefills discussion links and creates them atomically with the new post", async () => {
     api.on("POST", "/api/swarms/3/posts", () => ({ post, links: [linked] }));
     open("/s/3/wall/new?task=34");

@@ -70,16 +70,18 @@ interface TextFieldProps {
   /** Shows a CharCounter after the input. */
   limit?: number;
   list?: string;
+  autoFocus?: boolean;
   disabled?: boolean;
 }
 
 /** Single-line 44px input. */
-export function TextField({ value, onChange, label, placeholder, limit, list, disabled }: TextFieldProps) {
+export function TextField({ value, onChange, label, placeholder, limit, list, autoFocus, disabled }: TextFieldProps) {
   return (
     <div className={styles.inputWrap}>
       <input
         className={cx(styles.control, styles.input)}
         list={list}
+        autoFocus={autoFocus}
         value={value}
         aria-label={label}
         placeholder={placeholder}

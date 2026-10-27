@@ -14,7 +14,8 @@ import { StatTile } from "../../components/StatTile";
 import { StatusGlyph } from "../../components/StatusGlyph";
 import { Tooltip } from "../../components/Tooltip";
 import { Coverage } from "./Coverage";
-import { activityLabel, gateDetail, GATE_FILTERS, GATE_LABELS, shortDuration } from "./dashboardModel";
+import { activityLabel, gateDetail, GATE_FILTERS, GATE_LABELS } from "./dashboardModel";
+import { shortDuration } from "../../lib/time";
 import { ScopeDialog } from "./ScopeDialog";
 import styles from "./Dashboard.module.css";
 

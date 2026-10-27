@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TITLE_MAX } from "../../../../src/limits";
 import type { CreateCriterionRequest, CriterionRecord } from "../../../../src/api-types";
 import { ApiError, postJson } from "../../api/http";
 import { Button } from "../../components/Button";
@@ -16,6 +17,7 @@ export function CriterionForm({
   onSaved,
   onCancel,
   onReload,
+  reloadError,
 }: {
   swarmId: string;
   criterion?: CriterionRecord;
@@ -23,6 +25,7 @@ export function CriterionForm({
   onSaved: (id: number) => void;
   onCancel: () => void;
   onReload?: () => void;
+  reloadError?: Error;
 }) {
   const [fields, setFields] = useState<CreateCriterionRequest>({
     group: criterion?.group ?? "",
@@ -62,6 +65,9 @@ export function CriterionForm({
             void save();
           }}
         >
+          {reloadError && (
+            <ErrorBanner action={<Button onClick={onReload}>Retry</Button>}>{reloadError.message}</ErrorBanner>
+          )}
           {error && (
             <ErrorBanner action={conflict && <Button onClick={onReload}>Reload</Button>}>
               {conflict ? "Changed by someone else — reload" : error.message}
@@ -84,7 +90,7 @@ export function CriterionForm({
           <TextField
             label="Title"
             placeholder="Title"
-            limit={60}
+            limit={TITLE_MAX}
             value={fields.title}
             onChange={(value) => change("title", value)}
           />

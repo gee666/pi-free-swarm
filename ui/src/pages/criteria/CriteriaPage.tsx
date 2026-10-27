@@ -37,6 +37,7 @@ export function CriteriaPage() {
   const [search, setSearch] = useState("");
   const query = useDebounced(search);
   const status = params.get("status") ?? "";
+  const selectedStatuses = status.split(",").filter(Boolean);
   const group = params.get("group") ?? "";
   const archived = params.get("archived") === "true";
   const filter = (key: string, value: string) =>
@@ -81,9 +82,9 @@ export function CriteriaPage() {
           </span>
         </span>
         {item.exceptionPending && (
-          <span className={styles.pink}>
-            <Pill>Decide</Pill>
-          </span>
+          <Pill>
+            <span className={styles.pink}>Decide</span>
+          </Pill>
         )}
       </button>
     ));
@@ -105,7 +106,11 @@ export function CriteriaPage() {
             <div className={styles.actions}>
               <FilterMenu
                 label="Status"
-                items={statuses.map(([key, label]) => ({ key, label, selected: status === key }))}
+                items={statuses.map(([key, label]) => ({
+                  key,
+                  label,
+                  selected: key ? selectedStatuses.includes(key) : selectedStatuses.length === 0,
+                }))}
                 onSelect={(value) => filter("status", value)}
               />
               <FilterMenu
@@ -122,16 +127,20 @@ export function CriteriaPage() {
               </Button>
             </div>
             <div className={styles.chips}>
-              {status && (
+              {selectedStatuses.map((selected) => (
                 <FilterPill
-                  label={statuses.find(([key]) => key === status)?.[1] ?? status}
-                  onRemove={() => filter("status", "")}
+                  key={selected}
+                  label={statuses.find(([key]) => key === selected)?.[1] ?? selected}
+                  onRemove={() => filter("status", selectedStatuses.filter((value) => value !== selected).join(","))}
                 />
-              )}
+              ))}
               {group && <FilterPill label={group} onRemove={() => filter("group", "")} />}
               {archived && <FilterPill label="Archived" onRemove={() => filter("archived", "")} />}
             </div>
           </div>
+          {groups.error && (
+            <ErrorBanner action={<Button onClick={groups.reload}>Retry</Button>}>{groups.error.message}</ErrorBanner>
+          )}
           {list.error && (
             <ErrorBanner action={<Button onClick={list.reload}>Retry</Button>}>{list.error.message}</ErrorBanner>
           )}

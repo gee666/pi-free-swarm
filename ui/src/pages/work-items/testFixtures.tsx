@@ -100,9 +100,15 @@ export function workApi(api: FakeApi, criteria: CriterionListItem[] = [criterion
   api.on("GET", "/api/swarms/3/criteria/12", () => criteria[0]);
   api.on("GET", "/api/swarms/3/tasks/34", () => tasks[0]);
 }
-export function renderWork(path: string, route: string, node: ReactNode, source: () => FakeEventSource) {
+export function renderWork(
+  path: string,
+  route: string,
+  node: ReactNode,
+  source: () => FakeEventSource,
+  state?: object,
+) {
   render(
-    <MemoryRouter initialEntries={[path]}>
+    <MemoryRouter initialEntries={[state ? { pathname: path, state } : path]}>
       <SwarmViewProvider swarmId="3">
         <Routes>
           <Route path={route} element={node} />

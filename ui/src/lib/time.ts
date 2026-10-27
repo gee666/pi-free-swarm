@@ -19,3 +19,13 @@ export function formatTimestamp(epochMs: number, now: Date = new Date()): string
   if (days < WEEK_DAYS) return weekday.format(date);
   return monthDay.format(date);
 }
+
+export function shortDuration(ms: number): string {
+  const minutes = Math.floor(Math.max(0, ms) / 60000);
+  const hours = Math.floor(minutes / 60);
+  return hours > 0 ? `${hours} h ${minutes % 60} min` : `${minutes} min`;
+}
+
+export function relativeTime(epochMs: number, now = Date.now()): string {
+  return shortDuration(now - epochMs);
+}

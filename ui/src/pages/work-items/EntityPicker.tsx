@@ -55,6 +55,7 @@ export function EntityPicker({
       <Popover anchorRef={anchor} open={open} onClose={() => setOpen(false)}>
         <div className={styles.form} onKeyDown={nav.onKeyDown}>
           <TextField
+            autoFocus
             label={`Search ${kind === "task" ? "tasks" : "criteria"}`}
             placeholder={`Search ${kind === "task" ? "tasks" : "criteria"}`}
             value={search}

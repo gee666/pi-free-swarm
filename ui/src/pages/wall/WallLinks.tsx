@@ -82,6 +82,7 @@ export function WallLinks({
       <Popover anchorRef={anchor} open={open} onClose={() => setOpen(false)}>
         <div className={styles.form} onKeyDown={nav.onKeyDown}>
           <TextField
+            autoFocus
             label="Search tasks and criteria"
             placeholder="Search tasks and criteria"
             value={search}

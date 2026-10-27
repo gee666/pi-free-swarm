@@ -9,10 +9,11 @@ interface TooltipProps {
   children: ReactNode;
   /** Class for the wrapper, e.g. to let truncated text shrink. */
   className?: string;
+  focusable?: boolean;
 }
 
 /** Shows `content` on hover or keyboard focus of the wrapped element. */
-export function Tooltip({ content, children, className }: TooltipProps) {
+export function Tooltip({ content, children, className, focusable }: TooltipProps) {
   const anchor = useRef<HTMLSpanElement>(null);
   const [open, setOpen] = useState(false);
   const id = useId();
@@ -22,6 +23,7 @@ export function Tooltip({ content, children, className }: TooltipProps) {
   return (
     <span
       ref={anchor}
+      tabIndex={focusable ? 0 : undefined}
       className={cx(styles.anchor, className)}
       onMouseEnter={show}
       onMouseLeave={hide}

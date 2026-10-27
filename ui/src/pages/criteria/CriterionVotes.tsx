@@ -3,6 +3,7 @@ import type { CriterionDetailResponse, VoteVerdict } from "../../../../src/api-t
 import { Avatar } from "../../components/Avatar";
 import { Button } from "../../components/Button";
 import { Pill } from "../../components/Pill";
+import { RichText } from "../../components/RichText";
 import { Section } from "../../components/Section";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { ErrorBanner } from "../../components/States";
@@ -37,7 +38,7 @@ export function CriterionVotes({
             </span>
             {vote.stale && <span className={styles.stale}>stale</span>}
           </div>
-          <p>{vote.reason}</p>
+          <RichText text={vote.reason} />
         </div>
       ))}
       {detail.missingVoters.map((name) => (

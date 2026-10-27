@@ -30,6 +30,11 @@ export function NewPostForm({
   onCancel,
 }: NewPostFormProps) {
   const [links, setLinks] = useState(initialLinks);
+  const resolvedLinks = links.map(
+    (link) =>
+      initialLinks.find((initial) => initial.targetKind === link.targetKind && initial.targetId === link.targetId) ??
+      link,
+  );
   const [title, setTitle, clearSubmittedTitle] = useComposerDraft(`post:${swarmId}:title`);
   const [text, setText, clearSubmittedText] = useComposerDraft(`post:${swarmId}:body`);
   const [busy, setBusy] = useState(false);
@@ -84,7 +89,7 @@ export function NewPostForm({
         </div>
         <WallLinks
           swarmId={swarmId}
-          links={links}
+          links={resolvedLinks}
           onAdd={(link) => setLinks((current) => [...current, link])}
           onRemove={(link) =>
             setLinks((current) =>

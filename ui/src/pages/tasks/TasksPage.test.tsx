@@ -2,7 +2,7 @@ import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskDetailResponse } from "../../../../src/api-types";
-import { installFakeApi, type FakeApi } from "../../test/fakeApi";
+import { installFakeApi, jsonResponse, type FakeApi } from "../../test/fakeApi";
 import { installFakeEventSource, type FakeEventSource } from "../../test/fakeEventSource";
 import { eventBase } from "../agents/testFixtures";
 import { page, renderWork, task, workApi } from "../work-items/testFixtures";
@@ -22,6 +22,32 @@ afterEach(() => {
 const open = (path = "/s/3/tasks/34") => renderWork(path, "/s/:id/tasks/:taskId?", <TasksPage />, source);
 
 describe("Task work board", () => {
+  it("preserves task edits across live updates and reloads revision conflicts explicitly", async () => {
+    let value = task();
+    api.on("GET", "/api/swarms/3/tasks/34", () => value);
+    api.on("POST", "/api/swarms/3/tasks/34/edit", () => jsonResponse(409, { error: "validation", message: "Changed" }));
+    open();
+    await userEvent.click(await screen.findByRole("button", { name: "More" }));
+    await userEvent.click(screen.getByRole("option", { name: "Edit" }));
+    const description = screen.getByRole("textbox", { name: "Description" });
+    await userEvent.clear(description);
+    await userEvent.type(description, "My pending edit");
+    value = task({ revision: 7, body: "Someone else's edit" });
+    const before = api.callsTo("GET", "/api/swarms/3/tasks/34").length;
+    act(() => source().emit({ ...eventBase, type: "task.changed", payload: { id: 34 } }));
+    await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/tasks/34")).toHaveLength(before + 1));
+    expect(description).toHaveValue("My pending edit");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("Changed by someone else — reload");
+    expect(api.callsTo("POST", "/api/swarms/3/tasks/34/edit")[0]?.body).toMatchObject({
+      expectedRevision: 6,
+      fields: { body: "My pending edit" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Reload" }));
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: "Description" })).toHaveValue("Someone else's edit"),
+    );
+  });
   it("defaults to open tasks and applies owner, criterion and derived filters", async () => {
     open("/s/3/tasks?criterion=12");
     await screen.findByText("Add ranking index");
@@ -168,7 +194,6 @@ describe("Task work board", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "More" }));
     await userEvent.click(screen.getByRole("option", { name: "Hand off…" }));
-    await userEvent.click(screen.getByRole("button", { name: "Hand off to" }));
     await userEvent.click(screen.getByRole("option", { name: "John" }));
     await waitFor(() =>
       expect(api.callsTo("POST", "/api/swarms/3/tasks/34/handoff")[0]?.body).toEqual({

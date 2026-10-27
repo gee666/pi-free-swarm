@@ -1,10 +1,10 @@
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { cx } from "../../lib/cx";
 import { Check, Circle } from "lucide-react";
 import type { TaskDetailResponse, TaskEvent, TaskRecord, TaskStatus } from "../../../../src/api-types";
 import { getJson } from "../../api/http";
 import { AuthoredEntry } from "../../components/AuthoredEntry";
 import { Button } from "../../components/Button";
-import { EntityHeader } from "../../components/EntityHeader";
 import { IdLink } from "../../components/IdLink";
 import { Markdown } from "../../components/Markdown";
 import { Panel, PanelBody } from "../../components/Panel";
@@ -13,11 +13,12 @@ import { RichText } from "../../components/RichText";
 import { Section } from "../../components/Section";
 import { ErrorBanner, SkeletonRows } from "../../components/States";
 import { StatusGlyph, statusLabels } from "../../components/StatusGlyph";
-import { formatTimestamp } from "../../lib/time";
+import { relativeTime } from "../../lib/time";
 import { Discussions } from "../work-items/Discussions";
 import { useWorkDetail, workUrl } from "../work-items/useWorkData";
+import { useWorkEditor } from "../work-items/useWorkEditor";
 import styles from "../work-items/WorkItems.module.css";
-import { TaskActions } from "./TaskActions";
+import { TaskHeader } from "./TaskHeader";
 import { TaskForm } from "./TaskForm";
 
 const steps: TaskStatus[] = ["new", "claimed", "in_progress", "review", "accepted"];
@@ -27,20 +28,19 @@ export function TaskStepper({ task }: { task: Pick<TaskDetailResponse, "status" 
     <>
       <ol aria-label="Task lifecycle" className={styles.stepper}>
         {steps.map((status, index) => (
-          <Fragment key={status}>
+          <li
+            key={status}
+            className={cx(styles.step, index === current && styles.current)}
+            aria-current={index === current ? "step" : undefined}
+          >
             {index > 0 && <span className={styles.connector} aria-hidden="true" />}
-            <li
-              className={index === current ? styles.current : styles.step}
-              aria-current={index === current ? "step" : undefined}
-            >
-              {index < current ? (
-                <Check size={12} aria-hidden="true" />
-              ) : (
-                <Circle size={8} fill={index === current ? "currentColor" : "none"} aria-hidden="true" />
-              )}{" "}
-              {status === "review" ? "Review" : statusLabels[status]}
-            </li>
-          </Fragment>
+            {index < current ? (
+              <Check size={12} aria-hidden="true" />
+            ) : (
+              <Circle size={8} fill={index === current ? "currentColor" : "none"} aria-hidden="true" />
+            )}{" "}
+            {status === "review" ? "Review" : statusLabels[status]}
+          </li>
         ))}
       </ol>
       {task.waiting && (
@@ -68,7 +68,7 @@ function TaskLinks({ swarmId, tasks }: { swarmId: string; tasks: TaskRecord[] })
 
 export function TaskDetail({ swarmId, id, onChanged }: { swarmId: string; id: number; onChanged: () => void }) {
   const state = useWorkDetail<TaskDetailResponse>(swarmId, `tasks/${id}`);
-  const [editing, setEditing] = useState(false);
+  const editor = useWorkEditor<TaskDetailResponse>(swarmId, `tasks/${id}`);
   const [events, setEvents] = useState<TaskEvent[]>([]);
   const [nextAfter, setNextAfter] = useState<number | null>(null);
   const [moreError, setMoreError] = useState<Error>();
@@ -109,28 +109,24 @@ export function TaskDetail({ swarmId, id, onChanged }: { swarmId: string; id: nu
         )}
       </Panel>
     );
-  if (editing)
+  if (editor.snapshot)
     return (
       <TaskForm
-        key={detail.revision}
+        key={editor.snapshot.revision}
         swarmId={swarmId}
-        task={detail}
-        onCancel={() => setEditing(false)}
+        task={editor.snapshot}
+        onCancel={() => editor.edit(undefined)}
         onSaved={() => {
-          setEditing(false);
+          editor.edit(undefined);
           changed();
         }}
-        onReload={state.reload}
+        onReload={editor.reload}
+        reloadError={editor.error}
       />
     );
   return (
     <Panel aria-label="Task">
-      <EntityHeader
-        avatar={<StatusGlyph status={detail.status} waiting={detail.waiting} />}
-        title={detail.title}
-        subtitle={`#${id} · rev ${detail.revision} · created by ${detail.author} · updated ${formatTimestamp(detail.updatedAt)}`}
-      />
-      <TaskActions swarmId={swarmId} task={detail} onChanged={changed} onEdit={() => setEditing(true)} />
+      <TaskHeader swarmId={swarmId} task={detail} onChanged={changed} onEdit={() => editor.edit(detail)} />
       <PanelBody className={styles.body}>
         {state.error && (
           <ErrorBanner action={<Button onClick={state.reload}>Retry</Button>}>{state.error.message}</ErrorBanner>
@@ -172,7 +168,7 @@ export function TaskDetail({ swarmId, id, onChanged }: { swarmId: string; id: nu
               <RichText text={detail.latestEvidence} />
               {detail.evidence && (
                 <p className={styles.muted}>
-                  {detail.evidence.actor} · {formatTimestamp(detail.evidence.createdAt)}
+                  {detail.evidence.actor} · {relativeTime(detail.evidence.createdAt)}
                 </p>
               )}
             </>
@@ -183,7 +179,7 @@ export function TaskDetail({ swarmId, id, onChanged }: { swarmId: string; id: nu
             <div className={styles.entry}>
               <p className={styles.muted}>
                 {detail.reviewerVerdict.actor} · {detail.reviewerVerdict.kind.replaceAll("_", " ")} ·{" "}
-                {formatTimestamp(detail.reviewerVerdict.createdAt)}
+                {relativeTime(detail.reviewerVerdict.createdAt)}
               </p>
               <RichText text={detail.reviewerVerdict.body} />
             </div>
@@ -194,7 +190,7 @@ export function TaskDetail({ swarmId, id, onChanged }: { swarmId: string; id: nu
             <AuthoredEntry
               key={event.id}
               author={event.actor}
-              time={`${event.kind.replaceAll("_", " ")} · ${formatTimestamp(event.createdAt)}`}
+              time={`${event.kind.replaceAll("_", " ")} · ${relativeTime(event.createdAt)}`}
             >
               <RichText text={[event.body, event.evidence].filter(Boolean).join("\n")} />
             </AuthoredEntry>

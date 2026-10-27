@@ -1,10 +1,11 @@
 import { useState, type ReactNode } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { TextField } from "../../components/Field";
 import { FilterMenu, FilterPill } from "../work-items/FilterMenu";
 import { useDebounced } from "../work-items/useWorkData";
 import workStyles from "../work-items/WorkItems.module.css";
-import type { WallLink } from "./WallLinks";
+import { navigationLinkIds, useWallPrefill } from "./useWallPrefill";
+import { Button } from "../../components/Button";
 import { FileQuestion, MessageSquare } from "lucide-react";
 import { USER_BODY_PREVIEW_CHARS } from "../../../../src/limits";
 import { useSwarmStream } from "../../api/SwarmStream";
@@ -38,6 +39,9 @@ function parsePostId(route: string | undefined): number | undefined {
 export function WallPage() {
   const { id: swarmId = "", postId: route } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const navigationState: unknown = location.state;
+  const navigationLinks = navigationLinkIds(navigationState);
   const stream = useSwarmStream();
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState("");
@@ -61,12 +65,11 @@ export function WallPage() {
     posts.update((current) => current && withCommentCount(current, comment.postId, commentCount));
   });
   const wallUrl = `/s/${swarmId}/wall`;
-  const initialLinks: WallLink[] = [
-    ...(task ? [{ targetKind: "task", targetId: Number(task), title: `Task #${task}` } satisfies WallLink] : []),
-    ...(criterion
-      ? [{ targetKind: "criterion", targetId: Number(criterion), title: `Criterion #${criterion}` } satisfies WallLink]
-      : []),
-  ];
+  const prefill = useWallPrefill(
+    swarmId,
+    route === NEW_POST_ROUTE ? (task ? Number(task) : navigationLinks.taskId) : undefined,
+    route === NEW_POST_ROUTE ? (criterion ? Number(criterion) : navigationLinks.criterionId) : undefined,
+  );
   const removeFilter = (key: string) =>
     setParams((current) => {
       const next = new URLSearchParams(current);
@@ -82,12 +85,20 @@ export function WallPage() {
   const newPost = route === NEW_POST_ROUTE && (
     <NewPostForm
       swarmId={swarmId}
-      initialLinks={initialLinks}
+      initialLinks={prefill.links}
       mentionNames={mentionNames}
-      banners={reconnecting}
+      banners={
+        <>
+          {reconnecting}
+          {prefill.error && (
+            <ErrorBanner action={<Button onClick={prefill.reload}>Retry</Button>}>{prefill.error.message}</ErrorBanner>
+          )}
+        </>
+      }
       onCancel={() => navigate(wallUrl)}
       onCreated={(created) => {
-        posts.update((current) => current && withPost(current, created));
+        if (request.size > 0) posts.reload();
+        else posts.update((current) => current && withPost(current, created));
         navigate(`${wallUrl}/${created.id}`, { replace: true });
       }}
     />
@@ -140,7 +151,14 @@ export function WallPage() {
                   items={[
                     { key: "", label: "Anyone" },
                     { key: "User", label: "Me" },
-                    ...mentionNames.map((name) => ({ key: name, label: name })),
+                    ...Array.from(
+                      new Set([
+                        ...(swarm.data?.participants
+                          .filter((participant) => participant.kind === "agent")
+                          .map((participant) => participant.name) ?? []),
+                        ...(posts.data?.posts.map((item) => item.author).filter((name) => name !== "User") ?? []),
+                      ]),
+                    ).map((name) => ({ key: name, label: name })),
                   ].map((item) => ({ ...item, selected: item.key === author }))}
                   onSelect={(value) =>
                     setParams((current) => {
