@@ -9,7 +9,7 @@ import { searchCriterionCandidates, searchTaskCandidates } from "../broker/work-
 import { USER_NAME, WORK_ACTIVITY_LIMIT } from "../constants.js";
 import { runSearch } from "../search/index.js";
 import { reply, requireSwarmItem, intQuery, type ApiDeps, type ApiRoute } from "./api-util.js";
-import { booleanQuery, positiveQuery, searchQuery, searchSettings, statuses, textQuery } from "./work-input.js";
+import { booleanQuery, positiveQuery, searchQuery, statuses, textQuery } from "./work-input.js";
 import {
   criteriaCoverage,
   criterionDetail,
@@ -47,7 +47,6 @@ export function workReadRoutes(deps: ApiDeps): ApiRoute[] {
           kind: "criterion",
           candidates,
           ...searchQuery(url),
-          settings: searchSettings(db),
         });
         return reply<CriteriaResponse>({
           ...result,
@@ -91,7 +90,6 @@ export function workReadRoutes(deps: ApiDeps): ApiRoute[] {
           kind: "task",
           candidates,
           ...searchQuery(url),
-          settings: searchSettings(db),
         });
         return reply<TasksResponse>({
           ...result,

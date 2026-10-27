@@ -1,12 +1,11 @@
 import type { IncomingMessage } from "node:http";
-import { projectOf } from "../broker/project-path.js";
+import { searchConfiguration } from "../search/configuration.js";
 import type { CreateCriterionRequest, CreateTaskRequest, CriterionLink } from "../api-types.js";
 import type { SwarmDb } from "../store/db.js";
-import { loadSettings } from "../settings.js";
 import { badRequest, idArrayField, isRecord, readUserJsonBody, stringField } from "./api-util.js";
 
 export function searchSettings(db: SwarmDb) {
-  return loadSettings(projectOf(db.dataDir)).settings;
+  return searchConfiguration(db).settings;
 }
 export function recordField(value: unknown, key: string): Record<string, unknown> {
   if (!isRecord(value)) throw badRequest(`${key} must be an object.`, key);

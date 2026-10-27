@@ -13,7 +13,7 @@ export function skillRoutes(deps: ApiDeps): ApiRoute[] {
       handle: async ({ params, url }) => {
         requireSwarmItem(deps, params.id("swarmId"));
         syncSkillsAndNotify(deps.db, deps.clock.now());
-        const result = await searchSkills({ db: deps.db, ...searchQuery(url), settings: searchSettings(deps.db) });
+        const result = await searchSkills({ db: deps.db, ...searchQuery(url) });
         return reply<SkillsResponse>(result);
       },
     },

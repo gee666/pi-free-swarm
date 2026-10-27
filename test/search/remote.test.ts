@@ -125,7 +125,7 @@ test("helper garbage, duplicates, foreign ids and unavailable models degrade exp
     for (const reply of ["not JSON", '["a","a"]', '["b","foreign"]', '["b"]']) {
       const result = await runSearch({
         db: temp.db,
-        kind: "skill",
+        kind: "task",
         query: "merge",
         candidates: documents,
         settings: { helperModel },

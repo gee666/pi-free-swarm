@@ -52,12 +52,6 @@ export async function searchSkills(options: {
   const result = await runSearch({
     ...options,
     kind: "skill",
-    settings: {
-      search: {
-        maxResults: options.settings?.search?.maxResults,
-        timeoutMs: options.settings?.search?.timeoutMs,
-      },
-    },
     candidates: skills.map((skill) => ({ ...skill, id: skill.name, text: `${skill.name}\n${skill.description}` })),
   });
   return {

@@ -5,7 +5,7 @@ import { runSearch } from "../search/index.js";
 import { getPost } from "../store/wall-queries.js";
 import { postsForUser } from "../store/user-post-state.js";
 import { requireSwarmItem, type ApiDeps } from "./api-util.js";
-import { positiveQuery, searchQuery, searchSettings, textQuery } from "./work-input.js";
+import { positiveQuery, searchQuery, textQuery } from "./work-input.js";
 
 export async function searchPosts(deps: ApiDeps, swarmId: number, url: URL): Promise<PostsSearchResponse> {
   requireSwarmItem(deps, swarmId);
@@ -19,7 +19,6 @@ export async function searchPosts(deps: ApiDeps, swarmId: number, url: URL): Pro
     kind: "post",
     candidates,
     ...searchQuery(url),
-    settings: searchSettings(deps.db),
   });
   const posts = postsForUser(
     deps.db,

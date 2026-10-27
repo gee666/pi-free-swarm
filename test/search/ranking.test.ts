@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { bm25, cosineSimilarity, reciprocalRankFusion, tokenize } from "../../src/search/ranking.js";
-import { runSearch, type SearchResult } from "../../src/search/index.js";
+import { runSearch } from "../../src/search/index.js";
 import { createTempDb } from "../helpers/temp-db.js";
 
 const docs = [
@@ -68,16 +68,9 @@ test("filter-only preserves supplied recency order; cursor rejects changed query
     assert.equal(next.nextCursor, null);
     const changes: { query?: string; candidates?: typeof docs }[] = [{ query: "merge" }, { candidates: docs.slice(1) }];
     for (const change of changes) {
-      const invalid: SearchResult<(typeof docs)[number]> = await runSearch({
-        ...options,
-        ...change,
-        cursor: first.nextCursor,
-      });
-      assert.deepEqual(invalid.items, []);
-      assert.match(invalid.notes.join(), /cursor does not match/);
+      await assert.rejects(runSearch({ ...options, ...change, cursor: first.nextCursor }), /Restart the search/);
     }
-    const invalid = await runSearch({ ...options, cursor: "garbage" });
-    assert.match(invalid.notes.join(), /cursor/);
+    await assert.rejects(runSearch({ ...options, cursor: "garbage" }), /cursor/);
     const ranked = await runSearch({ ...options, query: "merge", limit: 1 });
     assert.equal(ranked.items[0].id, "title");
   } finally {

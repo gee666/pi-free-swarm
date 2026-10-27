@@ -8,8 +8,6 @@ import {
   searchTaskCandidates,
 } from "../broker/work-queries.js";
 import { searchPostCandidates } from "../broker/post-queries.js";
-import { projectOf } from "../broker/project-path.js";
-import { loadSettings } from "../settings.js";
 import { runSearch, type SearchHelper, type SearchResult } from "../search/index.js";
 import { syncSkillsAndNotify } from "../broker/skill-sync.js";
 import { searchSkills, getSkill } from "../skills/index.js";
@@ -25,7 +23,6 @@ function resultLines<T>(result: SearchResult<T>, line: (item: T) => string): str
   ].join("\n");
 }
 export function createSearchHandlers(identity: AgentToolIdentity) {
-  const settings = () => loadSettings(projectOf(identity.getDb().dataDir)).settings;
   return {
     async tasksSearch(params: Static<typeof S.tasksSearch>, helper?: SearchHelper) {
       const db = identity.getDb();
@@ -45,7 +42,6 @@ export function createSearchHandlers(identity: AgentToolIdentity) {
         query: checkedQuery(params.query),
         cursor: params.cursor,
         limit: params.limit,
-        settings: settings(),
         helper,
       });
       return resultLines(result, (item) => taskLine(getTaskDetail(db, identity.swarmId, Number(item.id))));
@@ -67,7 +63,6 @@ export function createSearchHandlers(identity: AgentToolIdentity) {
         query: checkedQuery(params.query),
         cursor: params.cursor,
         limit: params.limit,
-        settings: settings(),
         helper,
       });
       return resultLines(result, (item) => {
@@ -90,7 +85,6 @@ export function createSearchHandlers(identity: AgentToolIdentity) {
         query: checkedQuery(params.query),
         cursor: params.cursor,
         limit: params.limit,
-        settings: settings(),
         helper,
       });
       return resultLines(result, (post) => `#${post.id} ${post.title} · author ${post.author}`);
@@ -101,7 +95,6 @@ export function createSearchHandlers(identity: AgentToolIdentity) {
         db: identity.getDb(),
         ...params,
         query: checkedQuery(params.query),
-        settings: settings(),
       });
       return resultLines(
         result,

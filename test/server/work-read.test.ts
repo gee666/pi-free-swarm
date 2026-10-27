@@ -51,8 +51,8 @@ describe("work searches", () => {
     );
     assert.equal(next.body.items[0].id, second.id);
     const invalid = await getJson<CriteriaResponse>(board.url("/criteria?cursor=bad"));
-    assert.deepEqual(invalid.body.items, []);
-    assert.ok(invalid.body.notes.length);
+    assert.equal(invalid.status, 400);
+    assert.match(JSON.stringify(invalid.body), /Restart the search/);
     const groups = await getJson<CriteriaGroupsResponse>(board.url("/criteria/groups"));
     assert.ok(groups.body.groups.some((group) => group.group === "HTTP"));
     assert.ok(groups.body.groups.some((group) => group.group === "Planning"));
