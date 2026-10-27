@@ -18,7 +18,7 @@ export function voteCriterion(
       throw new BrokerError("validation", "Unknown vote verdict.");
     const tasks = criterionTasks(db, criterion.id);
     const blocker = getBlocker(db, criterion.id);
-    if (input.verdict === "satisfied" && (tasks.length === 0 || tasks.some((task) => task.status !== "accepted"))) {
+    if (input.verdict === "satisfied" && tasks.some((task) => task.status !== "accepted")) {
       throw new BrokerError(
         "validation",
         "A satisfied vote requires all linked tasks accepted. Finish and review the tasks first.",

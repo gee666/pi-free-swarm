@@ -38,7 +38,7 @@ export function updatePostLinks(
       }
     }
     for (const id of new Set(input.criterionIds ?? [])) {
-      requireCriterion(db, input.swarmId, id, input.remove);
+      requireCriterion(db, input.swarmId, id, true);
       changed =
         changePostLink(db, { postId: input.postId, targetKind: "criterion", targetId: id }, input.remove ?? false) ||
         changed;

@@ -34,8 +34,6 @@ export function updateProjectIntent(
     checkRevision(project.intentRevision, input.expectedRevision);
     const summary = storedWorkText(db, input.swarmId, input.summary, "summary", actor);
     const intentPath = workText(input.path, "path", actor);
-    if (path.isAbsolute(intentPath) || intentPath.split(/[\\/]/u).includes(".."))
-      throw new BrokerError("validation", "Intent path must be repo-relative without parent traversal.", "path");
     saveIntent(db, input.swarmId, summary, intentPath);
     insertEvent(db, input.swarmId, "project.changed", { id: input.swarmId }, input.now);
     return readProject(db, input.swarmId);
