@@ -52,9 +52,9 @@ describe("posts and comments", () => {
       "title",
     );
     brokerError(
-      () => createPost(db, swarm.id, "Maria", { title: "t".repeat(72), text: "x" }, T0),
+      () => createPost(db, swarm.id, "Maria", { title: "t".repeat(101), text: "x" }, T0),
       "validation",
-      "Title too long: 72/60 characters. Shorten it.",
+      "Title too long (101 chars): keep it under 60; put long material in a file and reference its path.",
       "title",
     );
     brokerError(

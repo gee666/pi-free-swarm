@@ -36,7 +36,6 @@ function fixture(database: SwarmDb = db) {
       timing: {
         staggerSeconds: 0,
         idleReminderDelay: 100,
-        idleReminderDigestSize: 4,
         heartbeatMs: 1,
         deliveryPollMs: 2,
         completionCheckMs: 3,
@@ -84,7 +83,14 @@ test("one retire call writes exact self-authored handoff and queues a fenced rep
       ?.retired_at,
     null,
   );
-  assert.equal(db.sql.prepare("SELECT COUNT(*) AS n FROM acceptance_votes WHERE swarm_id = ?").get(swarm.id)?.n, 0);
+  assert.equal(
+    db.sql
+      .prepare(
+        "SELECT COUNT(*) AS n FROM criterion_votes v JOIN criteria c ON c.id = v.criterion_id WHERE c.swarm_id = ?",
+      )
+      .get(swarm.id)?.n,
+    0,
+  );
   assert.equal(
     db.sql
       .prepare("SELECT COUNT(*) AS n FROM participants WHERE swarm_id = ? AND kind = 'agent' AND name <> 'Watcher'")
@@ -162,7 +168,7 @@ test("retire schema accepts handoff text only, not a filename, target identity o
   assert.equal(Value.Check(tool.parameters, { handoffFile: "/arbitrary/file" }), false);
   assert.equal(Value.Check(tool.parameters, { handoff: "Summary", name: "John" }), false);
   assert.match(tool.description, /first idle/);
-  assert.match(tool.description, /not your old traffic/);
+  assert.match(tool.description, /Your private traffic stays with your session/);
 });
 
 test("successful native retirement result terminates follow-up without changing its text response", async () => {

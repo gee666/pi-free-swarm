@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { DeliveryOutcome, PromptPayload } from "../../src/agents/supervisor.js";
+import { workReminder } from "../../src/broker/work-reminder.js";
 import { IdleReminders } from "../../src/broker/idle-reminder.js";
 import { snoozeReminders } from "../../src/broker/reminder-snooze.js";
 import { approveScope } from "../../src/broker/project.js";
@@ -25,7 +26,7 @@ function reminders(f: ReturnType<typeof workFixture>) {
     swarmId: f.swarmId,
     clock,
     agents: new Map([["Ann", agent]]),
-    settings: { idleReminderDelay: 100, idleReminderDigestSize: 10 },
+    settings: { idleReminderDelay: 100 },
     onError: (error) => assert.fail(String(error)),
   });
   return { clock, prompts, idle };
@@ -69,7 +70,7 @@ test("review assignments and voting duty are reported to the chosen agent", (t) 
   const task = f.task(f.criterion.id, [], true);
   startTask(f.db, { ...f.input(), id: task.id });
   requestTaskReview(f.db, { ...f.input(), id: task.id, evidence: "Tests pass" });
-  assert.ok(task.id);
+  assert.match(workReminder(f.db, f.swarmId, "Ben", T0 + 100), new RegExp(`Reviews: #${task.id}`));
 });
 
 test("snooze postpones reminders without changing run gates", async (t) => {

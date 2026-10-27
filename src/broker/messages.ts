@@ -1,4 +1,4 @@
-import type { MarkReadResponse, MessageView, ThreadResponse, ThreadView } from "../api-types.js";
+import type { MarkReadResponse, MessageView, ThreadView } from "../api-types.js";
 import {
   MAIN_FEEDBACK_POST_SUFFIX,
   MAIN_FEEDBACK_POST_TITLE,
@@ -9,7 +9,7 @@ import {
 } from "../constants.js";
 import { clipWithSuffix, MAIN_FEEDBACK_MAX, WORK_TEXT_ACCEPTED } from "../limits.js";
 import type { SwarmDb } from "../store/db.js";
-import { findDirectThread, getMessages, getThread, unreadCounts } from "../store/message-queries.js";
+import { findDirectThreadView, getMessages, unreadCounts } from "../store/message-queries.js";
 import { int } from "../store/rows.js";
 import { listAgentSessions, listMessageableNames, type ParticipantRef } from "../store/swarm-queries.js";
 import { storedBody } from "./attachment.js";
@@ -53,8 +53,8 @@ export function sendMessage(
     requireSwarm(db, swarmId);
     const sender = actAs(db, swarmId, from, now);
     const peer = recipient(db, swarmId, sender.name, to);
-    const existing = findDirectThread(db, swarmId, sender.name, peer.name);
-    const threadId = existing?.thread.id ?? createThread(db, swarmId, [sender.name, peer.name], now);
+    const existing = findDirectThreadView(db, swarmId, sender.name, peer.name);
+    const threadId = existing?.id ?? createThread(db, swarmId, [sender.name, peer.name], now);
     const value = storedBody(db, swarmId, "message", text, sender.kind);
     const result = sendToThread(db, { swarmId, threadId, sender, recipients: [peer], text: value, now });
     if (result.pending) db.afterCommit(() => notifyLocalMessage(swarmId));
@@ -77,14 +77,14 @@ export function readConversation(
   checkPage({ count: limit, offset: after });
   const reader = requireParticipant(db, swarmId, a);
   const peer = requireParticipant(db, swarmId, b);
-  const found = findDirectThread(db, swarmId, reader.name, peer.name);
+  const found = findDirectThreadView(db, swarmId, reader.name, peer.name);
   if (!found) return { thread: null, messages: [], nextAfter: null };
   const rows = db.sql
     .prepare("SELECT id FROM messages WHERE thread_id = ? AND id > ? ORDER BY id LIMIT ?")
-    .all(found.thread.id, after, limit + 1);
+    .all(found.id, after, limit + 1);
   const ids = rows.slice(0, limit).map((row) => int(row, "id"));
   return {
-    thread: found.thread,
+    thread: found,
     messages: getMessages(db, ids),
     nextAfter: rows.length > limit ? (ids.at(-1) ?? null) : null,
   };
@@ -104,7 +104,7 @@ export function sendMainFeedback(db: SwarmDb, swarmId: number, text: string, now
       .map((agent) => {
         const peer: ParticipantRef = { name: agent.name, kind: "agent" };
         const threadId =
-          findDirectThread(db, swarmId, sender.name, peer.name)?.thread.id ??
+          findDirectThreadView(db, swarmId, sender.name, peer.name)?.id ??
           createThread(db, swarmId, [sender.name, peer.name], now);
         return sendToThread(db, { swarmId, threadId, sender, recipients: [peer], text: value, now }).message;
       });
@@ -120,16 +120,6 @@ export function sendMainFeedback(db: SwarmDb, swarmId: number, text: string, now
     db.afterCommit(() => notifyLocalMessage(swarmId));
     return first;
   });
-}
-
-export function readThreadAs(db: SwarmDb, swarmId: number, reader: string, threadId: number): ThreadResponse {
-  requireSwarm(db, swarmId);
-  const participant = requireParticipant(db, swarmId, reader);
-  const thread = getThread(db, swarmId, threadId);
-  if (!thread) throw new BrokerError("not_found", `Thread #${threadId} not found.`);
-  if (!thread.thread.members.includes(participant.name))
-    throw new BrokerError("not_member", `You are not a member of thread #${threadId}.`);
-  return thread;
 }
 
 export function markUserRead(

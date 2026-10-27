@@ -36,7 +36,6 @@ function fixture(budget: RunConfiguration["budget"] = { moneyUsd: 10, timeSecond
       timing: {
         staggerSeconds: 0,
         idleReminderDelay: 0,
-        idleReminderDigestSize: 1,
         heartbeatMs: 1,
         deliveryPollMs: 1,
         completionCheckMs: 1,
@@ -86,7 +85,14 @@ describe("per-swarm durable budget changes", () => {
       db.sql.prepare("SELECT status FROM configuration_requests WHERE swarm_id = ?").get(id)?.status,
       "applied",
     );
-    assert.equal(db.sql.prepare("SELECT COUNT(*) AS n FROM acceptance_votes WHERE swarm_id = ?").get(id)?.n, 0);
+    assert.equal(
+      db.sql
+        .prepare(
+          "SELECT COUNT(*) AS n FROM criterion_votes v JOIN criteria c ON c.id = v.criterion_id WHERE c.swarm_id = ?",
+        )
+        .get(id)?.n,
+      0,
+    );
     const reopened = openSwarmDb(db.path, { create: false });
     try {
       assert.deepEqual(getBudgetRaises(reopened, id), { moneyUsd: 20, timeSeconds: 120 });
@@ -176,7 +182,14 @@ describe("per-swarm durable budget changes", () => {
       assert.equal(drained, 1);
       assert.equal(ended, 1);
       assert.equal(db.sql.prepare("SELECT reason FROM budget_stops WHERE swarm_id = ?").get(id)?.reason, dimension);
-      assert.equal(db.sql.prepare("SELECT COUNT(*) AS n FROM acceptance_votes WHERE swarm_id = ?").get(id)?.n, 0);
+      assert.equal(
+        db.sql
+          .prepare(
+            "SELECT COUNT(*) AS n FROM criterion_votes v JOIN criteria c ON c.id = v.criterion_id WHERE c.swarm_id = ?",
+          )
+          .get(id)?.n,
+        0,
+      );
     }
   });
 

@@ -8,7 +8,7 @@ import { listTasks } from "../../src/store/tasks.js";
 import { removeWorkSchema } from "../helpers/legacy-work-schema.js";
 import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
 
-test("work graph migrates populated v17 without losing communication or old feature tables", () => {
+test("work graph migrates populated v17, preserving communication and dropping removed features", () => {
   const temp = createTempDb();
   try {
     const { db } = temp;
@@ -16,9 +16,17 @@ test("work graph migrates populated v17 without losing communication or old feat
     const post = createPost(db, swarm.id, "Maria", { title: "History", text: "Evidence" }, T0);
     addComment(db, swarm.id, "John", post.id, "Reviewed", T0);
     sendMessage(db, { swarmId: swarm.id, from: "User", to: "Maria", text: "Keep this", now: T0 });
-    const tables = ["posts", "comments", "messages", "message_recipients", "post_claims", "post_contracts"];
+    const tables = ["posts", "comments", "messages", "message_recipients"];
     const before = tables.map((table) => db.sql.prepare(`SELECT * FROM ${table}`).all());
     removeWorkSchema(db);
+    db.sql.prepare("INSERT INTO post_claims VALUES (?, ?, 'implementation', 'Maria', ?)").run(swarm.id, post.id, T0);
+    db.sql
+      .prepare("INSERT INTO post_contracts VALUES (?, ?, 1, 'docs/interface.md', 'Maria', ?)")
+      .run(swarm.id, post.id, T0);
+    db.sql
+      .prepare("INSERT INTO acceptance_votes VALUES (?, 'Maria', 1, 'accepted', 'Historical vote', ?)")
+      .run(swarm.id, T0);
+    db.sql.prepare("UPDATE acceptance SET closed_run = 1 WHERE swarm_id = ?").run(swarm.id);
     db.sql.exec("PRAGMA user_version = 17");
     const upgraded = openSwarmDb(db.path, { create: false });
     try {
@@ -28,9 +36,22 @@ test("work graph migrates populated v17 without losing communication or old feat
         before,
       );
       assert.deepEqual(upgraded.sql.prepare("PRAGMA foreign_key_check").all(), []);
+      for (const table of [
+        "acceptance",
+        "acceptance_votes",
+        "post_claims",
+        "post_contracts",
+        "read_marks",
+        "post_coverage",
+        "comment_coverage",
+        "replacement_post_baselines",
+        "wall_changes",
+      ])
+        assert.equal(upgraded.sql.prepare("SELECT name FROM sqlite_master WHERE name = ?").get(table), undefined);
       assert.deepEqual(listTasks(upgraded, swarm.id), []);
       assert.deepEqual(listCriteria(upgraded, swarm.id), []);
       assert.equal(upgraded.sql.prepare("SELECT scope_revision FROM swarms").get()?.scope_revision, 0);
+      assert.equal(upgraded.sql.prepare("SELECT admission_closed_run FROM swarms").get()?.admission_closed_run, 1);
     } finally {
       upgraded.close();
     }

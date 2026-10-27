@@ -1,12 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  sendMessage,
-  readConversation,
-  readThreadAs,
-  markUserRead,
-  sendMainFeedback,
-} from "../../src/broker/messages.js";
+import { sendMessage, readConversation, markUserRead, sendMainFeedback } from "../../src/broker/messages.js";
 import { getMessages } from "../../src/store/message-queries.js";
 import { endRun } from "../../src/broker/swarms.js";
 import { workFixture } from "../helpers/work-graph.js";
@@ -33,7 +27,6 @@ test("direct sends reuse the same conversation in either direction and page hist
     ),
     ["Two"],
   );
-  assert.throws(() => readThreadAs(f.db, f.swarmId, "Cam", first.threadId), /not a member/);
   assert.equal(readConversation(f.db, { swarmId: f.swarmId, a: "Ann", b: "Cam" }).thread, null);
   assert.throws(
     () => sendMessage(f.db, { swarmId: f.swarmId, from: "Ann", to: "Ann", text: "Self", now: T0 }),

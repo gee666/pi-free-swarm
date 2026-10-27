@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { reopenTask } from "../../src/broker/task-transitions.js";
+import { getMessages } from "../../src/store/message-queries.js";
+import { listTasks } from "../../src/store/tasks.js";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { afterEach, describe, it } from "node:test";
@@ -11,11 +14,9 @@ import { getSwarm } from "../../src/store/swarm-queries.js";
 import { listPosts } from "../../src/store/wall-queries.js";
 import { SCENARIOS } from "../fixtures/fake-pi/harness.js";
 import {
-  agentNames,
   createRunFixture,
   newestSwarmId,
   promptTexts,
-  recipientStatus,
   spawnsOf,
   waitForWorkersIdle,
   finishWork,
@@ -55,9 +56,11 @@ describe("resume_swarm", () => {
       finishWork(db, swarmId);
       const first = await firstRun;
       assert.equal(first.end, "finished");
-      const names = agentNames(db, swarmId);
       const sessions = spawnsOf(run.fake).map((spawn) => spawn.session);
 
+      const task = listTasks(db, swarmId)[0];
+      assert.ok(task);
+      reopenTask(db, { swarmId, actor: "User", now: Date.now(), id: task.id, reason: "Feedback requires rework." });
       const secondRun = resumeSwarm(run.env, { swarmId, message: FEEDBACK }, {});
       await waitForWorkersIdle(run, swarmId);
       finishWork(db, swarmId);
@@ -68,7 +71,8 @@ describe("resume_swarm", () => {
 
       const [feedback] = mainMessages(run, swarmId);
       assert.equal(feedback.body, FEEDBACK.trim());
-      for (const name of names) assert.equal(recipientStatus(db, feedback.id, name), "read");
+      for (const message of mainMessages(run, swarmId))
+        assert.ok(getMessages(db, [message.id])[0]?.recipients.every((recipient) => recipient.status === "read"));
       const [post] = listPosts(db, swarmId, { count: 10, offset: 0 }).posts;
       assert.equal(post.author, "Main");
       assert.equal(post.title, MAIN_FEEDBACK_POST_TITLE);
@@ -79,7 +83,8 @@ describe("resume_swarm", () => {
       assert.deepEqual(resumed.map((spawn) => spawn.session).sort(), [...sessions].sort(), "same session files");
       const resumePrompts = promptTexts(run.fake).filter((text) => text.startsWith(RESUME_PROMPT_HEADER));
       assert.equal(resumePrompts.length, 2);
-      for (const text of resumePrompts) assert.ok(text.includes(`[swarm message #${feedback.id}]`));
+      for (const text of resumePrompts)
+        assert.ok(mainMessages(run, swarmId).some((message) => text.includes(`[swarm message #${message.id}]`)));
     },
   );
 
@@ -145,9 +150,7 @@ describe("resume_swarm", () => {
       [2, "finished"],
     ]);
     // Never persisted a session: they start with the kickoff, the feedback among their messages.
-    const kickoffs = promptTexts(run.fake).filter((text) =>
-      text.startsWith("Begin the shared task in your system instructions."),
-    );
+    const kickoffs = promptTexts(run.fake).filter((text) => text.startsWith("Start: call swarm_project."));
     assert.equal(kickoffs.length, 2);
     for (const text of kickoffs) assert.ok(text.includes('"Carry on."'));
   });

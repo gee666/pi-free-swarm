@@ -51,13 +51,20 @@ test("snooze leaves pending real messages and acceptance unchanged and joins rol
     setAgentStatus(temp.db, swarm.id, "Maria", "idle", T0);
     setAgentStatus(temp.db, swarm.id, "John", "idle", T0);
     const before = temp.db.sql.prepare("SELECT * FROM message_recipients WHERE message_id = ?").all(message.id);
-    const votes = temp.db.sql.prepare("SELECT * FROM acceptance_votes WHERE swarm_id = ?").all(swarm.id);
+    const votes = temp.db.sql
+      .prepare("SELECT * FROM criterion_votes v JOIN criteria c ON c.id = v.criterion_id WHERE c.swarm_id = ?")
+      .all(swarm.id);
     snoozeReminders(temp.db, swarm.id, "Maria", T0);
     assert.deepEqual(
       temp.db.sql.prepare("SELECT * FROM message_recipients WHERE message_id = ?").all(message.id),
       before,
     );
-    assert.deepEqual(temp.db.sql.prepare("SELECT * FROM acceptance_votes WHERE swarm_id = ?").all(swarm.id), votes);
+    assert.deepEqual(
+      temp.db.sql
+        .prepare("SELECT * FROM criterion_votes v JOIN criteria c ON c.id = v.criterion_id WHERE c.swarm_id = ?")
+        .all(swarm.id),
+      votes,
+    );
     assert.throws(
       () =>
         temp.db.write(() => {

@@ -69,7 +69,7 @@ it("does not schedule an idle reminder for Watcher even when it is in the delive
     db,
     swarmId: swarm.id,
     clock,
-    settings: { idleReminderDelay: 1, idleReminderDigestSize: 1 },
+    settings: { idleReminderDelay: 1 },
     agents: new Map([
       [
         WATCHER_NAME,

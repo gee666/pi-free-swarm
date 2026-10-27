@@ -21,7 +21,7 @@ interface IdleReminderOptions {
   db: SwarmDb;
   swarmId: number;
   clock: Clock;
-  settings: Pick<SwarmSettings, "idleReminderDelay" | "idleReminderDigestSize">;
+  settings: Pick<SwarmSettings, "idleReminderDelay">;
   agents: ReadonlyMap<string, DeliveryTarget>;
   onError(error: unknown): void;
 }

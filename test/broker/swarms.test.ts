@@ -202,7 +202,7 @@ describe("runs", () => {
     assert.deepEqual([ended?.status, ended?.runnerPid, ended?.finishedAt], ["stopped", null, T0 + 3]);
     assert.deepEqual(agents(swarm.id), { Maria: "stopped", John: "crashed", Liam: "stopped", Watcher: "stopped" });
     const statuses = getMessages(db, [fromUser.id, fromAgent.id]).flatMap((m) => m.recipients.map((r) => r.status));
-    assert.deepEqual(statuses, ["pending", "pending", "delivered"]);
+    assert.deepEqual(statuses, ["pending", "delivered"]);
     const userThread = getThread(db, swarm.id, fromUser.threadId)?.messages ?? [];
     assert.deepEqual(
       userThread.map((m) => [m.sender, m.text]),

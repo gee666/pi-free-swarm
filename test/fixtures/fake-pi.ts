@@ -1,17 +1,4 @@
-// Fake `pi --mode rpc` for agent tests. Runs under Node's type stripping (no imports outside node:).
-//
-// Env:
-//   FAKE_PI_SCENARIO  path to a JSON FakePiScenario; missing = every prompt gets one reply, then settles.
-//   FAKE_PI_LOG       JSONL file; gets {"fake":"spawn",argv,pid}, every received command verbatim,
-//                     {"fake":"signal",signal} and {"fake":"grandchild",pid} records.
-//
-// Real argument list is accepted; `--session <file>` gets real-format entries (header on the first
-// message, then user/assistant/toolResult messages and compaction entries).
-//
-// A run: prompt response, agent_start, turn_start, the user message, the run's steps, then (if steers
-// are still queued) one more turn that injects them and replies, turn_end, agent_end, agent_settled.
-// Prompts arriving during a run are queued as steering (queue_update, then the response) and injected
-// one user message each at the next "turn" step or the end of the run.
+// Fake Pi RPC peer. Scenarios drive turns; test barriers expose races without model calls.
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
@@ -26,36 +13,27 @@ export interface FakeUsage {
 }
 
 export type FakeStep =
+  | { type: "work_graph"; blocked?: boolean }
   | { type: "reply"; text?: string; thinking?: boolean; usage?: FakeUsage }
-  /** A tool that stays silent for `ms`; steering prompts are queued meanwhile. */
   | { type: "tool"; name?: string; ms: number; usage?: FakeUsage }
-  /** Turn boundary: queued steers arrive here, each as its own user message_start. */
   | { type: "turn" }
   | { type: "compaction"; usage?: FakeUsage }
   | { type: "wait"; ms: number }
-  /** Explicit test barrier, released by creating the named file. */
   | { type: "waitForFile"; file: string }
-  /** Never continues: a startup or inactivity stall. */
   | { type: "silence" }
   | { type: "exit"; code?: number; stderr?: string }
-  /** extension_ui_request; blocks until the matching extension_ui_response arrives. */
   | { type: "dialog"; method?: "select" | "confirm" | "input" | "editor" }
-  /** Fire-and-forget UI record. */
   | { type: "notify" }
-  /** A sleeping process in the fake's process group, to prove group kills. */
   | { type: "grandchild"; ignoreSigterm?: boolean };
 
 export interface FakePiScenario {
-  /** Before any command is answered. */
   startup?: FakeStep[];
-  /** Steps of the n-th run; the last entry repeats. */
   runs?: FakeStep[][];
   /** Hold every agent_settled until the next command arrives, like pi's settle gap. */
   settleGap?: boolean;
   /** Send a prompt response and its whole turn as one stdout batch. */
   batchRunOutput?: boolean;
   retainQueueOnError?: boolean;
-  /** Prompts containing this text are answered success:false. */
   reject?: string;
   /** Log SIGTERM but keep running, so only SIGKILL stops the fake. */
   ignoreSigterm?: boolean;
@@ -181,6 +159,27 @@ function injectSteering(): void {
 
 async function runStep(step: FakeStep): Promise<void> {
   switch (step.type) {
+    case "work_graph":
+      await new Promise<void>((resolve, reject) => {
+        const child = spawn(
+          process.execPath,
+          [
+            "--import",
+            new URL("../../node_modules/tsx/dist/esm/index.mjs", import.meta.url).href,
+            new URL("./fake-pi/work-graph.ts", import.meta.url).pathname,
+            step.blocked ? "blocked" : "completed",
+          ],
+          { stdio: ["ignore", "ignore", "pipe"] },
+        );
+        let error = "";
+        child.stderr.on("data", (chunk: Buffer) => {
+          error += chunk.toString();
+        });
+        child.on("error", reject);
+        child.on("close", (code) => (code === 0 ? resolve() : reject(new Error(error))));
+      });
+      log({ fake: "work_graph" });
+      return;
     case "reply": {
       const content: Json[] = step.thinking ? [{ type: "thinking", thinking: "Hmm." }] : [];
       content.push({ type: "text", text: step.text ?? "ok" });

@@ -86,7 +86,6 @@ export function readPosition(after: string | undefined, scope: string, snapshot:
   }
 }
 
-/** Full item IDs alone become coverage. A partial tail remains explicitly resumable. */
 export function renderReadPage(header: string, items: ReadItem[], position: ReadPosition, count: number) {
   const lines = [header];
   const completeIds: number[] = [];

@@ -15,7 +15,7 @@ test("full runtime admits exactly 15 real workers and finishes from the work gra
     {
       name: "fifteen-runtime",
       taskPrompt: "Verify the requested full team without resizing.",
-      acceptanceCriteria: ["Exactly fifteen real fixture workers start and ordinary quorum holds."],
+      acceptanceCriteria: ["Exactly fifteen real fixture workers start and the work graph completes."],
       agentAmount: 15,
     },
     { signal: cancel.signal },

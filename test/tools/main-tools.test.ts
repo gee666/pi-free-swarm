@@ -100,10 +100,7 @@ describe("registerMainTools", () => {
     assert.match(swarm.description, /concise/);
     assert.match(swarm.description, /requirements/);
     assert.match(swarm.description, /If the user did not provide criteria, derive them from the task before launching/);
-    assert.match(
-      swarm.description,
-      /one deterministic status document with the goal, criteria, verdict, tally and every vote reason, including dissent/,
-    );
+    assert.match(swarm.description, /Returns stop gates, outcome and board link/);
     assert.doesNotMatch(swarm.description, /wall digest/);
     for (const tool of pi.tools) assert.ok(tool.promptSnippet);
   });

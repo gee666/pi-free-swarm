@@ -56,6 +56,26 @@ test("task and criterion handlers adapt snake_case, preserve identity and return
   assert.match(run.criteriaVoteContext({}), /Next cursor:/);
 });
 
+test("tool schemas reject identity overrides and handlers always retain context identity", (t) => {
+  const f = workFixture(t);
+  const run = handlers(f);
+  const spoofed = {
+    group: "Delivery",
+    title: "Scoped",
+    body: "Check scope",
+    verification: "Run tests",
+    source: "brief.md",
+    actor: "User",
+    swarmId: 999,
+  };
+  const pi = new FakeExtensionApi();
+  registerAgentTools(pi, { getDb: () => f.db, swarmId: f.swarmId, run: 1, agentName: "Ann" });
+  assert.equal(Value.Check(pi.tool(AGENT_TOOL.criteriaCreate).parameters, spoofed), false);
+  const output = run.criteriaCreate(spoofed);
+  const id = Number(/#(\d+)/.exec(output)?.[1]);
+  assert.equal(getCriterionDetail(f.db, f.swarmId, id).author, "Ann");
+});
+
 test("dependency follow-ups and searches show compact status lines, cursor and mode", async (t) => {
   const f = workFixture(t);
   const dependency = f.task();
@@ -114,6 +134,14 @@ test("messages continue one private conversation in both directions", (t) => {
   assert.ok(conversation.nextAfter);
   assert.match(handlers(f).messagesRead({ with: "Ben" }), /One.*Two/);
   assert.deepEqual(readConversation(f.db, { swarmId: f.swarmId, a: "Ann", b: "Cam" }).messages, []);
+});
+
+test("Watcher can answer User but cannot message an agent", (t) => {
+  const f = workFixture(t);
+  const run = handlers(f, "Watcher");
+  assert.throws(() => run.messagesSend({ to: "Ann", body: "Do work" }), /only to User/);
+  assert.match(run.messagesSend({ to: "user", body: "The graph is unfinished." }), /sent/);
+  assert.match(run.messagesRead({ with: "User" }), /The graph is unfinished/);
 });
 
 test("fixed Unicode limits cover all agent fields, including optional fields", (t) => {

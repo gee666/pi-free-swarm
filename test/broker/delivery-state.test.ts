@@ -34,7 +34,7 @@ describe("recipient status", () => {
       deliveredAt: T0 + 2,
       readAt: T0 + 3,
     });
-    assert.equal(recipient(message.id, "Liam")?.status, "pending");
+    assert.equal(recipient(message.id, "Liam"), undefined);
   });
 
   it("fills delivered_at when the read signal comes first", () => {
@@ -63,11 +63,13 @@ describe("recipient status", () => {
     const swarm = seedSwarm(db);
     const a = sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "John", text: "a", now: T0 + 1 });
     const b = sendMessage(db, { swarmId: swarm.id, from: "User", to: "Liam", text: "b", now: T0 + 1 });
+    const c = sendMessage(db, { swarmId: swarm.id, from: "User", to: "John", text: "c", now: T0 + 1 });
+    sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "User", text: "d", now: T0 + 1 });
     markDelivered(db, swarm.id, "John", [a.id], T0 + 2);
     assert.deepEqual(listOpenAgentRecipients(db, swarm.id), [
       { messageId: a.id, name: "John", status: "delivered" },
       { messageId: b.id, name: "Liam", status: "pending" },
-      { messageId: b.id, name: "John", status: "pending" },
+      { messageId: c.id, name: "John", status: "pending" },
     ]);
     assert.deepEqual(unreadCounts(db, swarm.id, ["John", "Liam", "User", "Maria"]), {
       John: 2,

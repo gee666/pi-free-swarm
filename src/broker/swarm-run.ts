@@ -23,6 +23,7 @@ import { readBudget, assertBudgetPricing } from "./budget.js";
 import { RunBudget } from "./run-budget.js";
 import { IdleReminders } from "./idle-reminder.js";
 import { closeRunAdmission } from "./run-admission.js";
+import { waitForActiveRun } from "./run-wait.js";
 import { RunAgent } from "./run-agent.js";
 import { readRunProgress } from "./run-progress.js";
 import { registerActiveRun } from "./active-ownership.js";
@@ -262,20 +263,8 @@ export class SwarmRun {
     return this.#swarm.id;
   }
 
-  async wait(options: RunOptions): Promise<RunOutcome> {
-    const abort = () => void this.stop();
-    options.signal?.addEventListener("abort", abort, { once: true });
-    const report = () =>
-      options.onProgress?.(readRunProgress(this.#env.db, this.swarmId, this.#env.clock.now(), this.#env.boardUrl()));
-    const timer = this.#env.clock.every(this.#timings.progressMs, report);
-    try {
-      report();
-      if (options.signal?.aborted) abort();
-      return await this.#done;
-    } finally {
-      timer.cancel();
-      options.signal?.removeEventListener("abort", abort);
-    }
+  wait(options: RunOptions): Promise<RunOutcome> {
+    return waitForActiveRun(this.#env, this.swarmId, this.#timings.progressMs, this.#done, options, () => this.stop());
   }
 
   stop(): Promise<void> {

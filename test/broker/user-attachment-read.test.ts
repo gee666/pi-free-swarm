@@ -38,7 +38,7 @@ test("bounded byte ranges preserve Unicode, BOM and whitespace without materiali
 test("only known generated User attachments in the selected swarm can replace stored text", () => {
   const { db, swarm } = setup();
   const user = createPost(db, swarm.id, "User", { title: "User", text: "x".repeat(300) }, T0);
-  const worker = createPost(db, swarm.id, "Maria", { title: "Worker", text: "x".repeat(500) }, T0);
+  const worker = createPost(db, swarm.id, "Maria", { title: "Worker", text: "x".repeat(300) }, T0);
   const other = seedSwarm(db);
   assert.equal(readUserAttachmentChunk(db, other.id, "post", user.id, 0, 3000), null);
   assert.equal(readUserAttachmentChunk(db, swarm.id, "post", worker.id, 0, 3000), null);

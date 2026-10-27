@@ -28,6 +28,7 @@ export function registerTextTool<S extends TSchema>(
     name,
     label: name,
     description,
+    promptSnippet: description,
     parameters,
     async execute(_callId, params, _signal, _update, ctx) {
       const input: unknown = params;
@@ -87,7 +88,4 @@ export function checkedQuery(query?: string): string | undefined {
       "query",
     );
   return query;
-}
-export function pagedText(value: object, after: number | null, scope: string): string {
-  return `${JSON.stringify(value)}\nNext cursor: ${nextCursor(after, scope) ?? "none"}`;
 }

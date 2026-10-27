@@ -24,7 +24,6 @@ const agent = (name: string, patch: Partial<AgentParticipantView> = {}): AgentPa
 });
 
 const detail: SwarmDetailResponse = {
-  bodyMaxChars: 200,
   swarm: {
     id: 3,
     name: "auth-refactor",

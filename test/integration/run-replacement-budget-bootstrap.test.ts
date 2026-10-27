@@ -104,7 +104,7 @@ test(
         assert.ok(!first.message.includes("BOOTSTRAP-WALL"));
         const tools = createAgentToolHandlers({ getDb: () => run.db, swarmId, run: 2, agentName: newName });
         const wall = await tools.postsSearch({ limit: 50 });
-        for (const post of posts.slice(-10)) assert.ok(wall.includes(post.text));
+        for (const post of posts.slice(-10)) assert.ok(wall.includes(post.title));
         assert.ok(!wall.includes(`\"${posts[0].text}\"`));
         writeFileSync(release, "ready");
         await waitFor(() => agentStatus(run.db, swarmId, newName) === "idle", "replacement finishes first fresh turn");

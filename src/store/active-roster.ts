@@ -25,7 +25,7 @@ export function getActiveAssignments(db: SwarmDb, swarmId: number): WorkerAssign
   );
 }
 
-/** Apply all new/removed slots as one roster. Replacement never exposes an intermediate smaller quorum. */
+/** Apply replacement atomically so observers never see an intermediate roster. */
 export function applyRosterConfiguration(
   db: SwarmDb,
   swarmId: number,

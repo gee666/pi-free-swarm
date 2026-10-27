@@ -58,7 +58,7 @@ describe("events outbox", () => {
       ["message.created"],
     );
     const created = listEventsAfter(db, 0, 100).find((event) => event.type === "message.created");
-    assert.deepEqual(created?.type === "message.created" && created.payload.unread, { John: 1, User: 1 });
+    assert.deepEqual(created?.type === "message.created" && created.payload.unread, { John: 1 });
     assert.deepEqual(
       emitted(() => markDelivered(db, swarm.id, "John", [messageId], T0)),
       ["message.status"],
@@ -69,7 +69,7 @@ describe("events outbox", () => {
     );
     assert.deepEqual(
       emitted(() => markUserRead(db, swarm.id, [messageId], T0)),
-      ["message.status"],
+      [],
     );
     assert.deepEqual(
       emitted(() => setAgentStatus(db, swarm.id, "John", "working", T0)),

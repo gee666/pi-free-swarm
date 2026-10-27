@@ -47,12 +47,12 @@ export function createWorkHandlers(identity: AgentToolIdentity) {
   return {
     project: () => projectText(identity),
     intentUpdate(params: Static<typeof S.intentUpdate>) {
-      const project = updateProjectIntent(db(), { ...input(), ...params });
+      const project = updateProjectIntent(db(), { ...params, ...input() });
       return `Project #${identity.swarmId} r${project.intentRevision} [scope approval needed r${project.scopeRevision}].`;
     },
     criteriaGet: ({ id }: Static<typeof S.byId>) => JSON.stringify(getCriterionDetail(db(), identity.swarmId, id)),
     criteriaCreate(params: Static<typeof S.criteriaCreate>) {
-      return criterionResult(createCriterion(db(), { ...input(), ...params }).id);
+      return criterionResult(createCriterion(db(), { ...params, ...input() }).id);
     },
     criteriaEdit({ id, expected_revision, ...fields }: Static<typeof S.criteriaEdit>) {
       return criterionResult(editCriterion(db(), { ...input(), id, expectedRevision: expected_revision, fields }).id);
@@ -61,11 +61,11 @@ export function createWorkHandlers(identity: AgentToolIdentity) {
       return criterionResult(archiveCriterion(db(), { ...input(), id }).id);
     },
     criteriaBlock({ criterion_id, ...fields }: Static<typeof S.criteriaBlock>) {
-      const blocker = recordCriterionBlocker(db(), { ...input(), criterionId: criterion_id, ...fields });
+      const blocker = recordCriterionBlocker(db(), { ...fields, criterionId: criterion_id, ...input() });
       return `${criterionResult(criterion_id)} Blocker r${blocker.revision}; gather current blocked votes, then User decides. Waiting for another task is a dependency, not a blocker.`;
     },
     criteriaVote({ criterion_id, ...fields }: Static<typeof S.criteriaVote>) {
-      voteCriterion(db(), { ...input(), criterionId: criterion_id, ...fields });
+      voteCriterion(db(), { ...fields, criterionId: criterion_id, ...input() });
       return criterionResult(criterion_id);
     },
     criteriaVoteContext(params: Static<typeof S.paged>) {
@@ -87,8 +87,8 @@ export function createWorkHandlers(identity: AgentToolIdentity) {
     tasksCreate({ criteria, depends_on, ...fields }: Static<typeof S.tasksCreate>) {
       return taskResult(
         createTask(db(), {
-          ...input(),
           ...fields,
+          ...input(),
           criteria: criteria.map(({ criterion_id, contribution }) => ({ criterionId: criterion_id, contribution })),
           dependsOn: depends_on,
         }),
@@ -117,7 +117,7 @@ export function createWorkHandlers(identity: AgentToolIdentity) {
     },
     tasksClaim: ({ id }: Static<typeof S.byId>) => taskResult(claimTask(db(), { ...input(), id })),
     tasksRelease: ({ id }: Static<typeof S.byId>) => taskResult(releaseTask(db(), { ...input(), id })),
-    tasksHandoff: (params: Static<typeof S.tasksHandoff>) => taskResult(handoffTask(db(), { ...input(), ...params })),
+    tasksHandoff: (params: Static<typeof S.tasksHandoff>) => taskResult(handoffTask(db(), { ...params, ...input() })),
     tasksTransition({ id, action, evidence, reason }: Static<typeof S.tasksTransition>) {
       if (action === "start") return taskResult(startTask(db(), { ...input(), id }));
       const value = action === "request_review" ? evidence : reason;
@@ -132,6 +132,6 @@ export function createWorkHandlers(identity: AgentToolIdentity) {
           : reopenTask(db(), { ...input(), id, reason: value }),
       );
     },
-    tasksReview: (params: Static<typeof S.tasksReview>) => taskResult(reviewTask(db(), { ...input(), ...params })),
+    tasksReview: (params: Static<typeof S.tasksReview>) => taskResult(reviewTask(db(), { ...params, ...input() })),
   };
 }

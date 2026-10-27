@@ -10,7 +10,6 @@ import {
   DB_ENV,
   DEFAULT_AGENTS,
   DEFAULT_IDLE_REMINDER_DELAY,
-  DEFAULT_IDLE_REMINDER_DIGEST_SIZE,
   DEFAULT_MAX_AGENTS,
   DEFAULT_MIN_AGENTS,
   DEFAULT_PORT,
@@ -43,7 +42,6 @@ export interface SwarmSettings extends SearchConfiguration {
   staggerSeconds: number;
   /** Milliseconds of idle time before a reminder. */
   idleReminderDelay: number;
-  idleReminderDigestSize: number;
   /** `PI_SWARM_*` keys already dropped. */
   env: Readonly<Record<string, string>>;
 }
@@ -63,7 +61,6 @@ const KNOWN_KEYS = new Set([
   "defaultAgents",
   "staggerSeconds",
   "idleReminderDelay",
-  "idleReminderDigestSize",
   "env",
   "models",
   "maxRpcFrameBytes",
@@ -93,7 +90,6 @@ export function loadSettings(
   const defaultAgents = optionalInteger(parsed, "defaultAgents", "an integer");
   const staggerSeconds = optionalNumber(parsed, "staggerSeconds", "a number >= 0", 0);
   const idleReminderDelay = optionalInteger(parsed, "idleReminderDelay", "an integer >= 0", 0);
-  const idleReminderDigestSize = optionalInteger(parsed, "idleReminderDigestSize", "an integer >= 1", 1);
   const maxRpcFrameBytes = optionalInteger(
     parsed,
     "maxRpcFrameBytes",
@@ -129,7 +125,6 @@ export function loadSettings(
         defaultAgents,
         staggerSeconds,
         idleReminderDelay,
-        idleReminderDigestSize,
       },
       env,
     ),
@@ -203,7 +198,6 @@ interface ParsedNumbers extends SearchConfiguration {
   defaultAgents?: number;
   staggerSeconds?: number;
   idleReminderDelay?: number;
-  idleReminderDigestSize?: number;
 }
 
 function buildSettings(values: ParsedNumbers, env: Record<string, string>): SwarmSettings {
@@ -226,7 +220,6 @@ function buildSettings(values: ParsedNumbers, env: Record<string, string>): Swar
     defaultAgents,
     staggerSeconds: values.staggerSeconds ?? DEFAULT_STAGGER_SECONDS,
     idleReminderDelay: values.idleReminderDelay ?? DEFAULT_IDLE_REMINDER_DELAY,
-    idleReminderDigestSize: values.idleReminderDigestSize ?? DEFAULT_IDLE_REMINDER_DIGEST_SIZE,
     env,
   };
 }

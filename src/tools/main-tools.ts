@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { systemClock } from "../clock.js";
 import { MAIN_TOOL, SETTINGS_FILE, SWARM_DIR } from "../constants.js";
-import { checkText, checkTitle, MAIN_FEEDBACK_MAX, TITLE_MAX } from "../limits.js";
+import { charCount, checkText, checkTitle, MAIN_FEEDBACK_MAX, TITLE_MAX } from "../limits.js";
 import { BrokerError } from "../broker/errors.js";
 import { requireAcceptanceCriteria } from "../broker/validate.js";
 import { readRunProgress, type RunProgress } from "../broker/run-progress.js";
@@ -152,6 +152,8 @@ export function createMainToolHandlers(runtime: MainRuntime, runner: SwarmRunner
       assertEnabled();
       const name = checkTitle(params.swarm_name);
       if (!name.ok) throw new BrokerError("validation", `swarm_name: ${name.error}`, "swarm_name");
+      if (charCount(name.value) > TITLE_MAX)
+        throw new BrokerError("validation", `swarm_name must be at most ${TITLE_MAX} characters.`, "swarm_name");
       const taskPrompt = checkText(params.task_prompt, Infinity);
       if (!taskPrompt.ok) throw new BrokerError("validation", `task_prompt: ${taskPrompt.error}`, "task_prompt");
       const acceptanceCriteria = requireAcceptanceCriteria(params.acceptance_criteria);

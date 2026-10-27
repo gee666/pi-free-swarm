@@ -93,7 +93,7 @@ export function listThreads(db: SwarmDb, swarmId: number, page: { count: number;
     .map((row) => threadOf(db, row));
 }
 
-export function findDirectThread(db: SwarmDb, swarmId: number, first: string, second: string): ThreadResponse | null {
+export function findDirectThreadView(db: SwarmDb, swarmId: number, first: string, second: string): ThreadView | null {
   const row = db.sql
     .prepare(
       `SELECT t.id FROM threads t WHERE t.swarm_id = ?
@@ -103,7 +103,12 @@ export function findDirectThread(db: SwarmDb, swarmId: number, first: string, se
     ORDER BY t.id DESC LIMIT 1`,
     )
     .get(swarmId, first, second);
-  return row === undefined ? null : getThread(db, swarmId, int(row, "id"));
+  return row === undefined ? null : getThreadView(db, swarmId, int(row, "id"));
+}
+
+export function findDirectThread(db: SwarmDb, swarmId: number, first: string, second: string): ThreadResponse | null {
+  const thread = findDirectThreadView(db, swarmId, first, second);
+  return thread === null ? null : getThread(db, swarmId, thread.id);
 }
 
 function unreadOf(db: SwarmDb, swarmId: number, name: string, threadId?: number): number {

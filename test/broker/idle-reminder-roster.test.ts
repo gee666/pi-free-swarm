@@ -34,7 +34,7 @@ function setup() {
     swarmId: swarm.id,
     clock,
     agents,
-    settings: { idleReminderDelay: 100, idleReminderDigestSize: 2 },
+    settings: { idleReminderDelay: 100 },
     onError: (error) => assert.fail(String(error)),
   });
   reminders = loop;

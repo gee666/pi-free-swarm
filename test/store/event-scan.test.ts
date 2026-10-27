@@ -62,14 +62,14 @@ describe("raw outbox scan and retention", () => {
     assert.equal(third.hasMore, false);
   });
 
-  it("delivers the supported acceptance event rather than treating it as unknown", (t) => {
+  it("delivers the project event rather than treating it as unknown", (t) => {
     const temp = createTempDb();
     t.after(temp.cleanup);
     const swarm = seedSwarm(temp.db);
     const before = latestEventId(temp.db);
     const id = insertEvent(temp.db, swarm.id, "project.changed", { id: 2 }, T0);
     assert.deepEqual(scanEventsAfter(temp.db, before, 10).events, [
-      { id, swarmId: swarm.id, type: "acceptance.updated", payload: { revision: 2 }, createdAt: T0 },
+      { id, swarmId: swarm.id, type: "project.changed", payload: { id: 2 }, createdAt: T0 },
     ]);
   });
 

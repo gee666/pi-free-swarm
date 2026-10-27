@@ -5,6 +5,8 @@ import { createPost, addComment } from "../broker/wall.js";
 import { getPostPage } from "../broker/post-queries.js";
 import { updatePostLinks } from "../broker/post-links.js";
 import { setPostSubscription } from "../broker/subscriptions.js";
+import { USER_NAME, WATCHER_NAME } from "../constants.js";
+import { BrokerError } from "../broker/errors.js";
 import { sendMessage, readConversation } from "../broker/messages.js";
 
 export function createCommunicationHandlers(identity: AgentToolIdentity) {
@@ -49,6 +51,8 @@ export function createCommunicationHandlers(identity: AgentToolIdentity) {
       return `Post #${result.id} [${remove ? "unlinked" : "linked"}]. ${result.links.length} links.`;
     },
     messagesSend(params: Static<typeof S.messagesSend>) {
+      if (agentName === WATCHER_NAME && params.to.trim().toLowerCase() !== USER_NAME.toLowerCase())
+        throw new BrokerError("validation", "Watcher may send messages only to User.", "to");
       const message = sendMessage(db(), {
         swarmId,
         from: agentName,

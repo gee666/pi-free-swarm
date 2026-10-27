@@ -49,7 +49,6 @@ describe("loadSettings", () => {
       defaultAgents: 5,
       staggerSeconds: 30,
       idleReminderDelay: 60_000,
-      idleReminderDigestSize: 10,
       env: {},
     });
     assert.deepEqual(warnings, []);
@@ -84,7 +83,7 @@ describe("loadSettings", () => {
   });
 
   it("validates reminder delay and digest settings", () => {
-    const configured = { idleReminderDelay: 25, idleReminderDigestSize: 3 };
+    const configured = { idleReminderDelay: 25 };
     const { settings, warnings } = loadSettings(project(JSON.stringify(configured)));
     for (const [key, value] of Object.entries(configured)) {
       assert.equal(Reflect.get(settings, key), value);
@@ -93,7 +92,6 @@ describe("loadSettings", () => {
       }
     }
     assert.equal(loadSettings(project('{"idleReminderDelay": 0}')).settings.idleReminderDelay, 0);
-    assert.match(loadError('{"idleReminderDigestSize": 0}'), /idleReminderDigestSize must be an integer >= 1/);
     assert.deepEqual(warnings, []);
   });
 

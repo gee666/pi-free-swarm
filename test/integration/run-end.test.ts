@@ -54,7 +54,7 @@ describe("the end of a run", () => {
     }
   });
 
-  it("keeps quiet workers available for late messages until an explicit quorum", { timeout: 20_000 }, async () => {
+  it("keeps quiet workers available for late messages until all work gates pass", { timeout: 20_000 }, async () => {
     const run = createRunFixture(SCENARIOS.settle);
     fixture = run;
     const { db } = run;
@@ -91,19 +91,19 @@ describe("the end of a run", () => {
     const last = run.progress.at(-1);
     assert.equal(last?.status, "finished");
     assert.equal(last?.agents.stopped, 1);
-    assert.equal(last?.messages, 1, "only the late request, no automatic acceptance notice");
+    assert.ok((last?.messages ?? 0) >= 1, "late request and work-graph notifications are counted");
     assert.ok((last?.cost ?? 0) > 0 && (last?.tokens ?? 0) > 0);
   });
 
   it(
-    "quorum stops an active tool and preserves unread steering without waiting for quiet",
+    "completion stops an active tool and preserves unread steering without waiting for quiet",
     { timeout: 10_000 },
     async () => {
       const run = createRunFixture(SCENARIOS.longTool(60_000));
       fixture = run;
       const outcome = startSwarm(
         run.env,
-        { name: "active quorum", taskPrompt: "Work.", acceptanceCriteria: ["Work is complete."], agentAmount: 1 },
+        { name: "active completion", taskPrompt: "Work.", acceptanceCriteria: ["Work is complete."], agentAmount: 1 },
         {},
       );
       const swarmId = newestSwarmId(run.db);

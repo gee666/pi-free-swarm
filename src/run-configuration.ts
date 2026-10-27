@@ -18,7 +18,6 @@ export interface RunConfiguration {
   timing: {
     staggerSeconds: number;
     idleReminderDelay: number;
-    idleReminderDigestSize: number;
     heartbeatMs: number;
     deliveryPollMs: number;
     completionCheckMs: number;

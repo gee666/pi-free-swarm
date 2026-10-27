@@ -25,7 +25,6 @@ export const configuration: SavedRunConfiguration = {
     timing: {
       staggerSeconds: 1,
       idleReminderDelay: 500,
-      idleReminderDigestSize: 3,
       heartbeatMs: 1000,
       deliveryPollMs: 100,
       completionCheckMs: 100,

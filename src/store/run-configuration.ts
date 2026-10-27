@@ -20,7 +20,6 @@ export function projectRunConfiguration(config: RunConfiguration): RunConfigurat
     timing: {
       staggerSeconds: config.timing.staggerSeconds,
       idleReminderDelay: config.timing.idleReminderDelay,
-      idleReminderDigestSize: config.timing.idleReminderDigestSize,
       heartbeatMs: config.timing.heartbeatMs,
       deliveryPollMs: config.timing.deliveryPollMs,
       completionCheckMs: config.timing.completionCheckMs,
@@ -122,7 +121,6 @@ function isConfiguration(value: unknown): value is RunConfiguration {
     [
       "staggerSeconds",
       "idleReminderDelay",
-      "idleReminderDigestSize",
       "heartbeatMs",
       "deliveryPollMs",
       "completionCheckMs",

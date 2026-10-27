@@ -43,7 +43,7 @@ test("notification batches retain every comment and expose one subscription line
   assert.doesNotMatch(parsed.messages[0].text, /Subscription:/);
   assert.match(parsed.messages[1].text, new RegExp(`Subscription: Subscribed to post #${second.id}\\.`));
   assert.match(parsed.messages[2].text, new RegExp(`Subscription: Subscribed to post #${first.id}\\.`));
-  assert.match(parsed.messages[2].text, new RegExp(`swarm_unsubscribe\\(\\{post_id: ${first.id}\\}\\)`));
+  assert.match(parsed.messages[2].text, new RegExp(`swarm_posts_unsubscribe\\(\\{post_id: ${first.id}\\}\\)`));
   assert.doesNotMatch(parsed.messages[3].text, /Subscription:/);
   const directOnly = messagePrompt(db, swarm.id, "Maria", [direct.id]);
   assert.equal(directOnly?.text, formatDeliveredMessage(direct, "Maria"));
@@ -90,6 +90,6 @@ test("a delivered notification reports current opt-out state on recovery", (t) =
   assert.ok(recovered);
   assert.match(recovered.text, /accepted before opt-out/);
   assert.match(recovered.text, new RegExp(`Subscription: Not subscribed to post #${post.id}\\.`));
-  assert.match(recovered.text, new RegExp(`swarm_subscribe\\(\\{post_id: ${post.id}\\}\\)`));
+  assert.match(recovered.text, /Search and read the post/);
   assert.equal(recovered.text, delivery.collect("Maria", true).text);
 });

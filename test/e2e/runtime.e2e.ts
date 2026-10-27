@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import path from "node:path";
 import { it } from "node:test";
-import { openSwarmDb, swarmDbPath } from "../../src/store/db.js";
+import { openSwarmDb, swarmDbPath, SCHEMA_VERSION } from "../../src/store/db.js";
 
 it("installed Pi loads the extension, uses SQLite, serves the board and relaunches itself", { timeout: 60_000 }, () => {
   const root = path.resolve("tmp");
@@ -36,7 +36,7 @@ it("installed Pi loads the extension, uses SQLite, serves the board and relaunch
     const db = openSwarmDb(swarmDbPath(cwd), { create: false });
     try {
       assert.equal(db.sql.prepare("SELECT value FROM runtime_probe WHERE id = 1").get()?.value, "persisted");
-      assert.equal(db.sql.prepare("PRAGMA user_version").get()?.user_version, 17);
+      assert.equal(db.sql.prepare("PRAGMA user_version").get()?.user_version, SCHEMA_VERSION);
     } finally {
       db.close();
     }

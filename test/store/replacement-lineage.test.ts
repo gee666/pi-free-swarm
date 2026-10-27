@@ -24,7 +24,6 @@ function recordConfiguration(db: SwarmDb, swarmId: number) {
       timing: {
         staggerSeconds: 0,
         idleReminderDelay: 0,
-        idleReminderDigestSize: 1,
         heartbeatMs: 1,
         deliveryPollMs: 1,
         completionCheckMs: 1,

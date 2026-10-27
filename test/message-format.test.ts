@@ -26,7 +26,7 @@ describe("message format", () => {
   it("shows the recipient as You", () => {
     assert.equal(
       formatDeliveredMessage(message(87, "I take token.ts"), "liam"),
-      '[swarm message #87] thread #12 · from Maria · to: John, You\n"I take token.ts"\n(reply with swarm_reply_to(12, …))',
+      '[swarm message #87] thread #12 · from Maria · to: John, You\n"I take token.ts"\n(reply with swarm_messages_send {"to":"Maria","body":"..."})',
     );
   });
 

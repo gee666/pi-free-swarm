@@ -126,7 +126,6 @@ export interface SwarmListResponse {
 export interface SwarmDetailResponse {
   swarm: SwarmListItem;
   participants: ParticipantView[];
-  bodyMaxChars: number;
   userUnread?: UserUnreadSummary;
 }
 

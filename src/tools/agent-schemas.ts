@@ -1,6 +1,10 @@
-import { Type } from "typebox";
+import { Type, type TProperties } from "typebox";
 import { PAGE_MAX_COUNT, SEARCH_MAX_RESULTS_CAP } from "../constants.js";
 import { TEXT_MAX, TITLE_MAX } from "../limits.js";
+
+function object<P extends TProperties>(properties: P) {
+  return Type.Object(properties, { additionalProperties: false });
+}
 
 export const text = Type.String({
   minLength: 1,
@@ -9,8 +13,8 @@ export const text = Type.String({
 });
 export const title = Type.String({ minLength: 1, pattern: "\\S", description: `Keep under ${TITLE_MAX} characters.` });
 export const id = Type.Integer({ minimum: 1 });
-export const empty = Type.Object({}, { additionalProperties: false });
-export const byId = Type.Object({ id });
+export const empty = object({});
+export const byId = object({ id });
 export const page = {
   cursor: Type.Optional(Type.String()),
   limit: Type.Optional(Type.Integer({ minimum: 1, maximum: PAGE_MAX_COUNT })),
@@ -37,10 +41,10 @@ export const criterionFields = { group: title, title, body: text, verification: 
 export const taskFields = {
   title,
   body: text,
-  criteria: Type.Array(Type.Object({ criterion_id: id, contribution: text }), { minItems: 1 }),
+  criteria: Type.Array(object({ criterion_id: id, contribution: text }), { minItems: 1 }),
   depends_on: Type.Optional(Type.Array(id)),
 };
-export const criteriaSearch = Type.Object({
+export const criteriaSearch = object({
   ...searchPage,
   status: Type.Optional(Type.Array(criterionStatuses)),
   group: Type.Optional(title),
@@ -49,24 +53,25 @@ export const criteriaSearch = Type.Object({
   needs_my_vote: Type.Optional(Type.Boolean()),
   include_archived: Type.Optional(Type.Boolean()),
 });
-export const criteriaCreate = Type.Object(criterionFields);
-export const criteriaEdit = Type.Intersect([
-  Type.Object({ id, expected_revision: Type.Integer({ minimum: 1 }) }),
-  Type.Partial(Type.Object(criterionFields)),
-]);
-export const criteriaBlock = Type.Object({
+export const criteriaCreate = object(criterionFields);
+export const criteriaEdit = object({
+  id,
+  expected_revision: Type.Integer({ minimum: 1 }),
+  ...Type.Partial(object(criterionFields)).properties,
+});
+export const criteriaBlock = object({
   criterion_id: id,
   reason: text,
   missing: text,
   attempted: text,
   unblock: text,
 });
-export const criteriaVote = Type.Object({
+export const criteriaVote = object({
   criterion_id: id,
   verdict: Type.Union([Type.Literal("satisfied"), Type.Literal("incomplete"), Type.Literal("blocked")]),
   reason: text,
 });
-export const tasksSearch = Type.Object({
+export const tasksSearch = object({
   ...searchPage,
   status: Type.Optional(Type.Array(taskStatuses)),
   owner: Type.Optional(text),
@@ -76,25 +81,26 @@ export const tasksSearch = Type.Object({
   waiting: Type.Optional(Type.Boolean()),
   mine: Type.Optional(Type.Boolean()),
 });
-export const tasksGet = Type.Object({ id, ...page });
-export const tasksCreate = Type.Object({ ...taskFields, claim: Type.Optional(Type.Boolean()) });
-export const tasksEdit = Type.Intersect([
-  Type.Object({ id, expected_revision: Type.Integer({ minimum: 1 }) }),
-  Type.Partial(Type.Object(taskFields)),
-]);
-export const tasksHandoff = Type.Object({ id, to: text });
-export const tasksTransition = Type.Object({
+export const tasksGet = object({ id, ...page });
+export const tasksCreate = object({ ...taskFields, claim: Type.Optional(Type.Boolean()) });
+export const tasksEdit = object({
+  id,
+  expected_revision: Type.Integer({ minimum: 1 }),
+  ...Type.Partial(object(taskFields)).properties,
+});
+export const tasksHandoff = object({ id, to: text });
+export const tasksTransition = object({
   id,
   action: Type.Union([Type.Literal("start"), Type.Literal("request_review"), Type.Literal("reopen")]),
   evidence: Type.Optional(text),
   reason: Type.Optional(text),
 });
-export const tasksReview = Type.Object({
+export const tasksReview = object({
   id,
   verdict: Type.Union([Type.Literal("accept"), Type.Literal("changes")]),
   reason: text,
 });
-export const postsSearch = Type.Object({
+export const postsSearch = object({
   ...searchPage,
   author: Type.Optional(text),
   task_id: Type.Optional(id),
@@ -102,13 +108,13 @@ export const postsSearch = Type.Object({
   subscribed: Type.Optional(Type.Boolean()),
 });
 export const postLinks = { task_ids: Type.Optional(Type.Array(id)), criterion_ids: Type.Optional(Type.Array(id)) };
-export const postsCreate = Type.Object({ title, body: text, ...postLinks });
-export const postsComment = Type.Object({ post_id: id, body: text });
-export const postsLink = Type.Object({ post_id: id, ...postLinks });
-export const postId = Type.Object({ post_id: id });
-export const messagesSend = Type.Object({ to: text, body: text }, { additionalProperties: false });
-export const messagesRead = Type.Object({ with: text, cursor: page.cursor });
-export const intentUpdate = Type.Object({ summary: text, path: text });
-export const skillsGet = Type.Object({ name: text });
-export const paged = Type.Object(page);
-export const search = Type.Object(searchPage);
+export const postsCreate = object({ title, body: text, ...postLinks });
+export const postsComment = object({ post_id: id, body: text });
+export const postsLink = object({ post_id: id, ...postLinks });
+export const postId = object({ post_id: id });
+export const messagesSend = object({ to: text, body: text });
+export const messagesRead = object({ with: text, cursor: page.cursor });
+export const intentUpdate = object({ summary: text, path: text });
+export const skillsGet = object({ name: text });
+export const paged = object(page);
+export const search = object(searchPage);

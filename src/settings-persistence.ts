@@ -13,7 +13,6 @@ export function settingsForPersistence(settings: SwarmSettings) {
     defaultAgents: settings.defaultAgents,
     staggerSeconds: settings.staggerSeconds,
     idleReminderDelay: settings.idleReminderDelay,
-    idleReminderDigestSize: settings.idleReminderDigestSize,
     maxRpcFrameBytes: settings.maxRpcFrameBytes,
     models: settings.models,
     search: settings.search,

@@ -54,5 +54,12 @@ test("a new accounting gap refuses continuing money enforcement without fabricat
   );
   assert.throws(() => budget.check(), /Money budget accounting is incomplete/);
   assert.equal(temp.db.sql.prepare("SELECT COUNT(*) AS n FROM budget_stops WHERE swarm_id = ?").get(id)?.n, 0);
-  assert.equal(temp.db.sql.prepare("SELECT COUNT(*) AS n FROM acceptance_votes WHERE swarm_id = ?").get(id)?.n, 0);
+  assert.equal(
+    temp.db.sql
+      .prepare(
+        "SELECT COUNT(*) AS n FROM criterion_votes v JOIN criteria c ON c.id = v.criterion_id WHERE c.swarm_id = ?",
+      )
+      .get(id)?.n,
+    0,
+  );
 });

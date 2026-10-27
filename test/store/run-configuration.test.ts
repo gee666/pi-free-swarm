@@ -16,7 +16,6 @@ function config(): RunConfiguration {
     timing: {
       staggerSeconds: 1,
       idleReminderDelay: 100,
-      idleReminderDigestSize: 4,
       heartbeatMs: 1,
       deliveryPollMs: 2,
       completionCheckMs: 3,

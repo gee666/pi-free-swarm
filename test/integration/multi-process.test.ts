@@ -97,7 +97,7 @@ describe("a runner in another process", () => {
           "the first agent resumes its session",
         );
         assert.ok(
-          texts.filter((text) => text.startsWith("Begin the shared task in your system instructions.")).length === 2,
+          texts.filter((text) => text.startsWith("Start: call swarm_project.")).length === 2,
           "the second one kicks off",
         );
       } finally {

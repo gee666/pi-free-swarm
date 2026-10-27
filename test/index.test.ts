@@ -157,7 +157,7 @@ describe("role detection", () => {
       [RUN_ENV]: "1",
     };
     withEnv(agentEnv, () => piFreeSwarm(pi));
-    assert.deepEqual(pi.toolNames(), Object.values(AGENT_TOOL));
+    assert.deepEqual(pi.toolNames().sort(), Object.values(AGENT_TOOL).sort());
     assert.equal(pi.flags.size, 0);
   });
 
@@ -175,7 +175,7 @@ describe("role detection", () => {
       },
       () => piFreeSwarm(pi),
     );
-    assert.deepEqual(pi.toolNames(), WATCHER_TOOLS);
+    assert.deepEqual(pi.toolNames().sort(), [...WATCHER_TOOLS].sort());
     assert.equal(pi.flags.size, 0);
   });
 

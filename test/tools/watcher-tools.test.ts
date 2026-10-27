@@ -89,7 +89,7 @@ it("summarizes state, last activity, usage, tool, text, goal, acceptance and new
   assert.match(overview, /read src\/login.ts/);
   assert.match(overview, /Newest plan/);
   assert.match(overview, /Goal: Improve login/);
-  assert.match(overview, /acceptance unchecked; wall posts 1/);
+  assert.match(overview, /outcome unfinished; wall posts 1/);
   assert.match(overview, /Rotation idea/);
   assert.doesNotMatch(overview, /SECRET OUTPUT/);
 });

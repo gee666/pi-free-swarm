@@ -89,6 +89,13 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
   register(T.postsGet, S.tasksGet, "Read a post, links and a page of comments. Follow next cursor.", run.postsGet);
   register(T.skillsSearch, S.search, "Search project skills before writing new automation.", run.skillsSearch);
   register(T.skillsGet, S.skillsGet, "Read SKILL.md, validation state, file list and path.", run.skillsGet);
+  register(
+    T.messagesSend,
+    S.messagesSend,
+    "Message exactly one agent or User; continue your existing 1:1 conversation. Recipient is notified.",
+    run.messagesSend,
+  );
+  register(T.messagesRead, S.messagesRead, "Read a page of your 1:1 conversation with one peer.", run.messagesRead);
   if (identity.agentName === WATCHER_NAME) return;
   register(
     T.intentUpdate,
@@ -178,16 +185,9 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
     run.postsLink(params, true),
   );
   register(
-    T.messagesSend,
-    S.messagesSend,
-    "Message exactly one agent or User; continue your existing 1:1 conversation. Recipient is notified.",
-    run.messagesSend,
-  );
-  register(T.messagesRead, S.messagesRead, "Read a page of your 1:1 conversation with one peer.", run.messagesRead);
-  register(
     T.snooze,
     S.empty,
-    "After your first idle turn, snooze reminders for five minutes. Messages and comments still arrive.",
+    "After your first idle turn, snooze reminders for exactly 5 minutes. Direct messages and subscribed comments still arrive. Budgets and completion gates are unchanged.",
     run.snooze,
   );
   pi.registerTool(createRetirementTool(run.retire));

@@ -63,16 +63,16 @@ test(
   },
 );
 
-test("a terminal quorum takes priority over an unclaimed addition", { timeout: 10_000 }, async () => {
+test("work-graph completion takes priority over an unclaimed addition", { timeout: 10_000 }, async () => {
   const fixture = createRunFixture(SCENARIOS.settle);
   const clock = new FakeClock();
   const controller = new AbortController();
   const running = startSwarm(
     { ...fixture.env, clock },
     {
-      name: "quorum-before-control",
-      taskPrompt: "Do not let an unclaimed edit defer terminal quorum.",
-      acceptanceCriteria: ["A real quorum closes before a queued worker addition can change the electorate."],
+      name: "completion-before-control",
+      taskPrompt: "Do not let an unclaimed edit defer completion.",
+      acceptanceCriteria: ["The completed work graph closes before a queued worker addition is admitted."],
       agentAmount: 1,
     },
     { signal: controller.signal },
@@ -108,54 +108,50 @@ test("a terminal quorum takes priority over an unclaimed addition", { timeout: 1
   }
 });
 
-for (const verdict of ["accepted", "blocked"] as const) {
-  test(`${verdict} quorum closes and stops workers while control work is still held`, { timeout: 10_000 }, async () => {
-    const fixture = createRunFixture(SCENARIOS.settle);
-    const clock = new FakeClock();
-    const controller = new AbortController();
-    const running = startSwarm(
-      { ...fixture.env, clock },
-      {
-        name: `quorum-during-control-${verdict}`,
-        taskPrompt: "Do not let a held control defer terminal quorum.",
-        acceptanceCriteria: [
-          "The unchanged active-worker quorum closes admission before the control barrier releases.",
-        ],
-        agentAmount: 1,
-      },
-      { signal: controller.signal },
-    );
-    const swarmId = newestSwarmId(fixture.db);
-    clock.advance(0);
-    const original = RunControls.prototype.update;
-    let release: () => void = () => {
-      throw new Error("Control barrier not initialized");
-    };
-    const pending = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    try {
-      await waitForWorkersIdle(fixture, swarmId);
-      const [child] = spawnsOf(fixture.fake);
-      assert.ok(child);
-      RunControls.prototype.update = () => pending;
-      clock.advance(25);
-      finishWork(fixture.db, swarmId);
-      clock.advance(25);
-      const sealed = fixture.db.sql
-        .prepare("SELECT admission_closed_run AS closed_run FROM swarms WHERE id = ?")
-        .get(swarmId);
-      assert.equal(sealed?.closed_run, 1, "quorum closes admission without waiting for controls");
-      await waitFor(() => !isAlive(child.pid), "quorum interrupts the child before controls release");
-    } finally {
-      release();
-      RunControls.prototype.update = original;
-      controller.abort();
-      try {
-        await running;
-      } finally {
-        fixture.cleanup();
-      }
-    }
+test("work-graph completion stops workers while control work is still held", { timeout: 10_000 }, async () => {
+  const fixture = createRunFixture(SCENARIOS.settle);
+  const clock = new FakeClock();
+  const controller = new AbortController();
+  const running = startSwarm(
+    { ...fixture.env, clock },
+    {
+      name: "completion-during-control",
+      taskPrompt: "Do not let a held control defer work-graph completion.",
+      acceptanceCriteria: ["The unchanged work-graph completion closes admission before the control barrier releases."],
+      agentAmount: 1,
+    },
+    { signal: controller.signal },
+  );
+  const swarmId = newestSwarmId(fixture.db);
+  clock.advance(0);
+  const original = RunControls.prototype.update;
+  let release: () => void = () => {
+    throw new Error("Control barrier not initialized");
+  };
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
   });
-}
+  try {
+    await waitForWorkersIdle(fixture, swarmId);
+    const [child] = spawnsOf(fixture.fake);
+    assert.ok(child);
+    RunControls.prototype.update = () => pending;
+    clock.advance(25);
+    finishWork(fixture.db, swarmId);
+    clock.advance(25);
+    const sealed = fixture.db.sql
+      .prepare("SELECT admission_closed_run AS closed_run FROM swarms WHERE id = ?")
+      .get(swarmId);
+    assert.equal(sealed?.closed_run, 1, "completion closes admission without waiting for controls");
+    await waitFor(() => !isAlive(child.pid), "completion interrupts the child before controls release");
+  } finally {
+    release();
+    RunControls.prototype.update = original;
+    controller.abort();
+    try {
+      await running;
+    } finally {
+      fixture.cleanup();
+    }
+  }
+});

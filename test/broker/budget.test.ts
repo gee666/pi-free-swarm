@@ -52,7 +52,11 @@ describe("cumulative budget accounting", () => {
     recordBudgetStop(temp.db, swarm.id, 1, "money", T0);
     assert.equal(temp.db.sql.prepare("SELECT COUNT(*) AS n FROM budget_stops WHERE swarm_id = ?").get(swarm.id)?.n, 1);
     assert.equal(
-      temp.db.sql.prepare("SELECT COUNT(*) AS n FROM acceptance_votes WHERE swarm_id = ?").get(swarm.id)?.n,
+      temp.db.sql
+        .prepare(
+          "SELECT COUNT(*) AS n FROM criterion_votes v JOIN criteria c ON c.id = v.criterion_id WHERE c.swarm_id = ?",
+        )
+        .get(swarm.id)?.n,
       0,
     );
   });

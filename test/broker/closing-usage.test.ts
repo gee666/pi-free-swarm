@@ -165,7 +165,6 @@ test("money refusal is thrown only after its usage and attribution gap commit", 
         timing: {
           staggerSeconds: 0,
           idleReminderDelay: 1,
-          idleReminderDigestSize: 1,
           heartbeatMs: 1,
           deliveryPollMs: 1,
           completionCheckMs: 1,

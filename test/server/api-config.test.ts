@@ -34,7 +34,6 @@ function recordedSwarm(
     timing: {
       staggerSeconds: 0,
       idleReminderDelay: 100,
-      idleReminderDigestSize: 1,
       heartbeatMs: 10,
       deliveryPollMs: 10,
       completionCheckMs: 10,

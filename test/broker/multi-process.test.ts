@@ -48,7 +48,7 @@ describe("two processes writing one swarm.db", () => {
     const messages = PER_WRITER;
     assert.equal(count("SELECT COUNT(*) AS n FROM posts"), posts);
     assert.equal(count("SELECT COUNT(*) AS n FROM messages"), messages);
-    assert.equal(count("SELECT COUNT(*) AS n FROM message_recipients"), 2 * messages);
+    assert.equal(count("SELECT COUNT(*) AS n FROM message_recipients"), messages);
     assert.equal(count("SELECT COUNT(*) AS n FROM message_recipients WHERE name = 'User'"), messages);
     assert.equal(count("SELECT COUNT(*) AS n FROM events WHERE type = 'post.created'"), posts);
     assert.equal(count("SELECT COUNT(*) AS n FROM events WHERE type = 'message.created'"), messages);

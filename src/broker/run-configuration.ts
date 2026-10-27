@@ -59,7 +59,6 @@ export function configureRun(
     timing: {
       staggerSeconds: env.settings.staggerSeconds,
       idleReminderDelay: env.settings.idleReminderDelay,
-      idleReminderDigestSize: env.settings.idleReminderDigestSize,
       heartbeatMs: timing.heartbeatMs,
       deliveryPollMs: timing.deliveryPollMs,
       completionCheckMs: timing.completionCheckMs,

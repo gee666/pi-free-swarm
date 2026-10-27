@@ -279,49 +279,6 @@ describe("WallPage", () => {
     expect(screen.getByRole("heading", { level: 2, name: "3 comments" })).toBeInTheDocument();
   });
 
-  it("explains file overflow at the body threshold without limiting post or comment submission", async () => {
-    const created = post(3, "User", "Overflow", 0);
-    api.on("GET", "/api/swarms/3", () => ({ ...detail(), bodyMaxChars: 500 }));
-    api.on("POST", "/api/swarms/3/posts", () => ({ post: created }));
-    api.on("GET", "/api/swarms/3/posts/3", () => ({ post: created, comments: [] }));
-    api.on("POST", "/api/swarms/3/posts/1/comments", () => ({
-      comment: comment(12, 1, "User", "Saved overflow"),
-      commentCount: 3,
-    }));
-    await renderWall("/s/3/wall/new");
-    const user = userEvent.setup();
-    const notice = "Over 200 characters, the full text is saved to a file";
-    const body = screen.getByRole("textbox", { name: "Body" });
-    await user.type(screen.getByRole("textbox", { name: "Title" }), "Overflow");
-    await user.click(body);
-    await user.paste("😀".repeat(199));
-    expect(screen.queryByText(notice)).not.toBeInTheDocument();
-    await user.type(body, "😀");
-    expect(screen.getByText(notice)).toBeInTheDocument();
-    await user.type(body, "😀");
-    expect(screen.getByRole("button", { name: "Post" })).toBeEnabled();
-    await user.click(screen.getByRole("button", { name: "Post" }));
-    await waitFor(() =>
-      expect(api.callsTo("POST", "/api/swarms/3/posts")[0]?.body).toEqual({
-        title: "Overflow",
-        text: "😀".repeat(201),
-      }),
-    );
-    await user.click(within(postList()).getByText("Plan: split OAuth work"));
-    const box = await screen.findByRole("textbox", { name: "Write a comment…" });
-    await user.click(box);
-    await user.paste("y".repeat(199));
-    expect(screen.queryByText(notice)).not.toBeInTheDocument();
-    await user.type(box, "y");
-    expect(screen.getByText(notice)).toBeInTheDocument();
-    await user.type(box, "y");
-    expect(screen.getByRole("button", { name: "Comment" })).toBeEnabled();
-    await user.click(screen.getByRole("button", { name: "Comment" }));
-    await waitFor(() =>
-      expect(api.callsTo("POST", "/api/swarms/3/posts/1/comments")[0]?.body).toEqual({ text: "y".repeat(201) }),
-    );
-  });
-
   it("counts whitespace in the raw User body for attachment guidance", async () => {
     await renderWall("/s/3/wall/new");
     const user = userEvent.setup();

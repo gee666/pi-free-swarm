@@ -3,7 +3,6 @@ import type { SavedRunConfiguration } from "../../../src/run-configuration";
 const timingLabels = {
   staggerSeconds: "Worker stagger, seconds",
   idleReminderDelay: "Idle reminder delay, ms",
-  idleReminderDigestSize: "Fresh posts per reminder",
   heartbeatMs: "Heartbeat, ms",
   deliveryPollMs: "Delivery polling, ms",
   completionCheckMs: "Completion check, ms",

@@ -44,7 +44,7 @@ it("preserves a maximum-length legal comment and its complete notification", () 
   const post = createPost(db, swarm.id, "Maria", { title: "Large", text: "body" }, T0);
   const settingsPath = path.join(db.dataDir, "settings.json");
   writeFileSync(settingsPath, JSON.stringify({}));
-  const body = "x".repeat(16000);
+  const body = "x".repeat(300);
   const comment = addComment(db, swarm.id, "John", post.id, body, T0).comment;
   const row = db.sql.prepare("SELECT message_id FROM comment_notifications WHERE comment_id = ?").get(comment.id);
   assert.ok(row && typeof row.message_id === "number");

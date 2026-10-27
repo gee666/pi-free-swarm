@@ -22,7 +22,7 @@ test(
   { timeout: 20_000 },
   async () => {
     const run = createRunFixture(SCENARIOS.settle, {
-      reminders: { idleReminderDelay: 100, idleReminderDigestSize: 2 },
+      reminders: { idleReminderDelay: 100 },
       // Avoid thousands of unrelated database polls during the five-minute jump.
       timings: { completionCheckMs: 1000, progressMs: 1000, heartbeatMs: 1000 },
     });
@@ -87,7 +87,8 @@ test(
       clock.advance(1);
       await waitFor(() => reminders().length === 1, "reminder at snooze expiry");
       assert.doesNotMatch(reminders()[0], /This real comment must wake/);
-      assert.match(reminders()[0], /fresh post during snooze/);
+      assert.match(reminders()[0], /Own queue:|Runnable unclaimed:|Unlinked criteria:/);
+      assert.doesNotMatch(reminders()[0], /fresh post during snooze/);
       finishWork(run.db, swarmId);
       clock.advance(1000);
       assert.equal((await outcome).end, "finished");

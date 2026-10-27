@@ -39,16 +39,21 @@ export async function configurationOwner(run: RunFixture, count: number, resumeI
     stderr += chunk.toString();
   });
   const exited = once(child, "exit");
-  const advance = async (milliseconds: number) => {
-    const response = once(child, "message");
-    child.send({ advance: milliseconds });
-    const message = await Promise.race([
-      response,
-      exited.then(() => {
-        throw new Error(`Owner exited before clock advance: ${stderr}`);
-      }),
-    ]);
-    assert.deepEqual(message[0], { advanced: milliseconds });
+  let clockWork = Promise.resolve();
+  const advance = (milliseconds: number) => {
+    const next = clockWork.then(async () => {
+      const response = once(child, "message");
+      child.send({ advance: milliseconds });
+      const message = await Promise.race([
+        response,
+        exited.then(() => {
+          throw new Error(`Owner exited before clock advance: ${stderr}`);
+        }),
+      ]);
+      assert.deepEqual(message[0], { advanced: milliseconds });
+    });
+    clockWork = next;
+    return next;
   };
   try {
     await waitFor(

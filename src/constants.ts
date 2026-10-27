@@ -90,7 +90,6 @@ export const DEFAULT_MAX_AGENTS = 10;
 export const DEFAULT_AGENTS = 5;
 export const DEFAULT_STAGGER_SECONDS = 30;
 export const DEFAULT_IDLE_REMINDER_DELAY = 60_000;
-export const DEFAULT_IDLE_REMINDER_DIGEST_SIZE = 10;
 
 // ── Board server ─────────────────────────────────────────────────────────────
 export const SERVER_BIND_HOST = "127.0.0.1";
@@ -185,6 +184,8 @@ export const WATCHER_TOOLS = [
   AGENT_TOOL.postsGet,
   AGENT_TOOL.skillsSearch,
   AGENT_TOOL.skillsGet,
+  AGENT_TOOL.messagesSend,
+  AGENT_TOOL.messagesRead,
   ...Object.values(WATCHER_TOOL),
 ];
 

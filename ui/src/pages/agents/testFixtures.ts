@@ -43,7 +43,6 @@ export const agent = (name: string, launchOrder: number, patch: Partial<AgentPar
 
 export const detail = (patch: Partial<SwarmListItem> = {}): SwarmDetailResponse => ({
   swarm: { ...swarm, ...patch },
-  bodyMaxChars: 200,
   participants: [
     { kind: "user", name: "User", unread: 1, joinedAt: AT, lastActivityAt: AT },
     agent("John", 1, { unread: 2 }),

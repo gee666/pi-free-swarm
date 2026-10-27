@@ -54,12 +54,12 @@ export function requestRetirement(
         `Retirement request #${int(pending, "id")} is already pending; do not submit it again.`,
       );
     }
-    const checkedHandoff = workText(handoff, "handoff", worker);
+    workText(handoff, "handoff", worker);
     const handoffFile = path.join("handoffs", String(swarmId), `${randomUUID()}.md`);
     const absolute = path.join(db.dataDir, handoffFile);
     mkdirSync(path.dirname(absolute), { recursive: true });
     // Keep the handoff if queueing fails uncertainly, rather than deleting potentially accepted evidence.
-    writeFileSync(absolute, checkedHandoff, { encoding: "utf8", mode: 0o600, flag: "wx" });
+    writeFileSync(absolute, handoff, { encoding: "utf8", mode: 0o600, flag: "wx" });
     const request = queueConfigurationChange(
       db,
       swarmId,

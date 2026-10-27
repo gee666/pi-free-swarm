@@ -126,7 +126,7 @@ describe("write", () => {
   });
 
   it("enforces the CHECK constraints", () => {
-    assert.throws(() => insertPost("t".repeat(61)), /CHECK constraint failed/);
+    assert.throws(() => insertPost("t".repeat(101)), /CHECK constraint failed/);
     assert.throws(() => insertPost(""), /CHECK constraint failed/);
     assert.throws(() => insertParticipant("agent", "sleeping"), /CHECK constraint failed/);
     assert.throws(() => insertParticipant("agent", null), /CHECK constraint failed/);

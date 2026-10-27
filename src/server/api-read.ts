@@ -10,7 +10,6 @@ import type {
   SwarmListResponse,
   ThreadResponse,
 } from "../api-types.js";
-import { TEXT_MAX } from "../limits.js";
 import { searchPosts } from "./post-projection.js";
 import { postLinks } from "./work-projection.js";
 import { SESSION_PAGE_DEFAULT, SESSION_PAGE_MAX } from "../constants.js";
@@ -60,7 +59,6 @@ export function readRoutes(deps: ApiDeps): ApiRoute[] {
         return reply<SwarmDetailResponse>({
           swarm,
           participants: listParticipants(db, swarm.id),
-          bodyMaxChars: TEXT_MAX,
           userUnread: userUnreadSummary(db, swarm.id),
         });
       },

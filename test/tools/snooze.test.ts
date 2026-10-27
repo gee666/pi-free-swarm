@@ -23,7 +23,7 @@ test("worker snooze tool has a fixed no-argument schema and explains unaffected 
   assert.equal(Value.Check(tool.parameters, { minutes: 1 }), false);
   assert.match(tool.description, /exactly 5 minutes/);
   assert.match(tool.description, /Direct messages and subscribed comments still arrive/);
-  assert.match(tool.description, /budgets or quorum/);
+  assert.match(tool.description, /Budgets and completion gates are unchanged/);
   assert.ok(tool.promptSnippet);
 });
 
@@ -56,7 +56,14 @@ test("snooze handler reports exactly five minutes for its own agent without cons
   assert.equal(reminderSnoozedUntil(db, swarm.id, "John"), 0);
   assert.deepEqual(listOpenAgentRecipients(db, swarm.id), pending);
   assert.ok(pending.some((recipient) => recipient.messageId === message.id));
-  assert.equal(db.sql.prepare("SELECT COUNT(*) AS n FROM acceptance_votes WHERE swarm_id = ?").get(swarm.id)?.n, 0);
+  assert.equal(
+    db.sql
+      .prepare(
+        "SELECT COUNT(*) AS n FROM criterion_votes v JOIN criteria c ON c.id = v.criterion_id WHERE c.swarm_id = ?",
+      )
+      .get(swarm.id)?.n,
+    0,
+  );
   now += 1000;
   tools.snooze();
   assert.equal(reminderSnoozedUntil(db, swarm.id, "Maria"), now + REMINDER_SNOOZE_MS);

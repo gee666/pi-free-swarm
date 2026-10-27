@@ -26,7 +26,6 @@ function initialConfiguration(): RunConfiguration {
     timing: {
       staggerSeconds: 0,
       idleReminderDelay: 1_000,
-      idleReminderDigestSize: 1,
       heartbeatMs: 200,
       deliveryPollMs: 50,
       completionCheckMs: 25,

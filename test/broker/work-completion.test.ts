@@ -7,6 +7,7 @@ import { evaluateCompletion } from "../../src/broker/completion.js";
 import { prepareWorkRunCompletion } from "../../src/broker/work-run-completion.js";
 import { archiveCriterion, editCriterion, restoreCriterion } from "../../src/broker/criteria.js";
 import { decideCriterionBlocker, recordCriterionBlocker } from "../../src/broker/blockers.js";
+import { createTask } from "../../src/broker/tasks.js";
 import { claimTask } from "../../src/broker/task-ownership.js";
 import { requestTaskReview, startTask } from "../../src/broker/task-transitions.js";
 import { voteCriterion } from "../../src/broker/votes.js";
@@ -183,6 +184,26 @@ test("pending exceptions do not hide unfinished mixed-criterion tasks or reviews
   assert.equal(evaluateCompletion(f.db, f.swarmId).awaitingUser, true);
   startTask(f.db, { ...f.input(), id: task.id });
   requestTaskReview(f.db, { ...f.input(), id: task.id, evidence: "Checks pass" });
+  agreement(f, f.criterion.id);
+  assert.equal(evaluateCompletion(f.db, f.swarmId).awaitingUser, false);
+});
+
+test("a task with another linked criterion cannot be waived by one pending exception", (t) => {
+  const f = workFixture(t);
+  f.settle();
+  const other = listCriteria(f.db, f.swarmId).find((criterion) => criterion.id !== f.criterion.id);
+  assert.ok(other);
+  createTask(f.db, {
+    ...f.input(),
+    title: "Mixed scope",
+    body: "Contributes to two criteria",
+    criteria: [
+      { criterionId: f.criterion.id, contribution: "Pending external resource" },
+      { criterionId: other.id, contribution: "Separate unfinished work" },
+    ],
+    claim: true,
+  });
+  archiveCriterion(f.db, { ...f.input(), id: other.id });
   agreement(f, f.criterion.id);
   assert.equal(evaluateCompletion(f.db, f.swarmId).awaitingUser, false);
 });

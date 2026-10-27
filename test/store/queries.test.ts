@@ -20,6 +20,7 @@ describe("participants", () => {
 
   it("lists User first, then agents; Main and System never", () => {
     sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "John", text: "a", now: T0 });
+    sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "User", text: "a", now: T0 });
     const [user, maria, john] = listParticipants(db, swarm.id);
     assert.deepEqual(user, { kind: "user", name: "User", unread: 1, joinedAt: null, lastActivityAt: null });
     assert.equal(maria.kind === "agent" && maria.launchOrder, 0);
@@ -33,6 +34,7 @@ describe("mailbox", () => {
   const swarm = seedSwarm(db);
   const t1 = sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "John", text: "one", now: T0 + 1 });
   const t2 = sendMessage(db, { swarmId: swarm.id, from: "Liam", to: "John", text: "two", now: T0 + 2 });
+  const t3 = sendMessage(db, { swarmId: swarm.id, from: "Liam", to: "Maria", text: "two", now: T0 + 2 });
   const reply = continueConversation(db, swarm.id, "John", t1.threadId, "re one", T0 + 3);
   markDelivered(db, swarm.id, "John", [t2.id], T0 + 4);
 
@@ -45,11 +47,11 @@ describe("mailbox", () => {
       inbox.threads.map((t) => [t.thread.id, t.messages.map((m) => m.id), t.unread, t.lastMessageAt]),
       [
         [t1.threadId, [reply.id], 1, T0 + 3],
-        [t2.threadId, [t2.id], 1, T0 + 2],
+        [t3.threadId, [t3.id], 1, T0 + 2],
       ],
     );
     const paged = getMailbox(db, swarm.id, "Maria", "inbox", { count: 1, offset: 1 });
-    assert.deepEqual([paged.total, paged.threads.map((t) => t.thread.id)], [2, [t2.threadId]]);
+    assert.deepEqual([paged.total, paged.threads.map((t) => t.thread.id)], [2, [t3.threadId]]);
   });
 
   it("shows only sent messages in the sent box", () => {

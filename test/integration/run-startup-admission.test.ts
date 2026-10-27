@@ -10,7 +10,20 @@ import { createRunFixture, newestSwarmId, spawnsOf, waitFor, waitForWorkersIdle,
 test("fatal shared startup rejects and launches no subsequent real worker", async () => {
   const run = createRunFixture(SCENARIOS.extensionLoadFailure);
   try {
-    await assert.equal(spawnsOf(run.fake).length, 1);
+    await assert.rejects(
+      startSwarm(
+        run.env,
+        {
+          name: "fatal startup",
+          taskPrompt: "fixture",
+          acceptanceCriteria: ["fixture complete"],
+          agentAmount: 5,
+        },
+        {},
+      ),
+      /shared startup.*Failed to load extension/,
+    );
+    assert.equal(spawnsOf(run.fake).length, 1);
   } finally {
     run.cleanup();
   }

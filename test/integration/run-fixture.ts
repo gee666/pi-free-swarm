@@ -51,7 +51,7 @@ export function createRunFixture(
     staggerSeconds?: number;
     timings?: Partial<RunTimings>;
     settingsEnv?: Record<string, string>;
-    reminders?: Pick<SwarmSettings, "idleReminderDelay" | "idleReminderDigestSize">;
+    reminders?: Pick<SwarmSettings, "idleReminderDelay">;
   } = {},
 ): RunFixture {
   mkdirSync("tmp", { recursive: true });
@@ -65,7 +65,6 @@ export function createRunFixture(
     defaultAgents: 2,
     staggerSeconds: options.staggerSeconds ?? 0,
     idleReminderDelay: 60_000,
-    idleReminderDigestSize: 10,
     ...options.reminders,
     env: { ...fake.env, ...options.settingsEnv },
   };
