@@ -28,9 +28,11 @@ export function createCommunicationHandlers(identity: AgentToolIdentity) {
       return `Post #${post.id} [published]. Subscribed to post #${post.id}.`;
     },
     postsGet(params: Static<typeof S.tasksGet>) {
-      const scope = `post:${swarmId}:${params.id}`;
-      const result = getPostPage(db(), swarmId, params.id, cursorAfter(params.cursor, scope), params.limit);
-      return `${JSON.stringify(result)}\nNext cursor: ${nextCursor(result.nextAfter, scope) ?? "none"}`;
+      return db().read(() => {
+        const scope = `post:${swarmId}:${params.id}`;
+        const result = getPostPage(db(), swarmId, params.id, cursorAfter(params.cursor, scope), params.limit);
+        return `${JSON.stringify(result)}\nNext cursor: ${nextCursor(result.nextAfter, scope) ?? "none"}`;
+      });
     },
     postsComment(params: Static<typeof S.postsComment>) {
       const { comment } = writeAgentTool(identity, () =>
@@ -67,14 +69,16 @@ export function createCommunicationHandlers(identity: AgentToolIdentity) {
       return `Message #${message.id} [sent] to ${message.recipients[0]?.name}. Conversation #${message.threadId}.`;
     },
     messagesRead(params: Static<typeof S.messagesRead>) {
-      const scope = `conversation:${swarmId}:${agentName}:${params.with.toLowerCase()}`;
-      const result = readConversation(db(), {
-        swarmId,
-        a: agentName,
-        b: params.with,
-        after: cursorAfter(params.cursor, scope),
+      return db().read(() => {
+        const scope = `conversation:${swarmId}:${agentName}:${params.with.toLowerCase()}`;
+        const result = readConversation(db(), {
+          swarmId,
+          a: agentName,
+          b: params.with,
+          after: cursorAfter(params.cursor, scope),
+        });
+        return `${JSON.stringify(result)}\nNext cursor: ${nextCursor(result.nextAfter, scope) ?? "none"}`;
       });
-      return `${JSON.stringify(result)}\nNext cursor: ${nextCursor(result.nextAfter, scope) ?? "none"}`;
     },
   };
 }

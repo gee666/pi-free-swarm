@@ -25,8 +25,10 @@ export function configurationRoutes(deps: ApiDeps): ApiRoute[] {
       method: "GET",
       pattern: "/api/swarms/:swarmId/config",
       handle: ({ params }) => {
-        const swarm = requireSwarmItem(deps, params.id("swarmId"));
-        return reply<RuntimeConfigurationView>(view(swarm.id));
+        return deps.db.read(() => {
+          const swarm = requireSwarmItem(deps, params.id("swarmId"));
+          return reply<RuntimeConfigurationView>(view(swarm.id));
+        });
       },
     },
     {

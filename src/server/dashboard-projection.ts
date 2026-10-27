@@ -13,40 +13,42 @@ function runState(swarm: SwarmListItem, work: ReturnType<typeof workDashboard>):
   return "running";
 }
 export function dashboard(db: SwarmDb, swarm: SwarmListItem, now: number): DashboardResponse {
-  const work = workDashboard(db, swarm.id, now);
-  const criteria = criterionListItems(db, swarm.id);
-  const tasks = listTasks(db, swarm.id);
-  const states = taskStates(db, swarm.id);
-  return {
-    project: work.project,
-    completion: work.completion,
-    gates: work.completion.gates,
-    counts: {
-      ...work.counts,
-      satisfied: criteria.filter((item) => item.status === "satisfied").length,
-      blocked: criteria.filter((item) => item.status === "blocked").length,
-      incomplete: criteria.filter((item) => item.status === "incomplete").length,
-      inProgress: tasks.filter((item) => item.status === "in_progress").length,
-      inReview: tasks.filter((item) => item.status === "review").length,
-      waiting: states.filter((item) => item.waiting).length,
-      runnable: states.filter((item) => item.runnable).length,
-      deferred: states.filter((item) => item.deferred).length,
-    },
-    velocity: work.velocity,
-    etaMs: work.velocity.etaMs,
-    header: {
-      state: runState(swarm, work),
-      run: swarm.runCount,
-      agentCount: swarm.agentAmount,
-      startedAt: swarm.startedAt,
-    },
-    criteriaCoverage: criteriaCoverage(criteria),
-    recentActivity: work.recentActivity,
-    attention: {
-      agreedBlockers: criteria.filter((criterion) => criterion.status === "blocked"),
-      unreadUserMessages: userUnreadSummary(db, swarm.id).messages,
-    },
-    queue: work.queue,
-    runnable: work.runnable,
-  };
+  return db.read(() => {
+    const work = workDashboard(db, swarm.id, now);
+    const criteria = criterionListItems(db, swarm.id);
+    const tasks = listTasks(db, swarm.id);
+    const states = taskStates(db, swarm.id);
+    return {
+      project: work.project,
+      completion: work.completion,
+      gates: work.completion.gates,
+      counts: {
+        ...work.counts,
+        satisfied: criteria.filter((item) => item.status === "satisfied").length,
+        blocked: criteria.filter((item) => item.status === "blocked").length,
+        incomplete: criteria.filter((item) => item.status === "incomplete").length,
+        inProgress: tasks.filter((item) => item.status === "in_progress").length,
+        inReview: tasks.filter((item) => item.status === "review").length,
+        waiting: states.filter((item) => item.waiting).length,
+        runnable: states.filter((item) => item.runnable).length,
+        deferred: states.filter((item) => item.deferred).length,
+      },
+      velocity: work.velocity,
+      etaMs: work.velocity.etaMs,
+      header: {
+        state: runState(swarm, work),
+        run: swarm.runCount,
+        agentCount: swarm.agentAmount,
+        startedAt: swarm.startedAt,
+      },
+      criteriaCoverage: criteriaCoverage(criteria),
+      recentActivity: work.recentActivity,
+      attention: {
+        agreedBlockers: criteria.filter((criterion) => criterion.status === "blocked"),
+        unreadUserMessages: userUnreadSummary(db, swarm.id).messages,
+      },
+      queue: work.queue,
+      runnable: work.runnable,
+    };
+  });
 }

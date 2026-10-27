@@ -77,7 +77,9 @@ test(
 
       assert.ok(
         promptTexts(run.fake).some(
-          (text) => text.includes(`Comment #${comment.id} on post #${post.id} by User:`) && text.includes(comment.text),
+          (text) =>
+            text.includes(`New comments on post #${post.id} "${post.title}" (latest by User:`) &&
+            text.includes(comment.text),
         ),
       );
       clock.advance(until - clock.now() - 1);

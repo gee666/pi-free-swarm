@@ -24,30 +24,29 @@ export function writeWork<T>(db: SwarmDb, input: WorkInput, mutate: (actor: stri
       const old = before.get(id);
       if (JSON.stringify(old) === JSON.stringify(state)) continue;
       insertEvent(db, input.swarmId, "criterion.changed", { id }, input.now);
-      const notified = new Set<string>();
-      for (const vote of state.votes.filter(
-        (vote) => vote.stale && old?.votes.some((previous) => previous.voter === vote.voter && !previous.stale),
-      )) {
-        notified.add(vote.voter);
-        notifyWork(
-          db,
-          input.swarmId,
-          vote.voter,
-          state.blocker !== null &&
-            state.blocker.rejectedRevision === state.blocker.revision &&
-            old?.blocker?.rejectedRevision !== state.blocker.rejectedRevision
-            ? `User rejected blocker #${id}. Keep working. Read the criterion and revise the blocker if needed.`
-            : `Vote on criterion #${id} is stale. Call swarm_criteria_get then swarm_criteria_vote.`,
-          input.now,
-        );
+      if (
+        state.blocker !== null &&
+        state.blocker.rejectedRevision === state.blocker.revision &&
+        old?.blocker?.rejectedRevision !== state.blocker.rejectedRevision
+      ) {
+        for (const vote of state.votes.filter(
+          (vote) => vote.stale && old?.votes.some((previous) => previous.voter === vote.voter && !previous.stale),
+        )) {
+          notifyWork(
+            db,
+            input.swarmId,
+            vote.voter,
+            `User rejected blocker #${id}. Keep working. Read the criterion and revise the blocker if needed.`,
+            input.now,
+          );
+        }
       }
-      notifyVoteNeeded(db, input.swarmId, id, input.now, notified);
       if (
         state.taskCount > 0 &&
         state.unacceptedCount === 0 &&
         (old === undefined || old.taskCount === 0 || old.unacceptedCount > 0)
       ) {
-        notifyVoteNeeded(db, input.swarmId, id, input.now, notified, "accepted");
+        notifyVoteNeeded(db, input.swarmId, id, input.now);
       }
     }
     db.afterCommit(() => {

@@ -180,7 +180,7 @@ describe("dashboard", () => {
       ["linked", "tasks", "criteria", "review"],
     );
     assert.equal(data.attention.agreedBlockers[0].id, criterion.id);
-    assert.equal(unreadBefore, 1, "claiming tasks also requests the User owner\'s coverage vote");
+    assert.equal(unreadBefore, 0, "claiming tasks does not push coverage requests");
     assert.equal(data.attention.unreadUserMessages, unreadBefore + 1);
     assert.deepEqual(
       data.criteriaCoverage.find((group) => group.group === "HTTP"),

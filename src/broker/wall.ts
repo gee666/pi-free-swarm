@@ -1,5 +1,8 @@
 // Wall writes notify mentions and subscribers; work-link notifications live in post-links.
 import type { CommentView, PostSummary } from "../api-types.js";
+import { USER_POST_NOTICE_CHARS } from "../constants.js";
+import { workRoster } from "../store/work-roster.js";
+import { notifyWork } from "./work-notifications.js";
 import type { SwarmDb } from "../store/db.js";
 import { insertEvent } from "../store/events.js";
 import { commentOf, count } from "../store/rows.js";
@@ -41,12 +44,27 @@ export function createPost(
     const subscribed = autoSubscribe(db, swarmId, postId, participant.name);
     insertEvent(db, swarmId, "post.created", { post }, now);
     if (subscribed && participant.kind === "user") emitUserPostAttention(db, swarmId, postId, now);
-    notifyWallMentions(
-      db,
-      swarmId,
-      { postId, author: participant.name, text: `${title}\n${body}`, mentionText: `${title}\n${input.text}` },
-      now,
-    );
+    if (participant.kind === "user") {
+      const chars = Array.from(input.text.trim());
+      const preview =
+        chars.slice(0, USER_POST_NOTICE_CHARS).join("") + (chars.length > USER_POST_NOTICE_CHARS ? "…" : "");
+      for (const agent of workRoster(db, swarmId).filter((agent) => agent.active)) {
+        notifyWork(
+          db,
+          swarmId,
+          agent.name,
+          `User posted #${postId} "${title}": ${preview} Read it with swarm_posts_get and reply with swarm_posts_comment.`,
+          now,
+        );
+      }
+    } else {
+      notifyWallMentions(
+        db,
+        swarmId,
+        { postId, author: participant.name, text: `${title}\n${body}`, mentionText: `${title}\n${input.text}` },
+        now,
+      );
+    }
     return post;
   });
   notifyLocalMessage(swarmId);
@@ -82,7 +100,7 @@ export function addComment(
       { postId, commentId, author: participant.name, text: body, mentionText: text },
       now,
     );
-    const userNotified = notifyComment(db, result.comment, now, mentioned);
+    const userNotified = notifyComment(db, result.comment, post.title, now, mentioned);
     insertEvent(db, swarmId, "comment.created", result, now);
     if (userNotified || (subscribed && participant.kind === "user")) emitUserPostAttention(db, swarmId, postId, now);
     return result;

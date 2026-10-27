@@ -2,7 +2,7 @@ import { SYSTEM_NAME } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
 import { criterionTasks } from "../store/criteria.js";
 import { workRoster, type WorkAgent } from "../store/work-roster.js";
-import { recordVoteRequest, requestedVoters, type VoteRequestPhase } from "../store/vote-requests.js";
+import { recordVoteRequest, requestedVoters } from "../store/vote-requests.js";
 import { assessCriterion } from "./criterion-status.js";
 import { createThread, insertMessage } from "./message-insert.js";
 
@@ -28,30 +28,26 @@ export function notifyWork(db: SwarmDb, swarmId: number, recipient: string | nul
     now,
   });
 }
-export function notifyVoteNeeded(
-  db: SwarmDb,
-  swarmId: number,
-  criterionId: number,
-  now: number,
-  alreadyNotified: Set<string> = new Set(),
-  phase: VoteRequestPhase = "coverage",
-): void {
+export function notifyVoteNeeded(db: SwarmDb, swarmId: number, criterionId: number, now: number): void {
   const assessment = assessCriterion(db, swarmId, criterionId);
-  if (assessment.archivedAt !== null || assessment.taskCount === 0 || assessment.unownedCount > 0) return;
+  if (
+    assessment.archivedAt !== null ||
+    assessment.taskCount === 0 ||
+    assessment.unownedCount > 0 ||
+    assessment.unacceptedCount > 0
+  )
+    return;
   const owners = criterionTasks(db, criterionId).flatMap((task) => (task.owner === null ? [] : [task.owner]));
   const current = assessment.votes.filter((vote) => !vote.stale);
-  const requested = requestedVoters(db, assessment, phase);
+  const requested = requestedVoters(db, assessment);
   const send = (recipient: string, independent: boolean) => {
     if (requested.includes(recipient)) return;
-    recordVoteRequest(db, assessment, phase, recipient);
-    if (alreadyNotified.has(recipient)) return;
-    alreadyNotified.add(recipient);
-    const readiness = phase === "accepted" ? " All linked tasks are accepted." : " Coverage is staffed.";
+    recordVoteRequest(db, assessment, recipient);
     notifyWork(
       db,
       swarmId,
       recipient,
-      `Criterion #${criterionId} needs ${independent ? "an independent vote" : "your vote"}.${readiness} Do the linked tasks, when done, fully satisfy this criterion? Call swarm_criteria_get then swarm_criteria_vote (covered/gap/blocked).`,
+      `Criterion #${criterionId} needs ${independent ? "an independent vote" : "your vote"}. All linked tasks are accepted. Do the linked tasks, when done, fully satisfy this criterion? Call swarm_criteria_get then swarm_criteria_vote (covered/gap/blocked).`,
       now,
     );
   };

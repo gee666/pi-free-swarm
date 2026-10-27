@@ -64,7 +64,11 @@ test("User wall attention survives unsubscribe without creating private notifica
     const swarm = seedSwarm(db);
     const post = createPost(db, swarm.id, "User", { title: "Cancelled", text: "Keep terminal delivery state." }, T0);
     const comment = addComment(db, swarm.id, "Maria", post.id, "old unsent", T0).comment;
-    assert.equal(db.sql.prepare("SELECT COUNT(*) AS n FROM messages WHERE swarm_id = ?").get(swarm.id)?.n, 0);
+    assert.equal(
+      db.sql.prepare("SELECT COUNT(*) AS n FROM message_recipients WHERE swarm_id = ? AND name = 'User'").get(swarm.id)
+        ?.n,
+      0,
+    );
     setPostSubscription(db, swarm.id, "User", post.id, false, T0 + 1);
     assert.deepEqual(userUnreadSummary(db, swarm.id), { messages: 0, comments: 0 });
     setPostSubscription(db, swarm.id, "User", post.id, true, T0 + 2);

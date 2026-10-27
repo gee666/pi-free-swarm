@@ -80,7 +80,7 @@ test("handoff, review request, review result and vote duty go to one recipient p
   assert.equal(notices(f.db, cursor).length, messages.length);
 });
 
-test("dependencies ready, dependency reopen and stale votes notify exactly the affected agents", (t) => {
+test("dependencies notify affected agents while stale votes stay in the queue", (t) => {
   const f = workFixture(t);
   const first = f.task();
   const second = f.task(f.criterion.id, [first.id]);
@@ -111,9 +111,9 @@ test("dependencies ready, dependency reopen and stale votes notify exactly the a
   editCriterion(f.db, { ...f.input(), id: f.criterion.id, expectedRevision: 1, fields: { title: "Clarify" } });
   assert.deepEqual(
     notices(f.db, cursor).map((notice) => notice.to),
-    ["Ann", "Ben", "Cam"],
+    [],
   );
-  assert.ok(notices(f.db, cursor).every((notice) => notice.body.includes("is stale")));
+  assert.ok(assessCriterion(f.db, f.swarmId, f.criterion.id).votes.every((vote) => vote.stale));
   cursor = last(f.db);
   editCriterion(f.db, { ...f.input(), id: f.criterion.id, expectedRevision: 2, fields: { title: "Clarify again" } });
   assert.ok(

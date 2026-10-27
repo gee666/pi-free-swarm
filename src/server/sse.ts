@@ -49,7 +49,7 @@ export class SseHub {
     this.watcher = options.watcher;
     this.route = async (req, res, url) => {
       if (url.pathname !== "/events" || req.method !== "GET") return false;
-      this.connect(req, res, url);
+      this.db.read(() => this.connect(req, res, url));
       return true;
     };
   }

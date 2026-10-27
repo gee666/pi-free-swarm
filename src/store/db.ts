@@ -61,6 +61,8 @@ export interface SwarmDb {
   readonly sql: SqlDatabase;
   /** BEGIN IMMEDIATE … COMMIT, ROLLBACK on throw. Reentrant: nested calls join the outer transaction. */
   write<T>(fn: (transaction: WriteTransaction) => T): T;
+  /** Keep multi-query reads on one WAL snapshot without blocking writers. */
+  read<T>(fn: () => T): T;
   afterCommit(callback: () => void): void;
   close(): void;
 }
@@ -124,32 +126,34 @@ export function openSwarmDb(dbPath: string, options: { create: boolean }): Swarm
     path: absolute,
     dataDir: path.dirname(absolute),
     sql,
-    write<T>(fn: (transaction: WriteTransaction) => T): T {
-      if (depth > 0) return assertSync(fn({ sql }));
-      sql.exec("BEGIN IMMEDIATE");
-      depth++;
-      let result: T;
-      try {
-        result = assertSync(fn({ sql }));
-        sql.exec("COMMIT");
-      } catch (error) {
-        sql.exec("ROLLBACK");
-        afterCommit = [];
-        throw error;
-      } finally {
-        depth--;
-      }
-      const committed = afterCommit;
-      afterCommit = [];
-      for (const callback of committed) callback();
-      return result;
-    },
+    read: (fn) => transact("BEGIN", "read", fn),
+    write: (fn) => transact("BEGIN IMMEDIATE", "write", () => fn({ sql })),
     afterCommit(callback) {
       if (depth === 0) callback();
       else afterCommit.push(callback);
     },
     close: () => sql.close(),
   };
+  function transact<T>(begin: string, operation: string, fn: () => T): T {
+    if (depth > 0) return assertSync(fn(), operation);
+    sql.exec(begin);
+    depth++;
+    let result: T;
+    try {
+      result = assertSync(fn(), operation);
+      sql.exec("COMMIT");
+    } catch (error) {
+      sql.exec("ROLLBACK");
+      afterCommit = [];
+      throw error;
+    } finally {
+      depth--;
+    }
+    const committed = afterCommit;
+    afterCommit = [];
+    for (const callback of committed) callback();
+    return result;
+  }
   try {
     migrate(db);
   } catch (error) {
@@ -190,9 +194,9 @@ function userVersion(db: SwarmDb): number {
   return Number(row?.user_version ?? 0);
 }
 
-function assertSync<T>(result: T): T {
+function assertSync<T>(result: T, operation: string): T {
   if (typeof result === "object" && result !== null && "then" in result && typeof result.then === "function") {
-    throw new Error("db.write callback must be synchronous");
+    throw new Error(`db.${operation} callback must be synchronous`);
   }
   return result;
 }

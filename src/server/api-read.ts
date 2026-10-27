@@ -49,17 +49,19 @@ export function readRoutes(deps: ApiDeps): ApiRoute[] {
     {
       method: "GET",
       pattern: "/api/swarms",
-      handle: () => reply<SwarmListResponse>({ swarms: listSwarms(db, clock.now(), deps.alive) }),
+      handle: () => deps.db.read(() => reply<SwarmListResponse>({ swarms: listSwarms(db, clock.now(), deps.alive) })),
     },
     {
       method: "GET",
       pattern: "/api/swarms/:swarmId",
       handle: ({ params }) => {
-        const swarm = requireSwarmItem(deps, params.id("swarmId"));
-        return reply<SwarmDetailResponse>({
-          swarm,
-          participants: listParticipants(db, swarm.id),
-          userUnread: userUnreadSummary(db, swarm.id),
+        return deps.db.read(() => {
+          const swarm = requireSwarmItem(deps, params.id("swarmId"));
+          return reply<SwarmDetailResponse>({
+            swarm,
+            participants: listParticipants(db, swarm.id),
+            userUnread: userUnreadSummary(db, swarm.id),
+          });
         });
       },
     },
@@ -69,60 +71,69 @@ export function readRoutes(deps: ApiDeps): ApiRoute[] {
       handle: async ({ params, url }) => {
         if (["query", "author", "taskId", "criterionId", "cursor", "limit"].some((key) => url.searchParams.has(key)))
           return reply(await searchPosts(deps, params.id("swarmId"), url));
-        const page = pageQuery(url);
-        const swarm = requireSwarmItem(deps, params.id("swarmId"));
-        const result = listPosts(db, swarm.id, page);
-        return reply<PostListResponse>({ ...result, posts: postsForUser(db, swarm.id, result.posts) });
+        return db.read(() => {
+          const page = pageQuery(url);
+          const swarm = requireSwarmItem(deps, params.id("swarmId"));
+          const result = listPosts(db, swarm.id, page);
+          return reply<PostListResponse>({ ...result, posts: postsForUser(db, swarm.id, result.posts) });
+        });
       },
     },
     {
       method: "GET",
       pattern: "/api/swarms/:swarmId/posts/:postId",
       handle: ({ params }) => {
-        const swarm = requireSwarmItem(deps, params.id("swarmId"));
-        const postId = params.id("postId");
-        const detail = getPostDetail(db, swarm.id, postId);
-        if (detail === null) throw notFound(`Post #${postId} not found.`);
-        return reply<PostDetailResponse>({
-          ...detail,
-          links: postLinks(db, swarm.id, postId),
-          post: postsForUser(db, swarm.id, [detail.post])[0] ?? detail.post,
+        return deps.db.read(() => {
+          const swarm = requireSwarmItem(deps, params.id("swarmId"));
+          const postId = params.id("postId");
+          const detail = getPostDetail(db, swarm.id, postId);
+          if (detail === null) throw notFound(`Post #${postId} not found.`);
+          return reply<PostDetailResponse>({
+            ...detail,
+            links: postLinks(db, swarm.id, postId),
+            post: postsForUser(db, swarm.id, [detail.post])[0] ?? detail.post,
+          });
         });
       },
     },
     {
       method: "GET",
       pattern: "/api/swarms/:swarmId/posts/:postId/subscription",
-      handle: ({ params }) => reply(getUserPostAttention(db, params.id("swarmId"), params.id("postId"))),
+      handle: ({ params }) =>
+        deps.db.read(() => reply(getUserPostAttention(db, params.id("swarmId"), params.id("postId")))),
     },
     {
       method: "GET",
       pattern: "/api/swarms/:swarmId/participants/:name/messages",
       handle: ({ params, url }) => {
-        const box = boxQuery(url);
-        const page = pageQuery(url);
-        const swarm = requireSwarmItem(deps, params.id("swarmId"));
-        const name = params.text("name");
-        const participant = getParticipant(db, swarm.id, name);
-        if (participant === null) throw notFound(`Participant ${name} not found.`);
-        const filter = url.searchParams.get("unreadOnly");
-        if (filter !== null && filter !== "true" && filter !== "false")
-          throw new ApiFailure(400, "validation", "unreadOnly must be true or false.", "unreadOnly");
-        const unreadOnly = filter === "true";
-        if (unreadOnly && (participant.kind !== "user" || box !== "inbox"))
-          throw new ApiFailure(400, "validation", "unreadOnly is supported only for the User inbox.", "unreadOnly");
-        return reply<MailboxResponse>(getMailbox(db, swarm.id, participant.name, box, { ...page, unreadOnly }));
+        return deps.db.read(() => {
+          const box = boxQuery(url);
+          const page = pageQuery(url);
+          const swarm = requireSwarmItem(deps, params.id("swarmId"));
+          const name = params.text("name");
+          const participant = getParticipant(db, swarm.id, name);
+          if (participant === null) throw notFound(`Participant ${name} not found.`);
+          const filter = url.searchParams.get("unreadOnly");
+          if (filter !== null && filter !== "true" && filter !== "false")
+            throw new ApiFailure(400, "validation", "unreadOnly must be true or false.", "unreadOnly");
+          const unreadOnly = filter === "true";
+          if (unreadOnly && (participant.kind !== "user" || box !== "inbox"))
+            throw new ApiFailure(400, "validation", "unreadOnly is supported only for the User inbox.", "unreadOnly");
+          return reply<MailboxResponse>(getMailbox(db, swarm.id, participant.name, box, { ...page, unreadOnly }));
+        });
       },
     },
     {
       method: "GET",
       pattern: "/api/swarms/:swarmId/threads/:threadId",
       handle: ({ params }) => {
-        const swarm = requireSwarmItem(deps, params.id("swarmId"));
-        const threadId = params.id("threadId");
-        const thread = getThread(db, swarm.id, threadId);
-        if (thread === null) throw notFound(`Thread #${threadId} not found.`);
-        return reply<ThreadResponse>(thread);
+        return deps.db.read(() => {
+          const swarm = requireSwarmItem(deps, params.id("swarmId"));
+          const threadId = params.id("threadId");
+          const thread = getThread(db, swarm.id, threadId);
+          if (thread === null) throw notFound(`Thread #${threadId} not found.`);
+          return reply<ThreadResponse>(thread);
+        });
       },
     },
     {
@@ -130,10 +141,13 @@ export function readRoutes(deps: ApiDeps): ApiRoute[] {
       pattern: "/api/swarms/:swarmId/agents/:name/session",
       handle: async ({ params, url }) => {
         const limit = sessionLimit(url);
-        const swarm = requireSwarmItem(deps, params.id("swarmId"));
-        const name = params.text("name");
-        const agent = listAgentSessions(db, swarm.id).find((a) => a.name.toLowerCase() === name.toLowerCase());
-        if (agent === undefined) throw notFound(`Agent ${name} not found.`);
+        const agent = db.read(() => {
+          const swarm = requireSwarmItem(deps, params.id("swarmId"));
+          const name = params.text("name");
+          const found = listAgentSessions(db, swarm.id).find((a) => a.name.toLowerCase() === name.toLowerCase());
+          if (found === undefined) throw notFound(`Agent ${name} not found.`);
+          return found;
+        });
         const query = {
           before: url.searchParams.get("before") ?? undefined,
           after: url.searchParams.get("after") ?? undefined,
@@ -146,10 +160,12 @@ export function readRoutes(deps: ApiDeps): ApiRoute[] {
       method: "GET",
       pattern: "/api/swarms/:swarmId/stats",
       handle: ({ params }) => {
-        const swarmId = params.id("swarmId");
-        const stats = getStats(db, swarmId, clock.now());
-        if (stats === null) throw notFound(`Swarm #${swarmId} not found.`);
-        return reply<StatsResponse>(stats);
+        return deps.db.read(() => {
+          const swarmId = params.id("swarmId");
+          const stats = getStats(db, swarmId, clock.now());
+          if (stats === null) throw notFound(`Swarm #${swarmId} not found.`);
+          return reply<StatsResponse>(stats);
+        });
       },
     },
   ];

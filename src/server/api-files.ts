@@ -15,7 +15,7 @@ export function createFileRoutes(deps: ApiDeps): RouteHandler {
     const params = upload ?? preview ?? content;
     if (!params) return false;
     try {
-      const swarm = requireSwarmItem(deps, params.id("swarmId"));
+      const swarm = deps.db.read(() => requireSwarmItem(deps, params.id("swarmId")));
       const root = projectOf(deps.db.dataDir);
       if (upload) {
         const uploaded = await receiveProjectUpload(root, url.searchParams.get("name"), req);

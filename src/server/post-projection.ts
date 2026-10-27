@@ -8,11 +8,16 @@ import { requireSwarmItem, type ApiDeps } from "./api-util.js";
 import { positiveQuery, searchQuery, textQuery } from "./work-input.js";
 
 export async function searchPosts(deps: ApiDeps, swarmId: number, url: URL): Promise<PostsSearchResponse> {
-  requireSwarmItem(deps, swarmId);
-  const candidates = searchPostCandidates(deps.db, swarmId, USER_NAME, {
-    author: textQuery(url, "author"),
-    taskId: positiveQuery(url, "taskId"),
-    criterionId: positiveQuery(url, "criterionId"),
+  const candidates = deps.db.read(() => {
+    requireSwarmItem(deps, swarmId);
+    return searchPostCandidates(deps.db, swarmId, USER_NAME, {
+      author: textQuery(url, "author"),
+      taskId: positiveQuery(url, "taskId"),
+      criterionId: positiveQuery(url, "criterionId"),
+    }).flatMap((item) => {
+      const post = getPost(deps.db, swarmId, Number(item.id));
+      return post === null ? [] : [{ ...item, post: postsForUser(deps.db, swarmId, [post])[0] ?? post }];
+    });
   });
   const result = await runSearch({
     db: deps.db,
@@ -20,13 +25,6 @@ export async function searchPosts(deps: ApiDeps, swarmId: number, url: URL): Pro
     candidates,
     ...searchQuery(url),
   });
-  const posts = postsForUser(
-    deps.db,
-    swarmId,
-    result.items.flatMap((item) => {
-      const post = getPost(deps.db, swarmId, Number(item.id));
-      return post === null ? [] : [post];
-    }),
-  );
+  const posts = result.items.map((item) => item.post);
   return { ...result, posts, items: posts, total: candidates.length };
 }

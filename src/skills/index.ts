@@ -47,7 +47,9 @@ export async function searchSkills(options: {
   limit?: number;
   settings?: SearchConfiguration;
 }): Promise<SearchResult<Skill>> {
-  const skills = options.db.sql.prepare("SELECT * FROM skills ORDER BY updated_at DESC, name").all().map(skillOf);
+  const skills = options.db.read(() =>
+    options.db.sql.prepare("SELECT * FROM skills ORDER BY updated_at DESC, name").all().map(skillOf),
+  );
   // Catalogue discovery stays lexical even when remote ranking is enabled for swarm content.
   const result = await runSearch({
     ...options,

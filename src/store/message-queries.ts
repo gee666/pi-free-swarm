@@ -32,10 +32,8 @@ export function getMessages(db: SwarmDb, messageIds: readonly number[]): Message
   }
   return db.sql
     .prepare(
-      `SELECT m.*, p.kind AS sender_kind, n.comment_id, n.post_id AS notification_post_id, c.author AS comment_author FROM messages m
+      `SELECT m.*, p.kind AS sender_kind FROM messages m
        JOIN participants p ON p.swarm_id = m.swarm_id AND p.name = m.sender
-       LEFT JOIN comment_notifications n ON n.message_id = m.id
-       LEFT JOIN comments c ON c.id = n.comment_id
        WHERE m.id ${IN_IDS} ORDER BY m.id`,
     )
     .all(ids)
@@ -45,10 +43,7 @@ export function getMessages(db: SwarmDb, messageIds: readonly number[]): Message
       threadId: int(row, "thread_id"),
       sender: text(row, "sender"),
       senderKind: kindOf(row, "sender_kind"),
-      text:
-        row.comment_id == null
-          ? text(row, "body")
-          : `Comment #${int(row, "comment_id")} on post #${int(row, "notification_post_id")} by ${text(row, "comment_author")}:\n${text(row, "body")}`,
+      text: text(row, "body"),
       createdAt: int(row, "created_at"),
       recipients: recipients.get(int(row, "id")) ?? [],
     }));

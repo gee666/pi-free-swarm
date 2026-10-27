@@ -16,10 +16,18 @@ it("records User wall badges without creating private messages, while agents sti
   const swarm = seedSwarm(db);
   const post = createPost(db, swarm.id, "User", { title: "Follow", text: "body" }, T0);
   const first = addComment(db, swarm.id, "Maria", post.id, "evidence", T0 + 1).comment;
-  assert.equal(db.sql.prepare("SELECT COUNT(*) AS n FROM messages WHERE swarm_id = ?").get(swarm.id)?.n, 0);
+  assert.equal(
+    db.sql.prepare("SELECT COUNT(*) AS n FROM message_recipients WHERE swarm_id = ? AND name = 'User'").get(swarm.id)
+      ?.n,
+    0,
+  );
   assert.equal(getUserPostAttention(db, swarm.id, post.id).userUnreadComments, 1);
   const second = addComment(db, swarm.id, "John", post.id, "more evidence", T0 + 2).comment;
-  const recipients = db.sql.prepare("SELECT name FROM message_recipients WHERE swarm_id = ?").all(swarm.id);
+  const recipients = db.sql
+    .prepare(
+      "SELECT r.name FROM message_recipients r JOIN comment_notifications n ON n.message_id = r.message_id WHERE r.swarm_id = ?",
+    )
+    .all(swarm.id);
   assert.deepEqual(
     recipients.map((row) => row.name),
     ["Maria"],

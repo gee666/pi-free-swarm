@@ -36,18 +36,22 @@ export function voteIsCurrent(
   );
 }
 export function assessCriterion(db: SwarmDb, swarmId: number, id: number): CriterionAssessment {
-  const criterion = getCriterion(db, swarmId, id);
-  const state = criterionStates(db, swarmId, true).find((item) => item.id === id);
-  if (!criterion || !state) throw new BrokerError("not_found", `Criterion #${id} not found.`);
-  return assess(db, criterion, state, activeNames(db, swarmId));
+  return db.read(() => {
+    const criterion = getCriterion(db, swarmId, id);
+    const state = criterionStates(db, swarmId, true).find((item) => item.id === id);
+    if (!criterion || !state) throw new BrokerError("not_found", `Criterion #${id} not found.`);
+    return assess(db, criterion, state, activeNames(db, swarmId));
+  });
 }
 export function assessCriteria(db: SwarmDb, swarmId: number, includeArchived = false): CriterionAssessment[] {
-  const states = new Map(criterionStates(db, swarmId, includeArchived).map((state) => [state.id, state]));
-  const active = activeNames(db, swarmId);
-  return listCriteria(db, swarmId, includeArchived).map((criterion) => {
-    const state = states.get(criterion.id);
-    if (!state) throw new Error(`Missing criterion state #${criterion.id}.`);
-    return assess(db, criterion, state, active);
+  return db.read(() => {
+    const states = new Map(criterionStates(db, swarmId, includeArchived).map((state) => [state.id, state]));
+    const active = activeNames(db, swarmId);
+    return listCriteria(db, swarmId, includeArchived).map((criterion) => {
+      const state = states.get(criterion.id);
+      if (!state) throw new Error(`Missing criterion state #${criterion.id}.`);
+      return assess(db, criterion, state, active);
+    });
   });
 }
 function activeNames(db: SwarmDb, swarmId: number): Set<string> {

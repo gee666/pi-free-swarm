@@ -12,7 +12,7 @@ export function skillRoutes(deps: ApiDeps): ApiRoute[] {
       method: "GET",
       pattern: "/api/swarms/:swarmId/skills",
       handle: async ({ params, url }) => {
-        requireSwarmItem(deps, params.id("swarmId"));
+        deps.db.read(() => requireSwarmItem(deps, params.id("swarmId")));
         syncSkillsAndNotify(deps.db, deps.clock.now());
         const result = await searchSkills({ db: deps.db, ...searchQuery(url) });
         return reply<SkillsResponse>(result);
@@ -22,29 +22,33 @@ export function skillRoutes(deps: ApiDeps): ApiRoute[] {
       method: "GET",
       pattern: "/api/swarms/:swarmId/skills/:name",
       handle: ({ params }) => {
-        requireSwarmItem(deps, params.id("swarmId"));
+        deps.db.read(() => requireSwarmItem(deps, params.id("swarmId")));
         syncSkillsAndNotify(deps.db, deps.clock.now());
-        const { skill } = getSkill(deps.db, params.text("name"));
-        if (skill === null) throw notFound(`Skill ${params.text("name")} not found.`);
-        return reply<SkillResponse>(skill);
+        return deps.db.read(() => {
+          const { skill } = getSkill(deps.db, params.text("name"));
+          if (skill === null) throw notFound(`Skill ${params.text("name")} not found.`);
+          return reply<SkillResponse>(skill);
+        });
       },
     },
     {
       method: "GET",
       pattern: "/api/swarms/:swarmId/search-config",
       handle: ({ params }) => {
-        requireSwarmItem(deps, params.id("swarmId"));
-        const settings = searchSettings(deps.db);
-        return reply<SearchConfigResponse>({
-          ranking: "bm25",
-          embedding: settings.search?.embedding?.model ?? "off",
-          reranker:
-            settings.search?.jev !== undefined
-              ? `JEV ${settings.search.jev.model ?? SEARCH_JEV_MODEL}`
-              : settings.helperModel
-                ? `helper model ${settings.helperModel}`
-                : "off",
-          maxResults: settings.search?.maxResults ?? SEARCH_MAX_RESULTS_DEFAULT,
+        return deps.db.read(() => {
+          requireSwarmItem(deps, params.id("swarmId"));
+          const settings = searchSettings(deps.db);
+          return reply<SearchConfigResponse>({
+            ranking: "bm25",
+            embedding: settings.search?.embedding?.model ?? "off",
+            reranker:
+              settings.search?.jev !== undefined
+                ? `JEV ${settings.search.jev.model ?? SEARCH_JEV_MODEL}`
+                : settings.helperModel
+                  ? `helper model ${settings.helperModel}`
+                  : "off",
+            maxResults: settings.search?.maxResults ?? SEARCH_MAX_RESULTS_DEFAULT,
+          });
         });
       },
     },

@@ -90,7 +90,8 @@ for (const graceful of [false, true]) {
           assert.ok(
             texts.some(
               (text) =>
-                text.includes(`Comment #${comment.id} on post #${post.id} by User:`) && text.includes(comment.text),
+                text.includes(`New comments on post #${post.id} "${post.title}" (latest by User:`) &&
+                text.includes(comment.text),
             ),
           );
           finishWork(run.db, swarmId);

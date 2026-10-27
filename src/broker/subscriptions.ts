@@ -1,5 +1,5 @@
 import type { CommentView } from "../api-types.js";
-import { SYSTEM_NAME } from "../constants.js";
+import { COMMENT_NOTICE_CHARS, COMMENT_NOTICE_WINDOW_MS, SYSTEM_NAME } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
 import { count, int, text as str } from "../store/rows.js";
 import { findParticipant, type ParticipantRef } from "../store/swarm-queries.js";
@@ -68,11 +68,23 @@ export function setPostSubscription(
 export function notifyComment(
   db: SwarmDb,
   comment: CommentView,
+  title: string,
   now: number,
   mentionedRecipients: readonly string[] = [],
 ): boolean {
   const { swarmId, postId, author } = comment;
   const userAttention = recordUserCommentAttention(db, comment);
+  const recentlyNotified = new Set(
+    db.sql
+      .prepare(
+        `SELECT DISTINCT r.name FROM comment_notifications n
+       JOIN messages m ON m.id = n.message_id
+       JOIN message_recipients r ON r.message_id = m.id
+       WHERE n.post_id = ? AND m.created_at > ?`,
+      )
+      .all(postId, now - COMMENT_NOTICE_WINDOW_MS)
+      .map((row) => str(row, "name")),
+  );
   const recipients = db.sql
     .prepare(
       `SELECT s.name FROM post_subscriptions s
@@ -83,16 +95,20 @@ export function notifyComment(
     .map((row) => findParticipant(db, swarmId, str(row, "name")))
     .filter(
       (person): person is ParticipantRef =>
-        person !== null && !mentionedRecipients.includes(person.name) && person.kind === "agent",
+        person !== null &&
+        !mentionedRecipients.includes(person.name) &&
+        !recentlyNotified.has(person.name) &&
+        person.kind === "agent",
     );
   if (recipients.length === 0) return userAttention;
+  const preview = Array.from(comment.text).slice(0, COMMENT_NOTICE_CHARS).join("");
   for (const person of recipients) {
     const threadId = createThread(db, swarmId, [SYSTEM_NAME, person.name], now);
     insertMessage(db, {
       swarmId,
       threadId,
       sender: SYSTEM_NAME,
-      text: comment.text,
+      text: `New comments on post #${postId} "${title}" (latest by ${author}: ${preview}). Read with swarm_posts_get.`,
       commentSource: { postId, commentId: comment.id },
       recipients: [{ name: person.name, status: "pending" }],
       now,

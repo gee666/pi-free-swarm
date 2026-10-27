@@ -49,9 +49,11 @@ test("removing or replacing the last unfinished dependency wakes a claimed owner
   }
 });
 
-test("unlinking the last open task coalesces stale and needed vote requests per recipient and criterion", (t) => {
+test("unlinking the last open task requests missing votes only for the newly accepted signature", (t) => {
   const f = workFixture(t);
   const accepted = f.task();
+  for (const actor of ["Ann", "Ben"])
+    voteCriterion(f.db, { ...f.input(actor), criterionId: f.criterion.id, verdict: "covered", reason: "Covered" });
   f.accept(accepted.id);
   const open = f.task();
   const other = createCriterion(f.db, {
@@ -75,5 +77,6 @@ test("unlinking the last open task coalesces stale and needed vote requests per 
   });
   const notifications = messages(f, after);
   assert.deepEqual(notifications.map((message) => message.recipient).sort(), ["Ann", "Ben"]);
-  for (const message of notifications) assert.match(String(message.body), /is stale.*swarm_criteria_vote/);
+  for (const message of notifications)
+    assert.match(String(message.body), /All linked tasks are accepted.*swarm_criteria_vote/);
 });

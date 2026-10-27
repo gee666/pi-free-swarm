@@ -3,6 +3,7 @@ import { writeFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { after, it } from "node:test";
 import { addComment, createPost } from "../../src/broker/wall.js";
+import { COMMENT_NOTICE_CHARS, COMMENT_NOTICE_WINDOW_MS } from "../../src/constants.js";
 import { setPostSubscription } from "../../src/broker/subscriptions.js";
 
 import { openSwarmDb } from "../../src/store/db.js";
@@ -14,7 +15,7 @@ const temp = createTempDb();
 after(() => temp.cleanup());
 const { db } = temp;
 
-it("subscribes authors/commenters once, excludes self and delivers actual comment text", () => {
+it("subscribes authors/commenters once, excludes self and delivers short comment notices", () => {
   const swarm = seedSwarm(db);
   const post = createPost(db, swarm.id, "Maria", { title: "Evidence", text: "report" }, T0);
   const first = addComment(db, swarm.id, "John", post.id, "first evidence", T0 + 1).comment;
@@ -26,20 +27,23 @@ it("subscribes authors/commenters once, excludes self and delivers actual commen
     .all(swarm.id);
   assert.deepEqual(
     rows.map((r) => r.name),
-    ["Maria", "John", "Maria"],
+    ["Maria", "John"],
   );
-  assert.equal(rows[0].body, "first evidence");
+  assert.equal(
+    rows[0].body,
+    `New comments on post #${post.id} "Evidence" (latest by John: first evidence). Read with swarm_posts_get.`,
+  );
   const notification = db.sql
     .prepare("SELECT message_id FROM comment_notifications WHERE comment_id = ?")
     .get(first.id);
   assert.ok(notification && typeof notification.message_id === "number");
   assert.equal(
     getMessages(db, [notification.message_id])[0].text,
-    `Comment #${first.id} on post #${post.id} by John:\nfirst evidence`,
+    `New comments on post #${post.id} "Evidence" (latest by John: first evidence). Read with swarm_posts_get.`,
   );
 });
 
-it("preserves a maximum-length legal comment and its complete notification", () => {
+it("preserves a maximum-length comment but sends only the notice preview", () => {
   const swarm = seedSwarm(db);
   const post = createPost(db, swarm.id, "Maria", { title: "Large", text: "body" }, T0);
   const settingsPath = path.join(db.dataDir, "settings.json");
@@ -50,7 +54,7 @@ it("preserves a maximum-length legal comment and its complete notification", () 
   assert.ok(row && typeof row.message_id === "number");
   assert.equal(
     getMessages(db, [row.message_id])[0].text,
-    `Comment #${comment.id} on post #${post.id} by John:\n${body}`,
+    `New comments on post #${post.id} "Large" (latest by John: ${body.slice(0, COMMENT_NOTICE_CHARS)}). Read with swarm_posts_get.`,
   );
   rmSync(settingsPath);
 });
@@ -74,6 +78,8 @@ it("durable opt-out survives commenting; resubscription is future-only and isola
   setPostSubscription(db, swarm.id, "Maria", post.id, true, T0 + 6);
   assert.equal(pending(), 1);
   addComment(db, swarm.id, "John", post.id, "future", T0 + 7);
+  assert.equal(pending(), 1, "resubscribing does not bypass the per-post window");
+  addComment(db, swarm.id, "John", post.id, "after window", T0 + 1 + COMMENT_NOTICE_WINDOW_MS);
   assert.equal(pending(), 2);
 });
 

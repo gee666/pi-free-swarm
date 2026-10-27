@@ -162,13 +162,13 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
   register(
     T.postsCreate,
     S.postsCreate,
-    "Create a discussion post with optional links; auto-subscribes you. Posts are discovered by search, not broadcast.",
+    "Create a discussion post with optional links; auto-subscribes you. Agent posts are discovered by search, not broadcast.",
     run.postsCreate,
   );
   register(
     T.postsComment,
     S.postsComment,
-    "Comment and auto-subscribe. Subscribers receive future comments.",
+    "Comment and auto-subscribe. Subscribers receive a short notice at most once per post every five minutes; read the post for all comments.",
     run.postsComment,
   );
   register(

@@ -15,11 +15,15 @@ export function watcherRoutes(deps: ApiDeps): ApiRoute[] {
       method: "GET",
       pattern: "/api/swarms/:swarmId/watcher",
       handle: async ({ params }) => {
-        const swarm = requireSwarmItem(deps, params.id("swarmId"));
-        const thread = findDirectThread(db, swarm.id, USER_NAME, WATCHER_NAME);
+        const { thread, watcher } = db.read(() => {
+          const swarm = requireSwarmItem(deps, params.id("swarmId"));
+          return {
+            thread: findDirectThread(db, swarm.id, USER_NAME, WATCHER_NAME),
+            watcher: listAgentSessions(db, swarm.id).find((agent) => agent.name === WATCHER_NAME),
+          };
+        });
         if (!thread) return reply<WatcherResponse | null>(null);
         if (!pendingWatcherQuestion(thread)) return reply<WatcherResponse>(thread);
-        const watcher = listAgentSessions(db, swarm.id).find((agent) => agent.name === WATCHER_NAME);
         const recent = watcher ? await readRecentActivity(watcher.sessionFile) : null;
         const fallback = recent ? watcherFallback(thread, recent.entries) : undefined;
         return reply<WatcherResponse>({ ...thread, ...(fallback ? { fallback } : {}) });

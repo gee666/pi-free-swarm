@@ -197,12 +197,18 @@ describe("DeliveryLoop", () => {
     assert.equal(statusOf(rejected, "John"), "delivered");
   });
 
-  it("never wakes anyone for wall posts", async () => {
+  it("wakes workers for User posts but not agent posts", async () => {
     loop.start();
-    createPost(temp.db, swarmId, "User", { title: "Plan", text: "read me" }, clock.now());
+    createPost(temp.db, swarmId, "Maria", { title: "Plan", text: "discover me" }, clock.now());
     clock.advance(DELIVERY_POLL_MS * 2);
     await flush();
     assert.equal(maria.prompts.length + john.prompts.length, 0);
+    createPost(temp.db, swarmId, "User", { title: "Plan", text: "read me" }, clock.now());
+    clock.advance(DELIVERY_POLL_MS * 2);
+    await flush();
+    assert.equal(maria.prompts.length, 1);
+    assert.equal(john.prompts.length, 1);
+    assert.match(maria.prompts[0].text, /User posted.*read me/);
   });
 
   it("collects pending messages, plus delivered-not-read ones for a revive", () => {

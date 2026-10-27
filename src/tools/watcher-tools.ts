@@ -27,9 +27,13 @@ export function createWatcherToolHandlers(identity: AgentToolIdentity) {
   const reader = new SessionReader({ maxToolOutputChars: 0 });
   const clock = identity.clock ?? systemClock;
   function session(agent: string) {
-    const found = listAgentSessions(identity.getDb(), identity.swarmId).find(
-      (item) => item.name.toLowerCase() === agent.toLowerCase(),
-    );
+    const found = identity
+      .getDb()
+      .read(() =>
+        listAgentSessions(identity.getDb(), identity.swarmId).find(
+          (item) => item.name.toLowerCase() === agent.toLowerCase(),
+        ),
+      );
     if (!found) throw new BrokerError("not_found", `Agent "${agent}" not found.`);
     return found;
   }
@@ -37,12 +41,20 @@ export function createWatcherToolHandlers(identity: AgentToolIdentity) {
     async overview(): Promise<string> {
       const db = identity.getDb();
       const now = clock.now();
-      const swarm = getSwarm(db, identity.swarmId, now);
-      if (!swarm) throw new BrokerError("not_found", "Swarm not found.");
-      const stats = getStats(db, swarm.id, now);
-      const participants = listParticipants(db, swarm.id);
+      const { swarm, stats, participants, sessions, wall, completion } = db.read(() => {
+        const swarm = getSwarm(db, identity.swarmId, now);
+        if (!swarm) throw new BrokerError("not_found", "Swarm not found.");
+        return {
+          swarm,
+          stats: getStats(db, swarm.id, now),
+          participants: listParticipants(db, swarm.id),
+          sessions: listAgentSessions(db, swarm.id),
+          wall: listPosts(db, swarm.id, { count: WATCHER_OVERVIEW_POSTS, offset: 0 }),
+          completion: evaluateCompletion(db, swarm.id),
+        };
+      });
       const blocks = await Promise.all(
-        listAgentSessions(db, swarm.id).map(async (agent) => {
+        sessions.map(async (agent) => {
           const participant = participants.find((item) => item.name === agent.name);
           const retired = participant?.kind === "agent" && participant.status === "retired";
           const recent: RecentActivity = retired
@@ -76,9 +88,8 @@ export function createWatcherToolHandlers(identity: AgentToolIdentity) {
           ].join("\n");
         }),
       );
-      const wall = listPosts(db, swarm.id, { count: WATCHER_OVERVIEW_POSTS, offset: 0 });
       return [
-        `Swarm "${swarm.name}": ${swarm.status}; outcome ${evaluateCompletion(db, swarm.id).outcome ?? "unfinished"}; wall posts ${wall.total}`,
+        `Swarm "${swarm.name}": ${swarm.status}; outcome ${completion.outcome ?? "unfinished"}; wall posts ${wall.total}`,
         `Goal: ${compactText(swarm.taskPrompt)}`,
         `Newest posts: ${wall.posts.map((post) => `#${post.id} ${compactText(post.title)}`).join("; ") || "none"}`,
         ...blocks,
@@ -94,23 +105,26 @@ export function createWatcherToolHandlers(identity: AgentToolIdentity) {
     },
     threads(params: { thread_id?: number; count?: number; offset?: number; after?: string }): string {
       const db = identity.getDb();
-      requireSwarm(db, identity.swarmId);
-      if (params.thread_id !== undefined) {
-        return readThreadTool(
-          db,
-          identity.swarmId,
-          identity.agentName,
-          { ...params, thread_id: params.thread_id },
-          clock.now(),
-          "watcher",
+      return db.read(() => {
+        requireSwarm(db, identity.swarmId);
+        if (params.thread_id !== undefined) {
+          return readThreadTool(
+            db,
+            identity.swarmId,
+            identity.agentName,
+            { ...params, thread_id: params.thread_id },
+            clock.now(),
+            "watcher",
+          );
+        }
+        const page = { count: params.count ?? WATCHER_ACTIVITY_DEFAULT, offset: params.offset ?? 0 };
+        checkPage(page);
+        const threads = listThreads(db, identity.swarmId, page);
+        return (
+          threads.map((thread) => `#${thread.id}: ${thread.members.join(", ")}`).join("\n") ||
+          "No threads in this page."
         );
-      }
-      const page = { count: params.count ?? WATCHER_ACTIVITY_DEFAULT, offset: params.offset ?? 0 };
-      checkPage(page);
-      const threads = listThreads(db, identity.swarmId, page);
-      return (
-        threads.map((thread) => `#${thread.id}: ${thread.members.join(", ")}`).join("\n") || "No threads in this page."
-      );
+      });
     },
   };
 }

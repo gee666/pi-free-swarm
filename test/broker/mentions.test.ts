@@ -99,7 +99,7 @@ it("matches post title mentions case-insensitively and excludes retired agents",
   assert.equal(subscription(post.id, "Liam"), undefined);
 });
 
-it("finds mentions beyond stored attachment previews in long User posts and comments", () => {
+it("broadcasts long User posts once and finds mentions beyond User comment previews", () => {
   const swarm = seedSwarm(db);
   const post = createPost(
     db,
@@ -113,12 +113,13 @@ it("finds mentions beyond stored attachment previews in long User posts and comm
   );
   assert.deepEqual(
     recipients(swarm.id).map((row) => row.name),
-    ["John"],
+    ["John", "Liam", "Maria"],
   );
+  assert.ok(recipients(swarm.id).every((row) => String(row.body).startsWith("User posted")));
   addComment(db, swarm.id, "User", post.id, `${"comment evidence ".repeat(500)} @Liam`, T0 + 1);
   assert.deepEqual(
     recipients(swarm.id).map((row) => row.name),
-    ["John", "Liam"],
+    ["John", "Liam", "Maria", "Liam"],
   );
   assert.equal(subscription(post.id, "John"), undefined);
   assert.equal(subscription(post.id, "Liam"), undefined);

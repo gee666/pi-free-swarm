@@ -7,10 +7,11 @@ import { sendMessage } from "../../src/broker/messages.js";
 import { setPostSubscription } from "../../src/broker/subscriptions.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
 import { findMessageIds, formatDeliveredMessage, parseDeliveredMessages } from "../../src/message-format.js";
+import { heartbeatRunLock } from "../../src/store/locks.js";
+import { COMMENT_NOTICE_WINDOW_MS } from "../../src/constants.js";
 import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
 
-// Each comment has its own durable message thread; subscription grouping follows the wall post.
-test("notification batches retain every comment and expose one subscription line per wall post", (t) => {
+test("notification batches group subscription guidance across posts and notice windows", (t) => {
   const temp = createTempDb();
   t.after(() => temp.cleanup());
   const { db } = temp;
@@ -19,13 +20,14 @@ test("notification batches retain every comment and expose one subscription line
   const second = createPost(db, swarm.id, "Maria", { title: "Second", text: "body" }, T0);
   addComment(db, swarm.id, "John", first.id, "first comment", T0 + 1);
   addComment(db, swarm.id, "John", second.id, "other post", T0 + 2);
-  addComment(db, swarm.id, "John", first.id, "last comment", T0 + 3);
+  addComment(db, swarm.id, "John", first.id, "last comment", T0 + COMMENT_NOTICE_WINDOW_MS + 1);
+  heartbeatRunLock(db, swarm.id, process.pid, T0 + COMMENT_NOTICE_WINDOW_MS + 2);
   const direct = sendMessage(db, {
     swarmId: swarm.id,
     from: "User",
     to: "Maria",
     text: "ordinary direct message",
-    now: T0 + 4,
+    now: T0 + COMMENT_NOTICE_WINDOW_MS + 2,
   });
   const delivery = new DeliveryLoop({ db, swarmId: swarm.id, agents: new Map() });
   const collected = delivery.collect("Maria", false);

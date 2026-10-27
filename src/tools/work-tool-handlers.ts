@@ -11,6 +11,8 @@ import { getCriterionDetail, getTaskDetail, criterionVoteContext, workDashboard 
 import { updateProjectIntent } from "../broker/project.js";
 import { BrokerError } from "../broker/errors.js";
 import type { TaskRecord } from "../api-work-types.js";
+import { CRITERION_BROAD_TASKS } from "../constants.js";
+import { criterionTasks } from "../store/criteria.js";
 
 export function taskLine(task: TaskRecord & { dependencies?: TaskRecord[] }): string {
   const waiting = task.dependencies?.filter((dependency) => dependency.status !== "accepted") ?? [];
@@ -34,25 +36,38 @@ export function projectText(identity: AgentToolIdentity): string {
 export function createWorkHandlers(identity: AgentToolIdentity) {
   const db = () => identity.getDb();
   const input = () => workInput(identity);
-  const taskResult = (task: TaskRecord, claimed = false) => {
-    const detail = getTaskDetail(db(), identity.swarmId, task.id);
-    const waiting = detail.dependencies.filter((dependency) => dependency.status !== "accepted");
-    const voteDuty = claimed
-      ? ` You now vote on criteria ${detail.criteria.map((link) => `#${link.criterionId}`).join(", ")}. Do the linked tasks, when done, fully satisfy this criterion?`
-      : "";
-    return `Task #${task.id} r${task.revision} [${task.status}].${voteDuty}${waiting.length ? ` Waiting on ${waiting.map((item) => `#${item.id}`).join(", ")} — you will be notified when they are accepted.` : ""}`;
-  };
+  const taskResult = (task: TaskRecord, claimed = false, addedCriteria: readonly number[] = []) =>
+    db().read(() => {
+      const detail = getTaskDetail(db(), identity.swarmId, task.id);
+      const waiting = detail.dependencies.filter((dependency) => dependency.status !== "accepted");
+      const voteDuty = claimed
+        ? ` You now vote on criteria ${detail.criteria.map((link) => `#${link.criterionId}`).join(", ")}. Do the linked tasks, when done, fully satisfy this criterion?`
+        : "";
+      const warnings = addedCriteria.flatMap((id) => {
+        const count = criterionTasks(db(), id).length;
+        return count > CRITERION_BROAD_TASKS
+          ? [
+              `Criterion #${id} now links ${count} tasks: it is too broad. Split it into specific criteria (one testable behaviour each) and archive it.`,
+            ]
+          : [];
+      });
+      return [
+        `Task #${task.id} r${task.revision} [${task.status}].${voteDuty}${waiting.length ? ` Waiting on ${waiting.map((item) => `#${item.id}`).join(", ")} — you will be notified when they are accepted.` : ""}`,
+        ...warnings,
+      ].join(" ");
+    });
   const criterionResult = (id: number) => {
     const criterion = getCriterionDetail(db(), identity.swarmId, id);
     return `Criterion #${id} r${criterion.revision} [${criterion.archivedAt ? "archived" : criterion.status}].`;
   };
   return {
-    project: () => projectText(identity),
+    project: () => db().read(() => projectText(identity)),
     intentUpdate(params: Static<typeof S.intentUpdate>) {
       const project = updateProjectIntent(db(), { ...params, ...input() });
       return `Project #${identity.swarmId} r${project.intentRevision}.`;
     },
-    criteriaGet: ({ id }: Static<typeof S.byId>) => JSON.stringify(getCriterionDetail(db(), identity.swarmId, id)),
+    criteriaGet: ({ id }: Static<typeof S.byId>) =>
+      db().read(() => JSON.stringify(getCriterionDetail(db(), identity.swarmId, id))),
     criteriaCreate(params: Static<typeof S.criteriaCreate>) {
       return criterionResult(createCriterion(db(), { ...params, ...input() }).id);
     },
@@ -71,20 +86,30 @@ export function createWorkHandlers(identity: AgentToolIdentity) {
       return `${criterionResult(criterion_id)} Coverage vote ${vote.verdict} recorded.`;
     },
     criteriaVoteContext(params: Static<typeof S.paged>) {
-      const scope = `votes:${identity.swarmId}:${identity.agentName}`;
-      const result = criterionVoteContext(
-        db(),
-        identity.swarmId,
-        identity.agentName,
-        cursorAfter(params.cursor, scope),
-        params.limit,
-      );
-      return `${JSON.stringify(result)}\nNext cursor: ${nextCursor(result.nextAfter, scope) ?? "none"}`;
+      return db().read(() => {
+        const scope = `votes:${identity.swarmId}:${identity.agentName}`;
+        const result = criterionVoteContext(
+          db(),
+          identity.swarmId,
+          identity.agentName,
+          cursorAfter(params.cursor, scope),
+          params.limit,
+        );
+        return `${JSON.stringify(result)}\nNext cursor: ${nextCursor(result.nextAfter, scope) ?? "none"}`;
+      });
     },
     tasksGet(params: Static<typeof S.tasksGet>) {
-      const scope = `task:${identity.swarmId}:${params.id}`;
-      const result = getTaskDetail(db(), identity.swarmId, params.id, cursorAfter(params.cursor, scope), params.limit);
-      return `${JSON.stringify(result)}\nNext cursor: ${nextCursor(result.nextAfter, scope) ?? "none"}`;
+      return db().read(() => {
+        const scope = `task:${identity.swarmId}:${params.id}`;
+        const result = getTaskDetail(
+          db(),
+          identity.swarmId,
+          params.id,
+          cursorAfter(params.cursor, scope),
+          params.limit,
+        );
+        return `${JSON.stringify(result)}\nNext cursor: ${nextCursor(result.nextAfter, scope) ?? "none"}`;
+      });
     },
     tasksCreate({ criteria, depends_on, ...fields }: Static<typeof S.tasksCreate>) {
       return taskResult(
@@ -95,9 +120,11 @@ export function createWorkHandlers(identity: AgentToolIdentity) {
           dependsOn: depends_on,
         }),
         fields.claim,
+        criteria.map((link) => link.criterion_id),
       );
     },
     tasksEdit({ id, expected_revision, criteria, depends_on, ...fields }: Static<typeof S.tasksEdit>) {
+      const previous = getTaskDetail(db(), identity.swarmId, id).criteria.map((link) => link.criterionId);
       return taskResult(
         editTask(db(), {
           ...input(),
@@ -116,6 +143,8 @@ export function createWorkHandlers(identity: AgentToolIdentity) {
             ...(depends_on ? { dependsOn: depends_on } : {}),
           },
         }),
+        false,
+        criteria?.map((link) => link.criterion_id).filter((id) => !previous.includes(id)),
       );
     },
     tasksClaim: ({ id }: Static<typeof S.byId>) => taskResult(claimTask(db(), { ...input(), id }), true),

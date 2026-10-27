@@ -72,22 +72,24 @@ export function readConversation(
     limit?: number;
   },
 ): { thread: ThreadView | null; messages: MessageView[]; nextAfter: number | null } {
-  const { swarmId, a, b, after = 0, limit = PAGE_DEFAULT_COUNT } = input;
-  requireSwarm(db, swarmId);
-  checkPage({ count: limit, offset: after });
-  const reader = requireParticipant(db, swarmId, a);
-  const peer = requireParticipant(db, swarmId, b);
-  const found = findDirectThreadView(db, swarmId, reader.name, peer.name);
-  if (!found) return { thread: null, messages: [], nextAfter: null };
-  const rows = db.sql
-    .prepare("SELECT id FROM messages WHERE thread_id = ? AND id > ? ORDER BY id LIMIT ?")
-    .all(found.id, after, limit + 1);
-  const ids = rows.slice(0, limit).map((row) => int(row, "id"));
-  return {
-    thread: found,
-    messages: getMessages(db, ids),
-    nextAfter: rows.length > limit ? (ids.at(-1) ?? null) : null,
-  };
+  return db.read(() => {
+    const { swarmId, a, b, after = 0, limit = PAGE_DEFAULT_COUNT } = input;
+    requireSwarm(db, swarmId);
+    checkPage({ count: limit, offset: after });
+    const reader = requireParticipant(db, swarmId, a);
+    const peer = requireParticipant(db, swarmId, b);
+    const found = findDirectThreadView(db, swarmId, reader.name, peer.name);
+    if (!found) return { thread: null, messages: [], nextAfter: null };
+    const rows = db.sql
+      .prepare("SELECT id FROM messages WHERE thread_id = ? AND id > ? ORDER BY id LIMIT ?")
+      .all(found.id, after, limit + 1);
+    const ids = rows.slice(0, limit).map((row) => int(row, "id"));
+    return {
+      thread: found,
+      messages: getMessages(db, ids),
+      nextAfter: rows.length > limit ? (ids.at(-1) ?? null) : null,
+    };
+  });
 }
 
 export function feedbackPostBody(feedback: string, max: number): string {
