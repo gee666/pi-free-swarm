@@ -21,6 +21,7 @@ function detail(comments: CommentView[], postId = 1): PostDetailResponse {
       createdAt: 1,
     },
     comments,
+    links: [],
   };
 }
 function View({

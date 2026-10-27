@@ -19,7 +19,7 @@ const comment = (id: number, createdAt: number): CommentView => ({
   text: String(id),
   createdAt,
 });
-const detail: PostDetailResponse = { post, comments: [comment(1, 10), comment(2, 20)] };
+const detail: PostDetailResponse = { post, comments: [comment(1, 10), comment(2, 20)], links: [] };
 
 describe("wall chronology", () => {
   it("normalizes API comments and inserts live or submitted comments at the correct position", () => {
@@ -37,7 +37,9 @@ describe("wall chronology", () => {
     const newer = { ...post, commentCount: 4 };
     const list = { posts: [newer], total: 1 };
     expect(withCommentCount(list, post.id, 3)).toBe(list);
-    expect(withComment({ post: newer, comments: detail.comments }, comment(3, 30), 3).post.commentCount).toBe(4);
+    expect(
+      withComment({ post: newer, comments: detail.comments, links: [] }, comment(3, 30), 3).post.commentCount,
+    ).toBe(4);
   });
 
   it("keeps newer posts on top when events and older pages overlap", () => {
