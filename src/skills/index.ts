@@ -5,6 +5,7 @@ import { SKILLS_DIR, SWARM_DIR } from "../constants.js";
 import { runSearch, type SearchResult } from "../search/index.js";
 import { isRecord, type SearchConfiguration } from "../search/settings.js";
 import type { SwarmDb } from "../store/db.js";
+import { int, text, textOrNull, type Row } from "../store/rows.js";
 import { readSkillFolder, type SkillFiles } from "./files.js";
 
 export interface Skill {
@@ -45,8 +46,8 @@ export async function searchSkills(options: {
   cursor?: string;
   limit?: number;
   settings?: SearchConfiguration;
-}): Promise<SearchResult<Skill> & { changes: SkillChange[] }> {
-  const { skills, changes } = syncSkills(options.db);
+}): Promise<SearchResult<Skill>> {
+  const skills = options.db.sql.prepare("SELECT * FROM skills ORDER BY updated_at DESC, name").all().map(skillOf);
   // Catalogue discovery stays lexical even when remote ranking is enabled for swarm content.
   const result = await runSearch({
     ...options,
@@ -62,19 +63,26 @@ export async function searchSkills(options: {
   return {
     ...result,
     items: result.items.map(({ id: _id, text: _text, ...skill }) => skill),
-    changes,
   };
 }
 
-export function getSkill(db: SwarmDb, name: string): { skill: SkillDetail | null; changes: SkillChange[] } {
-  const { snapshots, changes } = synchronize(db, Date.now());
-  const snapshot = snapshots.find((entry) => entry.skill.name === name);
+export function getSkill(db: SwarmDb, name: string): { skill: SkillDetail | null } {
+  const row = db.sql.prepare("SELECT * FROM skills WHERE name = ?").get(name);
+  if (row === undefined) return { skill: null };
+  const skill = skillOf(row);
+  const folder = readSkillFolder(path.join(db.dataDir, SKILLS_DIR, skill.name));
+  return { skill: { ...skill, content: folder.text, files: folder.files } };
+}
+function skillOf(row: Row): Skill {
   return {
-    skill:
-      snapshot === undefined
-        ? null
-        : { ...snapshot.skill, content: snapshot.folder.text, files: snapshot.folder.files },
-    changes,
+    name: text(row, "name"),
+    title: text(row, "title"),
+    description: text(row, "description"),
+    path: text(row, "path"),
+    contentHash: text(row, "content_hash"),
+    revision: int(row, "revision"),
+    error: textOrNull(row, "error"),
+    updatedAt: int(row, "updated_at"),
   };
 }
 

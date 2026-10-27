@@ -1,18 +1,3 @@
-export interface PostClaim {
-  postId: number;
-  role: string;
-  agent: string;
-  createdAt: number;
-}
-
-export interface PostContract {
-  postId: number;
-  revision: number;
-  text: string;
-  updatedBy: string;
-  updatedAt: number;
-}
-
 export interface PostSummary {
   id: number;
   swarmId: number;
@@ -23,8 +8,6 @@ export interface PostSummary {
   createdAt: number;
   userSubscribed?: boolean;
   userUnreadComments?: number;
-  claims?: PostClaim[];
-  contract?: Omit<PostContract, "text"> | null;
 }
 
 export interface CommentView {

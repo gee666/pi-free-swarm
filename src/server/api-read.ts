@@ -10,8 +10,9 @@ import type {
   SwarmListResponse,
   ThreadResponse,
 } from "../api-types.js";
-import { bodyLimit } from "../broker/body-limit.js";
-import { getAcceptance } from "../store/acceptance-queries.js";
+import { TEXT_MAX } from "../limits.js";
+import { searchPosts } from "./post-projection.js";
+import { postLinks } from "./work-projection.js";
 import { SESSION_PAGE_DEFAULT, SESSION_PAGE_MAX } from "../constants.js";
 import { getMailbox, getThread } from "../store/message-queries.js";
 import { getStats } from "../store/stats-queries.js";
@@ -59,8 +60,7 @@ export function readRoutes(deps: ApiDeps): ApiRoute[] {
         return reply<SwarmDetailResponse>({
           swarm,
           participants: listParticipants(db, swarm.id),
-          acceptance: getAcceptance(db, swarm.id),
-          bodyMaxChars: bodyLimit(db),
+          bodyMaxChars: TEXT_MAX,
           userUnread: userUnreadSummary(db, swarm.id),
         });
       },
@@ -68,7 +68,9 @@ export function readRoutes(deps: ApiDeps): ApiRoute[] {
     {
       method: "GET",
       pattern: "/api/swarms/:swarmId/posts",
-      handle: ({ params, url }) => {
+      handle: async ({ params, url }) => {
+        if (["query", "author", "taskId", "criterionId", "cursor", "limit"].some((key) => url.searchParams.has(key)))
+          return reply(await searchPosts(deps, params.id("swarmId"), url));
         const page = pageQuery(url);
         const swarm = requireSwarmItem(deps, params.id("swarmId"));
         const result = listPosts(db, swarm.id, page);
@@ -85,6 +87,7 @@ export function readRoutes(deps: ApiDeps): ApiRoute[] {
         if (detail === null) throw notFound(`Post #${postId} not found.`);
         return reply<PostDetailResponse>({
           ...detail,
+          links: postLinks(db, swarm.id, postId),
           post: postsForUser(db, swarm.id, [detail.post])[0] ?? detail.post,
         });
       },

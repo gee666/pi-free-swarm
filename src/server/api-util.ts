@@ -2,6 +2,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ApiErrorBody, ApiErrorCode, SwarmListItem } from "../api-types.js";
 import { BrokerError } from "../broker/errors.js";
+import { WorkConflictError } from "../broker/work-validation.js";
 import { checkPage } from "../broker/validate.js";
 import type { Clock } from "../clock.js";
 import { PAGE_DEFAULT_COUNT } from "../constants.js";
@@ -125,7 +126,7 @@ export function badRequest(message: string, field?: string): ApiFailure {
   return new ApiFailure(400, "bad_request", message, field);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -208,6 +209,11 @@ function brokerStatus(code: BrokerError["code"]): { status: number; code: ApiErr
 function errorReply(error: unknown, onError?: (message: string) => void): { status: number; body: ApiErrorBody } {
   const body = (code: ApiErrorCode, message: string, field?: string): ApiErrorBody =>
     field === undefined ? { error: code, message } : { error: code, message, field };
+  if (error instanceof WorkConflictError)
+    return {
+      status: 409,
+      body: { ...body("validation", error.message, error.field), currentRevision: error.currentRevision },
+    };
   if (error instanceof ApiFailure) return { status: error.status, body: body(error.code, error.message, error.field) };
   const mapped = error instanceof BrokerError ? brokerStatus(error.code) : null;
   if (error instanceof BrokerError && mapped !== null) {

@@ -12,7 +12,7 @@
 
 export type * from "./api-session-types.js";
 import type { UsageTotals } from "./api-usage-types.js";
-import type { CommentView, PostClaim, PostContract, PostSummary } from "./api-wall-types.js";
+import type { CommentView, PostSummary } from "./api-wall-types.js";
 export type * from "./api-wall-types.js";
 import type { MessageCreatedPayload, MessageStatusPayload, UserUnreadSummary } from "./api-user-unread-types.js";
 export type * from "./api-user-unread-types.js";
@@ -32,7 +32,6 @@ export interface SwarmListItem {
   id: number;
   name: string;
   taskPrompt: string;
-  acceptanceCriteria: string[];
   /** Already resolved: `starting`/`running` with a stale run lock is reported as `interrupted`. */
   status: SwarmStatus;
   /** Server-side answer to "can messages be sent now" (status is starting/running and the lock is fresh). */
@@ -127,7 +126,6 @@ export interface SwarmListResponse {
 export interface SwarmDetailResponse {
   swarm: SwarmListItem;
   participants: ParticipantView[];
-  acceptance: import("./store/acceptance-types.js").AcceptanceRecord;
   bodyMaxChars: number;
   userUnread?: UserUnreadSummary;
 }
@@ -150,17 +148,20 @@ export interface PostListResponse {
 export interface PostDetailResponse {
   post: PostSummary;
   comments: CommentView[];
-  contract?: PostContract | null;
+  links: import("./api-work-http-types.js").PostLinkView[];
 }
 
 /** POST /api/swarms/:id/posts. The REST API always acts as `User`, so there is no author field. */
 export interface CreatePostRequest {
   title: string;
   text: string;
+  taskIds?: number[];
+  criterionIds?: number[];
 }
 
 export interface CreatePostResponse {
   post: PostSummary;
+  links: import("./api-work-http-types.js").PostLinkView[];
 }
 
 /** POST /api/swarms/:id/posts/:postId/comments (as `User`). */
@@ -218,14 +219,9 @@ export interface WatcherResponse extends ThreadResponse {
   fallback?: { questionId: number; text: string; error: string | null };
 }
 
-/** POST /api/swarms/:id/messages (from `User`) — starts a new thread. 409 `swarm_not_running` when not live. */
+/** Continues the 1:1 conversation. Returns 409 swarm_not_running when not live. */
 export interface SendMessageRequest {
-  to: string[];
-  text: string;
-}
-
-/** POST /api/swarms/:id/threads/:threadId/reply (from `User`). Same 409 rule. */
-export interface ReplyRequest {
+  to: string;
   text: string;
 }
 
@@ -295,21 +291,22 @@ export interface ApiErrorBody {
   message: string;
   /** Request field a validation error refers to, e.g. "text", "title", "to". */
   field?: string;
+  currentRevision?: number;
 }
 
 // ── SSE: GET /events?swarm=:id ────────────────────────────────────────────────
 
 export type * from "./api-work-types.js";
+export type * from "./api-work-http-types.js";
+export type * from "./api-dashboard-types.js";
 
 export interface SwarmEventPayloads {
   "criterion.changed": { id: number };
   "task.changed": { id: number };
   "project.changed": { id: number };
   "post.links.changed": { id: number };
-  "acceptance.updated": { revision: number };
+  "skill.changed": { id: string };
   "post.created": { post: PostSummary };
-  "post.claimed": { postId: number; claim: PostClaim };
-  "post.contract.updated": { postId: number; contract: PostContract };
   "comment.created": { comment: CommentView; commentCount: number };
   "user.post.updated": import("./api-user-unread-types.js").UserPostAttention;
   "message.created": MessageCreatedPayload;

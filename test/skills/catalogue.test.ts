@@ -16,7 +16,7 @@ function putSkill(dataDir: string, name: string, text?: string): string {
   return folder;
 }
 
-test("skills sync on read, hash every file, increment revisions only on change, and remove deleted folders", () => {
+test("skills sync hashes every file, increments revisions only on change, and removes deleted folders", () => {
   const temp = createTempDb();
   try {
     assert.deepEqual(syncSkills(temp.db), { skills: [], changes: [] });
@@ -31,12 +31,13 @@ test("skills sync on read, hash every file, increment revisions only on change, 
     assert.deepEqual(syncSkills(temp.db, 200).changes, []);
     assert.equal(syncSkills(temp.db, 200).skills[0].updatedAt, 100);
     writeFileSync(path.join(folder, "scripts", "merge.sh"), "echo changed\n");
+    const changed = syncSkills(temp.db, 300);
     const updated = getSkill(temp.db, "merge");
     assert.equal(updated.skill?.revision, 2);
     assert.match(updated.skill?.content ?? "", /Instructions/);
     assert.deepEqual(updated.skill?.files, ["SKILL.md", "scripts/merge.sh"]);
-    assert.deepEqual(updated.changes, [{ name: "merge", kind: "updated", revision: 2 }]);
-    assert.deepEqual(getSkill(temp.db, "merge").changes, []);
+    assert.deepEqual(changed.changes, [{ name: "merge", kind: "updated", revision: 2 }]);
+    assert.deepEqual(syncSkills(temp.db).changes, []);
     rmSync(folder, { recursive: true });
     assert.deepEqual(syncSkills(temp.db).changes, [{ name: "merge", kind: "removed", revision: 2 }]);
     assert.equal(getSkill(temp.db, "merge").skill, null);
@@ -62,6 +63,7 @@ test("invalid metadata and missing SKILL.md stay indexed, can recover and gain a
       "mismatch",
       "---\nname: mismatch\ndescription: |\n  A multiline\n  description.\n---\nNo heading.\n",
     );
+    syncSkills(temp.db);
     const fixed = getSkill(temp.db, "mismatch").skill;
     assert.equal(fixed?.error, null);
     assert.equal(fixed?.title, "mismatch");
@@ -72,7 +74,7 @@ test("invalid metadata and missing SKILL.md stay indexed, can recover and gain a
   }
 });
 
-test("skills search uses name/title/description, lists invalid entries and syncs automatically", async () => {
+test("skills reads use the existing index and search name/title/description including invalid entries", async () => {
   const temp = createTempDb();
   try {
     putSkill(temp.db.dataDir, "merge");
@@ -81,15 +83,20 @@ test("skills search uses name/title/description, lists invalid entries and syncs
       "lint",
       "---\nname: lint\ndescription: Run eslint checks\n---\n# Lint\nworktree merge instructions are not indexed\n",
     );
+    assert.deepEqual((await searchSkills({ db: temp.db })).items, []);
+    assert.equal(getSkill(temp.db, "lint").skill, null);
+    const synced = syncSkills(temp.db);
+    assert.equal(synced.changes.length, 2);
     const result = await searchSkills({ db: temp.db, query: "eslint" });
     assert.equal(result.mode, "bm25");
     assert.equal(result.items[0].name, "lint");
-    assert.equal(result.changes.length, 2);
     assert.equal((await searchSkills({ db: temp.db, query: "merge" })).items[0].name, "merge");
     const page = await searchSkills({ db: temp.db, limit: 1 });
     assert.ok(page.nextCursor);
     assert.equal((await searchSkills({ db: temp.db, limit: 1, cursor: page.nextCursor })).items.length, 1);
     putSkill(temp.db.dataDir, "invalid", "not a skill");
+    assert.equal((await searchSkills({ db: temp.db })).items.length, 2);
+    syncSkills(temp.db);
     const invalid = await searchSkills({ db: temp.db });
     assert.ok(invalid.items.some((skill) => skill.name === "invalid" && skill.error !== null));
   } finally {
@@ -107,12 +114,15 @@ test("folder hashing is deterministic and rejects symlinks and bounded file over
     writeFileSync(path.join(folder, "SKILL.md"), text);
     assert.equal(syncSkills(temp.db).skills[0].contentHash, first);
     writeFileSync(path.join(folder, "large"), Buffer.alloc(SKILL_MAX_FILE_BYTES + 1));
+    syncSkills(temp.db);
     assert.match(getSkill(temp.db, "bounded").skill?.error ?? "", /exceeds/);
     rmSync(path.join(folder, "large"));
     symlinkSync(path.join(folder, "SKILL.md"), path.join(folder, "link"));
+    syncSkills(temp.db);
     assert.match(getSkill(temp.db, "bounded").skill?.error ?? "", /symlinks/);
     rmSync(path.join(folder, "link"));
     for (let index = 0; index < SKILL_MAX_FILES; index++) writeFileSync(path.join(folder, String(index)), "");
+    syncSkills(temp.db);
     assert.match(getSkill(temp.db, "bounded").skill?.error ?? "", /files or directories/);
   } finally {
     temp.cleanup();

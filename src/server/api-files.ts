@@ -1,5 +1,5 @@
 import type { FilePreview } from "../api-file-types.js";
-import { projectOf } from "../broker/body-limit.js";
+import { projectOf } from "../broker/project-path.js";
 import { sendJson, type RouteHandler } from "./http.js";
 import { badRequest, intQuery, matchRoute, requireSwarmItem, sendError, type ApiDeps } from "./api-util.js";
 import { previewProjectFile, readProjectImage } from "./project-files.js";
