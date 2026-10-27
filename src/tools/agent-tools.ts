@@ -1,333 +1,194 @@
-// The swarm_* tools of an agent process. They call the broker directly on PI_SWARM_DB, always as
-// this agent; a BrokerError is thrown as is so its exact message becomes the tool error.
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Type, type Static } from "typebox";
-import { systemClock, type Clock } from "../clock.js";
-import { AGENT_TOOL, PAGE_DEFAULT_COUNT, PAGE_MAX_COUNT, WATCHER_NAME } from "../constants.js";
+import type { ExtensionToolContext, ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { AGENT_TOOL as T, WATCHER_NAME } from "../constants.js";
 export { IDLE_ONLY_TOOLS } from "../constants.js";
-import { TITLE_MAX } from "../limits.js";
-import { replyToThread, sendMessage } from "../broker/messages.js";
-import { addComment, createPost } from "../broker/wall.js";
-import { setPostSubscription } from "../broker/subscriptions.js";
-import { claimPostRole } from "../broker/post-claims.js";
-import { BrokerError } from "../broker/errors.js";
 import { snoozeReminders } from "../broker/reminder-snooze.js";
 import { requestRetirement } from "../broker/retirement.js";
-import type { SwarmDb } from "../store/db.js";
-import { hasReplacementPostBaseline } from "../store/replacement-baseline.js";
-import { formatSent } from "./agent-tool-format.js";
-import { acceptanceToolDescription, acceptanceToolParameters, executeAcceptanceTool } from "./acceptance-tool.js";
-import { readWallTool } from "./wall-read.js";
-import { readThreadTool } from "./thread-read.js";
-import { readPostTool } from "./post-read.js";
-import { readFreshPostsTool } from "./fresh-post-read.js";
-import { agentToolResult as textResult } from "./agent-tool-result.js";
 import { createRetirementTool, retirementToolParameters } from "./retirement-tool.js";
-import { formatAgentVoteResult } from "./agent-vote-result.js";
-import { executePostContractTool, postContractDescription, postContractParameters } from "./post-contract-tool.js";
+import type { Static, TSchema } from "typebox";
+import * as S from "./agent-schemas.js";
+import { registerTextTool, workInput, type AgentToolIdentity } from "./agent-tool-context.js";
+export type { AgentToolIdentity } from "./agent-tool-context.js";
+import { createWorkHandlers } from "./work-tool-handlers.js";
+import { createSearchHandlers } from "./search-tool-handlers.js";
+import { createCommunicationHandlers } from "./communication-tool-handlers.js";
 
-export interface AgentToolIdentity {
-  getDb(): SwarmDb;
-  swarmId: number;
-  run: number;
-  agentName: string;
-  clock?: Clock;
-}
-
-const BRIEF = "Be extremely brief and focused.";
-const bodyRule = (bodyMaxChars: number) =>
-  `At most ${bodyMaxChars} chars; put longer material in a file and share its path.`;
-
-const READ_POSTS = Type.Object({
-  only_new: Type.Optional(
-    Type.Boolean({
-      description:
-        "Persistent only-new full posts, oldest first. Fresh replacements default to only-new from their last-10 baseline; other workers default to history. Set false for explicit history. With only_new, after is its own continuation cursor and offset is ignored.",
-    }),
-  ),
-  count: Type.Optional(
-    Type.Integer({
-      minimum: 1,
-      maximum: PAGE_MAX_COUNT,
-      description: `Posts or changes to show, 1–${PAGE_MAX_COUNT} (default ${PAGE_DEFAULT_COUNT}).`,
-    }),
-  ),
-  offset: Type.Optional(
-    Type.Integer({ minimum: 0, description: "Skip this many newest posts (default 0); ignored with after." }),
-  ),
-  after: Type.Optional(
-    Type.String({
-      minLength: 1,
-      description:
-        "Opaque next cursor from a wall read; returns post and comment changes oldest first. Takes precedence over offset.",
-    }),
-  ),
-});
-const READ_POST = Type.Object({
-  post_id: Type.Integer({ minimum: 1 }),
-  only_new: Type.Optional(
-    Type.Boolean({ description: "Return only uncovered post text and comments. Omit to replay history." }),
-  ),
-  count: Type.Optional(Type.Integer({ minimum: 1, maximum: PAGE_MAX_COUNT })),
-  after: Type.Optional(
-    Type.String({ minLength: 1, description: "Next cursor from this post, with the same only_new setting." }),
-  ),
-});
-// Length checks follow trimming in the broker; raw schema maxima would reject valid padded input.
-const TEXT = Type.String({
-  minLength: 1,
-  pattern: "\\S",
-  description: "Plain text; follow the stated body limit in the tool description.",
-});
-const POST = Type.Object({
-  title: Type.String({ minLength: 1, pattern: "\\S", description: `Max ${TITLE_MAX} chars.` }),
-  text: TEXT,
-});
-const COMMENT = Type.Object({ post_id: Type.Integer({ minimum: 1 }), text: TEXT });
-const SUBSCRIPTION = Type.Object({ post_id: Type.Integer({ minimum: 1 }) });
-const CLAIM = Type.Object({
-  post_id: Type.Integer({ minimum: 1 }),
-  role: Type.String({
-    minLength: 1,
-    pattern: "\\S",
-    description: `Free-text role, one line, at most ${TITLE_MAX} characters after trimming.`,
-  }),
-});
-const MESSAGE = Type.Object({
-  to: Type.Array(Type.String({ minLength: 1, pattern: "\\S" }), {
-    minItems: 1,
-    description: 'Participant names from the wall; "User" is the human.',
-  }),
-  text: TEXT,
-});
-const REPLY_TO = Type.Object({ thread_id: Type.Integer({ minimum: 1 }), text: TEXT });
-const READ_THREAD = Type.Object({
-  thread_id: Type.Integer({ minimum: 1 }),
-  count: Type.Optional(Type.Integer({ minimum: 1, maximum: PAGE_MAX_COUNT })),
-  after: Type.Optional(
-    Type.String({
-      minLength: 1,
-      description: "Next cursor from this thread; omit to replay history and include new messages.",
-    }),
-  ),
-});
-
-/** The tool bodies, returning the model-facing text. Separate from registration so tests need no pi. */
 export function createAgentToolHandlers(identity: AgentToolIdentity) {
-  const { swarmId, agentName } = identity;
-  const clock = identity.clock ?? systemClock;
   return {
-    readPosts(params: Static<typeof READ_POSTS>): string {
-      const db = identity.getDb();
-      const onlyNew = params.only_new ?? hasReplacementPostBaseline(db, swarmId, agentName);
-      return onlyNew
-        ? readFreshPostsTool(db, swarmId, agentName, params)
-        : readWallTool(db, swarmId, agentName, params, clock.now());
-    },
-    readPost(params: Static<typeof READ_POST>): string {
-      return readPostTool(identity.getDb(), swarmId, agentName, params, clock.now());
-    },
-    post(params: Static<typeof POST>): string {
-      const post = createPost(identity.getDb(), swarmId, agentName, params, clock.now());
-      return `Posted #${post.id}.`;
-    },
-    comment(params: Static<typeof COMMENT>): string {
-      const { comment } = addComment(identity.getDb(), swarmId, agentName, params.post_id, params.text, clock.now());
-      return `Commented #${comment.id} on post #${comment.postId}.`;
-    },
-    claim(params: Static<typeof CLAIM>): string {
-      const { claimed, claim } = claimPostRole(
+    ...createWorkHandlers(identity),
+    ...createSearchHandlers(identity),
+    ...createCommunicationHandlers(identity),
+    retire(params: Static<typeof retirementToolParameters>) {
+      const result = requestRetirement(
         identity.getDb(),
-        swarmId,
-        agentName,
-        params.post_id,
-        params.role,
-        clock.now(),
+        identity.swarmId,
+        identity.agentName,
+        identity.run,
+        params.handoff,
+        workInput(identity).now,
       );
-      if (!claimed)
-        throw new BrokerError(
-          "validation",
-          `Role ${JSON.stringify(claim.role)} on post #${claim.postId} is already claimed by ${claim.agent}.`,
-          "role",
-        );
-      return `Claimed role ${JSON.stringify(claim.role)} on post #${claim.postId} for ${claim.agent}.`;
-    },
-    contract(params: Static<typeof postContractParameters>): string {
-      return executePostContractTool(identity.getDb(), swarmId, agentName, params, clock.now());
-    },
-    subscribe(params: Static<typeof SUBSCRIPTION>, subscribed = true): string {
-      setPostSubscription(identity.getDb(), swarmId, agentName, params.post_id, subscribed, clock.now());
-      return `${subscribed ? "Subscribed to" : "Unsubscribed from"} post #${params.post_id}.`;
-    },
-    message(params: Static<typeof MESSAGE>): string {
-      const message = sendMessage(identity.getDb(), swarmId, agentName, params.to, params.text, clock.now());
-      return formatSent(message, "Sent");
-    },
-    replyTo(params: Static<typeof REPLY_TO>): string {
-      const message = replyToThread(identity.getDb(), swarmId, agentName, params.thread_id, params.text, clock.now());
-      return formatSent(message, "Replied");
-    },
-    readThread(params: Static<typeof READ_THREAD>): string {
-      return readThreadTool(identity.getDb(), swarmId, agentName, params, clock.now());
-    },
-    retire(params: Static<typeof retirementToolParameters>): string {
-      const result = requestRetirement(identity.getDb(), swarmId, agentName, identity.run, params.handoff, clock.now());
       return `Replacement request #${result.requestId} queued. Handoff saved to \`${result.handoffPath}\`. Do not start more work or repeat this request.`;
     },
-    snooze(): string {
-      const until = snoozeReminders(identity.getDb(), swarmId, agentName, clock.now());
+    snooze() {
+      const until = snoozeReminders(identity.getDb(), identity.swarmId, identity.agentName, workInput(identity).now);
       return `Idle reminders snoozed for 5 minutes, until ${new Date(until).toISOString()}. Direct messages and subscribed comments still arrive.`;
-    },
-    acceptance(params: Static<typeof acceptanceToolParameters>): string {
-      const record = executeAcceptanceTool(identity.getDb(), swarmId, agentName, params, clock.now(), identity.run);
-      return params.action === "vote" ? formatAgentVoteResult(record, agentName) : JSON.stringify(record);
     },
   };
 }
-
-/** `bodyMaxChars` is the stated limit; the broker quietly tolerates more (see `bodyCeiling`). */
-export function registerAgentTools(
-  pi: Pick<ExtensionAPI, "registerTool">,
-  identity: AgentToolIdentity,
-  bodyMaxChars: number,
-): void {
+export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, identity: AgentToolIdentity): void {
   const run = createAgentToolHandlers(identity);
-  const limit = bodyRule(bodyMaxChars);
-  const watcher = identity.agentName === WATCHER_NAME;
-  pi.registerTool({
-    name: AGENT_TOOL.readPosts,
-    label: "Read wall",
-    description: watcher
-      ? "Read wall posts or changes after a cursor, with body previews."
-      : "Read the wall newest first, with new posts marked. Optional after returns post/comment changes oldest first; reuse Next cursor for subsequent pages. The initial history cursor starts at the beginning, so unseen older history is not skipped. Bodies are previews; read a post for full text. Check what the others are doing and find the next useful work until the whole task is accepted.",
-    promptSnippet: "Read wall history or post/comment changes after a cursor.",
-    parameters: READ_POSTS,
-    async execute(_toolCallId, params) {
-      return textResult(run.readPosts(params));
-    },
-  });
-  pi.registerTool({
-    name: AGENT_TOOL.readPost,
-    label: "Read post",
-    description:
-      "Read a bounded page of one post and its comments, oldest first. only_new uses persistent per-agent/per-post coverage; omit it for replay. Follow Next cursor with the same only_new value until Complete: true. Partial text does not cover its unseen tail." +
-      (watcher ? " Known User attachments are paged by source ID without arbitrary filesystem access." : ""),
-    promptSnippet: "Read one wall post with its comments.",
-    parameters: READ_POST,
-    async execute(_toolCallId, params) {
-      return textResult(run.readPost(params));
-    },
-  });
-  pi.registerTool({
-    name: AGENT_TOOL.post,
-    label: "Post",
-    description: watcher
-      ? `Post to the wall only when the human asks. ${limit}`
-      : `Post to the swarm wall: what you take, progress and finished work. Then check the wall and pick up the next useful work until the whole task is accepted. ${BRIEF} Title max ${TITLE_MAX} chars. ${limit} Plain text, no markdown.`,
-    promptSnippet: "Post a short plan or status to the swarm wall.",
-    parameters: POST,
-    async execute(_toolCallId, params) {
-      return textResult(run.post(params));
-    },
-  });
-  pi.registerTool({
-    name: AGENT_TOOL.comment,
-    label: "Comment",
-    description: `Comment on a wall post. Authors and commenters subscribe automatically unless explicitly unsubscribed. Subscribers receive new comment text, except their own. ${BRIEF} ${limit} Plain text.`,
-    promptSnippet: "Comment on a wall post.",
-    parameters: COMMENT,
-    async execute(_toolCallId, params) {
-      return textResult(run.comment(params));
-    },
-  });
-  pi.registerTool({
-    name: AGENT_TOOL.claim,
-    label: "Claim role",
-    promptSnippet: "Claim a free-text role on a wall post without duplicate ownership.",
-    description:
-      "Claim a free-text role on a wall post before starting work. Use the most common, convenient role name that others are likely to choose. The exact same trimmed role can have only one owner; a conflict is rejected with the winner's name. Different role strings are allowed. Read existing claims before choosing a role to avoid overlapping work. Does not comment or subscribe.",
-    parameters: CLAIM,
-    async execute(_toolCallId, params) {
-      return textResult(run.claim(params));
-    },
-  });
-  pi.registerTool({
-    name: AGENT_TOOL.contract,
-    label: "Post contract",
-    promptSnippet: "Read or revision-check edits to an optional post contract document.",
-    description: postContractDescription,
-    parameters: postContractParameters,
-    async execute(_toolCallId, params) {
-      return textResult(run.contract(params));
-    },
-  });
-  for (const subscribed of [true, false]) {
-    pi.registerTool({
-      name: subscribed ? AGENT_TOOL.subscribe : AGENT_TOOL.unsubscribe,
-      label: subscribed ? "Subscribe" : "Unsubscribe",
-      promptSnippet: subscribed ? "Subscribe to future post comments." : "Stop post comment notifications.",
-      description: subscribed
-        ? "Subscribe to future comments on a post. New comment text arrives through queued steering; use history or only-new reads for earlier comments."
-        : "Stop future comment notifications for a post, even if you comment again. Removes unsent notifications; already accepted steering may still arrive. Explicit subscribe reverses this opt-out.",
-      parameters: SUBSCRIPTION,
-      async execute(_toolCallId, params) {
-        return textResult(run.subscribe(params, subscribed));
-      },
-    });
+  function register<S extends TSchema>(
+    name: string,
+    parameters: S,
+    description: string,
+    execute: (params: Static<S>, ctx: ExtensionToolContext) => string | Promise<string>,
+  ) {
+    registerTextTool(pi, name, parameters, description, execute);
   }
-  pi.registerTool({
-    name: AGENT_TOOL.message,
-    label: "Message",
-    description: `Start a new message thread with the given participants (names from the wall, or "User" for the human). They are woken up with it. ${BRIEF} ${limit} Never wait for an answer.`,
-    promptSnippet: "Message other agents or the User in a new thread.",
-    parameters: MESSAGE,
-    async execute(_toolCallId, params) {
-      return textResult(run.message(params));
-    },
-  });
-  pi.registerTool({
-    name: AGENT_TOOL.replyTo,
-    label: "Reply",
-    description: `Reply to every other member of a thread you are in. ${BRIEF} ${limit}`,
-    promptSnippet: "Reply in a message thread.",
-    parameters: REPLY_TO,
-    async execute(_toolCallId, params) {
-      return textResult(run.replyTo(params));
-    },
-  });
-  pi.registerTool({
-    name: AGENT_TOOL.readThread,
-    label: "Read thread",
-    description:
-      "Read bounded oldest-first history of a thread you belong to. Complete and Next cursor remain visible; continue with after for remaining text. Omit after to replay history after compaction or include newer messages." +
-      (watcher ? " Known User attachments are paged by source ID without arbitrary filesystem access." : ""),
-    promptSnippet: "Read the full history of a message thread.",
-    parameters: READ_THREAD,
-    async execute(_toolCallId, params) {
-      return textResult(run.readThread(params));
-    },
-  });
+  register(
+    T.project,
+    S.empty,
+    "Read brief path, intent, scope approval, stop gates, your queue and tool guide. Start here.",
+    run.project,
+  );
+  register(
+    T.criteriaSearch,
+    S.criteriaSearch,
+    "Search criteria and filter status, group, links or voting duty.",
+    (params, ctx) => run.criteriaSearch(params, ctx.modelRegistry),
+  );
+  register(
+    T.criteriaGet,
+    S.byId,
+    "Read a criterion, reasons, linked tasks, current/stale votes, blocker and posts.",
+    run.criteriaGet,
+  );
+  register(
+    T.criteriaVoteContext,
+    S.paged,
+    "Read your tasks, their criteria, other linked work and missing votes.",
+    run.criteriaVoteContext,
+  );
+  register(
+    T.tasksSearch,
+    S.tasksSearch,
+    "Search tasks; find runnable work, ownership and dependencies.",
+    (params, ctx) => run.tasksSearch(params, ctx.modelRegistry),
+  );
+  register(
+    T.tasksGet,
+    S.tasksGet,
+    "Read a task, criteria, forward/reverse dependencies, evidence, paged timeline and posts.",
+    run.tasksGet,
+  );
+  register(
+    T.postsSearch,
+    S.postsSearch,
+    "Search post titles, bodies and comments; filter author, links or subscription.",
+    (params, ctx) => run.postsSearch(params, ctx.modelRegistry),
+  );
+  register(T.postsGet, S.tasksGet, "Read a post, links and a page of comments. Follow next cursor.", run.postsGet);
+  register(T.skillsSearch, S.search, "Search project skills before writing new automation.", run.skillsSearch);
+  register(T.skillsGet, S.skillsGet, "Read SKILL.md, validation state, file list and path.", run.skillsGet);
   if (identity.agentName === WATCHER_NAME) return;
-  pi.registerTool({
-    name: AGENT_TOOL.snooze,
-    label: "Snooze reminders",
-    description:
-      "Available only after your first idle turn. Pause new idle reminders for exactly 5 minutes when no useful work is available. If the swarm is still unfinished, reminders resume afterward. Already queued reminders may still arrive. Direct messages and subscribed comments still arrive; this does not pause the run, budgets or quorum. No arguments.",
-    promptSnippet: "Snooze your idle reminders for 5 minutes; messages still arrive.",
-    parameters: Type.Object({}, { additionalProperties: false }),
-    async execute() {
-      return textResult(run.snooze());
-    },
-  });
+  register(
+    T.intentUpdate,
+    S.intentUpdate,
+    "Register the user intent summary and file path. Changes require User scope approval.",
+    run.intentUpdate,
+  );
+  register(
+    T.criteriaCreate,
+    S.criteriaCreate,
+    "Create a testable grouped criterion covering the brief.",
+    run.criteriaCreate,
+  );
+  register(
+    T.criteriaEdit,
+    S.criteriaEdit,
+    "Edit a criterion at expected_revision; reread on conflict. Invalidates votes and scope approval.",
+    run.criteriaEdit,
+  );
+  register(T.criteriaArchive, S.byId, "Archive a criterion. Scope must be reapproved by User.", run.criteriaArchive);
+  register(
+    T.criteriaBlock,
+    S.criteriaBlock,
+    "Record an external blocker and resolution attempts. Waiting for another task is a dependency, never a blocker.",
+    run.criteriaBlock,
+  );
+  register(
+    T.criteriaVote,
+    S.criteriaVote,
+    "Vote satisfied, incomplete or blocked with evidence. Re-vote when work changes; User decides agreed blocker exceptions.",
+    run.criteriaVote,
+  );
+  register(
+    T.tasksCreate,
+    S.tasksCreate,
+    "Create linked work; optional claim atomically assigns it to you. Dependencies are task IDs, not blockers.",
+    run.tasksCreate,
+  );
+  register(
+    T.tasksEdit,
+    S.tasksEdit,
+    "Edit at expected_revision. Keep at least one criterion link. Dependencies must be acyclic.",
+    run.tasksEdit,
+  );
+  register(T.tasksClaim, S.byId, "Claim new work or take over an inactive owner's task.", run.tasksClaim);
+  register(T.tasksRelease, S.byId, "Release your task to new and unowned.", run.tasksRelease);
+  register(
+    T.tasksHandoff,
+    S.tasksHandoff,
+    "Hand off to an active agent. Review tasks cannot be handed off.",
+    run.tasksHandoff,
+  );
+  register(
+    T.tasksTransition,
+    S.tasksTransition,
+    "Start after dependencies are accepted; request_review needs evidence; reopen needs a reason.",
+    run.tasksTransition,
+  );
+  register(
+    T.tasksReview,
+    S.tasksReview,
+    "Independently accept reviewed work or request changes with a reason. You cannot review your own task.",
+    run.tasksReview,
+  );
+  register(
+    T.postsCreate,
+    S.postsCreate,
+    "Create a discussion post with optional links; auto-subscribes you. Posts are discovered by search, not broadcast.",
+    run.postsCreate,
+  );
+  register(
+    T.postsComment,
+    S.postsComment,
+    "Comment and auto-subscribe. Subscribers receive future comments.",
+    run.postsComment,
+  );
+  register(
+    T.postsUnsubscribe,
+    S.postId,
+    "Stop future comment notifications, including after you comment again.",
+    run.postsUnsubscribe,
+  );
+  register(T.postsLink, S.postsLink, "Link a post to tasks or criteria. Notifies task owners.", (params) =>
+    run.postsLink(params),
+  );
+  register(T.postsUnlink, S.postsLink, "Remove task or criterion links from a post.", (params) =>
+    run.postsLink(params, true),
+  );
+  register(
+    T.messagesSend,
+    S.messagesSend,
+    "Message exactly one agent or User; continue your existing 1:1 conversation. Recipient is notified.",
+    run.messagesSend,
+  );
+  register(T.messagesRead, S.messagesRead, "Read a page of your 1:1 conversation with one peer.", run.messagesRead);
+  register(
+    T.snooze,
+    S.empty,
+    "After your first idle turn, snooze reminders for five minutes. Messages and comments still arrive.",
+    run.snooze,
+  );
   pi.registerTool(createRetirementTool(run.retire));
-  pi.registerTool({
-    name: AGENT_TOOL.acceptance,
-    label: "Acceptance",
-    description: acceptanceToolDescription,
-    promptSnippet: "Inspect criteria and votes, or vote on the whole task with a reason.",
-    parameters: acceptanceToolParameters,
-    async execute(_toolCallId, params) {
-      return textResult(run.acceptance(params));
-    },
-  });
 }

@@ -1,4 +1,3 @@
-import type { AcceptanceRecord } from "../store/acceptance-types.js";
 import type { IdleReminders } from "./idle-reminder.js";
 import { prepareWorkRunCompletion } from "./work-run-completion.js";
 import type { RunControls } from "./run-controls.js";
@@ -16,7 +15,7 @@ export class RunCompletion {
       reminders: Pick<IdleReminders, "update">;
       canRun(): boolean;
       ending(): boolean;
-      closed(acceptance: AcceptanceRecord): void;
+      closed(): void;
       lost(): void;
     },
   ) {}
@@ -39,7 +38,7 @@ export class RunCompletion {
     const { env, swarmId, run } = this.options;
     const decision = prepareWorkRunCompletion(env.db, { swarmId, run, runnerPid: env.runnerPid, now: env.clock.now() });
     if (decision.kind === "pending") return false;
-    if (decision.kind === "closed") this.options.closed(decision.acceptance);
+    if (decision.kind === "closed") this.options.closed();
     else this.options.lost();
     return true;
   }

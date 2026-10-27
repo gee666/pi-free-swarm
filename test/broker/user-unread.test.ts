@@ -15,7 +15,7 @@ test("User attention separates direct messages from subscribed comments and pres
     const swarm = seedSwarm(db);
     const post = createPost(db, swarm.id, "User", { title: "Mine", text: "Subscribed by authorship." }, T0);
     const comment = addComment(db, swarm.id, "Maria", post.id, "new comment", T0).comment;
-    const direct = sendMessage(db, swarm.id, "John", ["User"], "direct work", T0);
+    const direct = sendMessage(db, { swarmId: swarm.id, from: "John", to: "User", text: "direct work", now: T0 });
     addComment(db, swarm.id, "User", post.id, "no self-notification", T0);
     assert.deepEqual(userUnreadSummary(db, swarm.id), { messages: 1, comments: 1 });
     const otherPost = createPost(db, swarm.id, "Maria", { title: "Joined", text: "Comment to subscribe." }, T0);

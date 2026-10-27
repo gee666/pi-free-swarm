@@ -18,7 +18,7 @@ import {
   systemReplies,
   waitFor,
   waitForWorkersIdle,
-  voteAll,
+  finishWork,
   type RunFixture,
 } from "./run-fixture.js";
 
@@ -69,10 +69,16 @@ describe("the end of a run", () => {
     const snapshots = run.progress.length;
     await waitFor(() => run.progress.length >= snapshots + 3, "progress while idle without votes");
     assert.equal(getSwarm(db, swarmId, Date.now())?.status, "running");
-    const late = sendMessage(db, swarmId, "User", [name], "one more thing", Date.now()).id;
+    const late = sendMessage(db, {
+      swarmId: swarmId,
+      from: "User",
+      to: name,
+      text: "one more thing",
+      now: Date.now(),
+    }).id;
     await waitFor(() => recipientStatus(db, late, name) === "read", "late message read");
     await waitForWorkersIdle(run, swarmId);
-    voteAll(db, swarmId, "accepted", "Late request was handled and the goal checked.");
+    finishWork(db, swarmId);
 
     const result = await outcome;
     assert.equal(result.end, "finished");
@@ -103,14 +109,20 @@ describe("the end of a run", () => {
       const swarmId = newestSwarmId(run.db);
       const [name] = agentNames(run.db, swarmId);
       await waitFor(() => agentStatus(run.db, swarmId, name) === "working", "worker running tool");
-      const steering = sendMessage(run.db, swarmId, "User", [name], "still queued in pi", Date.now());
+      const steering = sendMessage(run.db, {
+        swarmId: swarmId,
+        from: "User",
+        to: name,
+        text: "still queued in pi",
+        now: Date.now(),
+      });
       await waitFor(() => recipientStatus(run.db, steering.id, name) === "delivered", "unread steering queued");
       assert.equal(agentStatus(run.db, swarmId, name), "working");
 
-      voteAll(run.db, swarmId, "accepted", "Goal checked; the remaining tool is unnecessary.");
+      finishWork(run.db, swarmId);
       const result = await outcome;
       assert.equal(result.end, "finished");
-      assert.equal(result.acceptance.verdict, "accepted");
+
       assert.equal(agentStatus(run.db, swarmId, name), "stopped");
       assert.equal(recipientStatus(run.db, steering.id, name), "delivered");
       assert.deepEqual(systemReplies(run.db, steering.threadId), []);
@@ -134,11 +146,23 @@ describe("the end of a run", () => {
       const swarmId = newestSwarmId(db);
       const [first, second] = agentNames(db, swarmId);
       await waitFor(() => agentStatus(db, swarmId, first) === "idle", "first agent idle");
-      const pending = sendMessage(db, swarmId, "User", [second], "waiting for my slot", Date.now());
+      const pending = sendMessage(db, {
+        swarmId: swarmId,
+        from: "User",
+        to: second,
+        text: "waiting for my slot",
+        now: Date.now(),
+      });
 
       controller.abort();
       // The race: this lands while the agents are being stopped, before the run lock is released.
-      const racing = sendMessage(db, swarmId, "User", [first], "during shutdown", Date.now());
+      const racing = sendMessage(db, {
+        swarmId: swarmId,
+        from: "User",
+        to: first,
+        text: "during shutdown",
+        now: Date.now(),
+      });
       assert.equal(recipientStatus(db, racing.id, first), "undeliverable", "stop closes admission before shutdown");
 
       const result = await outcome;

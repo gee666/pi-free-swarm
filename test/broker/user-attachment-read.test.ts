@@ -20,7 +20,7 @@ function setup() {
 test("bounded byte ranges preserve Unicode, BOM and whitespace without materializing the entire file", () => {
   const { db, swarm } = setup();
   const raw = `\uFEFF \n${"😀界e\u0301".repeat(80)} \n`;
-  const message = sendMessage(db, swarm.id, "User", ["Maria"], raw, T0);
+  const message = sendMessage(db, { swarmId: swarm.id, from: "User", to: "Maria", text: raw, now: T0 });
   let offset = 0;
   let restored = "";
   for (;;) {
@@ -50,7 +50,7 @@ test("only known generated User attachments in the selected swarm can replace st
 
 test("missing generated content and malformed byte positions fail rather than report completeness", () => {
   const { db, swarm } = setup();
-  const message = sendMessage(db, swarm.id, "User", ["Maria"], "😀".repeat(300), T0);
+  const message = sendMessage(db, { swarmId: swarm.id, from: "User", to: "Maria", text: "😀".repeat(300), now: T0 });
   assert.throws(() => readUserAttachmentChunk(db, swarm.id, "message", message.id, 1, 3000), /not valid UTF-8/);
   assert.throws(() => readUserAttachmentChunk(db, swarm.id, "message", message.id, 2000, 3000), /beyond the file/);
   assert.throws(() => readUserAttachmentChunk(db, swarm.id, "message", message.id, 0, 3), /at least 4 bytes/);

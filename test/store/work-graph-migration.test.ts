@@ -15,7 +15,7 @@ test("work graph migrates populated v17 without losing communication or old feat
     const swarm = seedSwarm(db);
     const post = createPost(db, swarm.id, "Maria", { title: "History", text: "Evidence" }, T0);
     addComment(db, swarm.id, "John", post.id, "Reviewed", T0);
-    sendMessage(db, swarm.id, "User", ["Maria"], "Keep this", T0);
+    sendMessage(db, { swarmId: swarm.id, from: "User", to: "Maria", text: "Keep this", now: T0 });
     const tables = ["posts", "comments", "messages", "message_recipients", "post_claims", "post_contracts"];
     const before = tables.map((table) => db.sql.prepare(`SELECT * FROM ${table}`).all());
     removeWorkSchema(db);

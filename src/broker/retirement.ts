@@ -6,6 +6,7 @@ import { getConfigurationRevision } from "../store/configuration-revisions.js";
 import { queueConfigurationChange } from "../store/runtime-configuration.js";
 import { getSwarm } from "../store/swarm-queries.js";
 import { int } from "../store/rows.js";
+import { workText } from "./work-validation.js";
 import { BrokerError } from "./errors.js";
 import { requireIdleWorker } from "./worker-eligibility.js";
 
@@ -53,11 +54,12 @@ export function requestRetirement(
         `Retirement request #${int(pending, "id")} is already pending; do not submit it again.`,
       );
     }
+    const checkedHandoff = workText(handoff, "handoff", worker);
     const handoffFile = path.join("handoffs", String(swarmId), `${randomUUID()}.md`);
     const absolute = path.join(db.dataDir, handoffFile);
     mkdirSync(path.dirname(absolute), { recursive: true });
     // Keep the handoff if queueing fails uncertainly, rather than deleting potentially accepted evidence.
-    writeFileSync(absolute, handoff, { encoding: "utf8", mode: 0o600, flag: "wx" });
+    writeFileSync(absolute, checkedHandoff, { encoding: "utf8", mode: 0o600, flag: "wx" });
     const request = queueConfigurationChange(
       db,
       swarmId,

@@ -4,7 +4,8 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import path from "node:path";
 import { it } from "node:test";
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import { inspectAcceptance } from "../../src/broker/acceptance.js";
+import { evaluateCompletion } from "../../src/broker/completion.js";
+import { approveScope } from "../../src/broker/project.js";
 import { swarmDbPath, openSwarmDb } from "../../src/store/db.js";
 import { listAgentSessions, listSwarms } from "../../src/store/swarm-queries.js";
 import { listPosts } from "../../src/store/wall-queries.js";
@@ -66,7 +67,7 @@ function successfulTool(events: JsonAgentSessionEvent[], name: string): void {
 
 it(
   "installed Pi delegates real work, preserves peer evidence and resumes the same worker session",
-  { timeout: 510_000 },
+  { timeout: 510_000, skip: !model },
   async () => {
     mkdirSync(path.resolve("tmp"), { recursive: true });
     const cwd = mkdtempSync(path.resolve("tmp/pi-free-swarm-evergreen-"));
@@ -75,8 +76,8 @@ it(
       path.join(cwd, ".pi/swarm/settings.json"),
       JSON.stringify({
         minAgents: 1,
-        maxAgents: 1,
-        defaultAgents: 1,
+        maxAgents: 2,
+        defaultAgents: 2,
         staggerSeconds: 0,
         idleReminderDelay: 60_000,
         budgetTimeSeconds: 180,
@@ -86,9 +87,9 @@ it(
       path.join(cwd, "requirements.txt"),
       [
         "Create result.txt containing exactly evergreen-one followed by a newline.",
-        "Use swarm_post to record short evidence pointing to result.txt, then read the file to verify it.",
-        "Finally use swarm_acceptance to vote accepted with a reason citing result.txt. Do not merely describe a vote.",
-        "On resume, follow Main's feedback, verify the changed file and cast a fresh vote.",
+        "Use swarm_posts_create to record short evidence pointing to result.txt, then read the file to verify it.",
+        "Complete the seeded planning tasks and linked implementation tasks through independent review, then vote on every criterion with swarm_criteria_vote. Have a second worker review and vote independently.",
+        "On resume, reopen the affected task, follow Main feedback, verify the changed file, request independent review and re-vote affected criteria.",
       ].join("\n"),
     );
     let passed = false;
@@ -96,7 +97,7 @@ it(
       const first = await runPi(
         cwd,
         [
-          "Use the swarm tool now with swarm_name evergreen, agent_amount 1, and task_prompt 'Read requirements.txt and implement it.'",
+          "Use the swarm tool now with swarm_name evergreen, agent_amount 2, and task_prompt 'Read requirements.txt and implement it.'",
           "Set acceptance_criteria to ['result.txt matches requirements.txt or explicit resume feedback; worker wall evidence references result.txt.'].",
           "Do not implement the task yourself. After the swarm returns, use read to inspect result.txt and summarize the actual result.",
         ].join(" "),
@@ -113,20 +114,17 @@ it(
         const [swarm] = listSwarms(db, Date.now());
         assert.ok(swarm);
         swarmId = swarm.id;
-        assert.equal(swarm.status, "finished");
-        const acceptance = inspectAcceptance(db, swarmId);
-        assert.equal(acceptance.verdict, "accepted");
-        assert.equal(acceptance.totalAgents, 1);
-        assert.match(acceptance.votes[0]?.reason ?? "", /result\.txt/);
+        if (evaluateCompletion(db, swarmId).awaitingUser) approveScope(db, { swarmId, actor: "User", now: Date.now() });
+        assert.equal(evaluateCompletion(db, swarmId).done, true);
         assert.ok(
           listPosts(db, swarmId, { count: 100, offset: 0 }).posts.some((post) => post.text.includes("result.txt")),
         );
         const workers = listAgentSessions(db, swarmId).filter((agent) => agent.name !== "Watcher");
-        assert.equal(workers.length, 1);
+        assert.equal(workers.length, 2);
         workerSession = workers[0].sessionFile;
         originalSession = readFileSync(workerSession, "utf8");
-        assert.match(originalSession, /"toolName":"swarm_acceptance"/);
-        assert.match(originalSession, /"toolName":"swarm_post"/);
+        assert.match(originalSession, /"toolName":"swarm_criteria_vote"/);
+        assert.match(originalSession, /"toolName":"swarm_posts_create"/);
         assert.doesNotMatch(originalSession, /"name":"resume_swarm"/, "workers cannot launch nested swarms");
       } finally {
         db.close();
@@ -135,7 +133,7 @@ it(
         cwd,
         [
           `Call resume_swarm for swarm_id ${swarmId} with message: 'Replace result.txt with exactly evergreen-two followed by a newline.`,
-          "Read it back, record wall evidence, and cast a fresh accepted vote with the updated evidence. This replaces the original expected content.'",
+          "Read it back, request independent review, and cast fresh criterion votes. This replaces the original expected content.'",
           "Do not change the file yourself. After the tool returns, use read to inspect result.txt and summarize.",
         ].join(" "),
         path.join(cwd, "main-resumed.jsonl"),
@@ -146,9 +144,9 @@ it(
       const reopened = openSwarmDb(swarmDbPath(cwd), { create: false });
       try {
         assert.equal(listSwarms(reopened, Date.now()).length, 1, "resume must not create a new swarm");
-        const acceptance = inspectAcceptance(reopened, swarmId);
-        assert.equal(acceptance.verdict, "accepted");
-        assert.equal(acceptance.votes[0]?.run, 2, "the old vote is not reused");
+        if (evaluateCompletion(reopened, swarmId).awaitingUser)
+          approveScope(reopened, { swarmId, actor: "User", now: Date.now() });
+        assert.equal(evaluateCompletion(reopened, swarmId).done, true);
         assert.ok(listAgentSessions(reopened, swarmId).some((agent) => agent.sessionFile === workerSession));
         const continued = readFileSync(workerSession, "utf8");
         assert.ok(continued.startsWith(originalSession), "resume appends to the worker's persisted history");

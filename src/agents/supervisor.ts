@@ -17,7 +17,6 @@ import { spawnAgentTransport, type AgentTransport, type AgentTransportFactory } 
 import type { AgentLaunchSpec } from "./launch.js";
 import { createProtocolHandler, forwardUsage } from "./protocol.js";
 import { clearSteeringQueue } from "./steering-queue.js";
-import { PostObservation } from "./post-observation.js";
 import { dialogRequestId, type RpcRecord } from "./rpc-events.js";
 import { MessageObservation } from "./message-observation.js";
 import { StallWatchdog, watchdogConfigFromEnv, type WatchdogConfig } from "./watchdog.js";
@@ -88,7 +87,7 @@ export class AgentSupervisor {
       life.promptsInFlight++;
       life.watchdog.rearm();
       try {
-        const cleared = await clearSteeringQueue(life.proc, life.messages, life.posts);
+        const cleared = await clearSteeringQueue(life.proc, life.messages);
         if (!cleared) {
           life.watchdog.disarm();
           return { accepted: false, error: "Could not clear the steering queue." };
@@ -128,7 +127,7 @@ export class AgentSupervisor {
     if (!life) return;
     if (this.#status === "starting") return this.stop();
     try {
-      const cleared = await clearSteeringQueue(life.proc, life.messages, life.posts);
+      const cleared = await clearSteeringQueue(life.proc, life.messages);
       if (!cleared && life === this.#life) await this.stop();
     } catch {
       if (life === this.#life) await this.stop();
@@ -185,8 +184,6 @@ export class AgentSupervisor {
       onUserMessage: (text) => {
         const ids = life.messages.observed(text);
         if (ids.length > 0) this.#hooks.onMessagesRead(ids);
-        const postIds = life.posts.observed(text);
-        if (postIds.length) this.#hooks.onPostsRead?.(postIds);
       },
       onUsage: (sample) => this.#hooks.onUsage(sample),
       onActivity: (activity) => this.#setActivity(activity),
@@ -199,7 +196,6 @@ export class AgentSupervisor {
       promptsInFlight: 0,
       deferredSettle: false,
       runStarts: 0,
-      posts: new PostObservation(),
       messages: new MessageObservation(),
     };
     this.#life = life;
@@ -253,12 +249,10 @@ export class AgentSupervisor {
     life.promptsInFlight++;
     const runStarts = life.runStarts;
     const token = life.messages.sent(prompt.messageIds, prompt.text);
-    life.posts.sent(prompt.text, prompt.postIds);
     try {
       const response = await life.proc.send({ type: "prompt", message: prompt.text, streamingBehavior: "steer" });
       if (life !== this.#life || this.#stopped) return null;
       if (response.success !== true) {
-        life.posts.rejected(prompt.text);
         life.messages.rejected(token);
         return { accepted: false, error: typeof response.error === "string" ? response.error : "Prompt rejected." };
       }

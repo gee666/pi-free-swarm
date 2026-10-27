@@ -12,7 +12,7 @@ import {
   newestSwarmId,
   waitFor,
   waitForWorkersIdle,
-  voteAll,
+  finishWork,
 } from "./run-fixture.js";
 
 test("stopped unclaimed controls are visibly rejected and never replayed on resume", { timeout: 15_000 }, async () => {
@@ -61,7 +61,7 @@ test("stopped unclaimed controls are visibly rejected and never replayed on resu
         getRuntimeConfiguration(run.db, swarmId, Date.now())?.requests.find((item) => item.id === request.id)?.status,
         "rejected",
       );
-      voteAll(run.db, swarmId, "accepted", "Control status verified");
+      finishWork(run.db, swarmId);
       assert.equal((await resumed).end, "finished");
     } finally {
       resumeCancel.abort();

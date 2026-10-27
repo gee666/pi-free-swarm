@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { inspectAcceptance, mutateAcceptance } from "../../src/broker/acceptance.js";
+import { finishWork } from "../helpers/finish-work.js";
 import { createPost } from "../../src/broker/wall.js";
 import { activeWorkerNames, getActiveAssignments } from "../../src/store/active-roster.js";
 import { getSwarm } from "../../src/store/swarm-queries.js";
@@ -8,21 +8,6 @@ import { getPost } from "../../src/store/wall-queries.js";
 import { SCENARIOS } from "../fixtures/fake-pi/harness.js";
 import { configurationOwner } from "./configuration-fixture.js";
 import { agentStatus, createRunFixture, isAlive, waitFor } from "./run-fixture.js";
-
-function vote(
-  run: ReturnType<typeof createRunFixture>,
-  swarmId: number,
-  name: string,
-  verdict: "accepted" | "incomplete",
-) {
-  return mutateAcceptance(
-    run.db,
-    swarmId,
-    name,
-    { action: "vote", verdict, reason: `Retain ${name}'s ${verdict} evidence.` },
-    Date.now(),
-  );
-}
 
 for (const initialCount of [5, 2]) {
   test(
@@ -44,7 +29,6 @@ for (const initialCount of [5, 2]) {
           .prepare("SELECT configuration FROM run_configurations WHERE swarm_id = ? AND run = 1")
           .get(swarmId)?.configuration;
         if (initialCount === 2) {
-          vote(run, swarmId, original[0].name, "accepted");
           await owner.applied({ type: "addAgents", count: 2 });
           await waitFor(
             () =>
@@ -54,7 +38,7 @@ for (const initialCount of [5, 2]) {
             15_000,
           );
           const assignments = getActiveAssignments(run.db, swarmId);
-          assert.equal(inspectAcceptance(run.db, swarmId).counts.accepted, 1, "addition retains existing judgments");
+
           for (const assignment of original)
             assert.deepEqual(
               assignments.find((worker) => worker.name === assignment.name),
@@ -72,15 +56,10 @@ for (const initialCount of [5, 2]) {
             assert.equal(argv[argv.indexOf("--model") + 1], `${worker.provider}/${worker.modelId}`);
             assert.equal(argv[argv.indexOf("--thinking") + 1], worker.thinkingLevel);
           }
-          vote(run, swarmId, original[1].name, "accepted");
-          assert.deepEqual(
-            [inspectAcceptance(run.db, swarmId).counts.accepted, inspectAcceptance(run.db, swarmId).threshold],
-            [2, 3],
-          );
+
           const added = assignments.filter((worker) => !original.some((old) => old.name === worker.name));
           await owner.applied({ type: "removeAgent", name: added[0].name });
-          assert.equal(inspectAcceptance(run.db, swarmId).verdict, "incomplete");
-          assert.throws(() => vote(run, swarmId, added[0].name, "accepted"), /Removed workers cannot vote/);
+
           await owner.applied({ type: "removeAgent", name: added[1].name });
         } else {
           const removed = original[4].name;
@@ -91,30 +70,15 @@ for (const initialCount of [5, 2]) {
             { title: "Preserved evidence", text: "Do not delete this worker's history." },
             Date.now(),
           );
-          vote(run, swarmId, removed, "incomplete");
-          for (const worker of original.slice(0, 3)) vote(run, swarmId, worker.name, "accepted");
-          assert.deepEqual(
-            [inspectAcceptance(run.db, swarmId).counts.accepted, inspectAcceptance(run.db, swarmId).threshold],
-            [3, 4],
-          );
+
           const spawned = run.fake.log().find((entry) => entry.fake === "spawn" && entry.agent === removed);
           assert.ok(spawned && typeof spawned.pid === "number");
           await owner.applied({ type: "removeAgent", name: removed });
           assert.equal(isAlive(spawned.pid), false, "applied removal means child cleanup was joined");
           assert.equal(getPost(run.db, swarmId, history.id)?.author, removed);
-          assert.equal(
-            run.db.sql
-              .prepare("SELECT reason FROM acceptance_votes WHERE swarm_id = ? AND agent = ?")
-              .get(swarmId, removed)?.reason,
-            `Retain ${removed}'s incomplete evidence.`,
-          );
         }
+        finishWork(run.db, swarmId);
         await owner.finished();
-        const acceptance = inspectAcceptance(run.db, swarmId);
-        assert.equal(acceptance.verdict, "accepted");
-        assert.equal(acceptance.totalAgents, initialCount === 2 ? 2 : 4);
-        assert.equal(acceptance.counts.accepted, initialCount === 2 ? 2 : 3);
-        assert.equal(acceptance.counts.incomplete, 0, "retired vote remains historical, not in the active tally");
         assert.equal(getSwarm(run.db, swarmId, Date.now())?.status, "finished");
         assert.equal(
           run.db.sql.prepare("SELECT configuration FROM run_configurations WHERE swarm_id = ? AND run = 1").get(swarmId)

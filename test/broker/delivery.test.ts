@@ -44,7 +44,9 @@ function statusOf(messageId: number, name: string): RecipientStatus | undefined 
 }
 
 function send(from: string, to: string[], text: string): number {
-  return sendMessage(temp.db, swarmId, from, to, text, clock.now()).id;
+  const peer = to[0];
+  if (!peer) throw new Error("Recipient required");
+  return sendMessage(temp.db, { swarmId, from, to: peer, text, now: clock.now() }).id;
 }
 
 beforeEach(() => {

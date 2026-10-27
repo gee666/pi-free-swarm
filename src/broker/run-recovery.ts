@@ -1,6 +1,5 @@
 import type { AgentCrash } from "../agents/supervisor.js";
 import { MAIN_NAME, WATCHER_NAME } from "../constants.js";
-import { invalidateAgentVote } from "./acceptance.js";
 import { reviveDelayMs } from "./lifecycle.js";
 import type { LiveWorkers } from "./live-workers.js";
 import type { RunAgent } from "./run-agent.js";
@@ -39,9 +38,8 @@ export class RunRecovery {
   }
 
   crashed(agent: RunAgent, crash: AgentCrash): void {
-    const { env, swarmId, run, timings, agents, admission, live, canContinue } = this.options;
+    const { env, timings, agents, admission, live, canContinue } = this.options;
     if (agent.name === WATCHER_NAME || !canContinue() || !agents.has(agent.name)) return;
-    invalidateAgentVote(env.db, swarmId, run, agent.name, `Voter crashed: ${crash.message}`, env.clock.now());
     if (live.crashed(agent, crash) || admission.crashed(agent, crash)) return;
     if (crash.fatal) {
       env.notifyUser(`Swarm "${this.options.swarmName}": ${agent.name} could not start. ${crash.message}`);

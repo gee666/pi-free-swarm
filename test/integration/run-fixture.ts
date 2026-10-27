@@ -2,9 +2,8 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import path from "node:path";
 import type { ParticipantStatus, RecipientStatus } from "../../src/api-types.js";
-import { mutateAcceptance } from "../../src/broker/acceptance.js";
+export { finishWork } from "../helpers/finish-work.js";
 import type { RunProgress } from "../../src/broker/run-progress.js";
-import type { AcceptanceVoteVerdict } from "../../src/store/acceptance-types.js";
 import type { RunEnvironment, RunTimings } from "../../src/broker/swarm-run.js";
 import { WATCHER_NAME } from "../../src/constants.js";
 import { systemClock } from "../../src/clock.js";
@@ -64,7 +63,6 @@ export function createRunFixture(
     minAgents: 1,
     maxAgents: 10,
     defaultAgents: 2,
-    bodyMaxChars: 4000,
     staggerSeconds: options.staggerSeconds ?? 0,
     idleReminderDelay: 60_000,
     idleReminderDigestSize: 10,
@@ -113,12 +111,6 @@ export function agentNames(db: SwarmDb, swarmId: number): string[] {
   return listAgentSessions(db, swarmId)
     .filter((agent) => agent.name !== WATCHER_NAME)
     .map((agent) => agent.name);
-}
-
-export function voteAll(db: SwarmDb, swarmId: number, verdict: AcceptanceVoteVerdict, reason: string): void {
-  for (const agent of agentNames(db, swarmId)) {
-    mutateAcceptance(db, swarmId, agent, { action: "vote", verdict, reason }, Date.now());
-  }
 }
 
 export async function waitForWorkersIdle(run: RunFixture, swarmId: number): Promise<void> {

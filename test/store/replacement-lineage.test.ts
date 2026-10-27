@@ -32,7 +32,7 @@ function recordConfiguration(db: SwarmDb, swarmId: number) {
         resumeStaggerMs: 0,
         reviveBackoffMs: [],
       },
-      limits: { bodyMaxChars: 200, maxRpcFrameBytes: 100000 },
+      limits: { maxRpcFrameBytes: 100000 },
       budget: { moneyUsd: null, timeSeconds: null, gracefulShutdown: false },
     },
     T0,

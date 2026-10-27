@@ -24,7 +24,9 @@ export const WORK_STATE_CTE = `WITH
   ),
   work_owners AS (
     SELECT DISTINCT l.criterion_id, t.owner,
-      CASE WHEN p.kind = 'user' OR (p.kind = 'agent' AND p.retired_at IS NULL AND p.status NOT IN ('crashed','stopped'))
+      CASE WHEN p.kind = 'user' OR (p.kind = 'agent' AND (
+        (SELECT status FROM swarms WHERE id = t.swarm_id) NOT IN ('starting','running')
+        OR (p.retired_at IS NULL AND p.status NOT IN ('crashed','stopped'))))
         THEN 1 ELSE 0 END AS active
     FROM task_criteria l JOIN tasks t ON t.id = l.task_id
       LEFT JOIN participants p ON p.swarm_id = t.swarm_id AND p.name = t.owner

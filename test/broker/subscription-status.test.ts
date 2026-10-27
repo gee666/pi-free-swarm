@@ -20,7 +20,13 @@ test("notification batches retain every comment and expose one subscription line
   addComment(db, swarm.id, "John", first.id, "first comment", T0 + 1);
   addComment(db, swarm.id, "John", second.id, "other post", T0 + 2);
   addComment(db, swarm.id, "John", first.id, "last comment", T0 + 3);
-  const direct = sendMessage(db, swarm.id, "User", ["Maria"], "ordinary direct message", T0 + 4);
+  const direct = sendMessage(db, {
+    swarmId: swarm.id,
+    from: "User",
+    to: "Maria",
+    text: "ordinary direct message",
+    now: T0 + 4,
+  });
   const delivery = new DeliveryLoop({ db, swarmId: swarm.id, agents: new Map() });
   const collected = delivery.collect("Maria", false);
   const prompt = messagePrompt(db, swarm.id, "Maria", collected.messageIds);
@@ -52,7 +58,7 @@ test("transport refresh removes a muted post while preserving other notification
   const kept = createPost(db, swarm.id, "Maria", { title: "Kept", text: "body" }, T0);
   addComment(db, swarm.id, "John", muted.id, "muted comment", T0 + 1);
   addComment(db, swarm.id, "John", kept.id, "kept comment", T0 + 2);
-  const direct = sendMessage(db, swarm.id, "User", ["Maria"], "direct stays", T0 + 3);
+  const direct = sendMessage(db, { swarmId: swarm.id, from: "User", to: "Maria", text: "direct stays", now: T0 + 3 });
   const delivery = new DeliveryLoop({ db, swarmId: swarm.id, agents: new Map() });
   const initial = delivery.collect("Maria", false);
   const prompt = messagePrompt(db, swarm.id, "Maria", initial.messageIds);

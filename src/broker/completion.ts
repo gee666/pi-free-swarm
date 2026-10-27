@@ -1,6 +1,6 @@
 import type { CompletionGate, CompletionResult } from "../api-work-types.js";
 import type { SwarmDb } from "../store/db.js";
-import { listTasks } from "../store/tasks.js";
+import { listTasks, taskLinks } from "../store/tasks.js";
 import { criterionStates, taskStates } from "../store/work-state.js";
 import { readProject } from "./project.js";
 
@@ -41,10 +41,22 @@ export function evaluateCompletion(db: SwarmDb, swarmId: number): CompletionResu
     gate("review", tasks.filter((task) => task.status === "review").length, "Tasks awaiting independent review."),
   ];
   const done = gates.every((item) => item.ok);
+  const pendingExceptions = new Set(
+    unmetCriteria
+      .filter((criterion) => criterion.status === "blocked" && criterion.exception === "pending")
+      .map((criterion) => criterion.id),
+  );
+  const unfinished = tasks.filter(
+    (task) => task.status !== "accepted" && !states.some((state) => state.id === task.id && state.deferred),
+  );
   const awaitingUser =
     !done &&
-    gates.every((item) => item.ok || item.key === "scope" || item.key === "criteria") &&
-    unmetCriteria.every((criterion) => criterion.status === "blocked" && criterion.exception === "pending");
+    gates.every((item) => item.ok || ["scope", "criteria", "tasks"].includes(item.key)) &&
+    unmetCriteria.every((criterion) => pendingExceptions.has(criterion.id)) &&
+    unfinished.every((task) => {
+      const links = taskLinks(db, task.id);
+      return links.length > 0 && links.every((link) => pendingExceptions.has(link.criterionId));
+    });
   return {
     done,
     gates,

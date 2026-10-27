@@ -1,3 +1,4 @@
+import { continueConversation } from "../helpers/conversation.js";
 import assert from "node:assert/strict";
 import { appendFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
@@ -14,7 +15,7 @@ import type {
   ThreadResponse,
 } from "../../src/api-types.js";
 import { recordUsage } from "../../src/broker/agent-state.js";
-import { replyToThread, sendMessage } from "../../src/broker/messages.js";
+import { sendMessage } from "../../src/broker/messages.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
 import { agentSessionFile } from "../../src/store/db.js";
 import { assistantLine, headerLine, userLine } from "../fixtures/sessions/helpers.js";
@@ -145,11 +146,23 @@ describe("messages", () => {
   let userThreadId: number;
   before(() => {
     const { db } = board.temp;
-    const opening = sendMessage(db, swarmId, "Maria", ["User", "John"], "Plan is on the wall.", Date.now());
+    const opening = sendMessage(db, {
+      swarmId: swarmId,
+      from: "Maria",
+      to: "User",
+      text: "Plan is on the wall.",
+      now: Date.now(),
+    });
     threadId = opening.threadId;
-    replyToThread(db, swarmId, "John", threadId, "Agreed.", Date.now());
-    sendMessage(db, swarmId, "Maria", ["John"], "Just us.", Date.now());
-    userThreadId = sendMessage(db, swarmId, "User", ["Liam"], "Status?", Date.now()).threadId;
+    continueConversation(db, swarmId, "John", threadId, "Agreed.", Date.now());
+    sendMessage(db, { swarmId: swarmId, from: "Maria", to: "John", text: "Just us.", now: Date.now() });
+    userThreadId = sendMessage(db, {
+      swarmId: swarmId,
+      from: "User",
+      to: "Liam",
+      text: "Status?",
+      now: Date.now(),
+    }).threadId;
   });
 
   it("groups the inbox by thread with only the box's messages and unread counts", async () => {

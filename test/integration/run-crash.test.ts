@@ -17,7 +17,7 @@ import {
   spawnsOf,
   waitFor,
   waitForWorkersIdle,
-  voteAll,
+  finishWork,
   type RunFixture,
 } from "./run-fixture.js";
 
@@ -61,12 +61,18 @@ describe("crash recovery", () => {
       };
       const { run, db, outcome, swarmId, name } = startOne({ spawns: [crashMidTool, SCENARIOS.settle] });
       await waitFor(() => agentStatus(db, swarmId, name) === "working", "agent working");
-      const id = sendMessage(db, swarmId, "User", [name], "queued before the crash", Date.now()).id;
+      const id = sendMessage(db, {
+        swarmId: swarmId,
+        from: "User",
+        to: name,
+        text: "queued before the crash",
+        now: Date.now(),
+      }).id;
       await waitFor(() => recipientStatus(db, id, name) === "delivered", "steer queued in pi");
       await waitFor(() => recipientStatus(db, id, name) === "read", "read after the revive", 10_000);
 
       await waitForWorkersIdle(run, swarmId);
-      voteAll(db, swarmId, "accepted", "Revived worker read the recovered message.");
+      finishWork(db, swarmId);
       assert.equal((await outcome).end, "finished");
       assert.equal(reviveCount(db, swarmId, name), 1);
       const spawns = spawnsOf(run.fake);
@@ -85,7 +91,7 @@ describe("crash recovery", () => {
       () => reviveCount(db, swarmId, name) === 1 && agentStatus(db, swarmId, name) === "idle",
       "revived worker idle",
     );
-    voteAll(db, swarmId, "accepted", "Worker recovered after watchdog restart.");
+    finishWork(db, swarmId);
     assert.equal((await outcome).end, "finished");
     assert.equal(reviveCount(db, swarmId, name), 1);
     assert.equal(spawnsOf(run.fake).length, 2);
@@ -102,7 +108,7 @@ describe("crash recovery", () => {
     const idleAt = Date.now();
     await waitFor(() => Date.now() - idleAt >= 1_000, "idle across three watchdog windows");
     assert.equal(agentStatus(db, swarmId, name), "idle");
-    voteAll(db, swarmId, "accepted", "Long tool finished and idle worker remained healthy.");
+    finishWork(db, swarmId);
     assert.equal((await outcome).end, "finished");
     assert.equal(reviveCount(db, swarmId, name), 0);
     assert.equal(spawnsOf(run.fake).length, 1);
@@ -111,13 +117,18 @@ describe("crash recovery", () => {
   it("exhausts revives, reports the crash and waits for an explicit stop", { timeout: 20_000 }, async () => {
     const { run, db, outcome, swarmId, name } = startOne(SCENARIOS.crash);
     await waitFor(() => crashedPosts(run, swarmId).length > 0, "revives exhausted", 10_000);
-    const id = sendMessage(db, swarmId, "User", [name], "you will not read this", Date.now()).id;
+    const id = sendMessage(db, {
+      swarmId: swarmId,
+      from: "User",
+      to: name,
+      text: "you will not read this",
+      now: Date.now(),
+    }).id;
     assert.equal(recipientStatus(db, id, name), "pending");
     await stopAllRuns();
     const result = await outcome;
     assert.equal(result.end, "stopped");
-    assert.equal(result.acceptance.verdict, "unchecked");
-    assert.deepEqual(result.acceptance.votes, []);
+
     assert.equal(agentStatus(db, swarmId, name), "crashed");
     assert.equal(reviveCount(db, swarmId, name), FAST.reviveBackoffMs.length);
     assert.equal(spawnsOf(run.fake).length, FAST.reviveBackoffMs.length + 1);

@@ -13,7 +13,7 @@ export function headerMessageIds(text: string): number[] {
   let inBody = false;
   for (const line of text.split("\n")) {
     if (inBody) {
-      if (line.startsWith(`(reply with ${AGENT_TOOL.replyTo}(`)) inBody = false;
+      if (line.startsWith(`(reply with ${AGENT_TOOL.messagesSend} `)) inBody = false;
       continue;
     }
     if (line.startsWith('"')) {

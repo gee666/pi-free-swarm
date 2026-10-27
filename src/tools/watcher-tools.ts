@@ -12,7 +12,7 @@ import { BrokerError } from "../broker/errors.js";
 import { checkPage, requireSwarm } from "../broker/validate.js";
 import { SessionReader } from "../server/sessions.js";
 import { readRecentActivity, type RecentActivity } from "../server/session-recent.js";
-import { getAcceptance } from "../store/acceptance-queries.js";
+import { evaluateCompletion } from "../broker/completion.js";
 import { listThreads } from "../store/message-queries.js";
 import { getStats } from "../store/stats-queries.js";
 import { getSwarm, listAgentSessions, listParticipants } from "../store/swarm-queries.js";
@@ -78,7 +78,7 @@ export function createWatcherToolHandlers(identity: AgentToolIdentity) {
       );
       const wall = listPosts(db, swarm.id, { count: WATCHER_OVERVIEW_POSTS, offset: 0 });
       return [
-        `Swarm "${swarm.name}": ${swarm.status}; acceptance ${getAcceptance(db, swarm.id).verdict}; wall posts ${wall.total}`,
+        `Swarm "${swarm.name}": ${swarm.status}; outcome ${evaluateCompletion(db, swarm.id).outcome ?? "unfinished"}; wall posts ${wall.total}`,
         `Goal: ${compactText(swarm.taskPrompt)}`,
         `Newest posts: ${wall.posts.map((post) => `#${post.id} ${compactText(post.title)}`).join("; ") || "none"}`,
         ...blocks,
@@ -121,7 +121,7 @@ export function registerWatcherTools(pi: Pick<ExtensionAPI, "registerTool">, ide
     name: WATCHER_TOOL.overview,
     label: "Swarm overview",
     description:
-      "Compact states, current runtime tools, costs, acceptance and newest wall titles. One bounded recent session slice per agent, not lifetime activity. Use swarm_agent_activity for deep history. Start here.",
+      "Compact states, current runtime tools, costs, completion and newest post titles. One bounded recent session slice per agent, not lifetime activity. Use swarm_agent_activity for deep history. Start here.",
     parameters: Type.Object({}),
     async execute() {
       return agentToolResult(await run.overview());

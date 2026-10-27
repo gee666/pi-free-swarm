@@ -1,8 +1,8 @@
+import { finishWork } from "../helpers/finish-work.js";
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import { mutateAcceptance } from "../../src/broker/acceptance.js";
 import { raiseSwarmBudget } from "../../src/broker/budget-policy.js";
 import { sendMessage } from "../../src/broker/messages.js";
 import { requestRetirement } from "../../src/broker/retirement.js";
@@ -47,7 +47,13 @@ test(
           Date.now(),
         ),
       );
-      const oldMessage = sendMessage(run.db, swarmId, "User", [oldName], "OLD-ROLE-PENDING-EVIDENCE", Date.now());
+      const oldMessage = sendMessage(run.db, {
+        swarmId: swarmId,
+        from: "User",
+        to: oldName,
+        text: "OLD-ROLE-PENDING-EVIDENCE",
+        now: Date.now(),
+      });
       const handoff = "DURABLE-UNLAUNCHED-HANDOFF. Inspect the completed evidence and avoid uncertain work replay.";
       requestRetirement(run.db, swarmId, oldName, 1, handoff, Date.now());
       await owner.advance(50);
@@ -63,14 +69,13 @@ test(
         run.fake.log().some((entry) => entry.fake === "spawn" && entry.agent === newName),
         false,
       );
-      const newMessage = sendMessage(
-        run.db,
-        swarmId,
-        "User",
-        [newName],
-        "NEW-ROLE-PENDING-NOT-FIRST-PROMPT",
-        Date.now(),
-      );
+      const newMessage = sendMessage(run.db, {
+        swarmId: swarmId,
+        from: "User",
+        to: newName,
+        text: "NEW-ROLE-PENDING-NOT-FIRST-PROMPT",
+        now: Date.now(),
+      });
       await owner.advance(950);
       await owner.advance(5000);
       await owner.finished();
@@ -98,20 +103,14 @@ test(
         assert.ok(!first.message.includes("NEW-ROLE-PENDING-NOT-FIRST-PROMPT"));
         assert.ok(!first.message.includes("BOOTSTRAP-WALL"));
         const tools = createAgentToolHandlers({ getDb: () => run.db, swarmId, run: 2, agentName: newName });
-        const wall = tools.readPosts({ only_new: true, count: 100 });
+        const wall = await tools.postsSearch({ limit: 50 });
         for (const post of posts.slice(-10)) assert.ok(wall.includes(post.text));
         assert.ok(!wall.includes(`\"${posts[0].text}\"`));
         writeFileSync(release, "ready");
         await waitFor(() => agentStatus(run.db, swarmId, newName) === "idle", "replacement finishes first fresh turn");
         assert.equal(recipientStatus(run.db, oldMessage.id, oldName), "pending");
         assert.equal(activeWorkerNames(run.db, swarmId).length, 1);
-        mutateAcceptance(
-          run.db,
-          swarmId,
-          newName,
-          { action: "vote", verdict: "accepted", reason: "Durable fresh bootstrap survives budget interruption." },
-          Date.now(),
-        );
+        finishWork(run.db, swarmId);
         await resumed.finished();
       } finally {
         await resumed.close();

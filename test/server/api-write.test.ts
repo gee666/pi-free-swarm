@@ -163,14 +163,26 @@ describe("messages", () => {
 
   it("replies in a thread and refuses non-members and missing threads", async () => {
     const { db } = board.temp;
-    const thread = sendMessage(db, swarmId, "Maria", ["User"], "Question?", Date.now()).threadId;
+    const thread = sendMessage(db, {
+      swarmId: swarmId,
+      from: "Maria",
+      to: "User",
+      text: "Question?",
+      now: Date.now(),
+    }).threadId;
     const replied = await postJson<SendMessageResponse>(url(`/threads/${thread}/reply`), { text: "Answer." });
     assert.equal(replied.status, 201);
     assert.deepEqual(
       replied.body.message.recipients.map((r) => [r.name, r.status]),
       [["Maria", "pending"]],
     );
-    const private_ = sendMessage(db, swarmId, "Maria", ["John"], "Between us", Date.now()).threadId;
+    const private_ = sendMessage(db, {
+      swarmId: swarmId,
+      from: "Maria",
+      to: "John",
+      text: "Between us",
+      now: Date.now(),
+    }).threadId;
     await expectError(postJson(url(`/threads/${private_}/reply`), { text: "Hi" }), 403, {
       error: "not_member",
       message: `You are not a member of thread #${private_}.`,
@@ -184,7 +196,13 @@ describe("messages", () => {
   it("answers 409 swarm_not_running for ended and interrupted swarms and stores nothing", async () => {
     const { db } = board.temp;
     const ended = seedSwarm(db, { now: Date.now(), name: "done" });
-    const thread = sendMessage(db, ended.id, "Maria", ["User"], "Bye", Date.now()).threadId;
+    const thread = sendMessage(db, {
+      swarmId: ended.id,
+      from: "Maria",
+      to: "User",
+      text: "Bye",
+      now: Date.now(),
+    }).threadId;
     endRun(db, ended.id, process.pid, "finished", Date.now());
     const orphaned = seedSwarm(db, { now: Date.now(), name: "orphan", runnerPid: DEAD_PID });
     const notRunning: ApiErrorBody = { error: "swarm_not_running", message: NOT_RUNNING_TEXT };
@@ -253,8 +271,8 @@ describe("User read marks", () => {
         )
         .get(swarmId)?.n,
     );
-    const first = sendMessage(db, swarmId, "Maria", ["User", "John"], "One", Date.now());
-    const second = sendMessage(db, swarmId, "Liam", ["User"], "Two", Date.now());
+    const first = sendMessage(db, { swarmId: swarmId, from: "Maria", to: "User", text: "One", now: Date.now() });
+    const second = sendMessage(db, { swarmId: swarmId, from: "Liam", to: "User", text: "Two", now: Date.now() });
     const marked = await postJson<MarkReadResponse>(reads, { messageIds: [first.id, second.id, first.id] });
     assert.equal(marked.status, 200);
     assert.deepEqual(marked.body, { updated: 2, unread: unreadBefore });

@@ -96,9 +96,21 @@ it("preserves cumulative archived/Watcher usage, current-run elapsed, status cou
   );
   createPost(temp.db, swarm.id, "Maria", { title: "result", text: "evidence" }, T0 + 3);
   createPost(temp.db, other.id, "Maria", { title: "unrelated", text: "private" }, T0);
-  const delivered = sendMessage(temp.db, swarm.id, "Maria", [USER_NAME], "delivered", T0 + 4);
-  const pending = sendMessage(temp.db, swarm.id, "John", [USER_NAME], "pending", T0 + 4);
-  const read = sendMessage(temp.db, swarm.id, "Liam", [USER_NAME], "read", T0 + 4);
+  const delivered = sendMessage(temp.db, {
+    swarmId: swarm.id,
+    from: "Maria",
+    to: USER_NAME,
+    text: "delivered",
+    now: T0 + 4,
+  });
+  const pending = sendMessage(temp.db, {
+    swarmId: swarm.id,
+    from: "John",
+    to: USER_NAME,
+    text: "pending",
+    now: T0 + 4,
+  });
+  const read = sendMessage(temp.db, { swarmId: swarm.id, from: "Liam", to: USER_NAME, text: "read", now: T0 + 4 });
   temp.db.sql
     .prepare("UPDATE message_recipients SET status = 'pending', delivered_at = NULL WHERE message_id = ?")
     .run(pending.id);

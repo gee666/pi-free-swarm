@@ -24,7 +24,7 @@ function config(): RunConfiguration {
       resumeStaggerMs: 5,
       reviveBackoffMs: [1, 2],
     },
-    limits: { bodyMaxChars: 1000, maxRpcFrameBytes: 1000000 },
+    limits: { maxRpcFrameBytes: 1000000 },
     budget: { moneyUsd: null, timeSeconds: 10, gracefulShutdown: false },
   };
 }

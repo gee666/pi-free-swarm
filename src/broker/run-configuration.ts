@@ -71,7 +71,6 @@ export function configureRun(
       startupRetries: watchdog.startupRetries,
     },
     limits: {
-      bodyMaxChars: env.settings.bodyMaxChars,
       maxRpcFrameBytes: env.settings.maxRpcFrameBytes ?? DEFAULT_MAX_RPC_FRAME_BYTES,
       maxAgents: env.settings.maxAgents,
     },

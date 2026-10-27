@@ -56,7 +56,7 @@ test("swarm creation writes full brief and seeds Planning tasks and Main criteri
   );
 });
 
-test("five stop gates fail independently and nothing completes from idleness or old quorum", (t) => {
+test("five stop gates fail independently and idleness never completes work", (t) => {
   const f = workFixture(t);
   const initial = evaluateCompletion(f.db, f.swarmId);
   assert.deepEqual(
@@ -77,11 +77,6 @@ test("five stop gates fail independently and nothing completes from idleness or 
   requestTaskReview(f.db, { ...f.input(), id: task.id, evidence: "Tests pass" });
   assert.equal(evaluateCompletion(f.db, f.swarmId).gates.find((gate) => gate.key === "review")?.count, 1);
   f.db.sql.prepare("UPDATE participants SET status = 'idle' WHERE swarm_id = ? AND kind = 'agent'").run(f.swarmId);
-  f.db.sql
-    .prepare(
-      "INSERT INTO acceptance_votes(swarm_id, agent, run, verdict, reason, updated_at) VALUES (?, ?, 1, 'accepted', 'legacy vote', ?)",
-    )
-    .run(f.swarmId, "Ann", T0);
   assert.equal(
     prepareWorkRunCompletion(f.db, { swarmId: f.swarmId, run: 1, runnerPid: process.pid, now: T0 }).kind,
     "pending",
@@ -140,6 +135,8 @@ test("completed outcome is persisted only by an owning active runner", (t) => {
   assert.equal(readProject(f.db, f.swarmId).outcome, "completed");
   assert.equal(endRun(f.db, f.swarmId, process.pid, "finished", T0, 1), true);
   assert.equal(f.db.sql.prepare("SELECT status FROM swarms WHERE id = ?").get(f.swarmId)?.status, "finished");
+  assert.equal(evaluateCompletion(f.db, f.swarmId).done, true);
+  assert.ok(evaluateCompletion(f.db, f.swarmId).gates.every((gate) => gate.ok));
 });
 
 test("pending/rejected exceptions do not complete, approved exceptions defer tasks and yield stopped_with_blockers", (t) => {
@@ -154,7 +151,7 @@ test("pending/rejected exceptions do not complete, approved exceptions defer tas
   approveScope(f.db, f.input("User"));
   const pending = evaluateCompletion(f.db, f.swarmId);
   assert.equal(pending.done, false);
-  assert.equal(pending.awaitingUser, false, "the task gate also fails until an exception defers the task");
+  assert.equal(pending.awaitingUser, true, "only User can approve the exception that defers this task");
   decideCriterionBlocker(f.db, { ...f.input("User"), criterionId: f.criterion.id, decision: "reject" });
   assert.equal(evaluateCompletion(f.db, f.swarmId).done, false);
   decideCriterionBlocker(f.db, { ...f.input("User"), criterionId: f.criterion.id, decision: "approve" });
@@ -175,6 +172,18 @@ test("pending exception is awaitingUser when all linked tasks are accepted", (t)
   approveScope(f.db, f.input("User"));
   assert.equal(evaluateCompletion(f.db, f.swarmId).awaitingUser, true);
   decideCriterionBlocker(f.db, { ...f.input("User"), criterionId: f.criterion.id, decision: "reject" });
+  assert.equal(evaluateCompletion(f.db, f.swarmId).awaitingUser, false);
+});
+
+test("pending exceptions do not hide unfinished mixed-criterion tasks or reviews", (t) => {
+  const f = workFixture(t);
+  f.settle();
+  const task = f.task(f.criterion.id, [], true);
+  agreement(f, f.criterion.id);
+  assert.equal(evaluateCompletion(f.db, f.swarmId).awaitingUser, true);
+  startTask(f.db, { ...f.input(), id: task.id });
+  requestTaskReview(f.db, { ...f.input(), id: task.id, evidence: "Checks pass" });
+  agreement(f, f.criterion.id);
   assert.equal(evaluateCompletion(f.db, f.swarmId).awaitingUser, false);
 });
 

@@ -34,7 +34,7 @@ function initialConfiguration(): RunConfiguration {
       resumeStaggerMs: 50,
       reviveBackoffMs: [40],
     },
-    limits: { bodyMaxChars: 4_000, maxRpcFrameBytes: DEFAULT_MAX_RPC_FRAME_BYTES },
+    limits: { maxRpcFrameBytes: DEFAULT_MAX_RPC_FRAME_BYTES },
     budget: { moneyUsd: null, timeSeconds: 60, gracefulShutdown: false },
   };
 }

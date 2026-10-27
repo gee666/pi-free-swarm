@@ -1,3 +1,35 @@
+ALTER TABLE swarms ADD COLUMN admission_closed_run INTEGER;
+UPDATE swarms SET admission_closed_run = (SELECT closed_run FROM acceptance WHERE swarm_id = swarms.id);
+DROP TRIGGER acceptance_on_swarm;
+DROP TRIGGER wall_post_insert;
+DROP TRIGGER wall_comment_insert;
+DROP TABLE acceptance_votes;
+DROP TABLE acceptance;
+ALTER TABLE swarms DROP COLUMN acceptance_criteria;
+DROP TABLE post_claims;
+DROP TABLE post_contracts;
+DROP TABLE post_coverage;
+DROP TABLE comment_coverage;
+DROP TABLE read_marks;
+DROP TABLE replacement_post_baselines;
+DROP TABLE wall_changes;
+
+CREATE TEMP TABLE post_sequence AS SELECT seq FROM sqlite_sequence WHERE name = 'posts';
+CREATE TABLE posts_v2 (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  swarm_id INTEGER NOT NULL REFERENCES swarms(id),
+  author TEXT NOT NULL,
+  title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 100),
+  body TEXT NOT NULL CHECK (length(body) BETWEEN 1 AND 16000),
+  created_at INTEGER NOT NULL
+);
+INSERT INTO posts_v2 SELECT * FROM posts;
+DROP TABLE posts;
+ALTER TABLE posts_v2 RENAME TO posts;
+CREATE INDEX posts_by_swarm ON posts(swarm_id, id);
+UPDATE sqlite_sequence SET seq = MAX(seq, COALESCE((SELECT seq FROM post_sequence), 0)) WHERE name = 'posts';
+DROP TABLE post_sequence;
+
 ALTER TABLE swarms ADD COLUMN brief_path TEXT;
 ALTER TABLE swarms ADD COLUMN intent_summary TEXT;
 ALTER TABLE swarms ADD COLUMN intent_path TEXT;

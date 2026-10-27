@@ -1,11 +1,9 @@
 // Agent mode (PI_SWARM_ROLE=agent): a child spawned by a swarm runner. It gets only the swarm_* tools and
 // the parent watch; never swarm/resume_swarm (no recursion) and never the board host.
-import path from "node:path";
 import type { TimerHandle } from "./clock.js";
 import type { SwarmExtensionApi } from "./extension-api.js";
 import { AGENT_NAME_ENV, DB_ENV, RUNNER_PID_ENV, RUN_ENV, SWARM_ID_ENV, WATCHER_NAME } from "./constants.js";
 import { startParentWatch } from "./agents/parent-watch.js";
-import { bodyLimitIn } from "./broker/body-limit.js";
 import { openSwarmDb, type SwarmDb } from "./store/db.js";
 import { registerWatcherTools } from "./tools/watcher-tools.js";
 import { IDLE_ONLY_TOOLS, registerAgentTools } from "./tools/agent-tools.js";
@@ -58,16 +56,12 @@ export function registerAgentMode(pi: SwarmExtensionApi, env: NodeJS.ProcessEnv)
   // Opened for persisted tool eligibility or the first tool call; the runner creates the DB.
   let db: SwarmDb | null = null;
   let watch: TimerHandle | null = null;
-  registerAgentTools(
-    pi,
-    {
-      getDb: () => (db ??= openSwarmDb(identity.dbPath, { create: false })),
-      swarmId: identity.swarmId,
-      run: identity.run,
-      agentName: identity.agentName,
-    },
-    bodyLimitIn(path.dirname(identity.dbPath)),
-  );
+  registerAgentTools(pi, {
+    getDb: () => (db ??= openSwarmDb(identity.dbPath, { create: false })),
+    swarmId: identity.swarmId,
+    run: identity.run,
+    agentName: identity.agentName,
+  });
   if (identity.agentName === WATCHER_NAME)
     registerWatcherTools(pi, {
       getDb: () => (db ??= openSwarmDb(identity.dbPath, { create: false })),

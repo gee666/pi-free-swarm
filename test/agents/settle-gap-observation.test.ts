@@ -9,7 +9,6 @@ test("a previous turn settling after queue acknowledgment cannot discard the new
   const fixture = createFakePiRun({});
   const fake = fakeTransportFactory();
   const reads: number[][] = [];
-  const posts: number[][] = [];
   const supervisor = new AgentSupervisor({
     name: "Maria",
     transportFactory: fake.factory,
@@ -20,7 +19,6 @@ test("a previous turn settling after queue acknowledgment cannot discard the new
       onActivity: () => {},
       onCrash: (crash) => assert.fail(crash.message),
       onMessagesRead: (ids) => reads.push(ids),
-      onPostsRead: (ids) => posts.push(ids),
     },
   });
   try {
@@ -35,15 +33,15 @@ test("a previous turn settling after queue acknowledgment cannot discard the new
     assert.deepEqual(await initial, { accepted: true });
     transport.event({ type: "agent_start" });
     const text = "[swarm message #41] next\n[swarm post #7] Evidence\nComplete fresh body.";
-    const queued = supervisor.deliver({ text, messageIds: [41], postIds: [7] });
+    const queued = supervisor.deliver({ text, messageIds: [41] });
     await Promise.resolve();
     transport.respond();
     assert.deepEqual(await queued, { accepted: true });
-    assert.deepEqual([reads, posts], [[], []], "queue acceptance is not observation");
+    assert.deepEqual(reads, [], "queue acceptance is not observation");
     transport.event({ type: "agent_settled" });
     transport.event({ type: "agent_start" });
     transport.event({ type: "message_start", message: { role: "user", content: text } });
-    assert.deepEqual([reads, posts], [[[41]], [[7]]]);
+    assert.deepEqual(reads, [[41]]);
   } finally {
     await supervisor.stop();
     fixture.cleanup();

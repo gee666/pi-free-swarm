@@ -1,7 +1,6 @@
 import { BrokerError } from "../broker/errors.js";
 import { checkPage, requireParticipant, requireSwarm } from "../broker/validate.js";
 import { PAGE_DEFAULT_COUNT, WATCHER_NAME } from "../constants.js";
-import { coverCommentNotifications } from "../broker/subscriptions.js";
 import type { SwarmDb } from "../store/db.js";
 import { getMessages, getThreadView } from "../store/message-queries.js";
 import { int } from "../store/rows.js";
@@ -43,6 +42,5 @@ export function readThreadTool(
     }),
   );
   const page = renderReadPage(`Thread #${thread.id} · members: ${thread.members.join(", ")}`, items, position, count);
-  coverCommentNotifications(db, swarmId, reader, page.completeIds, true);
   return page.text;
 }

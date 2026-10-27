@@ -30,7 +30,7 @@ export interface RunConfiguration {
     idleTimeoutMs?: number;
     startupRetries?: number;
   };
-  limits: { bodyMaxChars: number; maxRpcFrameBytes: number; maxAgents?: number };
+  limits: { maxRpcFrameBytes: number; maxAgents?: number };
   budget: {
     moneyUsd: number | null;
     timeSeconds: number | null;

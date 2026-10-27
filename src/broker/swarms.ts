@@ -14,7 +14,6 @@ import { BrokerError } from "./errors.js";
 import { requireAcceptanceCriteria } from "./validate.js";
 import { cleanupRun, type RunEndStatus } from "./run-cleanup.js";
 import { interruptedActiveUntil } from "./interrupted-time.js";
-import { reopenAcceptance } from "./run-acceptance.js";
 import { seedWorkGraph } from "./project.js";
 
 export type { RunEndStatus } from "./run-cleanup.js";
@@ -61,12 +60,11 @@ export function createSwarm(
     const swarmId = count(
       db.sql
         .prepare(
-          `INSERT INTO swarms (name, task_prompt, acceptance_criteria, agent_amount, status, runner_pid, runner_heartbeat_at,
+          `INSERT INTO swarms (name, task_prompt, agent_amount, status, runner_pid, runner_heartbeat_at,
              created_at, started_at, run_count)
-           VALUES (?, ?, ?, ?, 'starting', ?, ?, ?, ?, 1)`,
+           VALUES (?, ?, ?, 'starting', ?, ?, ?, ?, 1)`,
         )
-        .run(name, taskPrompt, JSON.stringify(acceptanceCriteria), input.agentNames.length, runnerPid, now, now, now)
-        .lastInsertRowid,
+        .run(name, taskPrompt, input.agentNames.length, runnerPid, now, now, now).lastInsertRowid,
     );
     db.sql.prepare("INSERT INTO swarm_runs (swarm_id, run, started_at) VALUES (?, 1, ?)").run(swarmId, now);
     const reserved = db.sql.prepare("INSERT INTO participants (swarm_id, name, kind) VALUES (?, ?, ?)");
@@ -121,7 +119,6 @@ export function beginResume(
     }
     rejectRunConfigurationRequests(db, swarmId, int(row, "run_count"), now);
     ensureWatcher(db, swarmId);
-    reopenAcceptance(db, swarmId, now);
     const run = int(row, "run_count") + 1;
     db.sql
       .prepare(

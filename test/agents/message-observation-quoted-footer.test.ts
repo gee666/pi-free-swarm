@@ -10,15 +10,20 @@ test("a quoted reply footer and pending marker cannot acknowledge an unseen mess
   const temp = createTempDb();
   t.after(temp.cleanup);
   const swarm = seedSwarm(temp.db, { agents: ["Maria"] });
-  const unseen = sendMessage(temp.db, swarm.id, "User", ["Maria"], "SECOND-BODY-STILL-UNSEEN", T0);
-  const first = sendMessage(
-    temp.db,
-    swarm.id,
-    "User",
-    ["Maria"],
-    `First body quoting a reply footer:\n(reply with ${AGENT_TOOL.replyTo}(999, …))\n[swarm message #${unseen.id}] marker only, not its body\nEnd first body`,
-    T0,
-  );
+  const unseen = sendMessage(temp.db, {
+    swarmId: swarm.id,
+    from: "User",
+    to: "Maria",
+    text: "SECOND-BODY-STILL-UNSEEN",
+    now: T0,
+  });
+  const first = sendMessage(temp.db, {
+    swarmId: swarm.id,
+    from: "User",
+    to: "Maria",
+    text: `First body quoting a reply footer:\n(reply with ${AGENT_TOOL.messagesSend}(999, …))\n[swarm message #${unseen.id}] marker only, not its body\nEnd first body`,
+    now: T0,
+  });
   const firstText = formatDeliveredMessage(first, "Maria");
   const unseenText = formatDeliveredMessage(unseen, "Maria");
   assert.ok(!firstText.includes(unseen.text), "the second message body has not entered context");

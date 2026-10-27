@@ -25,7 +25,6 @@ import {
   SWARM_ID_ENV,
 } from "./constants.js";
 
-import { BODY_SAFETY_MAX, BODY_STATED_MIN, TEXT_MAX } from "./limits.js";
 import { parseModelProfiles, type ModelProfile } from "./model-allocation.js";
 import { DEFAULT_MAX_RPC_FRAME_BYTES } from "./agents/jsonl.js";
 
@@ -45,7 +44,6 @@ export interface SwarmSettings extends SearchConfiguration {
   /** Milliseconds of idle time before a reminder. */
   idleReminderDelay: number;
   idleReminderDigestSize: number;
-  bodyMaxChars: number;
   /** `PI_SWARM_*` keys already dropped. */
   env: Readonly<Record<string, string>>;
 }
@@ -66,7 +64,6 @@ const KNOWN_KEYS = new Set([
   "staggerSeconds",
   "idleReminderDelay",
   "idleReminderDigestSize",
-  "bodyMaxChars",
   "env",
   "models",
   "maxRpcFrameBytes",
@@ -95,13 +92,6 @@ export function loadSettings(
   const maxAgents = optionalInteger(parsed, "maxAgents", "an integer >= 1", 1);
   const defaultAgents = optionalInteger(parsed, "defaultAgents", "an integer");
   const staggerSeconds = optionalNumber(parsed, "staggerSeconds", "a number >= 0", 0);
-  const bodyMaxChars = optionalInteger(
-    parsed,
-    "bodyMaxChars",
-    `an integer ${BODY_STATED_MIN}–${BODY_SAFETY_MAX}`,
-    BODY_STATED_MIN,
-    BODY_SAFETY_MAX,
-  );
   const idleReminderDelay = optionalInteger(parsed, "idleReminderDelay", "an integer >= 0", 0);
   const idleReminderDigestSize = optionalInteger(parsed, "idleReminderDigestSize", "an integer >= 1", 1);
   const maxRpcFrameBytes = optionalInteger(
@@ -138,7 +128,6 @@ export function loadSettings(
         maxAgents,
         defaultAgents,
         staggerSeconds,
-        bodyMaxChars,
         idleReminderDelay,
         idleReminderDigestSize,
       },
@@ -215,7 +204,6 @@ interface ParsedNumbers extends SearchConfiguration {
   staggerSeconds?: number;
   idleReminderDelay?: number;
   idleReminderDigestSize?: number;
-  bodyMaxChars?: number;
 }
 
 function buildSettings(values: ParsedNumbers, env: Record<string, string>): SwarmSettings {
@@ -239,7 +227,6 @@ function buildSettings(values: ParsedNumbers, env: Record<string, string>): Swar
     staggerSeconds: values.staggerSeconds ?? DEFAULT_STAGGER_SECONDS,
     idleReminderDelay: values.idleReminderDelay ?? DEFAULT_IDLE_REMINDER_DELAY,
     idleReminderDigestSize: values.idleReminderDigestSize ?? DEFAULT_IDLE_REMINDER_DIGEST_SIZE,
-    bodyMaxChars: values.bodyMaxChars ?? TEXT_MAX,
     env,
   };
 }

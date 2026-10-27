@@ -1,8 +1,9 @@
+import { continueConversation } from "../helpers/conversation.js";
 import assert from "node:assert/strict";
 import { after, describe, it } from "node:test";
 import { setAgentStatus } from "../../src/broker/agent-state.js";
 import { markDelivered } from "../../src/broker/delivery-state.js";
-import { replyToThread, sendMessage } from "../../src/broker/messages.js";
+import { sendMessage } from "../../src/broker/messages.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
 import { getMailbox, getThread, listInboxAfter } from "../../src/store/message-queries.js";
 import { getStats } from "../../src/store/stats-queries.js";
@@ -18,7 +19,7 @@ describe("participants", () => {
   const swarm = seedSwarm(db);
 
   it("lists User first, then agents; Main and System never", () => {
-    sendMessage(db, swarm.id, "Maria", ["John", "User"], "a", T0);
+    sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "John", text: "a", now: T0 });
     const [user, maria, john] = listParticipants(db, swarm.id);
     assert.deepEqual(user, { kind: "user", name: "User", unread: 1, joinedAt: null, lastActivityAt: null });
     assert.equal(maria.kind === "agent" && maria.launchOrder, 0);
@@ -30,9 +31,9 @@ describe("participants", () => {
 
 describe("mailbox", () => {
   const swarm = seedSwarm(db);
-  const t1 = sendMessage(db, swarm.id, "Maria", ["John"], "one", T0 + 1);
-  const t2 = sendMessage(db, swarm.id, "Liam", ["John", "Maria"], "two", T0 + 2);
-  const reply = replyToThread(db, swarm.id, "John", t1.threadId, "re one", T0 + 3);
+  const t1 = sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "John", text: "one", now: T0 + 1 });
+  const t2 = sendMessage(db, { swarmId: swarm.id, from: "Liam", to: "John", text: "two", now: T0 + 2 });
+  const reply = continueConversation(db, swarm.id, "John", t1.threadId, "re one", T0 + 3);
   markDelivered(db, swarm.id, "John", [t2.id], T0 + 4);
 
   it("groups the inbox by thread, newest activity first, with unread counts", () => {
@@ -80,7 +81,7 @@ describe("wall and stats", () => {
     const post = createPost(db, swarm.id, "Maria", { title: "a", text: "x" }, T0);
     createPost(db, swarm.id, "John", { title: "b", text: "y" }, T0);
     addComment(db, swarm.id, "John", post.id, "c", T0);
-    sendMessage(db, swarm.id, "John", ["Maria"], "m", T0);
+    sendMessage(db, { swarmId: swarm.id, from: "John", to: "Maria", text: "m", now: T0 });
     setAgentStatus(db, swarm.id, "John", "working", T0);
 
     const page = listPosts(db, swarm.id, { count: 1, offset: 1 });

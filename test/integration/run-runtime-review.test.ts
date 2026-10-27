@@ -18,7 +18,7 @@ import {
   waitFor,
   promptTexts,
   waitForWorkersIdle,
-  voteAll,
+  finishWork,
 } from "./run-fixture.js";
 
 test("terminal error leaving accepted steering unread recovers once and finishes", { timeout: 15_000 }, async (t) => {
@@ -35,11 +35,17 @@ test("terminal error leaving accepted steering unread recovers once and finishes
   const id = newestSwarmId(run.db);
   const [name] = agentNames(run.db, id);
   await waitFor(() => agentStatus(run.db, id, name) === "working", "working");
-  const message = sendMessage(run.db, id, "User", [name], "must not be lost", Date.now());
+  const message = sendMessage(run.db, {
+    swarmId: id,
+    from: "User",
+    to: name,
+    text: "must not be lost",
+    now: Date.now(),
+  });
   await waitFor(() => recipientStatus(run.db, message.id, name) === "delivered", "accepted steer");
   await waitFor(() => recipientStatus(run.db, message.id, name) === "read", "recovered steering read");
   await waitForWorkersIdle(run, id);
-  voteAll(run.db, id, "accepted", "Recovered steering completed without losing the message.");
+  finishWork(run.db, id);
   assert.equal((await result).end, "finished");
   assert.equal(recipientStatus(run.db, message.id, name), "read");
   assert.equal(run.fake.log().filter((record) => record.type === "clear_queue").length, 1);

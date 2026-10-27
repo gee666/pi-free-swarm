@@ -67,7 +67,7 @@ describe("raw outbox scan and retention", () => {
     t.after(temp.cleanup);
     const swarm = seedSwarm(temp.db);
     const before = latestEventId(temp.db);
-    const id = insertEvent(temp.db, swarm.id, "acceptance.updated", { revision: 2 }, T0);
+    const id = insertEvent(temp.db, swarm.id, "project.changed", { id: 2 }, T0);
     assert.deepEqual(scanEventsAfter(temp.db, before, 10).events, [
       { id, swarmId: swarm.id, type: "acceptance.updated", payload: { revision: 2 }, createdAt: T0 },
     ]);

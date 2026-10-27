@@ -27,8 +27,6 @@ export function runAgentFactory(
     run,
     runnerPid: env.runnerPid,
     swarmName: swarm.name,
-    taskPrompt: swarm.taskPrompt,
-    acceptanceCriteria: swarm.acceptanceCriteria,
     clock: env.clock,
     watchdog: timings.watchdog,
     modelHasKnownPricing: (model) =>

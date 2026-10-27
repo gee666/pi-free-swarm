@@ -1,17 +1,14 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { it } from "node:test";
-import { inspectAcceptance } from "../../src/broker/acceptance.js";
-import { initialWallCursor, readWallDeltaAs } from "../../src/broker/wall-delta.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
-import { bodyCeiling, TEXT_MAX } from "../../src/limits.js";
+import { WORK_TEXT_ACCEPTED } from "../../src/limits.js";
 import { SCHEMA_VERSION, openSwarmDb } from "../../src/store/db.js";
 
 it("upgrades released v1 without losing history, delivery state, foreign keys or sequence high-water marks", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "swarm-migration-"));
+  const dir = mkdtempSync(path.resolve("tmp/swarm-migration-"));
   const file = path.join(dir, "swarm.db");
   try {
     const legacy = new DatabaseSync(file);
@@ -30,7 +27,7 @@ it("upgrades released v1 without losing history, delivery state, foreign keys or
       INSERT INTO read_marks VALUES (1,'Maria',8);
       PRAGMA user_version = 1;
     `);
-    const tables = ["posts", "comments", "messages", "message_recipients", "thread_members", "read_marks"];
+    const tables = ["posts", "comments", "messages", "message_recipients", "thread_members"];
     const before = tables.map((table) => legacy.prepare(`SELECT * FROM ${table}`).all());
     legacy.close();
     const db = openSwarmDb(file, { create: false });
@@ -41,18 +38,10 @@ it("upgrades released v1 without losing history, delivery state, foreign keys or
       );
       assert.deepEqual(db.sql.prepare("PRAGMA foreign_key_check").all(), []);
       assert.equal(db.sql.prepare("PRAGMA user_version").get()?.user_version, SCHEMA_VERSION);
-      assert.equal(inspectAcceptance(db, 1).verdict, "unchecked");
-      assert.equal(inspectAcceptance(db, 1).originalTask, "task");
+
       assert.equal(db.sql.prepare("PRAGMA foreign_keys").get()?.foreign_keys, 1);
-      const delta = readWallDeltaAs(db, 1, "Maria", initialWallCursor(1));
-      assert.deepEqual(
-        delta.changes.map((change) => [change.kind, change.id]),
-        [
-          ["post", 8],
-          ["comment", 4],
-        ],
-      );
-      const long = "x".repeat(bodyCeiling(TEXT_MAX));
+      assert.equal(db.sql.prepare("SELECT 1 FROM sqlite_master WHERE name = 'read_marks'").get(), undefined);
+      const long = "x".repeat(WORK_TEXT_ACCEPTED);
       const post = createPost(db, 1, "Maria", { title: "long", text: long }, 3);
       assert.equal(post.id, 100);
       assert.equal(addComment(db, 1, "Maria", 8, long, 3).comment.text, long);

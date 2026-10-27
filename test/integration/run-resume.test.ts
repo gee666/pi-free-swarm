@@ -6,7 +6,7 @@ import { BrokerError } from "../../src/broker/errors.js";
 import { createSwarm, markSwarmRunning } from "../../src/broker/swarms.js";
 import { resumeSwarm, startSwarm, stopAllRuns } from "../../src/broker/swarm-run.js";
 import { MAIN_FEEDBACK_POST_SUFFIX, MAIN_FEEDBACK_POST_TITLE, RESUME_PROMPT_HEADER } from "../../src/constants.js";
-import { bodyCeiling, charCount, TEXT_MAX } from "../../src/limits.js";
+import { charCount, WORK_TEXT_ACCEPTED } from "../../src/limits.js";
 import { getSwarm } from "../../src/store/swarm-queries.js";
 import { listPosts } from "../../src/store/wall-queries.js";
 import { SCENARIOS } from "../fixtures/fake-pi/harness.js";
@@ -18,7 +18,7 @@ import {
   recipientStatus,
   spawnsOf,
   waitForWorkersIdle,
-  voteAll,
+  finishWork,
   type RunFixture,
 } from "./run-fixture.js";
 
@@ -52,7 +52,7 @@ describe("resume_swarm", () => {
       );
       const swarmId = newestSwarmId(db);
       await waitForWorkersIdle(run, swarmId);
-      voteAll(db, swarmId, "accepted", "Initial task checked.");
+      finishWork(db, swarmId);
       const first = await firstRun;
       assert.equal(first.end, "finished");
       const names = agentNames(db, swarmId);
@@ -60,7 +60,7 @@ describe("resume_swarm", () => {
 
       const secondRun = resumeSwarm(run.env, { swarmId, message: FEEDBACK }, {});
       await waitForWorkersIdle(run, swarmId);
-      voteAll(db, swarmId, "accepted", "Feedback addressed and checked.");
+      finishWork(db, swarmId);
       const second = await secondRun;
       assert.equal(second.end, "finished");
       assert.equal(second.run, 2);
@@ -73,7 +73,7 @@ describe("resume_swarm", () => {
       assert.equal(post.author, "Main");
       assert.equal(post.title, MAIN_FEEDBACK_POST_TITLE);
       assert.ok(post.text.endsWith(` ${MAIN_FEEDBACK_POST_SUFFIX}`));
-      assert.ok(charCount(post.text) <= bodyCeiling(TEXT_MAX));
+      assert.ok(charCount(post.text) <= WORK_TEXT_ACCEPTED);
 
       const resumed = spawnsOf(run.fake).slice(2);
       assert.deepEqual(resumed.map((spawn) => spawn.session).sort(), [...sessions].sort(), "same session files");
@@ -132,7 +132,7 @@ describe("resume_swarm", () => {
     const outcome = resumeSwarm(run.env, { swarmId: swarm.id, message: "Carry on." }, {});
     assert.equal(newestSwarmId(db), swarm.id);
     await waitForWorkersIdle(run, swarm.id);
-    voteAll(db, swarm.id, "accepted", "Recovered workers completed the task.");
+    finishWork(db, swarm.id);
     const result = await outcome;
     assert.equal(result.end, "finished");
     assert.equal(result.run, 2);

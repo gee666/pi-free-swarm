@@ -1,178 +1,138 @@
 import assert from "node:assert/strict";
-import { after, describe, it } from "node:test";
+import { test } from "node:test";
 import { Value } from "typebox/value";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { Clock } from "../../src/clock.js";
-import { AGENT_TOOL, UNDELIVERABLE_REPLY_TEXT } from "../../src/constants.js";
-import { sendMessage } from "../../src/broker/messages.js";
-import { endRun } from "../../src/broker/swarms.js";
-import { initialWallCursor } from "../../src/broker/wall-delta.js";
-import { addComment, createPost } from "../../src/broker/wall.js";
 import { createAgentToolHandlers, registerAgentTools } from "../../src/tools/agent-tools.js";
-import { timeAgo } from "../../src/wall-format.js";
+import { AGENT_TOOL, WATCHER_TOOLS, WATCHER_TOOL } from "../../src/constants.js";
 import { FakeExtensionApi } from "../helpers/fake-extension-api.js";
-import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
+import { workFixture } from "../helpers/work-graph.js";
+import { getTaskDetail, getCriterionDetail } from "../../src/broker/work-queries.js";
+import { getPostPage } from "../../src/broker/post-queries.js";
+import { readConversation } from "../../src/broker/messages.js";
 
-const temp = createTempDb();
-after(() => temp.cleanup());
-const { db } = temp;
-
-function withCursor(text: string, swarmId: number, nextOffset?: number): string {
-  return `${text}\nComplete: ${nextOffset === undefined}${nextOffset === undefined ? "" : ` · Next offset: ${nextOffset}`}\nNext cursor: ${initialWallCursor(swarmId)} (delta history starts at the beginning)`;
+function handlers(f: ReturnType<typeof workFixture>, name = "Ann") {
+  return createAgentToolHandlers({ getDb: () => f.db, swarmId: f.swarmId, run: 1, agentName: name });
 }
 
-const NOW = T0 + 5 * 60_000;
-// Within the run lock's freshness window, so messages count as live.
-const liveClock: Clock = { now: () => T0 + 1_000, after: () => ({ cancel() {} }), every: () => ({ cancel() {} }) };
-const laterClock: Clock = { ...liveClock, now: () => NOW };
-
-describe("registerAgentTools", () => {
-  it("registers the same swarm tools for every peer with a prompt snippet each", () => {
-    const tools: { name: string; label: string; description: string; promptSnippet?: string }[] = [];
-    const pi: Pick<ExtensionAPI, "registerTool"> = {
-      registerTool: ({ name, label, description, promptSnippet }) =>
-        void tools.push({ name, label, description, promptSnippet }),
-    };
-    registerAgentTools(pi, { getDb: () => db, swarmId: 1, run: 1, agentName: "Maria" }, 200);
-    assert.deepEqual(
-      tools.map((tool) => tool.name),
-      Object.values(AGENT_TOOL),
-    );
-    for (const tool of tools) {
-      assert.ok(tool.promptSnippet && tool.promptSnippet.length < 80, tool.name);
-      assert.ok(tool.label.length > 0);
-      assert.doesNotMatch(tool.description, /coordinator|reviewer|manager/i);
-    }
-    for (const name of [AGENT_TOOL.post, AGENT_TOOL.comment, AGENT_TOOL.message, AGENT_TOOL.replyTo]) {
-      const description = tools.find((tool) => tool.name === name)?.description ?? "";
-      assert.match(description, /brief/i);
-      assert.ok(description.includes("At most 200 chars; put longer material in a file and share its path."));
-    }
-  });
-});
-
-it("exposes cursor and acceptance schemas identically for all peers", () => {
-  const swarm = seedSwarm(db);
-  const peers = ["Maria", "John"].map((agentName) => {
-    const pi = new FakeExtensionApi();
-    registerAgentTools(pi, { getDb: () => db, swarmId: swarm.id, run: 1, agentName }, 200);
-    return pi;
-  });
-  assert.deepEqual(peers[0].tools, peers[1].tools);
-  const acceptanceSchema = peers[0].tool(AGENT_TOOL.acceptance).parameters;
-  assert.ok("type" in acceptanceSchema);
-  assert.equal(acceptanceSchema.type, "object");
-  assert.ok(
-    Value.Check(peers[0].tool(AGENT_TOOL.readPosts).parameters, { after: initialWallCursor(swarm.id), count: 1 }),
+test("worker tool names exactly match v2; watcher receives only read tools", (t) => {
+  const f = workFixture(t);
+  const pi = new FakeExtensionApi();
+  const identity = { getDb: () => f.db, swarmId: f.swarmId, run: 1, agentName: "Ann" };
+  registerAgentTools(pi, identity);
+  assert.deepEqual(pi.toolNames().sort(), Object.values(AGENT_TOOL).sort());
+  const watcher = new FakeExtensionApi();
+  registerAgentTools(watcher, { ...identity, agentName: "Watcher" });
+  assert.deepEqual(
+    watcher.toolNames().sort(),
+    WATCHER_TOOLS.filter((name) => !Object.values(WATCHER_TOOL).some((value) => value === name)).sort(),
   );
-  assert.ok(Value.Check(peers[0].tool(AGENT_TOOL.acceptance).parameters, { action: "inspect" }));
-  assert.ok(Value.Check(acceptanceSchema, { action: "vote", verdict: "accepted", reason: "Ready." }));
-  assert.equal(Value.Check(acceptanceSchema, { action: "claim", revision: 0 }), false);
-  assert.equal(Value.Check(peers[0].tool(AGENT_TOOL.acceptance).parameters, { action: "unknown" }), false);
+  assert.ok(Value.Check(pi.tool(AGENT_TOOL.messagesSend).parameters, { to: "Ben", body: "Hi" }));
+  assert.equal(Value.Check(pi.tool(AGENT_TOOL.messagesSend).parameters, { to: ["Ben"], body: "Hi" }), false);
+  assert.equal(Value.Check(pi.tool(AGENT_TOOL.tasksCreate).parameters, { title: "X", body: "Y", criteria: [] }), false);
 });
 
-describe("agent tool output", () => {
-  const swarm = seedSwarm(db);
-  const maria = createAgentToolHandlers({
-    getDb: () => db,
-    swarmId: swarm.id,
-    run: 1,
-    agentName: "Maria",
-    clock: liveClock,
+test("task and criterion handlers adapt snake_case, preserve identity and return revisions", (t) => {
+  const f = workFixture(t);
+  const run = handlers(f);
+  const output = run.tasksCreate({
+    title: "Implement",
+    body: "Implement and verify",
+    criteria: [{ criterion_id: f.criterion.id, contribution: "Implementation" }],
+    claim: true,
   });
-  const john = createAgentToolHandlers({
-    getDb: () => db,
-    swarmId: swarm.id,
-    run: 1,
-    agentName: "John",
-    clock: laterClock,
-  });
+  const id = Number(/#(\d+)/.exec(output)?.[1]);
+  assert.match(output, /r2 \[claimed\]/);
+  const detail = getTaskDetail(f.db, f.swarmId, id);
+  assert.equal(detail.owner, "Ann");
+  assert.equal(detail.criteria[0]?.criterionId, f.criterion.id);
+  run.tasksTransition({ id, action: "start" });
+  assert.throws(() => run.tasksTransition({ id, action: "request_review" }), /evidence is required/);
+  run.tasksTransition({ id, action: "request_review", evidence: "src/a.ts; tests passed" });
+  assert.throws(() => run.tasksReview({ id, verdict: "accept", reason: "Good" }), /owner|own task/);
+  assert.match(handlers(f, "Ben").tasksReview({ id, verdict: "accept", reason: "Independent check" }), /accepted/);
+  assert.throws(() => run.tasksEdit({ id, expected_revision: 1, body: "Changed" }), /Reread/);
+  const criterion = getCriterionDetail(f.db, f.swarmId, f.criterion.id);
+  run.criteriaEdit({ id: criterion.id, expected_revision: criterion.revision, verification: "npm test" });
+  assert.equal(getCriterionDetail(f.db, f.swarmId, criterion.id).verification, "npm test");
+  assert.match(run.criteriaVoteContext({}), /Next cursor:/);
+});
 
-  it("posts, comments and reads the wall with (new) flags", () => {
-    assert.equal(john.readPosts({}), withCursor("The wall is empty.", swarm.id));
-    assert.equal(maria.post({ title: "Kickoff", text: "I take the API." }), "Posted #1.");
-    assert.equal(john.comment({ post_id: 1, text: "UI is mine" }), "Commented #1 on post #1.");
-    assert.equal(
-      john.readPosts({}),
-      withCursor("#1 Maria · 4m ago · Kickoff — I take the API. (1 comment) (new)", swarm.id),
-    );
-    assert.equal(john.readPosts({}), withCursor("#1 Maria · 4m ago · Kickoff — I take the API. (1 comment)", swarm.id));
-    createPost(db, swarm.id, "Liam", { title: "Tests", text: "I take tests." }, T0 + 2_000);
-    assert.equal(
-      john.readPosts({ count: 1 }),
-      withCursor(
-        "Posts 1–1 of 2, newest first:\n#2 Liam · 4m ago · Tests — I take tests. (0 comments) (new)",
-        swarm.id,
-        1,
-      ),
-    );
-    assert.equal(john.readPosts({ offset: 5 }), withCursor("No posts at offset 5 (2 total).", swarm.id));
-    assert.throws(() => john.readPosts({ count: 500 }), { message: "count must be an integer 1–100." });
+test("dependency follow-ups and searches show compact status lines, cursor and mode", async (t) => {
+  const f = workFixture(t);
+  const dependency = f.task();
+  const run = handlers(f);
+  const output = run.tasksCreate({
+    title: "Dependent",
+    body: "Wait for prerequisite",
+    criteria: [{ criterion_id: f.criterion.id, contribution: "Integration" }],
+    depends_on: [dependency.id],
+    claim: true,
   });
+  assert.match(output, new RegExp(`Waiting on #${dependency.id}`));
+  assert.match(output, /you will be notified/);
+  const search = await run.tasksSearch({ query: "Dependent", waiting: true, limit: 1 });
+  assert.match(search, /\[claimed\] Dependent · owner Ann/);
+  assert.match(search, /Next cursor:|Search: bm25/);
+  assert.match(await run.criteriaSearch({ group: "Delivery" }), /\[incomplete\] Works/);
+  assert.match(run.project(), /Brief:.*brief.md/);
+  assert.match(run.project(), /Scope|Own tasks:|Tools:/);
+});
 
-  it("reads one post with its comments", () => {
-    addComment(db, swarm.id, "User", 1, "thanks", T0 + 3_000);
-    assert.equal(
-      john.readPost({ post_id: 1 }),
-      'Post #1 · Kickoff\n#1 Maria · 4m ago · Kickoff: "I take the API."\n#1 John · 0s ago: "UI is mine"\n#2 User · 4m ago: "thanks"\nComplete: true · snapshot #2. Omit after to replay or include newer content.',
-    );
-    assert.throws(() => john.readPost({ post_id: 99 }), { message: "Post #99 not found." });
+test("post tools search comments, filter links/subscriptions and page comments", async (t) => {
+  const f = workFixture(t);
+  const task = f.task();
+  const run = handlers(f);
+  const output = run.postsCreate({
+    title: "Discussion",
+    body: "Design notes",
+    task_ids: [task.id],
+    criterion_ids: [f.criterion.id],
   });
+  const id = Number(/#(\d+)/.exec(output)?.[1]);
+  assert.match(output, /Subscribed to post/);
+  run.postsComment({ post_id: id, body: "Distinctive comment phrase" });
+  run.postsComment({ post_id: id, body: "Second comment" });
+  assert.match(await run.postsSearch({ query: "Distinctive", task_id: task.id, subscribed: true }), /Discussion/);
+  assert.equal(getPostPage(f.db, f.swarmId, id).links.length, 2);
+  const page = run.postsGet({ id, limit: 1 });
+  assert.match(page, /Distinctive/);
+  assert.doesNotMatch(page, /Second comment/);
+  const cursor = /Next cursor: (\S+)/.exec(page)?.[1];
+  assert.match(run.postsGet({ id, limit: 1, cursor }), /Second comment/);
+  run.postsUnsubscribe({ post_id: id });
+  assert.doesNotMatch(await run.postsSearch({ subscribed: true }), /Discussion/);
+  run.postsLink({ post_id: id, task_ids: [task.id] }, true);
+  assert.equal(getPostPage(f.db, f.swarmId, id).links.length, 1);
+});
 
-  it("messages, replies and reads threads", () => {
-    const sent = maria.message({ to: ["john", "User"], text: "API done?" });
-    assert.match(sent, /^Sent message #(\d+) in thread #(\d+) to John, User\.$/);
-    const threadId = Number(/thread #(\d+)/.exec(sent)?.[1]);
-    const firstMessageId = Number(/message #(\d+)/.exec(sent)?.[1]);
-    assert.match(
-      maria.replyTo({ thread_id: threadId, text: "Also docs." }),
-      /^Replied message #\d+ in thread #\d+ to John, User\.$/,
-    );
-    assert.equal(
-      john.readThread({ thread_id: threadId }),
-      [
-        `Thread #${threadId} · members: Maria, John, User`,
-        `#${firstMessageId} Maria → You, User · 4m ago: "API done?"`,
-        `#${firstMessageId + 1} Maria → You, User · 4m ago: "Also docs."`,
-        `Complete: true · snapshot #${firstMessageId + 1}. Omit after to replay or include newer content.`,
-      ].join("\n"),
-    );
-    assert.throws(() => maria.message({ to: ["Bob"], text: "hi" }), {
-      message: "Unknown participant: Bob. Known participants: Maria, John, Liam, Watcher, User.",
-    });
-  });
+test("messages continue one private conversation in both directions", (t) => {
+  const f = workFixture(t);
+  handlers(f).messagesSend({ to: "Ben", body: "One" });
+  handlers(f, "Ben").messagesSend({ to: "Ann", body: "Two" });
+  const conversation = readConversation(f.db, { swarmId: f.swarmId, a: "Ann", b: "Ben", limit: 1 });
+  assert.deepEqual(conversation.thread?.members, ["Ann", "Ben"]);
+  assert.equal(conversation.messages.length, 1);
+  assert.ok(conversation.nextAfter);
+  assert.match(handlers(f).messagesRead({ with: "Ben" }), /One.*Two/);
+  assert.deepEqual(readConversation(f.db, { swarmId: f.swarmId, a: "Ann", b: "Cam" }).messages, []);
+});
 
-  it("tells the sender plainly when the swarm is not running", () => {
-    const stopped = seedSwarm(db);
-    endRun(db, stopped.id, process.pid, "stopped", T0 + 10);
-    const liam = createAgentToolHandlers({
-      getDb: () => db,
-      swarmId: stopped.id,
-      run: 1,
-      agentName: "Liam",
-      clock: liveClock,
-    });
-    assert.equal(liam.message({ to: ["Maria"], text: "still there?" }), UNDELIVERABLE_REPLY_TEXT);
-    const thread = sendMessage(db, stopped.id, "User", ["Liam"], "hi", T0 + 20);
-    assert.throws(
-      () =>
-        createAgentToolHandlers({
-          getDb: () => db,
-          swarmId: stopped.id,
-          run: 1,
-          agentName: "Maria",
-          clock: liveClock,
-        }).readThread({ thread_id: thread.threadId }),
-      {
-        message: `You are not a member of thread #${thread.threadId}.`,
-      },
-    );
-  });
-
-  it("formats relative times", () => {
-    assert.deepEqual(
-      [timeAgo(0, 59_000), timeAgo(0, 60_000), timeAgo(0, 3_600_000), timeAgo(0, 86_400_000 * 2), timeAgo(10, 0)],
-      ["59s ago", "1m ago", "1h ago", "2d ago", "0s ago"],
-    );
-  });
+test("fixed Unicode limits cover all agent fields, including optional fields", (t) => {
+  const f = workFixture(t);
+  const run = handlers(f);
+  assert.doesNotThrow(() => run.postsCreate({ title: "😀".repeat(100), body: "😀".repeat(300) }));
+  for (const action of [
+    () => run.postsCreate({ title: "x".repeat(101), body: "ok" }),
+    () => run.postsCreate({ title: "ok", body: "x".repeat(301) }),
+    () => run.messagesSend({ to: "Ben", body: "x".repeat(301) }),
+    () =>
+      run.criteriaCreate({
+        group: "Quality",
+        title: "Works",
+        body: "Check",
+        verification: "Test",
+        source: "x".repeat(301),
+      }),
+    () => run.intentUpdate({ summary: "x".repeat(301), path: "intent.md" }),
+  ])
+    assert.throws(action, /too long.*file/i);
 });

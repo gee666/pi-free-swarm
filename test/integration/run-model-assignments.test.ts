@@ -10,7 +10,7 @@ import {
   createRunFixture,
   newestSwarmId,
   recipientStatus,
-  voteAll,
+  finishWork,
   waitForWorkersIdle,
 } from "./run-fixture.js";
 
@@ -45,14 +45,13 @@ it(
       const names = agentNames(f.db, id);
       const target = names[4];
       assert.ok(target);
-      const message = sendMessage(
-        f.db,
-        id,
-        "User",
-        [target],
-        "Inspect saved evidence before repeating work.",
-        Date.now(),
-      );
+      const message = sendMessage(f.db, {
+        swarmId: id,
+        from: "User",
+        to: target,
+        text: "Inspect saved evidence before repeating work.",
+        now: Date.now(),
+      });
       assert.equal(recipientStatus(f.db, message.id, target), "pending");
       await stopAllRuns();
       assert.equal((await first).end, "stopped");
@@ -66,7 +65,7 @@ it(
       const second = resumeSwarm(f.env, { swarmId: id, message: "Continue with saved assignments." }, {});
       await waitForWorkersIdle(f, id);
       assert.equal(recipientStatus(f.db, message.id, target), "read");
-      voteAll(f.db, id, "accepted", "Verified real launch arguments and recovered communication.");
+      finishWork(f.db, id);
       assert.equal((await second).end, "finished");
       const launches = f.fake.log().filter((row) => row.fake === "spawn" && row.agent !== WATCHER_NAME);
       assert.equal(launches.length, 10);

@@ -11,7 +11,7 @@ import {
   createRunFixture,
   newestSwarmId,
   isAlive,
-  voteAll,
+  finishWork,
   waitFor,
   waitForWorkersIdle,
   type RunFixture,
@@ -76,7 +76,7 @@ it(
       writeFileSync(release, "ready");
       await waitForWorkersIdle(f, id);
       assert.equal(count(f, names[3]), 1);
-      voteAll(f.db, id, "accepted", "Distinct model readiness verified through real children.");
+      finishWork(f.db, id);
       assert.equal((await outcome).end, "finished");
     } finally {
       await stopAllRuns();
@@ -142,7 +142,7 @@ it(
       assert.equal(count(f, names[2]), 2, "one bounded actual recovery, no paid health probe");
       assert.equal(count(f, names[3]), 1);
       assert.equal(count(f, names[0]), 1, "unrelated healthy worker is not restarted");
-      voteAll(f.db, id, "accepted", "Transient grouped readiness recovered without interrupting healthy workers.");
+      finishWork(f.db, id);
       assert.equal((await outcome).end, "finished");
     } finally {
       await stopAllRuns();

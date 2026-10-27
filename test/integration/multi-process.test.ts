@@ -20,7 +20,7 @@ import {
   systemReplies,
   waitFor,
   waitForWorkersIdle,
-  voteAll,
+  finishWork,
 } from "./run-fixture.js";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
@@ -52,9 +52,21 @@ describe("a runner in another process", () => {
         await waitFor(() => agentStatus(db, swarmId, first) === "idle", "first agent idle", 15_000);
 
         // Written here, as the board's API would: only the child's poll can deliver it.
-        const fromBoard = sendMessage(db, swarmId, "User", [first], "from the board", Date.now()).id;
+        const fromBoard = sendMessage(db, {
+          swarmId: swarmId,
+          from: "User",
+          to: first,
+          text: "from the board",
+          now: Date.now(),
+        }).id;
         await waitFor(() => recipientStatus(db, fromBoard, first) === "read", "delivered by the child runner");
-        const waiting = sendMessage(db, swarmId, "User", [second], "you have not started", Date.now());
+        const waiting = sendMessage(db, {
+          swarmId: swarmId,
+          from: "User",
+          to: second,
+          text: "you have not started",
+          now: Date.now(),
+        });
         assert.equal(recipientStatus(db, waiting.id, second), "pending");
 
         const [agent] = spawnsOf(run.fake);
@@ -75,7 +87,7 @@ describe("a runner in another process", () => {
           () => recipientStatus(db, waiting.id, second) === "read",
           "pending message recovered after runner death",
         );
-        voteAll(db, swarmId, "accepted", "Resumed workers finished the interrupted task.");
+        finishWork(db, swarmId);
         const resumed = await outcome;
         assert.equal(resumed.end, "finished");
         assert.equal(resumed.run, 2);

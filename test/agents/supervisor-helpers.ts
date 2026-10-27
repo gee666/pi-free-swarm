@@ -46,7 +46,6 @@ export function superviseFake(
     hooks: {
       onStatus: (status) => recorded.statuses.push(status),
       onMessagesRead: (ids) => recorded.reads.push(ids),
-      onPostsRead: (ids) => recorded.postReads.push(ids),
       onUsage: (sample) => recorded.usage.push(sample),
       onActivity: (activity) => recorded.activity.push(activity),
       onCrash: (crash) => recorded.crashes.push(crash),

@@ -1,7 +1,6 @@
 import type { AgentActivity, ParticipantStatus } from "../api-types.js";
 import type { UsageSample } from "../runtime-types.js";
 import type { MessageObservation } from "./message-observation.js";
-import type { PostObservation } from "./post-observation.js";
 import type { RpcRecord } from "./rpc-events.js";
 import type { AgentTransport } from "./transport.js";
 import type { StallKind, StallWatchdog } from "./watchdog.js";
@@ -15,7 +14,6 @@ export interface WorkerLife {
   promptsInFlight: number;
   deferredSettle: boolean;
   runStarts: number;
-  posts: PostObservation;
   messages: MessageObservation;
 }
 
@@ -24,8 +22,6 @@ export interface PromptPayload {
   messageIds: readonly number[];
   /** Synchronous broker revalidation at the final write boundary. Null cancels an unsent payload. */
   beforeSend?(): PromptPayload | null;
-  /** Full wall posts, covered only after their text enters context. */
-  postIds?: readonly number[];
 }
 
 export type DeliveryOutcome = { accepted: true } | { accepted: false; error: string; withdrawn?: true };
@@ -57,7 +53,6 @@ export interface SupervisorHooks {
   onReady?(): void;
   /** Authorized message markers observed in a user message_start. */
   onMessagesRead(messageIds: number[]): void;
-  onPostsRead?(postIds: number[]): void;
   onUsage(sample: UsageSample): void;
   onActivity(activity: AgentActivity | null): void;
   /** After crashed status, never for stop(). */

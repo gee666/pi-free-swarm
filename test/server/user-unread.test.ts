@@ -20,7 +20,7 @@ test("User badge counts survive snapshots and live events without clearing unsee
   t.after(() => stream.close());
   const post = createPost(db, swarm.id, "User", { title: "Mine", text: "Read a displayed snapshot." }, T0);
   const seen = addComment(db, swarm.id, "Maria", post.id, "displayed comment", T0).comment;
-  const message = sendMessage(db, swarm.id, "John", ["User"], "direct message", T0);
+  const message = sendMessage(db, { swarmId: swarm.id, from: "John", to: "User", text: "direct message", now: T0 });
   const elsewhere = createPost(db, other.id, "User", { title: "Other", text: "Keep isolated." }, T0);
   addComment(db, other.id, "Maria", elsewhere.id, "foreign comment", T0);
   clock.advance(EVENTS_TAIL_MS);

@@ -6,13 +6,7 @@ import { recordUsage, setAgentActivity, setAgentStatus } from "../../src/broker/
 import { sendMessage } from "../../src/broker/messages.js";
 import { createSwarm, endRun } from "../../src/broker/swarms.js";
 import { createPost } from "../../src/broker/wall.js";
-import {
-  AGENT_TOOL,
-  WATCHER_ACTIVITY_MAX,
-  WATCHER_NAME,
-  WATCHER_TEXT_MAX,
-  WATCHER_TOOLS,
-} from "../../src/constants.js";
+import { WATCHER_ACTIVITY_MAX, WATCHER_NAME, WATCHER_TEXT_MAX, WATCHER_TOOLS } from "../../src/constants.js";
 import { listAgentSessions } from "../../src/store/swarm-queries.js";
 import { registerAgentTools } from "../../src/tools/agent-tools.js";
 import { compactText } from "../../src/tools/watcher-digest.js";
@@ -101,7 +95,13 @@ it("summarizes state, last activity, usage, tool, text, goal, acceptance and new
 });
 
 it("can read agent-to-agent threads without joining or marking them read", () => {
-  const message = sendMessage(db, swarm.id, "Maria", ["John"], "Consider rotating tokens.", clock.now());
+  const message = sendMessage(db, {
+    swarmId: swarm.id,
+    from: "Maria",
+    to: "John",
+    text: "Consider rotating tokens.",
+    now: clock.now(),
+  });
   assert.match(run.threads({}), /Maria, John/);
   assert.match(run.threads({ thread_id: message.threadId }), /Consider rotating tokens/);
   assert.match(run.threads({ count: 1, offset: 1 }), /No threads/);
@@ -155,8 +155,7 @@ it("retains retired status and deliberate historical session inspection after th
 
 it("registers exactly the Watcher allowlist, without acceptance or built-in tools", () => {
   const pi = new FakeExtensionApi();
-  registerAgentTools(pi, identity, 200);
+  registerAgentTools(pi, identity);
   registerWatcherTools(pi, identity);
   assert.deepEqual(pi.toolNames(), WATCHER_TOOLS);
-  assert.ok(!pi.toolNames().includes(AGENT_TOOL.acceptance));
 });

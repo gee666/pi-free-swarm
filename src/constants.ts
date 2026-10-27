@@ -133,20 +133,38 @@ export const RESERVED_NAMES: readonly string[] = [USER_NAME, MAIN_NAME, SYSTEM_N
 export const MAIN_TOOL = { swarm: "swarm", resumeSwarm: "resume_swarm" } as const;
 /** Prefixed because a tool name conflict makes pi exit at startup, and generic names like `post` are likely taken. */
 export const AGENT_TOOL = {
-  readPosts: "swarm_read_posts",
-  readPost: "swarm_read_post",
-  post: "swarm_post",
-  comment: "swarm_comment",
-  claim: "swarm_claim",
-  contract: "swarm_contract",
-  subscribe: "swarm_subscribe",
-  unsubscribe: "swarm_unsubscribe",
-  message: "swarm_message",
-  replyTo: "swarm_reply_to",
-  readThread: "swarm_read_thread",
+  project: "swarm_project",
+  intentUpdate: "swarm_intent_update",
+  criteriaSearch: "swarm_criteria_search",
+  criteriaGet: "swarm_criteria_get",
+  criteriaCreate: "swarm_criteria_create",
+  criteriaEdit: "swarm_criteria_edit",
+  criteriaArchive: "swarm_criteria_archive",
+  criteriaBlock: "swarm_criteria_block",
+  criteriaVote: "swarm_criteria_vote",
+  criteriaVoteContext: "swarm_criteria_vote_context",
+  tasksSearch: "swarm_tasks_search",
+  tasksGet: "swarm_tasks_get",
+  tasksCreate: "swarm_tasks_create",
+  tasksEdit: "swarm_tasks_edit",
+  tasksClaim: "swarm_tasks_claim",
+  tasksRelease: "swarm_tasks_release",
+  tasksHandoff: "swarm_tasks_handoff",
+  tasksTransition: "swarm_tasks_transition",
+  tasksReview: "swarm_tasks_review",
+  postsSearch: "swarm_posts_search",
+  postsGet: "swarm_posts_get",
+  postsCreate: "swarm_posts_create",
+  postsComment: "swarm_posts_comment",
+  postsUnsubscribe: "swarm_posts_unsubscribe",
+  postsLink: "swarm_posts_link",
+  postsUnlink: "swarm_posts_unlink",
+  messagesSend: "swarm_messages_send",
+  messagesRead: "swarm_messages_read",
+  skillsSearch: "swarm_skills_search",
+  skillsGet: "swarm_skills_get",
   snooze: "swarm_snooze",
   retire: "swarm_retire",
-  acceptance: "swarm_acceptance",
 } as const;
 
 export const IDLE_ONLY_TOOLS: readonly string[] = [AGENT_TOOL.snooze, AGENT_TOOL.retire];
@@ -157,7 +175,16 @@ export const WATCHER_TOOL = {
   threads: "swarm_read_threads",
 } as const;
 export const WATCHER_TOOLS = [
-  ...Object.values(AGENT_TOOL).filter((name) => name !== AGENT_TOOL.acceptance && !IDLE_ONLY_TOOLS.includes(name)),
+  AGENT_TOOL.project,
+  AGENT_TOOL.criteriaSearch,
+  AGENT_TOOL.criteriaGet,
+  AGENT_TOOL.criteriaVoteContext,
+  AGENT_TOOL.tasksSearch,
+  AGENT_TOOL.tasksGet,
+  AGENT_TOOL.postsSearch,
+  AGENT_TOOL.postsGet,
+  AGENT_TOOL.skillsSearch,
+  AGENT_TOOL.skillsGet,
   ...Object.values(WATCHER_TOOL),
 ];
 
@@ -170,4 +197,4 @@ export const MAIN_FEEDBACK_POST_SUFFIX = "…see your messages";
 export const REVIVE_PROMPT_HEADER = "[swarm] You were restarted after a crash or stall.";
 export const RESUME_PROMPT_HEADER = "[swarm resumed by Main]";
 export const IDLE_REMINDER_HEADER =
-  "[swarm] Your turn ended, but the swarm has not finished. If your current task is waiting for a reply or another agent, leave that dependency pending and take another useful piece of work. Check for unclaimed work, unresolved questions, missing verification, or a concrete way to help another agent. Choose one and act; do not just repeat your status or say you are waiting. Contribute to discussion when you have evidence, a correction, or a decision to advance, not merely to appear active. If the work is complete, verify it and update your whole-task vote with swarm_acceptance. Do not invent extra work solely because quorum has not formed.";
+  "[swarm] The work graph is unfinished. Check your queue, review or vote where needed, then claim runnable work. Keep dependencies pending and move on; do not invent work while awaiting User.";

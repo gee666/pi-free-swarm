@@ -45,8 +45,6 @@ test("reported usage before a crash and recovery compaction share one money ceil
     assert.ok(Math.abs(outcome.budget.costUsd - 0.009) < Number.EPSILON);
     assert.ok(outcome.budget.moneyOvershootUsd > 0);
     assert.equal(reviveCount(run.db, swarmId, name), 1);
-    assert.equal(outcome.acceptance.counts.accepted, 0);
-    assert.equal(outcome.acceptance.counts.blocked, 0);
   } finally {
     cancel.abort();
     await running;

@@ -1,15 +1,13 @@
 import type { CommentView } from "../api-types.js";
-import { SYSTEM_NAME, WATCHER_NAME } from "../constants.js";
+import { SYSTEM_NAME } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
 import { count, int, text as str } from "../store/rows.js";
 import { findParticipant, type ParticipantRef } from "../store/swarm-queries.js";
 import { postExists } from "../store/wall-queries.js";
-import { markCommentsCovered } from "../store/wall-coverage.js";
 import { emitRecipientStatus } from "./emit.js";
 import { BrokerError } from "./errors.js";
 import { createThread, insertMessage } from "./message-insert.js";
 import { actAs, requireSwarm } from "./validate.js";
-import { hasUserAttachment } from "./user-attachment.js";
 import { recordUserCommentAttention } from "../store/user-comment-attention.js";
 
 /** Automatic participation never reverses an explicit opt-out. Caller owns the write transaction. */
@@ -66,7 +64,7 @@ export function setPostSubscription(
   });
 }
 
-/** One durable message per comment, delivered through the ordinary native steering path. */
+/** Notify each subscriber separately so private conversations stay one-to-one. */
 export function notifyComment(
   db: SwarmDb,
   comment: CommentView,
@@ -88,37 +86,17 @@ export function notifyComment(
         person !== null && !mentionedRecipients.includes(person.name) && person.kind === "agent",
     );
   if (recipients.length === 0) return userAttention;
-  const threadId = createThread(db, swarmId, [SYSTEM_NAME, ...recipients.map((person) => person.name)], now);
-  insertMessage(db, {
-    swarmId,
-    threadId,
-    sender: SYSTEM_NAME,
-    text: comment.text,
-    commentSource: { postId, commentId: comment.id },
-    recipients: recipients.map((person) => ({
-      name: person.name,
-      status: "pending",
-    })),
-    now,
-  });
+  for (const person of recipients) {
+    const threadId = createThread(db, swarmId, [SYSTEM_NAME, person.name], now);
+    insertMessage(db, {
+      swarmId,
+      threadId,
+      sender: SYSTEM_NAME,
+      text: comment.text,
+      commentSource: { postId, commentId: comment.id },
+      recipients: [{ name: person.name, status: "pending" }],
+      now,
+    });
+  }
   return userAttention;
-}
-
-/** Called only when the current worker generation observed the complete durable message. */
-export function coverCommentNotifications(
-  db: SwarmDb,
-  swarmId: number,
-  reader: string,
-  messageIds: readonly number[],
-  fullyReturned = false,
-): void {
-  db.write(() => {
-    const query = db.sql.prepare(`SELECT n.comment_id FROM comment_notifications n
-      JOIN message_recipients r ON r.message_id = n.message_id
-      WHERE r.swarm_id = ? AND r.name = ? AND r.message_id = ? AND (? = 1 OR r.status = 'read')`);
-    const comments = messageIds
-      .flatMap((id) => query.all(swarmId, reader, id, fullyReturned ? 1 : 0).map((row) => int(row, "comment_id")))
-      .filter((id) => reader !== WATCHER_NAME || !hasUserAttachment(db, swarmId, "comment", id));
-    markCommentsCovered(db, swarmId, reader, comments);
-  });
 }

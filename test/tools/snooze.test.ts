@@ -17,7 +17,7 @@ const { db } = temp;
 test("worker snooze tool has a fixed no-argument schema and explains unaffected messages", () => {
   const swarm = seedSwarm(db);
   const pi = new FakeExtensionApi();
-  registerAgentTools(pi, { getDb: () => db, swarmId: swarm.id, run: 1, agentName: "Maria" }, 200);
+  registerAgentTools(pi, { getDb: () => db, swarmId: swarm.id, run: 1, agentName: "Maria" });
   const tool = pi.tool(AGENT_TOOL.snooze);
   assert.ok(Value.Check(tool.parameters, {}));
   assert.equal(Value.Check(tool.parameters, { minutes: 1 }), false);
@@ -30,9 +30,8 @@ test("worker snooze tool has a fixed no-argument schema and explains unaffected 
 test("Watcher never receives worker reminder snooze", () => {
   const swarm = seedSwarm(db);
   const pi = new FakeExtensionApi();
-  registerAgentTools(pi, { getDb: () => db, swarmId: swarm.id, run: 1, agentName: WATCHER_NAME }, 200);
+  registerAgentTools(pi, { getDb: () => db, swarmId: swarm.id, run: 1, agentName: WATCHER_NAME });
   assert.equal(pi.toolNames().includes(AGENT_TOOL.snooze), false);
-  assert.equal(pi.toolNames().includes(AGENT_TOOL.acceptance), false);
 });
 
 test("snooze handler reports exactly five minutes for its own agent without consuming messages", () => {
@@ -40,7 +39,13 @@ test("snooze handler reports exactly five minutes for its own agent without cons
   let now = T0 + 1000;
   const clock = { now: () => now, after: () => ({ cancel() {} }), every: () => ({ cancel() {} }) };
   const tools = createAgentToolHandlers({ getDb: () => db, swarmId: swarm.id, run: 1, agentName: "Maria", clock });
-  const message = sendMessage(db, swarm.id, "John", ["Maria"], "real pending work", now);
+  const message = sendMessage(db, {
+    swarmId: swarm.id,
+    from: "John",
+    to: "Maria",
+    text: "real pending work",
+    now: now,
+  });
   const pending = listOpenAgentRecipients(db, swarm.id);
   setAgentStatus(db, swarm.id, "Maria", "idle", now);
   const text = tools.snooze();

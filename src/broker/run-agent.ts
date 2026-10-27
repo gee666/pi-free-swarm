@@ -12,7 +12,7 @@ import type { Clock, TimerHandle } from "../clock.js";
 import type { ModelSelection } from "../runtime-types.js";
 import type { SwarmDb } from "../store/db.js";
 import { createAgentHooks } from "./agent-hooks.js";
-import { bodyLimit } from "./body-limit.js";
+import { readProject } from "./project.js";
 import { incrementReviveCount } from "./agent-state.js";
 import type { DeliveryTarget } from "./delivery.js";
 import { markDelivered } from "./delivery-state.js";
@@ -25,8 +25,6 @@ export interface RunAgentContext {
   run: number;
   runnerPid: number;
   swarmName: string;
-  taskPrompt: string;
-  acceptanceCriteria: readonly string[];
   clock: Clock;
   watchdog: WatchdogConfig | undefined;
   modelHasKnownPricing?(model: ModelSelection | null): boolean;
@@ -124,9 +122,8 @@ export class RunAgent implements DeliveryTarget {
         : buildSystemPrompt({
             agentName: this.name,
             swarmName: this.#ctx.swarmName,
-            bodyMaxChars: bodyLimit(this.#ctx.db),
-            taskPrompt: this.#ctx.taskPrompt,
-            acceptanceCriteria: this.#ctx.acceptanceCriteria,
+            briefPath:
+              readProject(this.#ctx.db, this.#ctx.swarmId).briefPath ?? "Brief path missing; call swarm_project",
           }),
     );
   }
@@ -141,12 +138,11 @@ export class RunAgent implements DeliveryTarget {
         }),
       );
     }
-    const { acceptanceCriteria } = this.#ctx;
     const messages = this.#ctx.collect(this.name, true);
     if (this.name === WATCHER_NAME) return this.#launch(messages.messageIds, (text) => text || null);
     const resumed = hasSessionFile(this.#spec.sessionFile);
     return this.#launch(messages.messageIds, (text) =>
-      resumed ? buildResumePrompt({ acceptanceCriteria, messages: text }) : buildKickoffPrompt({ messages: text }),
+      resumed ? buildResumePrompt({ messages: text }) : buildKickoffPrompt({ messages: text }),
     );
   }
 
@@ -178,9 +174,7 @@ export class RunAgent implements DeliveryTarget {
     incrementReviveCount(db, swarmId, this.name);
     if (this.#handoff) return this.launchFirst();
     const messages = this.#ctx.collect(this.name, true);
-    return this.#launch(messages.messageIds, (text) =>
-      buildRevivePrompt({ acceptanceCriteria: this.#ctx.acceptanceCriteria, messages: text }),
-    );
+    return this.#launch(messages.messageIds, (text) => buildRevivePrompt({ messages: text }));
   }
 
   async #ownedOutcome(delivery: Promise<DeliveryOutcome>): Promise<DeliveryOutcome> {

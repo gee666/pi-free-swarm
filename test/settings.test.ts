@@ -50,7 +50,6 @@ describe("loadSettings", () => {
       staggerSeconds: 30,
       idleReminderDelay: 60_000,
       idleReminderDigestSize: 10,
-      bodyMaxChars: 200,
       env: {},
     });
     assert.deepEqual(warnings, []);
@@ -104,11 +103,10 @@ describe("loadSettings", () => {
     assert.deepEqual(warnings, ['settings.json: unknown key "idleReminderMax" ignored']);
   });
 
-  it("bounds the configurable body allowance", () => {
-    assert.equal(loadSettings(project('{"bodyMaxChars": 8000}')).settings.bodyMaxChars, 8000);
-    for (const value of [0, 99, 16001, 4000.5, "4000"]) {
-      assert.match(loadError(JSON.stringify({ bodyMaxChars: value })), /bodyMaxChars must be an integer/);
-    }
+  it("ignores the removed body allowance as an unknown setting", () => {
+    const { settings, warnings } = loadSettings(project('{"bodyMaxChars": 8000}'));
+    assert.equal(Object.hasOwn(settings, "bodyMaxChars"), false);
+    assert.deepEqual(warnings, ['settings.json: unknown key "bodyMaxChars" ignored']);
   });
 
   it("reads every key and clamps defaultAgents into the range", () => {

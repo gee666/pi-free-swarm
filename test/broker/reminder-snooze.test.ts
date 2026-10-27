@@ -41,7 +41,13 @@ test("snooze leaves pending real messages and acceptance unchanged and joins rol
   const temp = createTempDb();
   try {
     const swarm = seedSwarm(temp.db);
-    const message = sendMessage(temp.db, swarm.id, "User", ["Maria"], "Real work still wakes you", T0);
+    const message = sendMessage(temp.db, {
+      swarmId: swarm.id,
+      from: "User",
+      to: "Maria",
+      text: "Real work still wakes you",
+      now: T0,
+    });
     setAgentStatus(temp.db, swarm.id, "Maria", "idle", T0);
     setAgentStatus(temp.db, swarm.id, "John", "idle", T0);
     const before = temp.db.sql.prepare("SELECT * FROM message_recipients WHERE message_id = ?").all(message.id);
@@ -88,7 +94,13 @@ test("additive v10 upgrade preserves pending messages and starts with no snoozes
   const temp = createTempDb();
   try {
     const swarm = seedSwarm(temp.db);
-    const message = sendMessage(temp.db, swarm.id, "User", ["Maria"], "Preserve me", T0);
+    const message = sendMessage(temp.db, {
+      swarmId: swarm.id,
+      from: "User",
+      to: "Maria",
+      text: "Preserve me",
+      now: T0,
+    });
     removeWorkSchema(temp.db);
     temp.db.sql.exec(`DROP TABLE user_comment_attention;
       DROP TABLE post_claims; DROP TABLE post_contracts;

@@ -44,7 +44,7 @@ function fixture(budget: RunConfiguration["budget"] = { moneyUsd: 10, timeSecond
         resumeStaggerMs: 0,
         reviveBackoffMs: [],
       },
-      limits: { bodyMaxChars: 200, maxRpcFrameBytes: 100000 },
+      limits: { maxRpcFrameBytes: 100000 },
       budget,
     },
     T0,

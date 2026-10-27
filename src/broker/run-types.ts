@@ -13,7 +13,6 @@ import type { AgentLaunchContext } from "../runtime-types.js";
 import type { SwarmSettings } from "../settings.js";
 import type { AvailableModel } from "../model-allocation.js";
 import type { SwarmDb } from "../store/db.js";
-import type { AcceptanceRecord } from "../store/acceptance-types.js";
 import type { RunProgress } from "./run-progress.js";
 import type { RunEndStatus } from "./swarms.js";
 
@@ -63,5 +62,4 @@ export interface RunOutcome {
   stopReason?: "budget-exhausted";
   outcome?: import("../api-work-types.js").WorkOutcome | null;
   budget?: import("../budget.js").BudgetStatus;
-  acceptance: AcceptanceRecord;
 }

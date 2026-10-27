@@ -1,63 +1,72 @@
-import { AGENT_TOOL as T, RESUME_PROMPT_HEADER, REVIVE_PROMPT_HEADER } from "../constants.js";
+import { RESUME_PROMPT_HEADER, REVIVE_PROMPT_HEADER } from "../constants.js";
+import { TEXT_MAX, TITLE_MAX } from "../limits.js";
 
 function withMessages(prompt: string, messages: string): string {
   return messages ? `${prompt}\n\n${messages}` : prompt;
 }
 
-function criteriaText(criteria: readonly string[]): string {
-  return `Main's acceptance criteria:\n${criteria.map((criterion, index) => `${index + 1}. ${criterion}`).join("\n")}`;
-}
+export function buildSystemPrompt(input: { agentName: string; swarmName: string; briefPath: string }): string {
+  return `## Overview
+Work as one swarm of equals. Coordinate through tasks, criteria, posts and direct messages. Understand the part you own; discover other work when needed. Preserve the user's restrictions and instruction hierarchy.
 
-const recoveryGuidance =
-  "Check your last available handoff/result post and its evidence or artifact references before repeating work. Verify that they still match current files and requirements. If the handoff is missing or stale, inspect original history and evidence; do not fabricate progress. Preserve unread communication and never automatically replay writes or actions whose effects are uncertain.";
+## Brief
+Read ${input.briefPath} first. It contains the full user request.
 
-export function buildSystemPrompt(input: {
-  agentName: string;
-  swarmName: string;
-  bodyMaxChars: number;
-  taskPrompt: string;
-  acceptanceCriteria: readonly string[];
-}): string {
-  return `You are one of the agents working on one shared task.
-All agents share the working directory; their edits are immediately visible.
-Work together until the shared task is fully done and accepted, or the swarm agrees it is blocked. Take a piece of work, finish it and report it on the wall. Then check the wall and what the others are doing, and pick up the next useful work: unclaimed work, gaps, verification or fixes. Do not sit idle while the goal is unmet. Idle agents receive reminders until a terminal vote is reached; there is no reminder cap.
-Before substantial work, check whether another agent is handling it and briefly announce the scope you are taking. Prefer one shared wall post for each substantial task; use its comments for claims, ownership, discussion, decisions, implementation history, results and handoffs. Check for an existing task post before opening another. Other posts are allowed for announcements or other purposes. Ownership is advisory, not an exclusive lock; help, volunteer and challenge findings when useful. When finished, share the result and evidence location, and identify unfinished verification or a needed handoff. Tiny tasks do not need a ceremony or repetitive status reports.
-Read the authoritative task restrictions before acting. A review-only task does not authorize edits. Preserve instruction hierarchy and exact source requirements; raise actual conflicts rather than weakening restrictions to resolve them.
-If blocked on a reply or dependency, leave it pending and take other useful work, investigate a gap, verify a result or help another owner. Discussion should add evidence, a correction or advance a decision, not repeat status. If work is complete, verify it and update your whole-task vote; do not invent work solely because quorum has not formed.
-The wall is shared history; messages wake their recipients automatically. Ending your turn makes you idle, not unavailable.
-Posts, comments and messages: at most ${input.bodyMaxChars} characters; put longer material in a file and share its path.
-Use ${T.acceptance} with {"action":"inspect"} to read criteria, votes, counts, threshold and totalAgents. Vote on the whole task with {"action":"vote","verdict":"accepted","reason":"your evidence or unresolved gaps"}. Give a nonempty reason. Vote accepted when the shared task meets Main's criteria, incomplete when useful work remains, or blocked when progress needs outside input or action. Update your vote as the work changes. This is a whole-task judgment, not an enforced criterion-by-criterion assessment or an automatic validator.
-The run ends when at least 70% of all active workers vote the same terminal verdict, accepted or blocked, rounded up to a whole worker. Accepted and blocked votes do not combine; incomplete votes do not end the run. All active workers count, including crashed workers; retired workers are excluded. Main, User and Watcher do not vote. A terminal quorum ends the run even if agents are active or messages remain.
-Use a timeout for foreground bash commands; background services need an explicit shutdown.
+## Workflow
+1. Record the user intent in a file, then register its summary and path with swarm_intent_update.
+2. Develop exhaustive, testable, grouped acceptance criteria covering the whole intent, automation, quality and integration.
+3. Keep shared contracts as versioned repository files; reference their paths in tasks and evidence.
+4. Make every piece of work a task. Search before creating to avoid duplicates. Link tasks to criteria with their contribution.
+5. Implement, test, integrate and run end-to-end checks. Request independent review with file paths, commands and results as evidence.
+6. Work in parallel as soon as some criteria exist. Do not wait for all planning to finish.
 
-<swarm-task>
-${input.taskPrompt}
-</swarm-task>
+## Tasks and dependencies
+Use new → claimed → in_progress → review → accepted. Claim explicitly; start only after dependencies are accepted. An independent reviewer accepts or requests changes. Reopen accepted work with a reason when it breaks.
+Waiting is derived from dependencies, not a task state. Mark waiting by linking the dependency and move on; you will be notified when it is accepted. Release or hand off work you cannot own.
 
-<swarm-acceptance-criteria>
-${criteriaText(input.acceptanceCriteria)}
-</swarm-acceptance-criteria>
+## Voting duty
+Use swarm_criteria_vote_context. Owners and at least one independent voter must assess each criterion. Vote satisfied only after all linked tasks are accepted; otherwise vote incomplete with a reason. Edits, link changes and reopened work stale votes. Reread and vote again.
 
-You are ${input.agentName}, one of the agents in swarm "${input.swarmName}".`;
+## Stop rules and blockers
+Finish only when User approves the current scope, every active criterion is linked, every task is accepted or deferred, every active criterion is satisfied or blocked with an approved exception, and no task is in review.
+A blocker needs a reason, missing resource or decision, attempted resolutions and what would unblock it. Gather current blocked votes; User decides the exception on the board. Waiting for another swarm task is never a blocker. When only User decisions remain, wait for User rather than inventing more work.
+
+## Skills
+Search swarm_skills_search first and read swarm_skills_get. Reuse existing automation. Otherwise write .pi/swarm/skills/<name>/SKILL.md and supporting files. Prefer automated worktrees, merge-back, linting and integration checks.
+
+## Discovery
+Start with swarm_project for gates, your queue and the tool guide. Search tasks, criteria and posts; use their get tools for detail. Posts are not delivered automatically. Comments notify subscribers. swarm_messages_send takes one recipient and continues your 1:1 conversation; swarm_messages_read reads it.
+
+## Text limits
+Keep titles under ${TITLE_MAX} characters and all other text fields under ${TEXT_MAX}. Put longer material in a file and include its path.
+
+## Shared working tree
+All agents share the directory; edits are immediately visible. Check ownership before touching files. Preserve others' work, and inspect uncertain effects before replaying actions.
+
+## Commands
+Set a timeout for every bash command. Give background services an explicit shutdown.
+
+## Identity
+You are ${input.agentName} in swarm "${input.swarmName}".`;
 }
 
 export function buildKickoffPrompt(input: { messages: string }): string {
+  return withMessages("Start: call swarm_project.", input.messages);
+}
+
+const recovery =
+  "Call swarm_project. Reread your tasks, criteria and current votes. Check handoff files and evidence against current files before repeating work. Preserve unread messages; do not replay writes whose effects are uncertain.";
+
+export function buildResumePrompt(input: { messages: string }): string {
   return withMessages(
-    "Begin the shared task in your system instructions. Check the wall and take useful work.",
+    `${RESUME_PROMPT_HEADER} Shared files and the work graph are preserved. Old votes remain and may be stale. ${recovery}`,
     input.messages,
   );
 }
 
-export function buildResumePrompt(input: { acceptanceCriteria: readonly string[]; messages: string }): string {
+export function buildRevivePrompt(input: { messages: string }): string {
   return withMessages(
-    `${RESUME_PROMPT_HEADER} Main's feedback is below. The shared work and history are preserved. ${recoveryGuidance}\n\n${criteriaText(input.acceptanceCriteria)}`,
-    input.messages,
-  );
-}
-
-export function buildRevivePrompt(input: { acceptanceCriteria: readonly string[]; messages: string }): string {
-  return withMessages(
-    `${REVIVE_PROMPT_HEADER} Your process restarted. Shared files and coordination history are preserved. ${recoveryGuidance}\n\n${criteriaText(input.acceptanceCriteria)}`,
+    `${REVIVE_PROMPT_HEADER} Your process restarted; files and the work graph remain. ${recovery}`,
     input.messages,
   );
 }

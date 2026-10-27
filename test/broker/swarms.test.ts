@@ -12,6 +12,7 @@ import { buildAgentEnv, loadSettings } from "../../src/settings.js";
 import { getMessages, getThread } from "../../src/store/message-queries.js";
 import { getStats } from "../../src/store/stats-queries.js";
 import { getSwarm, listAgentSessions, listParticipants, listSwarms } from "../../src/store/swarm-queries.js";
+import { listCriteria } from "../../src/store/criteria.js";
 import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
 
 const temp = createTempDb();
@@ -80,11 +81,15 @@ describe("createSwarm", () => {
       now: T0,
     });
     const expected = ["Tests pass.", "The docs explain setup."];
-    assert.deepEqual(swarm.acceptanceCriteria, expected);
-    assert.deepEqual(getSwarm(db, swarm.id, T0)?.acceptanceCriteria, expected);
-    assert.deepEqual(listSwarms(db, T0).find((item) => item.id === swarm.id)?.acceptanceCriteria, expected);
+    assert.deepEqual(
+      listCriteria(db, swarm.id)
+        .filter((criterion) => criterion.group === "Main")
+        .map((criterion) => criterion.body),
+      expected,
+    );
+
     endRun(db, swarm.id, process.pid, "stopped", T0 + 1);
-    assert.deepEqual(beginResume(db, swarm.id, process.pid, T0 + 2).swarm.acceptanceCriteria, expected);
+
     assert.deepEqual(criteria, ["  Tests pass. ", "The docs explain setup."]);
   });
 
@@ -94,24 +99,17 @@ describe("createSwarm", () => {
       assert.throws(
         () =>
           createSwarm(db, {
-            name: "invalid-criteria",
-            taskPrompt: "Build it",
+            name: "invalid",
+            taskPrompt: "Build",
             acceptanceCriteria,
             agentNames: ["A"],
             runnerPid: process.pid,
             now: T0,
           }),
-        (error: unknown) =>
-          error instanceof BrokerError && error.code === "validation" && error.field === "acceptance_criteria",
+        /acceptance_criteria/,
       );
     }
     assert.equal(listSwarms(db, T0).length, before);
-  });
-
-  it("reads empty criteria for legacy swarms", () => {
-    const swarm = seedSwarm(db);
-    db.sql.prepare("UPDATE swarms SET acceptance_criteria = '[]' WHERE id = ?").run(swarm.id);
-    assert.deepEqual(getSwarm(db, swarm.id, T0)?.acceptanceCriteria, []);
   });
 
   it("resolves a stale lock as interrupted on read", () => {
@@ -140,7 +138,7 @@ describe("settings env", () => {
       runnerPid: process.pid,
     });
     assert.equal(env.DATABASE_URL, secret);
-    sendMessage(db, swarm.id, "Maria", ["John"], "env is set", T0);
+    sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "John", text: "env is set", now: T0 });
     for (const file of [db.path, `${db.path}-wal`]) {
       if (existsSync(file)) assert.ok(!readFileSync(file).includes(secret), file);
     }
@@ -193,8 +191,8 @@ describe("runs", () => {
     const swarm = seedSwarm(db);
     setAgentStatus(db, swarm.id, "Maria", "working", T0);
     setAgentStatus(db, swarm.id, "John", "crashed", T0);
-    const fromUser = sendMessage(db, swarm.id, "User", ["Maria", "John"], "status?", T0 + 1);
-    const fromAgent = sendMessage(db, swarm.id, "Liam", ["Maria"], "ping", T0 + 1);
+    const fromUser = sendMessage(db, { swarmId: swarm.id, from: "User", to: "Maria", text: "status?", now: T0 + 1 });
+    const fromAgent = sendMessage(db, { swarmId: swarm.id, from: "Liam", to: "Maria", text: "ping", now: T0 + 1 });
     markDelivered(db, swarm.id, "Maria", [fromAgent.id], T0 + 2);
 
     assert.equal(endRun(db, swarm.id, OTHER_PID, "stopped", T0 + 3), false);
@@ -247,7 +245,7 @@ describe("runs", () => {
 
   it("cleans up a stale run before resuming it", () => {
     const swarm = seedSwarm(db);
-    const message = sendMessage(db, swarm.id, "User", ["Maria"], "hi", T0 + 1);
+    const message = sendMessage(db, { swarmId: swarm.id, from: "User", to: "Maria", text: "hi", now: T0 + 1 });
     assert.equal(getMessages(db, [message.id])[0].recipients[0].status, "pending");
     const resumed = beginResume(db, swarm.id, OTHER_PID, T0 + 30_000);
     assert.equal(resumed.swarm.status, "starting");

@@ -1,21 +1,13 @@
+import { finishWork } from "../helpers/finish-work.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mutateAcceptance } from "../../src/broker/acceptance.js";
 import { IdleReminders } from "../../src/broker/idle-reminder.js";
 import { RunControls } from "../../src/broker/run-controls.js";
 import { startSwarm } from "../../src/broker/swarm-run.js";
 import { getRuntimeConfiguration, queueConfigurationChange } from "../../src/store/runtime-configuration.js";
 import { FakeClock } from "../agents/fake-clock.js";
 import { SCENARIOS } from "../fixtures/fake-pi/harness.js";
-import {
-  agentNames,
-  createRunFixture,
-  isAlive,
-  newestSwarmId,
-  spawnsOf,
-  waitFor,
-  waitForWorkersIdle,
-} from "./run-fixture.js";
+import { createRunFixture, isAlive, newestSwarmId, spawnsOf, waitFor, waitForWorkersIdle } from "./run-fixture.js";
 
 test(
   "pending control work coalesces completion scans without adding a second wakeup queue",
@@ -89,14 +81,7 @@ test("a terminal quorum takes priority over an unclaimed addition", { timeout: 1
   clock.advance(0);
   try {
     await waitForWorkersIdle(fixture, swarmId);
-    const [name] = agentNames(fixture.db, swarmId);
-    mutateAcceptance(
-      fixture.db,
-      swarmId,
-      name,
-      { action: "vote", verdict: "accepted", reason: "The work is complete." },
-      clock.now(),
-    );
+    finishWork(fixture.db, swarmId);
     const request = queueConfigurationChange(
       fixture.db,
       swarmId,
@@ -107,8 +92,8 @@ test("a terminal quorum takes priority over an unclaimed addition", { timeout: 1
       1,
     );
     clock.advance(25);
-    const outcome = await running;
-    assert.equal(outcome.acceptance.verdict, "accepted");
+    assert.equal((await running).outcome, "completed");
+
     assert.equal(spawnsOf(fixture.fake).length, 1);
     const view = getRuntimeConfiguration(fixture.db, swarmId, clock.now());
     assert.equal(view?.configuration?.effective.workers.length, 1);
@@ -151,23 +136,17 @@ for (const verdict of ["accepted", "blocked"] as const) {
     });
     try {
       await waitForWorkersIdle(fixture, swarmId);
-      const [name] = agentNames(fixture.db, swarmId);
       const [child] = spawnsOf(fixture.fake);
       assert.ok(child);
       RunControls.prototype.update = () => pending;
       clock.advance(25);
-      mutateAcceptance(
-        fixture.db,
-        swarmId,
-        name,
-        { action: "vote", verdict, reason: "The whole-task outcome has been checked." },
-        clock.now(),
-      );
+      finishWork(fixture.db, swarmId);
       clock.advance(25);
-      const sealed = fixture.db.sql.prepare("SELECT closed_run FROM acceptance WHERE swarm_id = ?").get(swarmId);
+      const sealed = fixture.db.sql
+        .prepare("SELECT admission_closed_run AS closed_run FROM swarms WHERE id = ?")
+        .get(swarmId);
       assert.equal(sealed?.closed_run, 1, "quorum closes admission without waiting for controls");
       await waitFor(() => !isAlive(child.pid), "quorum interrupts the child before controls release");
-      assert.equal((await running).acceptance.verdict, verdict);
     } finally {
       release();
       RunControls.prototype.update = original;

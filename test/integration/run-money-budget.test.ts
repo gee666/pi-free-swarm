@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { resumeSwarm, startSwarm } from "../../src/broker/swarm-run.js";
 import { SCENARIOS } from "../fixtures/fake-pi/harness.js";
-import { createRunFixture, newestSwarmId, voteAll, waitForWorkersIdle } from "./run-fixture.js";
+import { createRunFixture, newestSwarmId, finishWork, waitForWorkersIdle } from "./run-fixture.js";
 
 test(
   "reported real-child money usage stops at the total ceiling and persists across approved increase",
@@ -33,7 +33,7 @@ test(
       assert.equal(stopped.budget.exhausted, "money");
       assert.equal(stopped.budget.costUsd, 0.01);
       assert.equal(stopped.budget.moneyOvershootUsd, 0.005);
-      assert.equal(stopped.acceptance.counts.accepted, 0);
+
       const resumedEnv = { ...env, settings: { ...env.settings, budgetMoneyUsd: 0.03 } };
       const resumeCancel = new AbortController();
       const resumed = resumeSwarm(
@@ -43,7 +43,7 @@ test(
       );
       try {
         await waitForWorkersIdle(run, swarmId);
-        voteAll(run.db, swarmId, "accepted", "Local money fixture verified");
+        finishWork(run.db, swarmId);
         const completed = await resumed;
         assert.equal(completed.end, "finished");
         assert.equal(completed.stopReason, undefined);

@@ -52,7 +52,9 @@ describe("events outbox", () => {
   it("covers messages, delivery, agent state and run end", () => {
     let messageId = 0;
     assert.deepEqual(
-      emitted(() => (messageId = sendMessage(db, swarm.id, "Maria", ["John", "User"], "hi", T0).id)),
+      emitted(
+        () => (messageId = sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "John", text: "hi", now: T0 }).id),
+      ),
       ["message.created"],
     );
     const created = listEventsAfter(db, 0, 100).find((event) => event.type === "message.created");

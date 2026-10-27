@@ -3,7 +3,6 @@ import type { ConfigurationRequest } from "../runtime-configuration.js";
 import { applyRosterConfiguration } from "../store/active-roster.js";
 import { appendConfigurationRevision } from "../store/configuration-revisions.js";
 import { getRunConfiguration } from "../store/run-configuration.js";
-import { seedReplacementPostBaseline } from "../store/replacement-baseline.js";
 import { seedReplacementHandoff } from "../store/replacement-handoff.js";
 import { readReplacementHandoff } from "./replacement-handoff.js";
 import {
@@ -12,7 +11,6 @@ import {
   listPendingConfigurationRequests,
 } from "../store/runtime-configuration.js";
 import { listParticipants } from "../store/swarm-queries.js";
-import { recordRosterAcceptanceChange } from "./acceptance.js";
 import { assertBudgetPricing } from "./budget.js";
 import { validateSwarmBudgetRaise } from "./budget-policy.js";
 import type { LiveWorkers } from "./live-workers.js";
@@ -119,10 +117,8 @@ export class RunControls {
         clock.now(),
         this.env.runnerPid,
       );
-      recordRosterAcceptanceChange(db, this.swarmId, clock.now(), request.requestedBy);
       if (change.type === "retireAgent") {
         for (const worker of added) {
-          seedReplacementPostBaseline(db, this.swarmId, worker.name);
           seedReplacementHandoff(db, this.swarmId, worker.name, change.handoffFile, clock.now());
         }
       }

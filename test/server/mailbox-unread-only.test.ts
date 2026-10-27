@@ -1,8 +1,9 @@
+import { continueConversation } from "../helpers/conversation.js";
 import assert from "node:assert/strict";
 import { it } from "node:test";
 import type { MailboxResponse } from "../../src/api-types.js";
 import { markRead } from "../../src/broker/delivery-state.js";
-import { replyToThread, sendMessage } from "../../src/broker/messages.js";
+import { sendMessage } from "../../src/broker/messages.js";
 import { seedSwarm } from "../helpers/temp-db.js";
 import { getJson, startTestBoard } from "./helpers.js";
 
@@ -12,10 +13,16 @@ it("filters unread User threads before pagination, including beyond the first un
   const { db } = board.temp;
   const swarm = seedSwarm(db, { now: Date.now() });
   const now = Date.now();
-  const first = sendMessage(db, swarm.id, "Maria", ["User"], "old unread one", now);
-  const second = sendMessage(db, swarm.id, "John", ["User"], "old unread two", now + 1);
+  const first = sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "User", text: "old unread one", now: now });
+  const second = sendMessage(db, { swarmId: swarm.id, from: "John", to: "User", text: "old unread two", now: now + 1 });
   for (let index = 0; index < 25; index++) {
-    const message = sendMessage(db, swarm.id, "Maria", ["User"], `new read ${index}`, now + 2 + index);
+    const message = sendMessage(db, {
+      swarmId: swarm.id,
+      from: "Maria",
+      to: "User",
+      text: `new read ${index}`,
+      now: now + 2 + index,
+    });
     markRead(db, swarm.id, "User", [message.id], now + 100);
   }
   const route = `${board.base}/api/swarms/${swarm.id}/participants/User/messages`;
@@ -45,9 +52,9 @@ it("keeps full inbox context in an unread thread and removes it only after its u
   const { db } = board.temp;
   const swarm = seedSwarm(db, { now: Date.now() });
   const now = Date.now();
-  const first = sendMessage(db, swarm.id, "Maria", ["User"], "read context", now);
+  const first = sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "User", text: "read context", now: now });
   markRead(db, swarm.id, "User", [first.id], now + 1);
-  const latest = replyToThread(db, swarm.id, "Maria", first.threadId, "unread follow-up", now + 2);
+  const latest = continueConversation(db, swarm.id, "Maria", first.threadId, "unread follow-up", now + 2);
   const route = `${board.base}/api/swarms/${swarm.id}/participants/User/messages?unreadOnly=true`;
   const filtered = await getJson<MailboxResponse>(route);
   assert.equal(filtered.body.total, 1);

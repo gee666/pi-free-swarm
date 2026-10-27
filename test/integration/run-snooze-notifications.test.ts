@@ -4,7 +4,6 @@ import { REMINDER_SNOOZE_MS, snoozeReminders } from "../../src/broker/reminder-s
 import { startSwarm } from "../../src/broker/swarm-run.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
 import { IDLE_REMINDER_HEADER } from "../../src/constants.js";
-import { listFreshComments } from "../../src/store/wall-coverage.js";
 import { FakeClock } from "../agents/fake-clock.js";
 import { SCENARIOS } from "../fixtures/fake-pi/harness.js";
 import {
@@ -13,7 +12,7 @@ import {
   newestSwarmId,
   promptTexts,
   recipientStatus,
-  voteAll,
+  finishWork,
   waitFor,
   waitForWorkersIdle,
 } from "./run-fixture.js";
@@ -75,7 +74,7 @@ test(
         "subscribed comment observed during snooze",
       );
       await waitForWorkersIdle(run, swarmId);
-      assert.equal(listFreshComments(run.db, swarmId, name, post.id, 10).total, 0);
+
       assert.ok(
         promptTexts(run.fake).some(
           (text) => text.includes(`Comment #${comment.id} on post #${post.id} by User:`) && text.includes(comment.text),
@@ -89,7 +88,7 @@ test(
       await waitFor(() => reminders().length === 1, "reminder at snooze expiry");
       assert.doesNotMatch(reminders()[0], /This real comment must wake/);
       assert.match(reminders()[0], /fresh post during snooze/);
-      voteAll(run.db, swarmId, "accepted", "Comment delivery and snooze deadline verified.");
+      finishWork(run.db, swarmId);
       clock.advance(1000);
       assert.equal((await outcome).end, "finished");
     } finally {

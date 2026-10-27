@@ -15,7 +15,7 @@ const YOU = "You";
 const MARKER = /\[swarm message #(\d+)\]/g;
 const BLOCK = new RegExp(
   String.raw`\[swarm message #(\d+)\] thread #(\d+) · from ([^\n]+?) · to: ([^\n]*)\n"([\s\S]*?)"\n` +
-    String.raw`\(reply with ${AGENT_TOOL.replyTo}\(\2, …\)\)`,
+    String.raw`\(reply with ${AGENT_TOOL.messagesSend} [^\n]*\)`,
   "g",
 );
 
@@ -25,7 +25,7 @@ export function formatDeliveredMessage(message: MessageView, recipient: string):
   return [
     `[swarm message #${message.id}] thread #${message.threadId} · from ${message.sender} · to: ${to.join(", ")}`,
     `"${message.text}"`,
-    `(reply with ${AGENT_TOOL.replyTo}(${message.threadId}, …))`,
+    `(reply with ${AGENT_TOOL.messagesSend} {"to":${JSON.stringify(message.sender)},"body":"..."})`,
   ].join("\n");
 }
 

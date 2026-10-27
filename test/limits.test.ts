@@ -1,15 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  BODY_SAFETY_MAX,
-  bodyCeiling,
-  charCount,
-  checkText,
-  checkTitle,
-  clipWithSuffix,
-  MAIN_FEEDBACK_MAX,
-  TEXT_MAX,
-} from "../src/limits.js";
+import { charCount, checkText, checkTitle, clipWithSuffix, MAIN_FEEDBACK_MAX, TEXT_MAX } from "../src/limits.js";
 
 describe("limits", () => {
   it("trims and accepts text up to the limit", () => {
@@ -24,7 +15,8 @@ describe("limits", () => {
       error: "Too long: 201/200 characters. Shorten it or point to a file path.",
     });
     assert.deepEqual(checkTitle(""), { ok: false, error: "Title is empty." });
-    assert.deepEqual(checkTitle("t".repeat(72)), { ok: false, error: "Title too long: 72/60 characters. Shorten it." });
+    assert.equal(checkTitle("t".repeat(100)).ok, true);
+    assert.equal(checkTitle("t".repeat(101)).ok, false);
   });
 
   it("counts code points like SQLite length()", () => {
@@ -32,11 +24,6 @@ describe("limits", () => {
     assert.equal(checkText("😀".repeat(TEXT_MAX)).ok, true);
     assert.equal(checkText("😀".repeat(TEXT_MAX + 1)).ok, false);
     assert.equal(checkTitle("é".repeat(60)).ok, true);
-  });
-
-  it("tolerates twice the stated body limit, within the storage bound", () => {
-    assert.equal(bodyCeiling(TEXT_MAX), 400);
-    assert.equal(bodyCeiling(BODY_SAFETY_MAX), BODY_SAFETY_MAX);
   });
 
   it("clips text so head and suffix fit exactly", () => {

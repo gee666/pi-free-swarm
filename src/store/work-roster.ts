@@ -8,6 +8,11 @@ export interface WorkAgent {
   idle: boolean;
   openTasks: number;
 }
+export function hasActiveWorkRun(db: SwarmDb, swarmId: number): boolean {
+  const row = db.sql.prepare("SELECT status FROM swarms WHERE id = ?").get(swarmId);
+  return row !== undefined && ["starting", "running"].includes(text(row, "status"));
+}
+
 export function workRoster(db: SwarmDb, swarmId: number): WorkAgent[] {
   return db.sql
     .prepare(

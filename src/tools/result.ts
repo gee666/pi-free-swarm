@@ -4,7 +4,8 @@ import type { RunEndStatus } from "../broker/swarms.js";
 import { readRunProgress, type RunProgress } from "../broker/run-progress.js";
 import type { RunOutcome } from "../broker/swarm-run.js";
 import type { SwarmDb } from "../store/db.js";
-import type { AcceptanceVote } from "../store/acceptance-types.js";
+import { evaluateCompletion } from "../broker/completion.js";
+import { readProject } from "../broker/project.js";
 import { listInboxAfter, unreadCounts } from "../store/message-queries.js";
 import { listParticipants } from "../store/swarm-queries.js";
 import { formatCost, formatElapsed, formatTokens, plural, swarmBoardUrl } from "./run-format.js";
@@ -61,45 +62,37 @@ export function buildRunResultText(db: SwarmDb, outcome: RunOutcome, boardUrl: s
         "Resume only after user agreement: raise the swarm's ceiling in Config or raise budgetMoneyUsd/budgetTimeSeconds in .pi/swarm/settings.json, then call resume_swarm. Consumption is not reset. Inspect interrupted actions before repeating them.",
       );
   }
-  const acceptance = outcome.acceptance;
-  lines.push("", `Goal: ${acceptance.originalTask}`, "Acceptance criteria:");
-  for (const [index, criterion] of acceptance.acceptanceCriteria.entries()) {
-    lines.push(`${index + 1}. ${criterion}`);
-  }
-  lines.push("");
-  if (end === "finished") {
-    lines.push(`Task verdict: ${acceptance.verdict} (acceptance revision ${acceptance.revision}).`);
+  const completion = evaluateCompletion(db, swarm.id);
+  lines.push(...completionLines(db, swarm.id, boardUrl));
+  if (completion.awaitingUser)
     lines.push(
-      acceptance.verdict === "accepted"
-        ? "Accepted by agent votes, not independent verification of the work."
-        : "Task completion is not accepted; unresolved work remains.",
+      "Ask the user to approve the current scope and decide pending blockers on the board. Agents wait for that decision; the run remains available.",
     );
-  } else {
-    lines.push(
-      `Task verdict: not finalized (run ${end}; acceptance revision ${acceptance.revision}).`,
-      `Recorded vote verdict: ${acceptance.verdict}. No completion verdict was finalized.`,
-    );
-  }
-  const { counts, threshold, totalAgents, votes } = acceptance;
-  lines.push(
-    `Tally: ${counts.accepted} accepted, ${counts.incomplete} incomplete, ${counts.blocked} blocked; ` +
-      `${votes.length}/${totalAgents} agents voted. Threshold: ${threshold}/${totalAgents} matching accepted or blocked votes.`,
-    "",
-    "Agent votes and reasons:",
-  );
-  if (votes.length === 0) lines.push("No votes recorded.");
-  for (const vote of votes) lines.push(voteLine(vote));
-  if (acceptance.excludedVotes?.length) {
-    lines.push("", "Excluded retired-agent votes (not counted):", ...acceptance.excludedVotes.map(voteLine));
-  }
   if (crashed.length > 0) lines.push(`Crashed and not revived: ${crashed.join(", ")}.`);
   lines.push("", url === null ? "Board: not running." : `Board: ${url}`);
   lines.push(userMessagesLine(db, swarm.id), "", ...nextSteps(swarm.id, end));
   return lines.join("\n");
 }
 
-function voteLine(vote: AcceptanceVote): string {
-  return `- ${vote.agent} (run ${vote.run}): ${vote.verdict}. Reason: ${vote.reason}`;
+export function completionLines(db: SwarmDb, swarmId: number, boardUrl: string | null): string[] {
+  const project = readProject(db, swarmId);
+  const completion = evaluateCompletion(db, swarmId);
+  const url = swarmBoardUrl(boardUrl, swarmId);
+  return [
+    `Brief: ${project.briefPath ?? "not recorded"}`,
+    `Intent: ${project.intentSummary ?? "not recorded"} · ${project.intentPath ?? "no file"}`,
+    `Outcome: ${project.outcome ?? completion.outcome ?? (completion.awaitingUser ? "awaiting User" : "unfinished")}`,
+    ...completion.gates.map((gate) => `${gate.ok ? "OK" : "UNMET"} ${gate.key} (${gate.count}): ${gate.detail}`),
+    url === null ? "Board: not running." : `Board: ${url}`,
+  ];
+}
+
+export function awaitingUserText(db: SwarmDb, swarmId: number, boardUrl: string | null): string {
+  return [
+    `Swarm #${swarmId} awaits User decisions. The run remains active.`,
+    ...completionLines(db, swarmId, boardUrl),
+    "Ask the user to approve the current scope and decide pending blockers on the board. Do not approve scope or blocker exceptions on the user's behalf.",
+  ].join("\n");
 }
 
 function userMessagesLine(db: SwarmDb, swarmId: number): string {

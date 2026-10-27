@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, describe, it } from "node:test";
 import { Value } from "typebox/value";
-import { inspectAcceptance } from "../../src/broker/acceptance.js";
+
 import { MAIN_TOOL } from "../../src/constants.js";
 import { readRunProgress, type RunProgress } from "../../src/broker/run-progress.js";
 import { resumeSwarm, type RunEnvironment, type RunOptions } from "../../src/broker/swarm-run.js";
@@ -83,7 +83,7 @@ function stoppingRunner(seen: { env?: RunEnvironment; options?: RunOptions }): S
       endRun(env.db, swarm.id, env.runnerPid, "stopped", Date.now());
       const ended = getSwarm(env.db, swarm.id, Date.now());
       assert.ok(ended);
-      return { swarm: ended, run: 1, end: "stopped", acceptance: inspectAcceptance(env.db, swarm.id) };
+      return { swarm: ended, run: 1, end: "stopped" };
     },
     resumeSwarm,
   };
@@ -256,7 +256,7 @@ describe("swarm tool", () => {
     assert.equal(seen.options?.signal, abort.signal);
     assert.deepEqual(seen.env?.launch, { extensionArgs: [EXTENSION], projectTrusted: true, model: null });
     assert.equal(seen.env?.settings.minAgents, 1);
-    assert.deepEqual(getSwarm(seen.env.db, 1, Date.now())?.acceptanceCriteria, ["Build works.", "Examples pass."]);
+
     assert.equal(updates[0].agents.pending, 2);
     assert.equal(result.details.status, "stopped");
     const [summary, hint] = texts(result.content);

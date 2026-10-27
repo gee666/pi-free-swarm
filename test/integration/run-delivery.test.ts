@@ -16,7 +16,7 @@ import {
   systemReplies,
   waitFor,
   waitForWorkersIdle,
-  voteAll,
+  finishWork,
   type RunFixture,
 } from "./run-fixture.js";
 
@@ -50,7 +50,13 @@ describe("delivery during a run", () => {
     const [first, second] = agentNames(db, swarmId);
 
     // The second agent is still waiting for its stagger slot: its message waits for the kickoff.
-    const early = sendMessage(db, swarmId, "User", [second], "for your kickoff", Date.now()).id;
+    const early = sendMessage(db, {
+      swarmId: swarmId,
+      from: "User",
+      to: second,
+      text: "for your kickoff",
+      now: Date.now(),
+    }).id;
     await waitFor(() => agentStatus(db, swarmId, first) === "idle", "first agent idle");
     assert.equal(agentStatus(db, swarmId, second), "pending");
     assert.equal(recipientStatus(db, early, second), "pending");
@@ -75,13 +81,13 @@ describe("delivery during a run", () => {
 
     // Idle → wake: a message from one agent to the other starts a new run.
     await waitFor(() => agentStatus(db, swarmId, first) === "idle", "first agent idle again");
-    const wake = sendMessage(db, swarmId, second, [first], "wake up", Date.now()).id;
+    const wake = sendMessage(db, { swarmId: swarmId, from: second, to: first, text: "wake up", now: Date.now() }).id;
     await waitFor(() => recipientStatus(db, wake, first) === "read", "wake message read");
     const wakePrompt = promptTexts(run.fake).find((text) => text.includes(`[swarm message #${wake}]`));
     assert.match(wakePrompt ?? "", new RegExp(`^\\[swarm message #${wake}\\] thread #\\d+ · from ${second} · to: You`));
 
     await waitForWorkersIdle(run, swarmId);
-    voteAll(db, swarmId, "accepted", "Kickoff and wake messages were processed.");
+    finishWork(db, swarmId);
     const result = await outcome;
     assert.equal(result.end, "finished");
     assert.equal(result.swarm.status, "finished");
@@ -90,10 +96,16 @@ describe("delivery during a run", () => {
     assert.ok(!outbox.includes("s3cret"), "settings env values never reach the DB");
 
     // After the finish the broker still stores messages, as undeliverable with a System reply.
-    const fromUser = sendMessage(db, swarmId, "User", [first], "too late", Date.now());
+    const fromUser = sendMessage(db, { swarmId: swarmId, from: "User", to: first, text: "too late", now: Date.now() });
     assert.equal(recipientStatus(db, fromUser.id, first), "undeliverable");
     assert.deepEqual(systemReplies(db, fromUser.threadId), [UNDELIVERABLE_REPLY_TEXT]);
-    const fromAgent = sendMessage(db, swarmId, first, [second], "also late", Date.now());
+    const fromAgent = sendMessage(db, {
+      swarmId: swarmId,
+      from: first,
+      to: second,
+      text: "also late",
+      now: Date.now(),
+    });
     assert.equal(recipientStatus(db, fromAgent.id, second), "undeliverable");
     assert.deepEqual(systemReplies(db, fromAgent.threadId), [UNDELIVERABLE_REPLY_TEXT]);
   });
@@ -110,12 +122,18 @@ describe("delivery during a run", () => {
     const swarmId = newestSwarmId(db);
     const [name] = agentNames(db, swarmId);
     await waitFor(() => agentStatus(db, swarmId, name) === "working", "agent working");
-    const id = sendMessage(db, swarmId, "User", [name], "while you work", Date.now()).id;
+    const id = sendMessage(db, {
+      swarmId: swarmId,
+      from: "User",
+      to: name,
+      text: "while you work",
+      now: Date.now(),
+    }).id;
     await waitFor(() => recipientStatus(db, id, name) === "delivered", "steer delivered");
     assert.equal(agentStatus(db, swarmId, name), "working", "delivered as steering, the run goes on");
     await waitFor(() => recipientStatus(db, id, name) === "read", "steer read");
     await waitForWorkersIdle(run, swarmId);
-    voteAll(db, swarmId, "accepted", "Steering was processed on the next turn.");
+    finishWork(db, swarmId);
     assert.equal((await outcome).end, "finished");
     assert.equal(spawnsOf(run.fake).length, 1);
     const statuses = db.sql

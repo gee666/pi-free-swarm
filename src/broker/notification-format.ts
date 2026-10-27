@@ -32,8 +32,8 @@ export function formatNotificationMessages(db: SwarmDb, messages: readonly Messa
       if (!notification || lastByPost.get(notification.postId) !== message.id) return message;
       const { postId, subscribed } = notification;
       const status = subscribed
-        ? `Subscribed to post #${postId}. Mute with ${AGENT_TOOL.unsubscribe}({post_id: ${postId}}).`
-        : `Not subscribed to post #${postId}. Resume with ${AGENT_TOOL.subscribe}({post_id: ${postId}}).`;
+        ? `Subscribed to post #${postId}. Mute with ${AGENT_TOOL.postsUnsubscribe}({post_id: ${postId}}).`
+        : `Not subscribed to post #${postId}. Search and read the post for discussion.`;
       return { ...message, text: `${message.text}\n\nSubscription: ${status}` };
     }),
     recipient,

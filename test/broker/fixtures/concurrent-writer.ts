@@ -18,7 +18,7 @@ const countOf = (name: string): number => Number(writesOf.get(name)?.n);
 
 function write(i: number): void {
   if (i % 2 === 0) createPost(db, swarmId, author, { title: `${author} ${i}`, text: "concurrent" }, Date.now());
-  else sendMessage(db, swarmId, author, ["User", "Liam"], `${author} ${i}`, Date.now());
+  else sendMessage(db, { swarmId: swarmId, from: author, to: "User", text: `${author} ${i}`, now: Date.now() });
 }
 
 const lockstep = Number(lockstepArg);

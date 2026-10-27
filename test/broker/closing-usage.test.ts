@@ -24,7 +24,13 @@ test("closing hooks charge the originating run after resume without advancing cu
   const temp = createTempDb();
   try {
     const swarm = seedSwarm(temp.db);
-    const message = sendMessage(temp.db, swarm.id, "User", ["Maria"], "Must remain pending", T0);
+    const message = sendMessage(temp.db, {
+      swarmId: swarm.id,
+      from: "User",
+      to: "Maria",
+      text: "Must remain pending",
+      now: T0,
+    });
     endRun(temp.db, swarm.id, process.pid, "stopped", T0 + 10);
     assert.equal(beginResume(temp.db, swarm.id, process.pid, T0 + 20).run, 2);
     const hooks = createAgentHooks({
@@ -167,7 +173,7 @@ test("money refusal is thrown only after its usage and attribution gap commit", 
           resumeStaggerMs: 1,
           reviveBackoffMs: [1],
         },
-        limits: { bodyMaxChars: 200, maxRpcFrameBytes: 16 * 1024 * 1024 },
+        limits: { maxRpcFrameBytes: 16 * 1024 * 1024 },
         budget: { moneyUsd: 1, timeSeconds: null, gracefulShutdown: false },
       },
       T0,

@@ -1,5 +1,3 @@
-// `swarm` and `resume_swarm`, the main agent's two tools. Both block until the run ends and stream a
-// status snapshot about once a second; Esc aborts the tool signal, which stops the swarm.
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { systemClock } from "../clock.js";
@@ -21,7 +19,8 @@ import {
   renderSwarmCall,
   renderToolResult,
 } from "./render.js";
-import { boundRunResult, buildRunResultText, type RunToolResult } from "./result.js";
+import { evaluateCompletion } from "../broker/completion.js";
+import { boundRunResult, buildRunResultText, awaitingUserText, type RunToolResult } from "./result.js";
 import { buildRunEnvironment, gitignoreHint, type LaunchSource } from "./run-environment.js";
 
 /** The runner entry points; tests replace them to exercise the tools without agents. */
@@ -81,11 +80,11 @@ export function swarmDescription(cwd: string, maxAgents?: number): string {
     range = `agent_amount: ${SWARM_DIR}/${SETTINGS_FILE} is invalid (${error instanceof Error ? error.message : String(error)})`;
   }
   return [
-    "Launch a swarm of pi agents on ONE task in this project; they self-organise on a shared wall.",
+    "Launch equal Pi agents on one project task, coordinated through a shared work graph.",
     "Use it when the user asks for a swarm, after the requirements are written to files.",
     `Keep task_prompt concise and point to those files. ${range}.`,
     "Acceptance criteria are the most important part of preparing a swarm run: they define what agents must deliver and what they judge as complete. Before launching, make them specific and verifiable. Specify the required deliverables and their locations/formats, minimum counts or coverage where relevant, quality requirements, tests and other validation, required evidence, and the scope and independence of verification. State constraints and exclusions explicitly. Avoid vague goals such as 'improve quality' or 'test thoroughly'; define observable completion conditions. If the user did not provide criteria, derive them from the task before launching, without inventing extra scope. Clear criteria strongly influence run quality, but votes do not replace Main's inspection of the result.",
-    "Blocks until at least 70% of all active workers vote the same accepted or blocked verdict; retired workers are excluded. Returns one deterministic status document with the goal, criteria, verdict, tally and every vote reason, including dissent; review the real work before summarising.",
+    "Blocks until the run ends or only User decisions remain. Returns stop gates, outcome and board link. Ask the user to approve scope or decide blockers on the board; never decide on their behalf. Review the real work before summarising.",
   ].join(" ");
 }
 
@@ -118,9 +117,25 @@ export function createMainToolHandlers(runtime: MainRuntime, runner: SwarmRunner
     await runtime.host.ensure();
     assertEnabled();
     const env = buildRunEnvironment(runtime, db, request.settings, request.ctx);
-    const onProgress = (progress: RunProgress) =>
+    let returned = false;
+    let release: (progress: RunProgress) => void = () => undefined;
+    const waiting = new Promise<RunProgress>((resolve) => {
+      release = resolve;
+    });
+    const onProgress = (progress: RunProgress) => {
+      if (returned) return;
       onUpdate?.(toolResult(progressLines(progress, PLAIN_THEME).join("\n"), progress));
-    const outcome = await request.start(env, { signal: request.signal, onProgress });
+      if (evaluateCompletion(db, progress.swarmId).awaitingUser) release(progress);
+    };
+    const running = request.start(env, { signal: request.signal, onProgress });
+    const result = await Promise.race([
+      running.then((outcome) => ({ kind: "ended" as const, outcome })),
+      waiting.then((progress) => ({ kind: "waiting" as const, progress })),
+    ]);
+    returned = true;
+    if (result.kind === "waiting")
+      return toolResult(awaitingUserText(db, result.progress.swarmId, runtime.host.boardUrl()), result.progress);
+    const outcome = result.outcome;
     const now = systemClock.now();
     const boardUrl = runtime.host.boardUrl();
     const final = { ...readRunProgress(db, outcome.swarm.id, now, boardUrl), status: outcome.end };
@@ -204,8 +219,7 @@ export function registerMainTools(pi: Pick<ExtensionAPI, "registerTool">, runtim
     name: MAIN_TOOL.resumeSwarm,
     label: "Resume swarm",
     description:
-      "Resume a finished, stopped or interrupted swarm of this project with your feedback; every active worker gets it " +
-      "and they discuss it on the wall before working. Be concise and specific. Blocks and returns like swarm.",
+      "Attach to an active swarm or resume an ended one with feedback to every active worker. Preserves the work graph and re-evaluates old votes. Blocks until the run ends or awaits User decisions.",
     promptSnippet: "Resume a swarm with feedback on its work.",
     parameters: RESUME_PARAMS,
     execute: (_toolCallId, params, signal, onUpdate, ctx) => handlers.resume(params, signal, onUpdate, ctx),

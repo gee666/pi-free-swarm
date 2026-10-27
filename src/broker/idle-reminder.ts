@@ -1,12 +1,12 @@
 import type { ParticipantStatus } from "../api-types.js";
 import type { PromptPayload } from "../agents/supervisor.js";
 import type { Clock, TimerHandle } from "../clock.js";
-import { IDLE_REMINDER_HEADER, PAGE_MAX_COUNT, WATCHER_NAME } from "../constants.js";
+import { IDLE_REMINDER_HEADER, WATCHER_NAME } from "../constants.js";
 import type { SwarmSettings } from "../settings.js";
 import type { SwarmDb } from "../store/db.js";
 import { listOpenAgentRecipients } from "../store/message-queries.js";
-import { listFreshPosts } from "../store/wall-coverage.js";
-import { inspectAcceptance } from "./acceptance.js";
+import { evaluateCompletion } from "./completion.js";
+import { workReminder } from "./work-reminder.js";
 import type { DeliveryTarget } from "./delivery.js";
 import { guardRunAction } from "./run-failure.js";
 import { reminderSnoozedUntil } from "./reminder-snooze.js";
@@ -95,8 +95,8 @@ export class IdleReminders {
 
   #decided(): boolean {
     const { db, swarmId } = this.#options;
-    const verdict = inspectAcceptance(db, swarmId).verdict;
-    return verdict === "accepted" || verdict === "blocked";
+    const completion = evaluateCompletion(db, swarmId);
+    return completion.done || completion.awaitingUser;
   }
 
   #openRecipients(): Set<string> {
@@ -105,31 +105,26 @@ export class IdleReminders {
   }
 
   async #send(name: string, state: ReminderState): Promise<void> {
-    const { db, swarmId, agents, settings, clock } = this.#options;
+    const { db, swarmId, agents, clock } = this.#options;
     const agent = agents.get(name);
     if (this.#stopped || state.inFlight || !agent || agent.status !== "idle" || this.#openRecipients().has(name))
       return;
     if (reminderSnoozedUntil(db, swarmId, name) > clock.now()) return;
-    const acceptance = inspectAcceptance(db, swarmId);
-    if (acceptance.verdict === "accepted" || acceptance.verdict === "blocked") return;
-    const page = listFreshPosts(db, swarmId, name, Math.min(settings.idleReminderDigestSize, PAGE_MAX_COUNT));
-    // Send canonical stored bodies, not previews. Only context observation may cover these IDs.
-    const digest = page.posts
-      .map((post) => `[swarm post #${post.id}] ${post.author}: ${post.title}\n${post.text}`)
-      .join("\n\n");
+    if (this.#decided()) return;
+    const digest = workReminder(db, swarmId, name, clock.now());
     state.inFlight = true;
     try {
-      const { counts, threshold, totalAgents } = acceptance;
-      const tally = `Votes: ${counts.accepted} accepted, ${counts.incomplete} incomplete, ${counts.blocked} blocked. Quorum: ${threshold}/${totalAgents} for the same accepted or blocked verdict.`;
       const prompt: PromptPayload = {
-        text: [IDLE_REMINDER_HEADER, tally, digest].filter(Boolean).join("\n\n"),
+        text: [IDLE_REMINDER_HEADER, digest].join("\n\n"),
         messageIds: [],
-        postIds: page.posts.map((post) => post.id),
       };
       await agent.deliver({
         ...prompt,
         beforeSend: () =>
-          this.#stopped || agents.get(name) !== agent || reminderSnoozedUntil(db, swarmId, name) > clock.now()
+          this.#stopped ||
+          this.#decided() ||
+          agents.get(name) !== agent ||
+          reminderSnoozedUntil(db, swarmId, name) > clock.now()
             ? null
             : prompt,
       });

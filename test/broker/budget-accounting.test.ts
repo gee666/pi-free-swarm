@@ -33,7 +33,7 @@ test("missing compaction costs remain incomplete, stop money execution and refus
         resumeStaggerMs: 0,
         reviveBackoffMs: [],
       },
-      limits: { bodyMaxChars: 200, maxRpcFrameBytes: 100000 },
+      limits: { maxRpcFrameBytes: 100000 },
       budget: { moneyUsd: 1, timeSeconds: null, gracefulShutdown: false },
     },
     T0,

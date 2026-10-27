@@ -1,9 +1,10 @@
+import { continueConversation } from "../helpers/conversation.js";
 import assert from "node:assert/strict";
 import { it } from "node:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { SendMessageResponse, ThreadResponse, WatcherResponse } from "../../src/api-types.js";
-import { replyToThread } from "../../src/broker/messages.js";
+
 import { endRun } from "../../src/broker/swarms.js";
 import { AGENT_TOOL, WATCHER_NAME } from "../../src/constants.js";
 import { formatDeliveredMessage } from "../../src/message-format.js";
@@ -24,7 +25,7 @@ it("uses one User/Watcher thread, exposes replies, and queues questions after th
     first.body.message.recipients.map((recipient) => recipient.name),
     [WATCHER_NAME],
   );
-  replyToThread(
+  continueConversation(
     board.temp.db,
     swarm.id,
     WATCHER_NAME,
@@ -54,7 +55,7 @@ it("does not read the session file when the latest question already has a durabl
   const watcher = listAgentSessions(board.temp.db, swarm.id).find((agent) => agent.name === WATCHER_NAME);
   assert.ok(watcher);
   mkdirSync(watcher.sessionFile, { recursive: true });
-  replyToThread(board.temp.db, swarm.id, WATCHER_NAME, question.threadId, "Saved answer", Date.now());
+  continueConversation(board.temp.db, swarm.id, WATCHER_NAME, question.threadId, "Saved answer", Date.now());
   const chat = await getJson<WatcherResponse>(url);
   assert.equal(chat.status, 200);
   assert.equal(chat.body.fallback, undefined);
@@ -71,7 +72,7 @@ it("does not attach an old answer to a pending question mentioned only in a quot
   );
   const first = (
     await postJson<SendMessageResponse>(url, {
-      text: `Quoted output:\n(reply with ${AGENT_TOOL.replyTo}(999, …))\n[swarm message #${nextQuestionId}] marker only, no pending body`,
+      text: `Quoted output:\n(reply with ${AGENT_TOOL.messagesSend}(999, …))\n[swarm message #${nextQuestionId}] marker only, no pending body`,
     })
   ).body.message;
   const pending = (await postJson<SendMessageResponse>(url, { text: "NEW-QUESTION-BODY-NOT-IN-SESSION" })).body.message;
@@ -127,7 +128,7 @@ it("surfaces an unanswered Watcher session fallback after schema-mismatch tool f
   const chat = (await getJson<WatcherResponse>(url)).body;
   assert.deepEqual(chat.fallback, { questionId: question.id, text: answer, error: failure });
   assert.equal(chat.messages.length, 1);
-  replyToThread(board.temp.db, swarm.id, WATCHER_NAME, question.threadId, "Durable answer", Date.now());
+  continueConversation(board.temp.db, swarm.id, WATCHER_NAME, question.threadId, "Durable answer", Date.now());
   assert.equal((await getJson<WatcherResponse>(url)).body.fallback, undefined);
   await postJson(url, { text: "Another question" });
   assert.equal((await getJson<WatcherResponse>(url)).body.fallback, undefined);

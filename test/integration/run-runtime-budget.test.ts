@@ -1,8 +1,8 @@
+import { finishWork } from "../helpers/finish-work.js";
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import { mutateAcceptance } from "../../src/broker/acceptance.js";
 import { readBudget } from "../../src/store/budget.js";
 import { getRunConfiguration } from "../../src/store/run-configuration.js";
 import { getRuntimeConfiguration } from "../../src/store/runtime-configuration.js";
@@ -60,13 +60,7 @@ test(
         const continued = readBudget(run.db, swarmId, run.env.settings, Date.now());
         assert.equal(continued.timeSeconds, 10);
         assert.ok(continued.activeTimeMs >= spent, "resume retains cumulative consumption");
-        mutateAcceptance(
-          run.db,
-          swarmId,
-          name,
-          { action: "vote", verdict: "accepted", reason: "Approved runtime ceiling and saved progress verified." },
-          Date.now(),
-        );
+        finishWork(run.db, swarmId);
         await resumed.finished();
       } finally {
         await resumed.close();

@@ -44,7 +44,7 @@ function fixture(database: SwarmDb = db) {
         resumeStaggerMs: 5,
         reviveBackoffMs: [1, 2],
       },
-      limits: { bodyMaxChars: 200, maxRpcFrameBytes: 1000000 },
+      limits: { maxRpcFrameBytes: 1000000 },
       budget: { moneyUsd: null, timeSeconds: null, gracefulShutdown: false },
     },
     T0,
@@ -155,7 +155,7 @@ test("retirement reports the actual handoff path when the agent uses a custom da
 test("retire schema accepts handoff text only, not a filename, target identity or empty summary", () => {
   const swarm = fixture();
   const pi = new FakeExtensionApi();
-  registerAgentTools(pi, { getDb: () => db, swarmId: swarm.id, run: 1, agentName: "Maria" }, 200);
+  registerAgentTools(pi, { getDb: () => db, swarmId: swarm.id, run: 1, agentName: "Maria" });
   const tool = pi.tool(AGENT_TOOL.retire);
   assert.ok(Value.Check(tool.parameters, { handoff: "Completed work; remaining verification." }));
   assert.equal(Value.Check(tool.parameters, { handoff: " " }), false);

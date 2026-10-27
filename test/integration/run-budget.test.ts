@@ -6,7 +6,6 @@ import { resumeSwarm, startSwarm } from "../../src/broker/swarm-run.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
 import { readBudget } from "../../src/store/budget.js";
 import { listOpenAgentRecipients } from "../../src/store/message-queries.js";
-import { listFreshComments } from "../../src/store/wall-coverage.js";
 import { listAgentSessions } from "../../src/store/swarm-queries.js";
 import { FakeClock } from "../agents/fake-clock.js";
 import { SCENARIOS } from "../fixtures/fake-pi/harness.js";
@@ -18,7 +17,7 @@ import {
   newestSwarmId,
   recipientStatus,
   spawnsOf,
-  voteAll,
+  finishWork,
   waitFor,
   waitForWorkersIdle,
 } from "./run-fixture.js";
@@ -57,7 +56,13 @@ for (const graceful of [false, true]) {
               .get(swarmId) !== undefined,
           "active tool before budget expiry",
         );
-        const unread = sendMessage(run.db, swarmId, "User", [names[1]], "Preserve this unread work", clock.now());
+        const unread = sendMessage(run.db, {
+          swarmId: swarmId,
+          from: "User",
+          to: names[1],
+          text: "Preserve this unread work",
+          now: clock.now(),
+        });
         const post = createPost(
           run.db,
           swarmId,
@@ -65,7 +70,7 @@ for (const graceful of [false, true]) {
           { title: "Budget evidence", text: "Keep queued comments recoverable." },
           clock.now(),
         );
-        const { comment } = addComment(run.db, swarmId, "User", post.id, "Queued during the active tool.", clock.now());
+        addComment(run.db, swarmId, "User", post.id, "Queued during the active tool.", clock.now());
         clock.advance(50);
         const queued = listOpenAgentRecipients(run.db, swarmId).find((recipient) => recipient.name === names[0]);
         assert.ok(queued);
@@ -81,15 +86,10 @@ for (const graceful of [false, true]) {
         const stopped = await first;
         assert.equal(stopped.end, "stopped");
         assert.equal(stopped.stopReason, "budget-exhausted");
-        assert.equal(stopped.acceptance.counts.accepted, 0);
-        assert.equal(stopped.acceptance.counts.blocked, 0);
+
         assert.equal(recipientStatus(run.db, unread.id, names[1]), "pending");
         assert.equal(recipientStatus(run.db, queued.messageId, names[0]), "delivered");
-        assert.deepEqual(
-          listFreshComments(run.db, swarmId, names[0], post.id, 10).comments.map((item) => item.id),
-          [comment.id],
-          "queued-only comment remains uncovered",
-        );
+
         if (graceful) assert.ok(run.fake.log().some((record) => record.type === "clear_queue"));
         assert.ok(stopped.budget);
         assert.ok(stopped.budget.activeTimeMs >= 1000);
@@ -133,8 +133,8 @@ for (const graceful of [false, true]) {
           await waitForWorkersIdle(run, swarmId);
           assert.equal(recipientStatus(run.db, unread.id, names[1]), "read");
           assert.equal(recipientStatus(run.db, queued.messageId, names[0]), "read");
-          assert.deepEqual(listFreshComments(run.db, swarmId, names[0], post.id, 10).comments, []);
-          voteAll(run.db, swarmId, "accepted", "Budget fixture verified");
+
+          finishWork(run.db, swarmId);
           clock.advance(25);
           const completed = await resumed;
           assert.equal(completed.end, "finished");

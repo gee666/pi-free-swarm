@@ -17,7 +17,7 @@ function recipient(messageId: number, name: string) {
 describe("recipient status", () => {
   it("moves pending → delivered → read and never back", () => {
     const swarm = seedSwarm(db);
-    const message = sendMessage(db, swarm.id, "Maria", ["John", "Liam"], "hi", T0 + 1);
+    const message = sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "John", text: "hi", now: T0 + 1 });
     assert.equal(markDelivered(db, swarm.id, "john", [message.id], T0 + 2), 1);
     assert.deepEqual(recipient(message.id, "John"), {
       name: "John",
@@ -39,7 +39,7 @@ describe("recipient status", () => {
 
   it("fills delivered_at when the read signal comes first", () => {
     const swarm = seedSwarm(db);
-    const message = sendMessage(db, swarm.id, "Maria", ["John"], "hi", T0 + 1);
+    const message = sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "John", text: "hi", now: T0 + 1 });
     assert.equal(markRead(db, swarm.id, "John", [message.id, message.id], T0 + 7), 1);
     assert.deepEqual(recipient(message.id, "John"), {
       name: "John",
@@ -53,7 +53,7 @@ describe("recipient status", () => {
   it("keeps undeliverable final", () => {
     const swarm = seedSwarm(db);
     endRun(db, swarm.id, process.pid, "stopped", T0 + 1);
-    const message = sendMessage(db, swarm.id, "Maria", ["John"], "hi", T0 + 2);
+    const message = sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "John", text: "hi", now: T0 + 2 });
     assert.equal(markDelivered(db, swarm.id, "John", [message.id], T0 + 3), 0);
     assert.equal(markRead(db, swarm.id, "John", [message.id], T0 + 3), 0);
     assert.equal(recipient(message.id, "John")?.status, "undeliverable");
@@ -61,8 +61,8 @@ describe("recipient status", () => {
 
   it("lists open agent recipients and counts unread", () => {
     const swarm = seedSwarm(db);
-    const a = sendMessage(db, swarm.id, "Maria", ["John", "User"], "a", T0 + 1);
-    const b = sendMessage(db, swarm.id, "User", ["Liam", "John"], "b", T0 + 1);
+    const a = sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "John", text: "a", now: T0 + 1 });
+    const b = sendMessage(db, { swarmId: swarm.id, from: "User", to: "Liam", text: "b", now: T0 + 1 });
     markDelivered(db, swarm.id, "John", [a.id], T0 + 2);
     assert.deepEqual(listOpenAgentRecipients(db, swarm.id), [
       { messageId: a.id, name: "John", status: "delivered" },

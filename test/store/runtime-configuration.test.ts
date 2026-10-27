@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
 import type { RunConfiguration } from "../../src/run-configuration.js";
-import { recordRosterAcceptanceChange } from "../../src/broker/acceptance.js";
 import { setAgentStatus } from "../../src/broker/agent-state.js";
 import { sendMessage } from "../../src/broker/messages.js";
 import { createPost } from "../../src/broker/wall.js";
@@ -39,7 +38,7 @@ function fixture(names = ["Maria", "John", "Liam"]) {
       resumeStaggerMs: 5,
       reviveBackoffMs: [1],
     },
-    limits: { bodyMaxChars: 200, maxRpcFrameBytes: 1000000 },
+    limits: { maxRpcFrameBytes: 1000000 },
     budget: { moneyUsd: 2, timeSeconds: 100, gracefulShutdown: false },
   };
   saveRunConfiguration(temp.db, swarm.id, 1, configuration, T0);
@@ -50,14 +49,13 @@ it("archives workers with immutable initial provenance, retained messages and de
   const f = fixture();
   t.after(() => f.cleanup());
   setAgentStatus(f.db, f.swarm.id, "Maria", "working", T0);
-  const pending = sendMessage(f.db, f.swarm.id, "John", ["Maria"], "pending work", T0);
+  const pending = sendMessage(f.db, { swarmId: f.swarm.id, from: "John", to: "Maria", text: "pending work", now: T0 });
   const request = queueConfigurationChange(f.db, f.swarm.id, "User", { type: "removeAgent", name: "maria" }, 0, T0 + 1);
   assert.deepEqual(request.change, { type: "removeAgent", name: "Maria" });
   assert.equal(claimConfigurationRequest(f.db, request.id, process.pid, T0 + 2).status, "applying");
   const next = { ...f.configuration, workers: f.configuration.workers.filter((worker) => worker.name !== "Maria") };
   f.db.write(() => {
     applyRosterConfiguration(f.db, f.swarm.id, 1, next, 0, T0 + 3);
-    recordRosterAcceptanceChange(f.db, f.swarm.id, T0 + 3);
   });
   assert.equal(
     getRuntimeConfiguration(f.db, f.swarm.id, T0 + 3)?.requests[0]?.status,
@@ -95,7 +93,10 @@ it("archives workers with immutable initial provenance, retained messages and de
     listAgentSessions(f.db, f.swarm.id, { activeOnly: true }).some((agent) => agent.name === "Maria"),
     false,
   );
-  assert.throws(() => sendMessage(f.db, f.swarm.id, "John", ["Maria"], "new", T0 + 5), /retired/);
+  assert.throws(
+    () => sendMessage(f.db, { swarmId: f.swarm.id, from: "John", to: "Maria", text: "new", now: T0 + 5 }),
+    /retired/,
+  );
   assert.throws(() => createPost(f.db, f.swarm.id, "Maria", { title: "late", text: "late" }, T0 + 5), /retired/);
 });
 
@@ -107,14 +108,11 @@ it("joins roster, revision, electorate and request writes in one rollback withou
     ...f.configuration,
     workers: [...f.configuration.workers, { name: "Nora", provider: "fixture", modelId: "one", thinkingLevel: "high" }],
   };
+
   assert.throws(
     () =>
       f.db.write(() => {
-        const request = queueConfigurationChange(f.db, f.swarm.id, "User", { type: "addAgents", count: 1 }, 0, T0 + 1);
-        claimConfigurationRequest(f.db, request.id, process.pid, T0 + 1);
-        applyRosterConfiguration(f.db, f.swarm.id, 1, next, 0, T0 + 1);
-        recordRosterAcceptanceChange(f.db, f.swarm.id, T0 + 1);
-        finishConfigurationRequest(f.db, request.id, "applied", null, T0 + 1);
+        applyRosterConfiguration(f.db, f.swarm.id, 1, next, 0, T0);
         throw new Error("rollback");
       }),
     /rollback/,
@@ -213,7 +211,6 @@ it("atomically replaces a sole worker with a fresh assignment and exposes effect
   };
   f.db.write(() => {
     applyRosterConfiguration(f.db, f.swarm.id, 1, next, 0, T0 + 1);
-    recordRosterAcceptanceChange(f.db, f.swarm.id, T0 + 1, "Maria");
   });
   assert.deepEqual(activeWorkerNames(f.db, f.swarm.id), ["Nora"]);
   const fresh = getParticipant(f.db, f.swarm.id, "Nora");

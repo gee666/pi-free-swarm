@@ -42,7 +42,7 @@ function recordedSwarm(
       resumeStaggerMs: 10,
       reviveBackoffMs: [10],
     },
-    limits: { bodyMaxChars: 200, maxRpcFrameBytes: 16 * 1024 * 1024, maxAgents: 6 },
+    limits: { maxRpcFrameBytes: 16 * 1024 * 1024, maxAgents: 6 },
     budget,
   };
   saveRunConfiguration(board.temp.db, swarm.id, 1, configuration, now);

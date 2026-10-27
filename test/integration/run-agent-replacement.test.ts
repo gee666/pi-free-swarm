@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import { inspectAcceptance, mutateAcceptance } from "../../src/broker/acceptance.js";
 import { sendMessage } from "../../src/broker/messages.js";
+import { finishWork } from "../helpers/finish-work.js";
 import { requestRetirement } from "../../src/broker/retirement.js";
 import { snoozeReminders } from "../../src/broker/reminder-snooze.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
@@ -16,7 +16,7 @@ import { configurationOwner } from "./configuration-fixture.js";
 import { agentStatus, createRunFixture, isAlive, recipientStatus, waitFor } from "./run-fixture.js";
 
 test(
-  "retirement gives a fresh worker only task, criteria and handoff with last-ten wall catch-up",
+  "retirement preserves history and gives the replacement a brief path, graph discovery and handoff",
   { timeout: 45_000 },
   async () => {
     const run = createRunFixture(SCENARIOS.settle);
@@ -61,18 +61,22 @@ test(
         { title: "Old discussion", text: "OLD-NOTIFICATION-POST" },
         Date.now(),
       );
-      const allPosts = [...posts, discussion];
-      mutateAcceptance(
-        run.db,
-        swarmId,
-        oldName,
-        { action: "vote", verdict: "incomplete", reason: "Preserve excluded retired evidence." },
-        Date.now(),
-      );
-      sendMessage(run.db, swarmId, "User", [oldName], "OLD-SECOND-TURN-TRIGGER", Date.now());
+      sendMessage(run.db, {
+        swarmId: swarmId,
+        from: "User",
+        to: oldName,
+        text: "OLD-SECOND-TURN-TRIGGER",
+        now: Date.now(),
+      });
       await owner.advance(50);
       await waitFor(() => agentStatus(run.db, swarmId, oldName) === "working", "old worker's later active turn");
-      const unread = sendMessage(run.db, swarmId, "User", [oldName], "OLD-PRIVATE-UNREAD", Date.now());
+      const unread = sendMessage(run.db, {
+        swarmId: swarmId,
+        from: "User",
+        to: oldName,
+        text: "OLD-PRIVATE-UNREAD",
+        now: Date.now(),
+      });
       const comment = addComment(
         run.db,
         swarmId,
@@ -96,13 +100,7 @@ test(
       await waitFor(() => agentStatus(run.db, swarmId, newName) === "working", "fresh replacement starts its own turn");
       const next = getActiveAssignments(run.db, swarmId)[0];
       assert.deepEqual({ ...next, name: oldName }, originalAssignment);
-      assert.equal(inspectAcceptance(run.db, swarmId).totalAgents, 1);
-      assert.deepEqual(inspectAcceptance(run.db, swarmId).counts, { accepted: 0, incomplete: 0, blocked: 0 });
-      assert.equal(
-        run.db.sql.prepare("SELECT reason FROM acceptance_votes WHERE swarm_id = ? AND agent = ?").get(swarmId, oldName)
-          ?.reason,
-        "Preserve excluded retired evidence.",
-      );
+
       assert.throws(() => snoozeReminders(run.db, swarmId, newName, Date.now()), /first idle/i);
       assert.throws(() => requestRetirement(run.db, swarmId, newName, 1, "too early again", Date.now()), /first idle/i);
       const prompt = run.fake.log().find((entry) => entry.type === "prompt" && entry.agent === newName);
@@ -121,9 +119,8 @@ test(
       assert.equal(argv[argv.indexOf("--model") + 1], `${originalAssignment.provider}/${originalAssignment.modelId}`);
       assert.equal(argv[argv.indexOf("--thinking") + 1], originalAssignment.thinkingLevel);
       const system = readFileSync(argv[argv.indexOf("--append-system-prompt") + 1], "utf8");
-      const acceptance = inspectAcceptance(run.db, swarmId);
-      assert.ok(system.includes(acceptance.originalTask));
-      for (const criterion of acceptance.acceptanceCriteria) assert.ok(system.includes(criterion));
+      assert.match(system, /\.pi\/swarm\/work\/\d+\/brief\.md/);
+      assert.doesNotMatch(system, /<swarm-task>/);
       const newSession = listAgentSessions(run.db, swarmId).find((worker) => worker.name === newName);
       assert.ok(newSession && newSession.sessionFile !== oldSession.sessionFile);
       assert.ok(readFileSync(oldSession.sessionFile, "utf8").startsWith(oldContent));
@@ -134,36 +131,13 @@ test(
       assert.notEqual(recipientStatus(run.db, unread.id, oldName), "read");
       assert.ok(run.db.sql.prepare("SELECT id FROM comments WHERE id = ?").get(comment.id));
       const tools = createAgentToolHandlers({ getDb: () => run.db, swarmId, run: 1, agentName: newName });
-      const firstWall = tools.readPosts({ only_new: true, count: 100 });
-      for (const post of allPosts.slice(-10)) assert.ok(firstWall.includes(post.text));
-      for (const post of allPosts.slice(0, -10)) {
-        assert.ok(!firstWall.includes(`\"${post.text}\"`));
-        assert.equal(
-          run.db.sql
-            .prepare("SELECT 1 FROM post_coverage WHERE swarm_id = ? AND name = ? AND post_id = ?")
-            .get(swarmId, newName, post.id),
-          undefined,
-        );
-      }
-      assert.ok(tools.readPost({ post_id: posts[0].id }).includes(posts[0].text), "explicit history remains available");
-      const future = createPost(
-        run.db,
-        swarmId,
-        "User",
-        { title: "Forward", text: "FUTURE-REPLACEMENT-POST" },
-        Date.now(),
-      );
-      assert.ok(tools.readPosts({ only_new: true, count: 100 }).includes(future.text));
+      const results = await tools.postsSearch({ limit: 50 });
+      for (const post of posts) assert.ok(results.includes(post.title));
+      assert.ok(tools.postsGet({ id: posts[0].id }).includes(posts[0].text));
       writeFileSync(replacementRelease, "ready");
       await waitFor(() => agentStatus(run.db, swarmId, newName) === "idle", "replacement's first genuine idle");
       assert.ok(snoozeReminders(run.db, swarmId, newName, Date.now()) > Date.now());
-      mutateAcceptance(
-        run.db,
-        swarmId,
-        newName,
-        { action: "vote", verdict: "accepted", reason: "Fresh context and handoff verified." },
-        Date.now(),
-      );
+      finishWork(run.db, swarmId);
       await owner.finished();
     } finally {
       await owner.close();

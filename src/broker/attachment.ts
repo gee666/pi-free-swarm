@@ -1,13 +1,12 @@
-// Over-long communication bodies: rejecting one costs the author a retry turn, so the full text goes
-// to a file and the stored body is its head plus the file's path.
 import fs from "node:fs";
 import path from "node:path";
 import { ATTACHMENTS_DIR } from "../constants.js";
-import { bodyCeiling, charCount, clipWithSuffix, USER_BODY_PREVIEW_CHARS } from "../limits.js";
+import { USER_BODY_PREVIEW_CHARS } from "../limits.js";
 import type { ParticipantKind } from "../api-types.js";
 import type { SwarmDb } from "../store/db.js";
 import { int } from "../store/rows.js";
-import { bodyLimit, projectOf } from "./body-limit.js";
+import { projectOf } from "./project-path.js";
+import { workText } from "./work-validation.js";
 import { requireText } from "./validate.js";
 
 export type BodyKind = "post" | "comment" | "message";
@@ -42,10 +41,7 @@ export function storedBody(
     const relative = writeAttachment(db, swarmId, kind, raw);
     return `${head} … [full text: ${relative}]`;
   }
-  const ceiling = bodyCeiling(bodyLimit(db));
-  if (charCount(text) <= ceiling) return text;
-  const relative = writeAttachment(db, swarmId, kind, `${text}\n`);
-  return clipWithSuffix(text, `… [full text: ${relative}]`, ceiling);
+  return workText(text, kind, authorKind);
 }
 
 function userPreview(raw: string): string {

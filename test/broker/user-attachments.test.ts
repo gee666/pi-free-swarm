@@ -1,8 +1,9 @@
+import { continueConversation } from "../helpers/conversation.js";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, test } from "node:test";
-import { sendMessage, replyToThread } from "../../src/broker/messages.js";
+import { sendMessage } from "../../src/broker/messages.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
 import { USER_BODY_PREVIEW_CHARS } from "../../src/limits.js";
 import { createTempDb, seedSwarm, T0, type TempDb } from "../helpers/temp-db.js";
@@ -30,26 +31,35 @@ test("all User body channels preserve large originals and show exactly the first
   verify(post.text, raw, cwd, `${dir}/post-${post.id}.md`);
   const { comment } = addComment(db, swarm.id, "User", post.id, raw, T0);
   verify(comment.text, raw, cwd, `${dir}/comment-${comment.id}.md`);
-  const message = sendMessage(db, swarm.id, "User", ["Maria"], raw, T0);
+  const message = sendMessage(db, { swarmId: swarm.id, from: "User", to: "Maria", text: raw, now: T0 });
   verify(message.text, raw, cwd, `${dir}/message-${message.id}.md`);
-  const reply = replyToThread(db, swarm.id, "User", message.threadId, raw, T0);
+  const reply = continueConversation(db, swarm.id, "User", message.threadId, raw, T0);
   verify(reply.text, raw, cwd, `${dir}/message-${reply.id}.md`);
 });
 
 test("200 Unicode points stay inline while point 201 attaches only for User", () => {
   const { db, cwd, swarm } = setup();
   const boundary = "😀".repeat(USER_BODY_PREVIEW_CHARS);
-  assert.equal(sendMessage(db, swarm.id, "User", ["Maria"], boundary, T0).text, boundary);
+  assert.equal(
+    sendMessage(db, { swarmId: swarm.id, from: "User", to: "Maria", text: boundary, now: T0 }).text,
+    boundary,
+  );
   const longer = boundary + "界";
-  const user = sendMessage(db, swarm.id, "User", ["Maria"], longer, T0);
+  const user = sendMessage(db, { swarmId: swarm.id, from: "User", to: "Maria", text: longer, now: T0 });
   verify(user.text, longer, cwd, `.pi/swarm/attachments/${swarm.id}/message-${user.id}.md`);
-  assert.equal(sendMessage(db, swarm.id, "Maria", ["John"], longer, T0).text, longer);
+  assert.equal(sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "John", text: longer, now: T0 }).text, longer);
   assert.equal(createPost(db, swarm.id, "John", { title: "Worker policy", text: longer }, T0).text, longer);
 });
 
 test("blank User bodies reject without files and short bodies retain legacy normalization", () => {
   const { db, cwd, swarm } = setup();
-  assert.throws(() => sendMessage(db, swarm.id, "User", ["Maria"], " \n ".repeat(1000), T0), /empty/);
+  assert.throws(
+    () => sendMessage(db, { swarmId: swarm.id, from: "User", to: "Maria", text: " \n ".repeat(1000), now: T0 }),
+    /empty/,
+  );
   assert.equal(existsSync(path.join(cwd, ".pi/swarm/attachments")), false);
-  assert.equal(sendMessage(db, swarm.id, "User", ["Maria"], "  short  ", T0).text, "short");
+  assert.equal(
+    sendMessage(db, { swarmId: swarm.id, from: "User", to: "Maria", text: "  short  ", now: T0 }).text,
+    "short",
+  );
 });

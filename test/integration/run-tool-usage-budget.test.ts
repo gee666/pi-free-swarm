@@ -43,8 +43,7 @@ test(
       const outcome = await running;
       assert.equal(outcome.stopReason, "budget-exhausted");
       assert.equal(outcome.end, "stopped");
-      assert.equal(outcome.acceptance.verdict, "unchecked");
-      assert.equal(outcome.acceptance.votes.length, 0, "budget exhaustion does not manufacture a vote");
+
       const rows = fixture.db.sql
         .prepare("SELECT cost, input, output, cache_read, cache_write FROM usage WHERE swarm_id = ? AND kind = 'tool'")
         .all(swarmId);

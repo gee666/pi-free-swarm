@@ -4,13 +4,13 @@ import { int, intOrNull, text, textOrNull } from "../store/rows.js";
 import { rejectRunConfigurationRequests } from "../store/runtime-configuration.js";
 import { releaseRunLock } from "../store/locks.js";
 import { emitParticipantUpdated, emitSwarmUpdated } from "./emit.js";
-import { freezeRunAcceptance } from "./run-acceptance.js";
+import { closeRunAdmission } from "./run-admission.js";
 
 export type RunEndStatus = "finished" | "stopped" | "interrupted";
 
 export function cleanupRun(db: SwarmDb, swarmId: number, end: RunEndStatus, now: number, activeUntil = now): void {
   db.write(() => {
-    freezeRunAcceptance(db, swarmId);
+    closeRunAdmission(db, swarmId);
     const before = new Map(
       db.sql
         .prepare("SELECT name, status, activity FROM participants WHERE swarm_id = ? AND kind = 'agent'")

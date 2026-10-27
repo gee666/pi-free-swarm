@@ -3,11 +3,8 @@
 export const TITLE_MAX = 60;
 export const WORK_TITLE_ACCEPTED = 100;
 export const WORK_TEXT_ACCEPTED = 300;
-/** Default stated worker body limit (`bodyMaxChars`). */
+/** Stated agent text limit; accepted limits allow counting errors. */
 export const TEXT_MAX = 200;
-export const BODY_STATED_MIN = 100;
-/** Matches the body CHECK constraints. */
-export const BODY_SAFETY_MAX = 16000;
 export const MAIN_FEEDBACK_MAX = 4000;
 export const USER_BODY_PREVIEW_CHARS = 200;
 
@@ -16,14 +13,6 @@ export type LimitCheck = { ok: true; value: string } | { ok: false; error: strin
 /** Counts code points, like SQLite `length()`, so the counter and the CHECK constraints agree. */
 export function charCount(text: string): number {
   return Array.from(text).length;
-}
-
-/**
- * Bodies up to this are stored as-is. Twice the stated limit absorbs agents' miscounting, which otherwise
- * cost a rejected write and a retry turn; it is never shown to agents.
- */
-export function bodyCeiling(stated: number): number {
-  return Math.min(2 * stated, BODY_SAFETY_MAX);
 }
 
 /** Cuts `text` so that `head suffix` fits in `max` code points. */
@@ -50,6 +39,10 @@ export function checkTitle(raw: string): LimitCheck {
   const value = raw.trim();
   if (value.length === 0) return { ok: false, error: "Title is empty." };
   const count = charCount(value);
-  if (count > TITLE_MAX) return { ok: false, error: `Title too long: ${count}/${TITLE_MAX} characters. Shorten it.` };
+  if (count > WORK_TITLE_ACCEPTED)
+    return {
+      ok: false,
+      error: `Title too long (${count} chars): keep it under ${TITLE_MAX}; put long material in a file and reference its path.`,
+    };
   return { ok: true, value };
 }

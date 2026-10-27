@@ -68,15 +68,10 @@ it("retains assignments by identity across resume and reports changed requested 
   try {
     configureRun(f.env, f.swarm.id, 1, ["Maria", "John", "Liam"], DEFAULT_TIMINGS);
     f.env.settings.models = [{ provider: "b", model: "two", thinkingLevel: "high" }];
-    f.env.settings.bodyMaxChars++;
     const resumed = configureRun(f.env, f.swarm.id, 2, ["Liam", "Maria", "John"], DEFAULT_TIMINGS);
     assert.equal(resumed.get("Liam")?.modelId, "one");
     assert.ok(f.notes.some((note) => note.includes("Keeping each worker's recorded")));
     assert.ok(getRunConfiguration(f.db, f.swarm.id, 2)?.changes.includes("limits"));
-    assert.equal(
-      getRunConfiguration(f.db, f.swarm.id, 1)?.effective.limits.bodyMaxChars,
-      f.env.settings.bodyMaxChars - 1,
-    );
     assert.throws(() => configureRun(f.env, f.swarm.id, 3, ["Maria"], DEFAULT_TIMINGS), /team size/);
   } finally {
     f.cleanup();

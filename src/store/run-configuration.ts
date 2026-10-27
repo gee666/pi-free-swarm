@@ -32,7 +32,6 @@ export function projectRunConfiguration(config: RunConfiguration): RunConfigurat
       startupRetries: config.timing.startupRetries,
     },
     limits: {
-      bodyMaxChars: config.limits.bodyMaxChars,
       maxRpcFrameBytes: config.limits.maxRpcFrameBytes,
       ...(config.limits.maxAgents === undefined ? {} : { maxAgents: config.limits.maxAgents }),
     },
@@ -136,7 +135,6 @@ function isConfiguration(value: unknown): value is RunConfiguration {
     Array.isArray(timing.reviveBackoffMs) &&
     timing.reviveBackoffMs.every(finite) &&
     record(limits) &&
-    finite(limits.bodyMaxChars) &&
     finite(limits.maxRpcFrameBytes) &&
     (limits.maxAgents === undefined ||
       (typeof limits.maxAgents === "number" && Number.isSafeInteger(limits.maxAgents) && limits.maxAgents >= 1)) &&

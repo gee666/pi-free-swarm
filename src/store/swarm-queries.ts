@@ -8,11 +8,11 @@ import { getRunConfiguration } from "./run-configuration.js";
 import { readBudget } from "./budget.js";
 import { isPidAlive, type PidAlive } from "./locks.js";
 import { resolvedSwarmState } from "./swarm-status.js";
-import { activityOf, agentStatusOf, int, intOrNull, kindOf, real, stringList, text, type Row } from "./rows.js";
+import { activityOf, agentStatusOf, int, intOrNull, kindOf, real, text, type Row } from "./rows.js";
 
 const SWARM_SELECT = `
   SELECT s.*,
-    (SELECT a.closed_run = s.run_count FROM acceptance a WHERE a.swarm_id = s.id) AS admission_closed,
+    s.admission_closed_run = s.run_count AS admission_closed,
     (SELECT COUNT(*) FROM participants p
       WHERE p.swarm_id = s.id AND p.kind = 'agent' AND p.name <> '${WATCHER_NAME}' AND p.retired_at IS NULL AND p.status = 'working') AS agents_working
   FROM swarms s`;
@@ -23,7 +23,6 @@ function swarmOf(row: Row, now: number, alive: PidAlive): SwarmListItem {
     id: int(row, "id"),
     name: text(row, "name"),
     taskPrompt: text(row, "task_prompt"),
-    acceptanceCriteria: stringList(row, "acceptance_criteria"),
     status,
     acceptsMessages: live && row.admission_closed !== 1,
     agentAmount: int(row, "agent_amount"),

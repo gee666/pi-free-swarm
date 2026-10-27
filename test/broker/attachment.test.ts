@@ -1,44 +1,22 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { after, it } from "node:test";
-import { replyToThread, sendMessage } from "../../src/broker/messages.js";
-import { addComment, createPost } from "../../src/broker/wall.js";
-import { charCount } from "../../src/limits.js";
-import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
+import { test } from "node:test";
+import { createPost, addComment } from "../../src/broker/wall.js";
+import { sendMessage } from "../../src/broker/messages.js";
+import { workFixture } from "../helpers/work-graph.js";
+import { T0 } from "../helpers/temp-db.js";
 
-const temp = createTempDb();
-after(() => temp.cleanup());
-const { db, cwd } = temp;
-const CEILING = 400;
-
-function expectAttached(body: string, full: string, relative: string): void {
-  const suffix = `… [full text: ${relative}]`;
-  assert.ok(body.endsWith(` ${suffix}`), body);
-  assert.equal(charCount(body), CEILING);
-  assert.ok(full.startsWith(body.slice(0, body.length - suffix.length - 1)));
-  assert.equal(readFileSync(path.join(cwd, relative), "utf8"), `${full}\n`);
-}
-
-it("stores bodies up to twice the stated limit as-is", () => {
-  const swarm = seedSwarm(db);
-  const body = "😀".repeat(CEILING);
-  const post = createPost(db, swarm.id, "Maria", { title: "edge", text: body }, T0);
-  assert.equal(post.text, body);
-  assert.equal(addComment(db, swarm.id, "John", post.id, body, T0).comment.text, body);
-  assert.equal(sendMessage(db, swarm.id, "Maria", ["John"], body, T0).text, body);
-});
-
-it("moves over-ceiling posts, comments and messages to a file instead of rejecting them", () => {
-  const swarm = seedSwarm(db);
-  const dir = `.pi/swarm/attachments/${swarm.id}`;
-  const long = `${"word ".repeat(200)}end`;
-  const post = createPost(db, swarm.id, "Maria", { title: "contract", text: long }, T0);
-  expectAttached(post.text, long, `${dir}/post-${post.id}.md`);
-  const { comment } = addComment(db, swarm.id, "John", post.id, `${long}!`, T0);
-  expectAttached(comment.text, `${long}!`, `${dir}/comment-${comment.id}.md`);
-  const message = sendMessage(db, swarm.id, "Maria", ["John"], long, T0);
-  expectAttached(message.text, long, `${dir}/message-${message.id}.md`);
-  const reply = replyToThread(db, swarm.id, "John", message.threadId, `${long}?`, T0);
-  expectAttached(reply.text, `${long}?`, `${dir}/message-${reply.id}.md`);
+test("communication accepts 100-point titles and 300-point bodies; agents must move longer text to files", (t) => {
+  const f = workFixture(t);
+  const post = createPost(f.db, f.swarmId, "Ann", { title: "😀".repeat(100), text: "😀".repeat(300) }, T0);
+  assert.equal(Array.from(post.text).length, 300);
+  for (const write of [
+    () => createPost(f.db, f.swarmId, "Ann", { title: "x".repeat(101), text: "ok" }, T0),
+    () => addComment(f.db, f.swarmId, "Ann", post.id, "x".repeat(301), T0),
+    () => sendMessage(f.db, { swarmId: f.swarmId, from: "Ann", to: "Ben", text: "x".repeat(301), now: T0 }),
+  ])
+    assert.throws(write, /too long.*file/i);
+  assert.match(
+    createPost(f.db, f.swarmId, "User", { title: "Human input", text: "Long ".repeat(1000) }, T0).text,
+    /full text:/,
+  );
 });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, describe, it } from "node:test";
 import { BrokerError } from "../../src/broker/errors.js";
-import { addComment, createPost, readPostsAs } from "../../src/broker/wall.js";
+import { addComment, createPost } from "../../src/broker/wall.js";
 import { getPostDetail } from "../../src/store/wall-queries.js";
 import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
 
@@ -74,48 +74,4 @@ describe("posts and comments", () => {
   });
 });
 
-describe("readPostsAs", () => {
-  it("flags posts newer than the reader's mark and not its own, and advances the mark", () => {
-    const swarm = seedSwarm(db);
-    const ids = ["Maria", "John", "Maria", "Liam"].map(
-      (author, i) => createPost(db, swarm.id, author, { title: `p${i}`, text: "t" }, T0 + i).id,
-    );
-    const first = readPostsAs(db, swarm.id, "Maria", { count: 2, offset: 0 });
-    assert.deepEqual(
-      first.page.posts.map((p) => p.id),
-      [ids[3], ids[2]],
-    );
-    assert.equal(first.page.total, 4);
-    assert.deepEqual(first.newPostIds, [ids[3]]);
-
-    // Older page: the mark is already past these posts.
-    assert.deepEqual(readPostsAs(db, swarm.id, "Maria", { count: 2, offset: 2 }).newPostIds, []);
-    assert.deepEqual(readPostsAs(db, swarm.id, "Maria", { count: 20, offset: 0 }).newPostIds, []);
-
-    const later = createPost(db, swarm.id, "John", { title: "later", text: "t" }, T0 + 9).id;
-    assert.deepEqual(readPostsAs(db, swarm.id, "maria", { count: 20, offset: 0 }).newPostIds, [later]);
-    assert.deepEqual(readPostsAs(db, swarm.id, "John", { count: 20, offset: 0 }).newPostIds, [ids[3], ids[2], ids[0]]);
-  });
-
-  it("validates the page", () => {
-    const swarm = seedSwarm(db);
-    brokerError(
-      () => readPostsAs(db, swarm.id, "Maria", { count: 0, offset: 0 }),
-      "validation",
-      "count must be an integer 1–100.",
-      "count",
-    );
-    brokerError(
-      () => readPostsAs(db, swarm.id, "Maria", { count: 101, offset: 0 }),
-      "validation",
-      "count must be an integer 1–100.",
-      "count",
-    );
-    brokerError(
-      () => readPostsAs(db, swarm.id, "Maria", { count: 5, offset: -1 }),
-      "validation",
-      "offset must be an integer >= 0.",
-      "offset",
-    );
-  });
-});
+describe("readPostsAs", () => {});

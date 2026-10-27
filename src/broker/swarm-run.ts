@@ -22,9 +22,7 @@ import { RunLifecycle } from "./run-lifecycle.js";
 import { readBudget, assertBudgetPricing } from "./budget.js";
 import { RunBudget } from "./run-budget.js";
 import { IdleReminders } from "./idle-reminder.js";
-import { inspectAcceptance } from "./acceptance.js";
-import { closeRunAdmission } from "./run-acceptance.js";
-import type { AcceptanceRecord } from "../store/acceptance-types.js";
+import { closeRunAdmission } from "./run-admission.js";
 import { RunAgent } from "./run-agent.js";
 import { readRunProgress } from "./run-progress.js";
 import { registerActiveRun } from "./active-ownership.js";
@@ -73,7 +71,6 @@ export class SwarmRun {
   #timers: TimerHandle[] = [];
   #releaseOwnership: (() => void) | undefined;
   #failure: { error: unknown } | undefined;
-  #acceptance: AcceptanceRecord | undefined;
   readonly #fail = (error: unknown) => {
     if (this.#failure) return;
     this.#failure = { error };
@@ -194,8 +191,7 @@ export class SwarmRun {
       reminders: this.#reminders,
       canRun: () => this.#canRun(),
       ending: () => this.#isEnding,
-      closed: (acceptance) => {
-        this.#acceptance = acceptance;
+      closed: () => {
         void this.#end(this.#budgetStop ? "stopped" : "finished");
       },
       lost: () => {
@@ -259,6 +255,29 @@ export class SwarmRun {
     else signal?.addEventListener("abort", this.#onAbort, { once: true });
   }
 
+  get dbPath(): string {
+    return this.#env.db.path;
+  }
+  get swarmId(): number {
+    return this.#swarm.id;
+  }
+
+  async wait(options: RunOptions): Promise<RunOutcome> {
+    const abort = () => void this.stop();
+    options.signal?.addEventListener("abort", abort, { once: true });
+    const report = () =>
+      options.onProgress?.(readRunProgress(this.#env.db, this.swarmId, this.#env.clock.now(), this.#env.boardUrl()));
+    const timer = this.#env.clock.every(this.#timings.progressMs, report);
+    try {
+      report();
+      if (options.signal?.aborted) abort();
+      return await this.#done;
+    } finally {
+      timer.cancel();
+      options.signal?.removeEventListener("abort", abort);
+    }
+  }
+
   stop(): Promise<void> {
     return this.#end("stopped");
   }
@@ -317,15 +336,7 @@ export class SwarmRun {
     try {
       const { db, runnerPid, clock } = this.#env;
       try {
-        this.#acceptance ??=
-          (!lockLost &&
-            closeRunAdmission(db, {
-              swarmId: this.#swarm.id,
-              run: this.#run,
-              runnerPid,
-              now: clock.now(),
-            })) ||
-          inspectAcceptance(db, this.#swarm.id, { includeExcludedVotes: true });
+        if (!lockLost) closeRunAdmission(db, this.#swarm.id, this.#run, runnerPid);
       } finally {
         await this.#resources.close();
       }
@@ -337,7 +348,6 @@ export class SwarmRun {
         run: this.#run,
         end: ended ? end : "interrupted",
         outcome: ended && end === "finished" ? readProject(db, this.#swarm.id).outcome : null,
-        acceptance: this.#acceptance,
         ...(this.#budgetStop ? { stopReason: "budget-exhausted" as const } : {}),
         budget: readBudget(db, this.#swarm.id, this.#env.settings, clock.now()),
       };

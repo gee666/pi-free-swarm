@@ -1,214 +1,65 @@
 import assert from "node:assert/strict";
-import { after, describe, it } from "node:test";
-import type { MessageView } from "../../src/api-types.js";
-import { BrokerError } from "../../src/broker/errors.js";
+import { test } from "node:test";
 import {
-  feedbackPostBody,
-  markUserRead,
-  readThreadAs,
-  replyToThread,
-  sendMainFeedback,
   sendMessage,
+  readConversation,
+  readThreadAs,
+  markUserRead,
+  sendMainFeedback,
 } from "../../src/broker/messages.js";
-import { onLocalMessage } from "../../src/broker/notify.js";
+import { getMessages } from "../../src/store/message-queries.js";
 import { endRun } from "../../src/broker/swarms.js";
-import { UNDELIVERABLE_REPLY_TEXT } from "../../src/constants.js";
-import { charCount } from "../../src/limits.js";
-import { getThread, unreadCounts } from "../../src/store/message-queries.js";
-import { getParticipant } from "../../src/store/swarm-queries.js";
-import { listPosts } from "../../src/store/wall-queries.js";
-import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
+import { workFixture } from "../helpers/work-graph.js";
+import { T0 } from "../helpers/temp-db.js";
 
-const temp = createTempDb();
-after(() => temp.cleanup());
-const { db } = temp;
-const NOW = T0 + 1_000;
-
-function brokerError(fn: () => unknown, code: string, message: string): void {
-  assert.throws(fn, (error: unknown) => {
-    assert.ok(error instanceof BrokerError);
-    assert.equal(error.code, code);
-    assert.equal(error.message, message);
-    return true;
-  });
-}
-
-const statuses = (message: MessageView) => message.recipients.map((r) => `${r.name}:${r.status}`);
-
-describe("sendMessage", () => {
-  const swarm = seedSwarm(db);
-
-  it("starts a thread with canonical names; agents pending, User delivered", () => {
-    const woken: number[] = [];
-    const stop = onLocalMessage((id) => woken.push(id));
-    const message = sendMessage(db, swarm.id, "maria", ["JOHN", " user ", "John", "Maria"], "hello", NOW);
-    stop();
-    assert.equal(message.sender, "Maria");
-    assert.equal(message.senderKind, "agent");
-    assert.deepEqual(statuses(message), ["John:pending", "User:delivered"]);
-    assert.equal(message.recipients[1].deliveredAt, NOW);
-    assert.deepEqual(getThread(db, swarm.id, message.threadId)?.thread.members, ["Maria", "John", "User"]);
-    assert.deepEqual(woken, [swarm.id]);
-    assert.equal(getParticipant(db, swarm.id, "Maria")?.joinedAt, NOW);
-  });
-
-  it("does not wake the runner for a User-only message", () => {
-    const woken: number[] = [];
-    const stop = onLocalMessage((id) => woken.push(id));
-    sendMessage(db, swarm.id, "Maria", ["User"], "fyi", NOW);
-    stop();
-    assert.deepEqual(woken, []);
-  });
-
-  it("lists the known participants for unknown names; Main and System are not messageable", () => {
-    brokerError(
-      () => sendMessage(db, swarm.id, "Maria", ["Bob"], "hi", NOW),
-      "validation",
-      "Unknown participant: Bob. Known participants: Maria, John, Liam, Watcher, User.",
-    );
-    brokerError(
-      () => sendMessage(db, swarm.id, "Maria", ["Bob", "Main", "system", "John"], "hi", NOW),
-      "validation",
-      "Unknown participants: Bob, Main, system. Known participants: Maria, John, Liam, Watcher, User.",
-    );
-  });
-
-  it("validates sender, recipients and text", () => {
-    brokerError(
-      () => sendMessage(db, swarm.id, "Maria", ["maria"], "hi", NOW),
-      "validation",
-      "Add at least one recipient other than yourself.",
-    );
-    brokerError(
-      () => sendMessage(db, swarm.id, "Maria", [], "hi", NOW),
-      "validation",
-      "Add at least one recipient other than yourself.",
-    );
-    brokerError(
-      () => sendMessage(db, swarm.id, "Ghost", ["John"], "hi", NOW),
-      "validation",
-      "Unknown participant: Ghost.",
-    );
-    brokerError(() => sendMessage(db, 999, "Maria", ["John"], "hi", NOW), "not_found", "Swarm #999 not found.");
-  });
+test("direct sends reuse the same conversation in either direction and page history", (t) => {
+  const f = workFixture(t);
+  const first = sendMessage(f.db, { swarmId: f.swarmId, from: "Ann", to: "ben", text: "One", now: T0 });
+  const second = sendMessage(f.db, { swarmId: f.swarmId, from: "Ben", to: "Ann", text: "Two", now: T0 });
+  assert.equal(first.threadId, second.threadId);
+  assert.deepEqual(
+    first.recipients.map((recipient) => recipient.name),
+    ["Ben"],
+  );
+  const page = readConversation(f.db, { swarmId: f.swarmId, a: "Ann", b: "Ben", limit: 1 });
+  assert.deepEqual(
+    page.messages.map((message) => message.text),
+    ["One"],
+  );
+  assert.equal(page.nextAfter, first.id);
+  assert.deepEqual(
+    readConversation(f.db, { swarmId: f.swarmId, a: "Ann", b: "Ben", after: first.id }).messages.map(
+      (message) => message.text,
+    ),
+    ["Two"],
+  );
+  assert.throws(() => readThreadAs(f.db, f.swarmId, "Cam", first.threadId), /not a member/);
+  assert.equal(readConversation(f.db, { swarmId: f.swarmId, a: "Ann", b: "Cam" }).thread, null);
+  assert.throws(
+    () => sendMessage(f.db, { swarmId: f.swarmId, from: "Ann", to: "Ann", text: "Self", now: T0 }),
+    /other than yourself/,
+  );
+  assert.throws(
+    () => sendMessage(f.db, { swarmId: f.swarmId, from: "Ann", to: "Main", text: "No", now: T0 }),
+    /recipient/,
+  );
 });
 
-describe("replyToThread", () => {
-  const swarm = seedSwarm(db);
-  const first = sendMessage(db, swarm.id, "Maria", ["John", "User"], "plan?", NOW);
-
-  it("goes to every other member", () => {
-    const reply = replyToThread(db, swarm.id, "john", first.threadId, "ok", NOW);
-    assert.equal(reply.threadId, first.threadId);
-    assert.deepEqual(statuses(reply), ["Maria:pending", "User:delivered"]);
-  });
-
-  it("rejects non-members, unknown threads and threads of other swarms", () => {
-    brokerError(
-      () => replyToThread(db, swarm.id, "Liam", first.threadId, "me too", NOW),
-      "not_member",
-      `You are not a member of thread #${first.threadId}.`,
-    );
-    brokerError(() => replyToThread(db, swarm.id, "Maria", 9999, "hi", NOW), "not_found", "Thread #9999 not found.");
-    const other = seedSwarm(db, { agents: ["Maria", "Zoe"] });
-    brokerError(
-      () => replyToThread(db, other.id, "Maria", first.threadId, "hi", NOW),
-      "not_found",
-      `Thread #${first.threadId} not found.`,
-    );
-  });
-
-  it("reports when nobody else can receive", () => {
-    const feedback = sendMainFeedback(db, seedSwarm(db, { agents: ["Solo"] }).id, "redo", NOW);
-    const soloSwarm = feedback.swarmId;
-    brokerError(
-      () => replyToThread(db, soloSwarm, "Solo", feedback.threadId, "ok", NOW),
-      "validation",
-      `Nobody else is in thread #${feedback.threadId}.`,
-    );
-  });
-
-  it("lets only members read a thread", () => {
-    assert.equal(readThreadAs(db, swarm.id, "maria", first.threadId).messages.length, 2);
-    brokerError(
-      () => readThreadAs(db, swarm.id, "Liam", first.threadId),
-      "not_member",
-      `You are not a member of thread #${first.threadId}.`,
-    );
-  });
+test("User receives messages and long text attachments; admission fence preserves shutdown semantics", (t) => {
+  const f = workFixture(t);
+  const sent = sendMessage(f.db, { swarmId: f.swarmId, from: "Ann", to: "User", text: "Please decide", now: T0 });
+  assert.equal(markUserRead(f.db, f.swarmId, [sent.id], T0).updated, 1);
+  const user = sendMessage(f.db, { swarmId: f.swarmId, from: "User", to: "Ann", text: "Long ".repeat(1000), now: T0 });
+  assert.match(user.text, /full text:/);
+  endRun(f.db, f.swarmId, process.pid, "stopped", T0, 1);
+  const late = sendMessage(f.db, { swarmId: f.swarmId, from: "User", to: "Ann", text: "Late", now: T0 });
+  assert.equal(getMessages(f.db, [late.id])[0]?.recipients[0]?.status, "undeliverable");
 });
 
-describe("messages while the swarm is not running", () => {
-  it("stores agent recipients undeliverable and adds a System reply to an agent sender", () => {
-    const swarm = seedSwarm(db);
-    const stale = T0 + 60_000;
-    const message = sendMessage(db, swarm.id, "Maria", ["John", "User"], "late", stale);
-    assert.deepEqual(statuses(message), ["John:undeliverable", "User:delivered"]);
-    const thread = getThread(db, swarm.id, message.threadId);
-    const notice = thread?.messages.at(-1);
-    assert.equal(notice?.sender, "System");
-    assert.equal(notice?.senderKind, "system");
-    assert.equal(notice?.text, UNDELIVERABLE_REPLY_TEXT);
-    assert.deepEqual(notice && statuses(notice), ["Maria:undeliverable"]);
-  });
-
-  it("sends the System reply to the User as delivered after the run ended", () => {
-    const swarm = seedSwarm(db);
-    assert.equal(endRun(db, swarm.id, process.pid, "finished", NOW), true);
-    const message = sendMessage(db, swarm.id, "User", ["Maria"], "still there?", NOW);
-    assert.deepEqual(statuses(message), ["Maria:undeliverable"]);
-    const notice = getThread(db, swarm.id, message.threadId)?.messages.at(-1);
-    assert.deepEqual(notice && statuses(notice), ["User:delivered"]);
-    assert.ok(!getThread(db, swarm.id, message.threadId)?.thread.members.includes("System"));
-  });
-
-  it("adds no System reply for a User-only message", () => {
-    const swarm = seedSwarm(db);
-    endRun(db, swarm.id, process.pid, "stopped", NOW);
-    const message = sendMessage(db, swarm.id, "Maria", ["User"], "bye", NOW);
-    assert.equal(getThread(db, swarm.id, message.threadId)?.messages.length, 1);
-  });
-});
-
-describe("sendMainFeedback", () => {
-  it("messages every agent from Main and posts a short pointer on the wall", () => {
-    const swarm = seedSwarm(db);
-    const long = "Fix the failing auth tests and the login page layout. ".repeat(10).trim();
-    const message = sendMainFeedback(db, swarm.id, long, NOW);
-    assert.equal(message.sender, "Main");
-    assert.equal(message.text, long);
-    assert.deepEqual(statuses(message), ["Maria:pending", "John:pending", "Liam:pending"]);
-    const [post] = listPosts(db, swarm.id, { count: 1, offset: 0 }).posts;
-    assert.equal(post.author, "Main");
-    assert.equal(post.title, "Feedback from Main");
-    assert.ok(post.text.endsWith(" …see your messages"));
-    assert.ok(charCount(post.text) <= 400);
-    // Replies in Main's thread skip Main.
-    const reply = replyToThread(db, swarm.id, "John", message.threadId, "on it", NOW);
-    assert.deepEqual(statuses(reply), ["Maria:pending", "Liam:pending"]);
-  });
-
-  it("keeps short feedback whole, bounds the wall pointer and caps feedback at 4000 characters", () => {
-    assert.equal(feedbackPostBody("Add tests.", 400), "Add tests. …see your messages");
-    assert.equal(charCount(feedbackPostBody("😀".repeat(5000), 400)), 400);
-    const swarm = seedSwarm(db);
-    brokerError(
-      () => sendMainFeedback(db, swarm.id, "x".repeat(4001), NOW),
-      "validation",
-      "Too long: 4001/4000 characters. Shorten it or point to a file path.",
-    );
-  });
-});
-
-describe("markUserRead", () => {
-  it("marks only the User's open rows and reports the unread count", () => {
-    const swarm = seedSwarm(db);
-    const a = sendMessage(db, swarm.id, "Maria", ["User", "John"], "one", NOW);
-    const b = sendMessage(db, swarm.id, "John", ["User"], "two", NOW);
-    assert.equal(unreadCounts(db, swarm.id, ["User"]).User, 2);
-    assert.deepEqual(markUserRead(db, swarm.id, [a.id, a.id, 424242], NOW + 5), { updated: 1, unread: 1 });
-    assert.deepEqual(markUserRead(db, swarm.id, [a.id, b.id], NOW + 6), { updated: 1, unread: 0 });
-    const [, john] = getThread(db, swarm.id, a.threadId)?.messages[0].recipients ?? [];
-    assert.equal(john.status, "pending");
-  });
+test("Main feedback is copied into separate private conversations", (t) => {
+  const f = workFixture(t);
+  sendMainFeedback(f.db, f.swarmId, "Check updated requirements", T0);
+  const rows = f.db.sql.prepare("SELECT thread_id, COUNT(*) AS n FROM thread_members GROUP BY thread_id").all();
+  assert.ok(rows.length >= 4);
+  assert.ok(rows.every((row) => row.n === 2));
 });

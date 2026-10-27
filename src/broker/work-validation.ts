@@ -6,7 +6,7 @@ import { USER_NAME } from "../constants.js";
 import { WORK_TEXT_ACCEPTED, WORK_TITLE_ACCEPTED, TEXT_MAX, TITLE_MAX, charCount } from "../limits.js";
 import { BrokerError } from "./errors.js";
 import { actAs, requireSwarm } from "./validate.js";
-import { workRoster } from "../store/work-roster.js";
+import { hasActiveWorkRun, workRoster } from "../store/work-roster.js";
 
 export interface WorkInput {
   swarmId: number;
@@ -46,7 +46,10 @@ export function workActor(db: SwarmDb, input: WorkInput): string {
   const actor = actAs(db, input.swarmId, input.actor, input.now);
   if (actor.kind !== "agent" && actor.kind !== "user")
     throw new BrokerError("validation", "Only agents and User can change the work graph.");
-  if (actor.kind === "agent" && !isActiveOwner(db, input.swarmId, actor.name))
+  if (
+    actor.kind === "agent" &&
+    !workRoster(db, input.swarmId).some((agent) => agent.name === actor.name && agent.active)
+  )
     throw new BrokerError("validation", "Inactive agents cannot change the work graph.");
   return actor.name;
 }
@@ -54,7 +57,10 @@ export function userOnly(actor: string): void {
   if (actor !== USER_NAME) throw new BrokerError("validation", "Only User can perform this action.");
 }
 export function isActiveOwner(db: SwarmDb, swarmId: number, name: string | null): boolean {
-  return name === USER_NAME || workRoster(db, swarmId).some((agent) => agent.name === name && agent.active);
+  return (
+    name === USER_NAME ||
+    workRoster(db, swarmId).some((agent) => agent.name === name && (agent.active || !hasActiveWorkRun(db, swarmId)))
+  );
 }
 export function requireTask(db: SwarmDb, swarmId: number, id: number): TaskRecord {
   const task = getTask(db, swarmId, id);

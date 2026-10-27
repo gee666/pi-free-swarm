@@ -33,7 +33,7 @@ function assertAttachment(board: TestBoard, stored: string, original: string): s
 it("accepts User text beyond the old request ceiling on every text channel without changing title rules", async (t) => {
   const board = await startTestBoard();
   t.after(() => board.close());
-  writeFileSync(path.join(board.temp.db.dataDir, "settings.json"), JSON.stringify({ bodyMaxChars: 100 }));
+  writeFileSync(path.join(board.temp.db.dataDir, "settings.json"), JSON.stringify({}));
   const swarm = seedSwarm(board.temp.db, { now: Date.now() });
   const url = (suffix: string) => `${board.base}/api/swarms/${swarm.id}${suffix}`;
   const files = new Set<string>();

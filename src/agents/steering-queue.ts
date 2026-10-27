@@ -1,13 +1,8 @@
 import type { MessageObservation } from "./message-observation.js";
-import type { PostObservation } from "./post-observation.js";
 import type { AgentTransport } from "./transport.js";
 
 /** A confirmed queue clear cancels unsent proofs; a settled event does not. */
-export async function clearSteeringQueue(
-  transport: AgentTransport,
-  messages: MessageObservation,
-  posts: PostObservation,
-): Promise<boolean> {
+export async function clearSteeringQueue(transport: AgentTransport, messages: MessageObservation): Promise<boolean> {
   const response = await transport.send({ type: "clear_queue" });
   if (response.success !== true) return false;
   const cancelled = new Map<string, number>();
@@ -22,6 +17,5 @@ export async function clearSteeringQueue(
     }
   }
   messages.cancelQueued(cancelled);
-  posts.cancelQueued(cancelled);
   return true;
 }
