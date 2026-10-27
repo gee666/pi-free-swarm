@@ -1,4 +1,5 @@
 import type {
+  CriteriaCoverage,
   CriterionDetailResponse,
   CriterionListItem,
   PostLinkView,
@@ -54,9 +55,26 @@ function listCriterion(detail: CriterionDetail): CriterionListItem {
     reasons: detail.reasons,
   };
 }
-export function criterionListItems(db: SwarmDb, swarmId: number): CriterionListItem[] {
-  const assessments = new Map(assessCriteria(db, swarmId).map((item) => [item.id, item]));
-  return listCriteria(db, swarmId).map((criterion) => {
+export function criteriaCoverage(criteria: readonly Pick<CriterionListItem, "group" | "status">[]): CriteriaCoverage[] {
+  const groups = new Map<string, CriteriaCoverage>();
+  for (const criterion of criteria) {
+    const coverage = groups.get(criterion.group) ?? {
+      group: criterion.group,
+      satisfied: 0,
+      blocked: 0,
+      incomplete: 0,
+      unlinked: 0,
+      total: 0,
+    };
+    coverage[criterion.status]++;
+    coverage.total++;
+    groups.set(criterion.group, coverage);
+  }
+  return [...groups.values()].sort((a, b) => a.group.localeCompare(b.group));
+}
+export function criterionListItems(db: SwarmDb, swarmId: number, includeArchived = false): CriterionListItem[] {
+  const assessments = new Map(assessCriteria(db, swarmId, includeArchived).map((item) => [item.id, item]));
+  return listCriteria(db, swarmId, includeArchived).map((criterion) => {
     const assessment = assessments.get(criterion.id);
     if (assessment === undefined) throw new Error(`Missing assessment for criterion #${criterion.id}.`);
     return listCriterion({ ...criterion, ...assessment, tasks: criterionTasks(db, criterion.id) });
@@ -187,11 +205,12 @@ export function taskDetail(
   };
 }
 export function postLinks(db: SwarmDb, swarmId: number, postId: number): PostLinkView[] {
-  return listPostLinks(db, postId).map((link) => ({
-    ...link,
-    title:
-      link.targetKind === "task"
-        ? getTaskDetail(db, swarmId, link.targetId).title
-        : getCriterionDetail(db, swarmId, link.targetId).title,
-  }));
+  return listPostLinks(db, postId).map((link) => {
+    if (link.targetKind === "task") {
+      const task = taskListItem(db, swarmId, link.targetId);
+      return { ...link, title: task.title, status: task.waiting ? "waiting" : task.status };
+    }
+    const criterion = criterionListItem(db, swarmId, link.targetId);
+    return { ...link, title: criterion.title, status: criterion.status };
+  });
 }

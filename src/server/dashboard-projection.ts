@@ -1,10 +1,4 @@
-import type {
-  CriteriaCoverage,
-  DashboardResponse,
-  RunHeaderState,
-  SwarmListItem,
-  WorkActivityRow,
-} from "../api-types.js";
+import type { DashboardResponse, RunHeaderState, SwarmListItem, WorkActivityRow } from "../api-types.js";
 import { workDashboard } from "../broker/work-queries.js";
 import { WORK_ACTIVITY_LIMIT } from "../constants.js";
 import { listCriteria, criterionVotes, getBlocker } from "../store/criteria.js";
@@ -12,7 +6,7 @@ import type { SwarmDb } from "../store/db.js";
 import { getTask, listTasks } from "../store/tasks.js";
 import { taskStates } from "../store/work-state.js";
 import { userUnreadSummary } from "../store/user-unread.js";
-import { criterionListItems } from "./work-projection.js";
+import { criteriaCoverage, criterionListItems } from "./work-projection.js";
 
 function runState(swarm: SwarmListItem, work: ReturnType<typeof workDashboard>): RunHeaderState {
   if (swarm.status === "interrupted") return "interrupted";
@@ -77,20 +71,6 @@ export function dashboard(db: SwarmDb, swarm: SwarmListItem, now: number): Dashb
   const criteria = criterionListItems(db, swarm.id);
   const tasks = listTasks(db, swarm.id);
   const states = taskStates(db, swarm.id);
-  const groups = new Map<string, CriteriaCoverage>();
-  for (const criterion of criteria) {
-    const coverage = groups.get(criterion.group) ?? {
-      group: criterion.group,
-      satisfied: 0,
-      blocked: 0,
-      incomplete: 0,
-      unlinked: 0,
-      total: 0,
-    };
-    coverage[criterion.status]++;
-    coverage.total++;
-    groups.set(criterion.group, coverage);
-  }
   return {
     project: work.project,
     completion: work.completion,
@@ -114,7 +94,7 @@ export function dashboard(db: SwarmDb, swarm: SwarmListItem, now: number): Dashb
       agentCount: swarm.agentAmount,
       startedAt: swarm.startedAt,
     },
-    criteriaCoverage: [...groups.values()].sort((a, b) => a.group.localeCompare(b.group)),
+    criteriaCoverage: criteriaCoverage(criteria),
     recentActivity: activity(db, swarm.id, work),
     attention: {
       scopeApprovalNeeded: work.project.scopeApprovedRevision !== work.project.scopeRevision,

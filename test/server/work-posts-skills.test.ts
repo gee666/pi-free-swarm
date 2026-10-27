@@ -14,8 +14,9 @@ import type {
   SkillsResponse,
 } from "../../src/api-types.js";
 import { addComment } from "../../src/broker/wall.js";
+import { voteCriterion } from "../../src/broker/votes.js";
 import { getJson, isType, openSse, postJson } from "./helpers.js";
-import { createHttpCriterion, createHttpTask, workBoard, type WorkBoard } from "./work-helpers.js";
+import { action, createHttpCriterion, createHttpTask, workBoard, type WorkBoard } from "./work-helpers.js";
 
 let board: WorkBoard;
 beforeEach(async () => {
@@ -76,6 +77,105 @@ describe("post links and search", () => {
     assert.equal(rollback.status, 404);
     assert.equal((await getJson<PostListResponse>(board.url("/posts"))).body.total, 1);
     assert.equal((await postJson(board.url(`/posts/${postId}/link`), { taskIds: ["bad"] })).status, 400);
+  });
+
+  it("projects linked task lifecycle and waiting statuses and current criterion statuses", async () => {
+    const criterion = await createHttpCriterion(board);
+    const unlinked = await createHttpCriterion(board, { title: "No tasks" });
+    const dependency = await createHttpTask(board, criterion.id, { claim: true });
+    const task = await createHttpTask(board, criterion.id, { dependsOn: [dependency.id] });
+    const created = await postJson<CreatePostResponse>(board.url("/posts"), {
+      title: "Status links",
+      text: "Track work",
+      taskIds: [task.id],
+      criterionIds: [criterion.id, unlinked.id],
+    });
+    assert.equal(created.status, 201);
+    assert.equal(created.body.links.find((link) => link.targetKind === "task")?.status, "waiting");
+    assert.equal(
+      created.body.links.find((link) => link.targetId === criterion.id && link.targetKind === "criterion")?.status,
+      "incomplete",
+    );
+    assert.equal(
+      created.body.links.find((link) => link.targetId === unlinked.id && link.targetKind === "criterion")?.status,
+      "unlinked",
+    );
+    const detailUrl = board.url(`/posts/${created.body.post.id}`);
+    const taskStatus = async () =>
+      (await getJson<PostDetailResponse>(detailUrl)).body.links.find((link) => link.targetKind === "task")?.status;
+    await action(board, dependency.id, "handoff", { to: "Maria" });
+    await action(board, dependency.id, "start");
+    await action(board, dependency.id, "request-review", { evidence: "Dependency verified" });
+    await action(board, dependency.id, "review", { verdict: "accept", reason: "Passed" });
+    assert.equal(await taskStatus(), "new");
+    await action(board, task.id, "claim");
+    assert.equal(await taskStatus(), "claimed");
+    await action(board, task.id, "handoff", { to: "Maria" });
+    await action(board, task.id, "start");
+    assert.equal(await taskStatus(), "in_progress");
+    await action(board, task.id, "request-review", { evidence: "Work verified" });
+    assert.equal(await taskStatus(), "review");
+    await action(board, task.id, "review", { verdict: "accept", reason: "Passed" });
+    assert.equal(await taskStatus(), "accepted");
+    voteCriterion(board.temp.db, {
+      swarmId: board.swarm.id,
+      actor: "Maria",
+      now: Date.now(),
+      criterionId: criterion.id,
+      verdict: "satisfied",
+      reason: "Owner verified",
+    });
+    assert.equal(
+      (
+        await postJson(board.url(`/criteria/${criterion.id}/vote`), {
+          verdict: "satisfied",
+          reason: "Independent verified",
+        })
+      ).status,
+      200,
+    );
+    const linked = await postJson<PostLinksResponse>(board.url(`/posts/${created.body.post.id}/link`), {
+      criterionIds: [criterion.id],
+    });
+    assert.equal(
+      linked.body.links.find((link) => link.targetId === criterion.id && link.targetKind === "criterion")?.status,
+      "satisfied",
+    );
+    const removed = await postJson<PostLinksResponse>(board.url(`/posts/${created.body.post.id}/unlink`), {
+      criterionIds: [unlinked.id],
+    });
+    assert.equal(removed.body.links.length, 2);
+    assert.ok(removed.body.links.every((link) => link.status === "satisfied" || link.status === "accepted"));
+    assert.equal(
+      (
+        await postJson(board.url(`/criteria/${criterion.id}/block`), {
+          reason: "Lost access",
+          missing: "Credentials",
+          attempted: "Checked environment",
+          unblock: "Restore access",
+        })
+      ).status,
+      200,
+    );
+    voteCriterion(board.temp.db, {
+      swarmId: board.swarm.id,
+      actor: "Maria",
+      now: Date.now(),
+      criterionId: criterion.id,
+      verdict: "blocked",
+      reason: "Owner agrees",
+    });
+    assert.equal(
+      (
+        await postJson(board.url(`/criteria/${criterion.id}/vote`), {
+          verdict: "blocked",
+          reason: "Independent agrees",
+        })
+      ).status,
+      200,
+    );
+    const blocked = await getJson<PostDetailResponse>(detailUrl);
+    assert.equal(blocked.body.links.find((link) => link.targetKind === "criterion")?.status, "blocked");
   });
 
   it("does not expose legacy routes or legacy fields", async () => {

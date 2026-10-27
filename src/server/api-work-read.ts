@@ -8,10 +8,16 @@ import type {
 import { searchCriterionCandidates, searchTaskCandidates } from "../broker/work-queries.js";
 import { USER_NAME, WORK_ACTIVITY_LIMIT } from "../constants.js";
 import { runSearch } from "../search/index.js";
-import { listCriteria } from "../store/criteria.js";
 import { reply, requireSwarmItem, intQuery, type ApiDeps, type ApiRoute } from "./api-util.js";
 import { booleanQuery, positiveQuery, searchQuery, searchSettings, statuses, textQuery } from "./work-input.js";
-import { criterionDetail, criterionListItem, taskDetail, taskListItem } from "./work-projection.js";
+import {
+  criteriaCoverage,
+  criterionDetail,
+  criterionListItem,
+  criterionListItems,
+  taskDetail,
+  taskListItem,
+} from "./work-projection.js";
 import { dashboard } from "./dashboard-projection.js";
 
 export function workReadRoutes(deps: ApiDeps): ApiRoute[] {
@@ -54,9 +60,7 @@ export function workReadRoutes(deps: ApiDeps): ApiRoute[] {
       pattern: "/api/swarms/:swarmId/criteria/groups",
       handle: ({ params, url }) => {
         const swarm = requireSwarmItem(deps, params.id("swarmId"));
-        const groups = [
-          ...new Set(listCriteria(db, swarm.id, booleanQuery(url, "includeArchived")).map((item) => item.group)),
-        ].sort();
+        const groups = criteriaCoverage(criterionListItems(db, swarm.id, booleanQuery(url, "includeArchived")));
         return reply<CriteriaGroupsResponse>({ groups });
       },
     },

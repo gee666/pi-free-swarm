@@ -12,6 +12,7 @@ import type {
   VoteVerdict,
 } from "./api-work-types.js";
 import type { PostSummary } from "./api-wall-types.js";
+import type { CriteriaCoverage } from "./api-dashboard-types.js";
 import type { Skill, SkillDetail } from "./skills/index.js";
 
 export interface SearchQuery {
@@ -62,7 +63,7 @@ export interface CriterionListItem extends CriterionRecord {
 }
 export type CriteriaResponse = SearchPage<CriterionListItem>;
 export interface CriteriaGroupsResponse {
-  groups: string[];
+  groups: CriteriaCoverage[];
 }
 export interface CriterionVoteView extends CriterionVote {
   role: "owner" | "independent";
@@ -119,6 +120,7 @@ export interface PostLinkView {
   targetKind: "task" | "criterion";
   targetId: number;
   title: string;
+  status: TaskStatus | "waiting" | CriterionStatus;
 }
 export interface PostLinksRequest {
   taskIds?: number[];

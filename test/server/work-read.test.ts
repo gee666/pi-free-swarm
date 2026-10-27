@@ -54,8 +54,8 @@ describe("work searches", () => {
     assert.deepEqual(invalid.body.items, []);
     assert.ok(invalid.body.notes.length);
     const groups = await getJson<CriteriaGroupsResponse>(board.url("/criteria/groups"));
-    assert.ok(groups.body.groups.includes("HTTP"));
-    assert.ok(groups.body.groups.includes("Planning"));
+    assert.ok(groups.body.groups.some((group) => group.group === "HTTP"));
+    assert.ok(groups.body.groups.some((group) => group.group === "Planning"));
     for (const query of ["status=unknown", "needsMyVote=yes", "includeArchived=1", "taskId=-1", "limit=no"])
       assert.equal((await getJson(board.url(`/criteria?${query}`))).status, 400, query);
   });
