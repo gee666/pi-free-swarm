@@ -7,11 +7,21 @@ export interface SearchEndpoint {
   apiKeyEnv?: string;
 }
 
+export const SEARCH_JEV_MODEL = "jev-latest";
+export const SEARCH_JEV_TIMEOUT_MS = 120_000;
+
+export interface JevSettings {
+  url: string;
+  apiKeyEnv: string;
+  model?: string;
+  timeoutMs?: number;
+}
+
 export interface SearchSettings {
   maxResults?: number;
   timeoutMs?: number;
   embedding?: SearchEndpoint;
-  reranker?: SearchEndpoint;
+  jev?: JevSettings;
 }
 
 export interface SearchConfiguration {
@@ -51,11 +61,12 @@ export function parseSearchConfiguration(source: Record<string, unknown>): Searc
   const value = source.search;
   if (value === undefined) return typeof helperModel === "string" ? { helperModel } : {};
   if (!isRecord(value)) throw new SettingsError("search must be an object");
+  if (value.reranker !== undefined) throw new SettingsError("search.reranker is no longer supported; use search.jev");
   const search: SearchSettings = {
     maxResults: positiveInteger(value.maxResults, "search.maxResults"),
     timeoutMs: positiveInteger(value.timeoutMs, "search.timeoutMs"),
     embedding: endpoint(value.embedding, "search.embedding"),
-    reranker: endpoint(value.reranker, "search.reranker"),
+    jev: jevEndpoint(value.jev),
   };
   return { search, ...(typeof helperModel === "string" ? { helperModel } : {}) };
 }
@@ -69,7 +80,32 @@ function positiveInteger(value: unknown, key: string): number | undefined {
 function endpoint(value: unknown, key: string): SearchEndpoint | undefined {
   if (value === undefined) return undefined;
   if (!isRecord(value)) throw new SettingsError(`${key} must be an object`);
-  const { url, model, apiKeyEnv } = value;
+  const { model } = value;
+  const connection = endpointConnection(value, key);
+  if (typeof model !== "string" || !model.trim()) throw new SettingsError(`${key}.model must be nonempty`);
+  return { ...connection, model };
+}
+
+function jevEndpoint(value: unknown): JevSettings | undefined {
+  if (value === undefined) return undefined;
+  const key = "search.jev";
+  if (!isRecord(value)) throw new SettingsError(`${key} must be an object`);
+  const { url, apiKeyEnv } = endpointConnection(value, key);
+  if (apiKeyEnv === undefined) throw new SettingsError(`${key}.apiKeyEnv is required`);
+  const { model } = value;
+  if (model !== undefined && (typeof model !== "string" || !model.trim())) {
+    throw new SettingsError(`${key}.model must be nonempty`);
+  }
+  return {
+    url,
+    apiKeyEnv,
+    ...(typeof model === "string" ? { model } : {}),
+    ...(value.timeoutMs === undefined ? {} : { timeoutMs: positiveInteger(value.timeoutMs, `${key}.timeoutMs`) }),
+  };
+}
+
+function endpointConnection(value: Record<string, unknown>, key: string): Pick<SearchEndpoint, "url" | "apiKeyEnv"> {
+  const { url, apiKeyEnv } = value;
   if (typeof url !== "string") throw new SettingsError(`${key}.url must be an http(s) URL`);
   let parsed: URL;
   try {
@@ -86,11 +122,10 @@ function endpoint(value: unknown, key: string): SearchEndpoint | undefined {
   ) {
     throw new SettingsError(`${key}.url must be an http(s) URL without credentials, query or fragment`);
   }
-  if (typeof model !== "string" || !model.trim()) throw new SettingsError(`${key}.model must be nonempty`);
   if (apiKeyEnv !== undefined && (typeof apiKeyEnv !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(apiKeyEnv))) {
     throw new SettingsError(`${key}.apiKeyEnv must be an environment variable name`);
   }
-  return { url, model, ...(typeof apiKeyEnv === "string" ? { apiKeyEnv } : {}) };
+  return { url, ...(typeof apiKeyEnv === "string" ? { apiKeyEnv } : {}) };
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

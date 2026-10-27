@@ -1,5 +1,6 @@
 import type { SearchConfigResponse, SkillResponse, SkillsResponse } from "../api-types.js";
 import { SEARCH_MAX_RESULTS_DEFAULT } from "../constants.js";
+import { SEARCH_JEV_MODEL } from "../search/settings.js";
 import { getSkill, searchSkills } from "../skills/index.js";
 import { syncSkillsAndNotify } from "../broker/skill-sync.js";
 import { notFound, reply, requireSwarmItem, type ApiDeps, type ApiRoute } from "./api-util.js";
@@ -38,7 +39,11 @@ export function skillRoutes(deps: ApiDeps): ApiRoute[] {
           ranking: "bm25",
           embedding: settings.search?.embedding?.model ?? "off",
           reranker:
-            settings.search?.reranker?.model ?? (settings.helperModel ? `helper ${settings.helperModel}` : "off"),
+            settings.search?.jev !== undefined
+              ? `JEV ${settings.search.jev.model ?? SEARCH_JEV_MODEL}`
+              : settings.helperModel
+                ? `helper model ${settings.helperModel}`
+                : "off",
           maxResults: settings.search?.maxResults ?? SEARCH_MAX_RESULTS_DEFAULT,
         });
       },

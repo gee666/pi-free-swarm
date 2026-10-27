@@ -1,7 +1,7 @@
 // Global defaults and project overrides are read fresh for each launch. Env values never enter errors.
 import { globalSettingsFile, layeredSettings } from "./settings-files.js";
 import { parseSearchConfiguration, type SearchConfiguration } from "./search/settings.js";
-export type { SearchSettings, SearchEndpoint } from "./search/settings.js";
+export type { SearchSettings, SearchEndpoint, JevSettings } from "./search/settings.js";
 import { SettingsError } from "./settings-error.js";
 export { SettingsError } from "./settings-error.js";
 import {

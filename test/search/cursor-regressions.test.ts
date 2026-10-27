@@ -4,26 +4,30 @@ import { runSearch } from "../../src/search/index.js";
 import { SEARCH_RERANK_WINDOW } from "../../src/constants.js";
 import { createTempDb } from "../helpers/temp-db.js";
 import { helper } from "./fixtures.js";
+import { jevKey, jevReply, JEV_KEY_ENV } from "./jev-fixture.js";
 
 const candidates = Array.from({ length: SEARCH_RERANK_WINDOW + 5 }, (_, i) => ({
   id: String(i),
   title: "Query",
   text: "query",
 }));
-const settings = { search: { reranker: { url: "http://reranker.test", model: "test" } } };
+const settings = { search: { jev: { url: "http://jev.test", apiKeyEnv: JEV_KEY_ENV } } };
 
 test("cursor retains the first remotely ranked window and traverses the deterministic tail exactly once", async (t) => {
   const f = createTempDb();
   t.after(() => f.cleanup());
+  jevKey(t);
   let calls = 0;
   const fetcher: typeof fetch = async () => {
     calls++;
-    return Response.json({
-      results: Array.from({ length: SEARCH_RERANK_WINDOW }, (_, i) => ({
-        index: i,
-        relevance_score: calls === 1 ? i : -i,
-      })),
-    });
+    return Response.json(
+      jevReply(
+        Array.from(
+          { length: SEARCH_RERANK_WINDOW },
+          (_, i) => (calls === 1 ? i : SEARCH_RERANK_WINDOW - i) / SEARCH_RERANK_WINDOW,
+        ),
+      ),
+    );
   };
   let cursor: string | undefined;
   const seen: string[] = [];
@@ -59,6 +63,7 @@ test("cursor retains the first remotely ranked window and traverses the determin
 test("a degraded first page stays stable when the reranker recovers, and changed candidates require restart", async (t) => {
   const f = createTempDb();
   t.after(() => f.cleanup());
+  jevKey(t);
   const first = await runSearch({
     db: f.db,
     kind: "post",
@@ -70,7 +75,7 @@ test("a degraded first page stays stable when the reranker recovers, and changed
       throw new Error("down");
     },
   });
-  assert.match(first.notes.join(), /reranker failed/);
+  assert.match(first.notes.join(), /jev failed/);
   assert.ok(first.nextCursor);
   let calls = 0;
   const next = await runSearch({
@@ -83,7 +88,7 @@ test("a degraded first page stays stable when the reranker recovers, and changed
     cursor: first.nextCursor,
     fetch: async () => {
       calls++;
-      return Response.json({ results: [] });
+      return Response.json(jevReply([]));
     },
   });
   assert.equal(calls, 0);

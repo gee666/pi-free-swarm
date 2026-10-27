@@ -3,51 +3,67 @@ import { SEARCH_HELPER_PROMPT } from "../constants.js";
 import { documentText } from "./embeddings.js";
 import type { SearchDocument } from "./ranking.js";
 import { postJson } from "./remote.js";
-import { isRecord, parseHelperModel, type SearchEndpoint } from "./settings.js";
+import { isRecord, parseHelperModel, SEARCH_JEV_MODEL, type JevSettings } from "./settings.js";
 
 export type SearchHelper = Pick<ModelRegistry, "find" | "getApiKeyAndHeaders" | "streamSimple">;
 
-export async function dedicatedRerank<T extends SearchDocument>(
+export const SEARCH_JEV_DOCUMENT_CHARS = 600;
+
+export async function jevRerank<T extends SearchDocument>(
   query: string,
   documents: readonly T[],
-  endpoint: SearchEndpoint,
+  endpoint: JevSettings,
   signal: AbortSignal,
   fetcher: typeof fetch,
 ): Promise<T[]> {
+  const state = {
+    query,
+    documents: documents.map((document, index) => ({
+      id: `d${index + 1}`,
+      text: documentText(document).slice(0, SEARCH_JEV_DOCUMENT_CHARS),
+    })),
+  };
+  const questions = Object.fromEntries(
+    state.documents.map(({ id }) => [
+      id,
+      { type: "noul", instructions: `Is document ${id} relevant to the search query? Judge only document ${id}.` },
+    ]),
+  );
   const reply = await postJson(
     endpoint,
-    endpoint.url,
-    {
-      model: endpoint.model,
-      query,
-      documents: documents.map(documentText),
-      top_n: documents.length,
-    },
+    `${endpoint.url.replace(/\/+$/, "")}/v1/systemone`,
+    { model: endpoint.model ?? SEARCH_JEV_MODEL, state, questions },
     signal,
     fetcher,
   );
-  if (!isRecord(reply) || !Array.isArray(reply.results) || reply.results.length !== documents.length) {
-    throw new Error("invalid reranker reply");
+  if (
+    !isRecord(reply) ||
+    typeof reply.model !== "string" ||
+    !reply.model.trim() ||
+    !isRecord(reply.answers) ||
+    Object.keys(reply.answers).length !== documents.length
+  ) {
+    throw new Error("invalid JEV reply");
   }
-  const seen = new Set<number>();
-  const ranked: { document: T; score: number; index: number }[] = [];
-  for (const result of reply.results) {
-    if (
-      !isRecord(result) ||
-      typeof result.index !== "number" ||
-      !Number.isInteger(result.index) ||
-      seen.has(result.index) ||
-      typeof result.relevance_score !== "number" ||
-      !Number.isFinite(result.relevance_score)
-    ) {
-      throw new Error("invalid reranker result");
-    }
-    const document = documents[result.index];
-    if (document === undefined) throw new Error("invalid reranker index");
-    seen.add(result.index);
-    ranked.push({ document, score: result.relevance_score, index: result.index });
-  }
-  return ranked.sort((a, b) => b.score - a.score || a.index - b.index).map((entry) => entry.document);
+  const answers = reply.answers;
+  return documents
+    .map((document, index) => {
+      const id = `d${index + 1}`;
+      const answer = answers[id];
+      if (
+        !isRecord(answer) ||
+        answer.type !== "noul" ||
+        typeof answer.noul !== "number" ||
+        !Number.isFinite(answer.noul) ||
+        answer.noul < 0 ||
+        answer.noul > 1
+      ) {
+        throw new Error(`invalid JEV answer ${id}`);
+      }
+      return { document, score: answer.noul, index };
+    })
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map((entry) => entry.document);
 }
 
 export async function helperRerank<T extends SearchDocument>(

@@ -17,7 +17,7 @@ export async function withTimeout<T>(timeoutMs: number, action: (signal: AbortSi
 }
 
 export async function postJson(
-  endpoint: SearchEndpoint,
+  endpoint: Pick<SearchEndpoint, "url" | "apiKeyEnv">,
   url: string,
   body: unknown,
   signal: AbortSignal,

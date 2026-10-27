@@ -9,10 +9,10 @@ import type { SwarmDb } from "../store/db.js";
 import { embeddingRanking, type SearchKind } from "./embeddings.js";
 import { decodeCursor, encodeCursor, queryFingerprint } from "./pagination.js";
 import { bm25, reciprocalRankFusion, type SearchDocument } from "./ranking.js";
-import { dedicatedRerank, helperRerank, type SearchHelper } from "./reranking.js";
+import { jevRerank, helperRerank, type SearchHelper } from "./reranking.js";
 import { failureNote, withTimeout } from "./remote.js";
 import { searchConfiguration } from "./configuration.js";
-import type { SearchConfiguration } from "./settings.js";
+import { SEARCH_JEV_TIMEOUT_MS, type SearchConfiguration } from "./settings.js";
 
 export type { SearchDocument, SearchHelper, SearchKind, SearchConfiguration };
 export type SearchMode = "filter" | "bm25" | "hybrid" | "reranked";
@@ -86,20 +86,21 @@ export async function runSearch<T extends SearchDocument>(options: SearchOptions
     query &&
     window.length > 0 &&
     kind !== "skill" &&
-    (config.reranker !== undefined || (settings.helperModel !== undefined && helper !== undefined))
+    (config.jev !== undefined || (settings.helperModel !== undefined && helper !== undefined))
   ) {
     try {
-      const endpoint = config.reranker;
+      const endpoint = config.jev;
       const selection = settings.helperModel;
-      window = await withTimeout(timeout, (signal) => {
-        if (endpoint !== undefined) return dedicatedRerank(query, window, endpoint, signal, fetcher);
+      const rerankTimeout = endpoint === undefined ? timeout : (endpoint.timeoutMs ?? SEARCH_JEV_TIMEOUT_MS);
+      window = await withTimeout(rerankTimeout, (signal) => {
+        if (endpoint !== undefined) return jevRerank(query, window, endpoint, signal, fetcher);
         if (selection !== undefined && helper !== undefined)
           return helperRerank(query, window, selection, helper, signal);
         throw new Error("helper unavailable");
       });
       mode = "reranked";
     } catch (error) {
-      notes.push(failureNote("reranker", error));
+      notes.push(failureNote(config.jev === undefined ? "reranker" : "jev", error));
     }
   }
   const windowIds = window.map((item) => item.id);

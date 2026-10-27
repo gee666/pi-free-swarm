@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { SEARCH_EMBEDDING_BATCH, SEARCH_RERANK_WINDOW } from "../../src/constants.js";
+import { SEARCH_EMBEDDING_BATCH } from "../../src/constants.js";
 import { runSearch } from "../../src/search/index.js";
 import { createTempDb } from "../helpers/temp-db.js";
 import { body, documents, helper } from "./fixtures.js";
 
 const embedding = { url: "http://unused/v1/", model: "embedding" };
-const reranker = { url: "http://unused/rerank", model: "ranker" };
 const helperModel = "fake/folder/model/low";
 
 test("embeddings are batched, fused, reused by hash and recomputed after edits", async () => {
@@ -62,36 +61,6 @@ test("embeddings are batched, fused, reused by hash and recomputed after edits",
       [1, 1],
     );
     assert.ok(batches[1][0].includes("changed"));
-  } finally {
-    temp.cleanup();
-  }
-});
-
-test("dedicated reranker takes precedence, sorts scores, and only receives top thirty", async () => {
-  const temp = createTempDb();
-  let helperCalls = 0;
-  const candidates = Array.from({ length: 40 }, (_, id) => ({ id: String(id), title: "merge", text: "" }));
-  try {
-    const result = await runSearch({
-      db: temp.db,
-      kind: "task",
-      query: "merge",
-      candidates,
-      settings: { search: { reranker }, helperModel },
-      helper: helper("[]", () => helperCalls++),
-      fetch: async (url, init) => {
-        assert.equal(url, reranker.url);
-        const request = body(init);
-        assert.equal(request.top_n, SEARCH_RERANK_WINDOW);
-        assert.ok(Array.isArray(request.documents));
-        assert.equal(request.documents.length, SEARCH_RERANK_WINDOW);
-        return Response.json({ results: request.documents.map((_, index) => ({ index, relevance_score: index })) });
-      },
-    });
-    assert.equal(result.mode, "reranked");
-    assert.equal(result.items[0].id, "29");
-    assert.equal(helperCalls, 0);
-    assert.deepEqual(result.notes, []);
   } finally {
     temp.cleanup();
   }
@@ -157,19 +126,17 @@ test("timeouts abort fetch and helper auth, never reject and preserve previous r
     return new Promise<Response>(() => {});
   };
   try {
-    for (const remote of [{ embedding }, { reranker }]) {
-      const result = await runSearch({
-        db: temp.db,
-        kind: "post",
-        query: "merge",
-        candidates: documents,
-        settings: { search: { ...remote, timeoutMs: 5 } },
-        fetch: stuck,
-      });
-      assert.equal(result.mode, "bm25");
-      assert.match(result.notes.join(), /failed: timeout/);
-      assert.equal(signal?.aborted, true);
-    }
+    const timedOut = await runSearch({
+      db: temp.db,
+      kind: "post",
+      query: "merge",
+      candidates: documents,
+      settings: { search: { embedding, timeoutMs: 5 } },
+      fetch: stuck,
+    });
+    assert.equal(timedOut.mode, "bm25");
+    assert.match(timedOut.notes.join(), /failed: timeout/);
+    assert.equal(signal?.aborted, true);
     const stuckHelper = helper("[]");
     stuckHelper.getApiKeyAndHeaders = () => new Promise(() => {});
     const result = await runSearch({
@@ -186,41 +153,26 @@ test("timeouts abort fetch and helper auth, never reject and preserve previous r
   }
 });
 
-test("bad remote replies and HTTP errors degrade; failed reranker does not invoke helper", async () => {
+test("bad embedding replies and HTTP errors degrade", async () => {
   const temp = createTempDb();
-  let helperCalls = 0;
   try {
-    for (const reply of [
-      {
-        results: [
-          { index: 0, relevance_score: 1 },
-          { index: 0, relevance_score: 0 },
-        ],
-      },
-      { data: [] },
+    for (const response of [
+      Response.json({ data: [] }),
+      Response.json({ data: [{ index: 0, embedding: [null] }] }),
+      new Response("bad", { status: 503 }),
     ]) {
       const result = await runSearch({
         db: temp.db,
         kind: "post",
         query: "merge",
         candidates: documents,
-        settings: { search: { embedding, reranker }, helperModel },
-        helper: helper("[]", () => helperCalls++),
-        fetch: async () => Response.json(reply),
+        settings: { search: { embedding } },
+        fetch: async () => response,
       });
       assert.equal(result.mode, "bm25");
-      assert.equal(result.notes.length, 2);
+      assert.equal(result.items[0].id, "a");
+      assert.match(result.notes.join(), /search degraded: embeddings failed:/);
     }
-    assert.equal(helperCalls, 0);
-    const result = await runSearch({
-      db: temp.db,
-      kind: "post",
-      query: "merge",
-      candidates: documents,
-      settings: { search: { reranker } },
-      fetch: async () => new Response("bad", { status: 503 }),
-    });
-    assert.match(result.notes.join(), /HTTP 503/);
   } finally {
     temp.cleanup();
   }

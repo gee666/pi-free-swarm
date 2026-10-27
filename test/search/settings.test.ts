@@ -4,6 +4,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { loadSettings } from "../../src/settings.js";
 import { settingsForPersistence } from "../../src/settings-persistence.js";
+import { parseSearchConfiguration } from "../../src/search/settings.js";
 import { createTempDb } from "../helpers/temp-db.js";
 
 const endpoint = { url: "https://example.com/v1", model: "configured", apiKeyEnv: "SEARCH_TOKEN" };
@@ -11,7 +12,7 @@ const endpoint = { url: "https://example.com/v1", model: "configured", apiKeyEnv
 test("search settings roundtrip without environment secrets", () => {
   const temp = createTempDb();
   try {
-    const search = { maxResults: 80, timeoutMs: 1200, embedding: endpoint, reranker: endpoint };
+    const search = { maxResults: 80, timeoutMs: 1200, embedding: endpoint, jev: { ...endpoint, timeoutMs: 120000 } };
     writeFileSync(
       path.join(temp.db.dataDir, "settings.json"),
       JSON.stringify({ search, helperModel: "provider/folder/model/low" }),
@@ -26,6 +27,21 @@ test("search settings roundtrip without environment secrets", () => {
   }
 });
 
+test("JEV model and timeout can be omitted and stay omitted in persisted settings", () => {
+  const temp = createTempDb();
+  try {
+    const jev = { url: endpoint.url, apiKeyEnv: endpoint.apiKeyEnv };
+    const input = { search: { jev } };
+    writeFileSync(path.join(temp.db.dataDir, "settings.json"), JSON.stringify(input));
+    const { settings } = loadSettings(temp.cwd, { globalFile: null });
+    assert.deepEqual(settings.search?.jev, jev);
+    assert.deepEqual(settingsForPersistence(settings).search?.jev, jev);
+    assert.deepEqual(parseSearchConfiguration(input).search?.jev, jev);
+  } finally {
+    temp.cleanup();
+  }
+});
+
 test("invalid search configuration has field-specific errors", () => {
   const temp = createTempDb();
   const examples: [unknown, RegExp][] = [
@@ -33,7 +49,15 @@ test("invalid search configuration has field-specific errors", () => {
     [{ search: { maxResults: 0 } }, /search.maxResults/],
     [{ search: { timeoutMs: 0.1 } }, /search.timeoutMs/],
     [{ search: { embedding: { ...endpoint, url: "file:///tmp" } } }, /search.embedding.url/],
-    [{ search: { reranker: { ...endpoint, url: "https://user:secret@example.com" } } }, /search.reranker.url/],
+    [{ search: { reranker: endpoint } }, /search.reranker is no longer supported; use search.jev/],
+    [{ search: { jev: { ...endpoint, url: "https://user:secret@example.com" } } }, /search.jev.url/],
+    [{ search: { jev: { ...endpoint, url: "http://example.com?key=secret" } } }, /search.jev.url/],
+    [{ search: { jev: { ...endpoint, url: "http://example.com#fragment" } } }, /search.jev.url/],
+    [{ search: { jev: { ...endpoint, model: " " } } }, /search.jev.model/],
+    [{ search: { jev: { url: endpoint.url } } }, /search.jev.apiKeyEnv is required/],
+    [{ search: { jev: { ...endpoint, apiKeyEnv: "literal secret" } } }, /search.jev.apiKeyEnv/],
+    [{ search: { jev: { ...endpoint, timeoutMs: 0 } } }, /search.jev.timeoutMs/],
+    [{ search: { jev: { ...endpoint, timeoutMs: 1.5 } } }, /search.jev.timeoutMs/],
     [{ search: { embedding: { ...endpoint, model: " " } } }, /search.embedding.model/],
     [{ search: { embedding: { ...endpoint, apiKeyEnv: "actual key" } } }, /search.embedding.apiKeyEnv/],
     [{ helperModel: "provider/model" }, /helperModel/],

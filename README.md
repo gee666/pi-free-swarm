@@ -172,7 +172,7 @@ The extension does not store configured env values in its database or expose the
 
 ### Search and skills
 
-Search uses local BM25 ranking by default. Omit query text to keep the caller's filtered, most-recent-first order. Pages default to 10 items. `search.maxResults` defaults to 20 and cannot raise the hard cap of 50. Both it and `search.timeoutMs` must be positive safe integers. The timeout defaults to 8000 milliseconds per remote ranking stage.
+Search uses local BM25 ranking by default. Omit query text to keep the caller's filtered, most-recent-first order. Pages default to 10 items. `search.maxResults` defaults to 20 and cannot raise the hard cap of 50. Both it and `search.timeoutMs` must be positive safe integers. Embeddings and helper reranking each use `search.timeoutMs`, default 8000 milliseconds. JEV has its own timeout, default 120000 milliseconds, to allow for model loading and queued requests.
 
 Optional remote ranking settings:
 
@@ -186,19 +186,22 @@ Optional remote ranking settings:
       "model": "your-embedding-model",
       "apiKeyEnv": "SEARCH_EMBEDDING_KEY"
     },
-    "reranker": {
-      "url": "https://reranker.example/v1/rerank",
-      "model": "your-reranker-model",
-      "apiKeyEnv": "SEARCH_RERANKER_KEY"
+    "jev": {
+      "url": "http://your-jev-host:8765",
+      "apiKeyEnv": "SEARCH_JEV_KEY",
+      "model": "jev-latest",
+      "timeoutMs": 120000
     }
   },
   "helperModel": "provider/model/low"
 }
 ```
 
-Endpoints require HTTP or HTTPS URLs without embedded credentials, query strings or fragments, and a nonempty model name. `apiKeyEnv` is optional and names a variable in the calling process's environment, not a literal secret. Embeddings call `<url>/embeddings`, cache document vectors by content hash in SQLite, and fuse cosine and BM25 rankings with reciprocal rank fusion. A dedicated reranker calls its URL directly and reranks the top 30 candidates.
+Endpoints require HTTP or HTTPS URLs without embedded credentials, query strings or fragments. `apiKeyEnv` names a variable in the calling process's environment, not a literal secret. Embeddings require a nonempty model name; their `apiKeyEnv` is optional. They call `<url>/embeddings`, cache document vectors by content hash in SQLite, and fuse cosine and BM25 rankings with reciprocal rank fusion.
 
-Without a dedicated reranker, tool callers can use `helperModel` through Pi's model registry. Its format is `provider/model/thinking`; model ids may contain slashes. Thinking is `off`, `minimal`, `low`, `medium`, `high`, `xhigh` or `max`. HTTP/UI callers never use this helper. Remote failures keep the preceding ranking and return an explicit degradation note. A failed dedicated reranker does not try the helper.
+`search.jev` configures AutoJev, not a Cohere/Jina `/rerank` endpoint. It requires `url` and `apiKeyEnv`; `model` defaults to `jev-latest`, and `timeoutMs` defaults to 120000 and must be a positive safe integer. One authenticated request to `<url>/v1/systemone` scores the top 30 candidates with named `noul` relevance questions sharing the query and documents. Each document is limited to 600 characters. Scores must be probabilities between 0 and 1; equal scores retain the previous order. Oversized requests, rate limits, malformed replies, HTTP errors and timeouts keep the preceding ranking with a `search degraded: jev failed: <reason>` note. Requests are not retried. The old `search.reranker` setting is no longer supported.
+
+Without JEV, tool callers can use `helperModel` through Pi's model registry. Its format is `provider/model/thinking`; model ids may contain slashes. Thinking is `off`, `minimal`, `low`, `medium`, `high`, `xhigh` or `max`. HTTP/UI searches can use JEV but never use the helper. JEV takes precedence over the helper and does not fall back to it after failure. Other remote failures also keep the preceding ranking with an explicit degradation note. Pagination retains the first page's reranked window, so later pages do not rerank it again.
 
 Project-wide skills live in `.pi/swarm/skills/<name>/SKILL.md`. Require YAML frontmatter with `name` matching the folder and a nonempty `description`. The first Markdown heading supplies the title, otherwise the folder name does. Search/get sync the index on every read, including invalid folders with their validation error. All regular files contribute to the revision hash. Symlinks are invalid. Each folder allows up to 256 files or directories, 1 MiB per file, 8 MiB total and 16 nested directory levels. Skills search stays BM25-only over name, title and description. Catalogue changes emit skill events to swarms so the board can refresh.
 

@@ -255,7 +255,7 @@ describe("skills and search configuration", () => {
     const settings = path.join(board.temp.db.dataDir, "settings.json");
     writeFileSync(settings, JSON.stringify({ helperModel: "provider/model/off", search: { maxResults: 12 } }));
     const helper = await getJson<SearchConfigResponse>(board.url("/search-config"));
-    assert.equal(helper.body.reranker, "helper provider/model/off");
+    assert.equal(helper.body.reranker, "helper model provider/model/off");
     assert.equal(helper.body.maxResults, 12);
     writeFileSync(
       settings,
@@ -263,12 +263,12 @@ describe("skills and search configuration", () => {
         helperModel: "provider/model/off",
         search: {
           embedding: { url: "https://example.com", model: "embed", apiKeyEnv: "PRIVATE_KEY" },
-          reranker: { url: "https://example.com/rank", model: "rank" },
+          jev: { url: "https://example.com", model: "rank", apiKeyEnv: "PRIVATE_KEY" },
         },
       }),
     );
     const dedicated = await getJson<SearchConfigResponse>(board.url("/search-config"));
-    assert.deepEqual(dedicated.body, { ranking: "bm25", embedding: "embed", reranker: "rank", maxResults: 20 });
+    assert.deepEqual(dedicated.body, { ranking: "bm25", embedding: "embed", reranker: "JEV rank", maxResults: 20 });
     assert.ok(!JSON.stringify(dedicated.body).includes("PRIVATE_KEY"));
     assert.equal((await getJson(`${board.base}/api/swarms/99999/search-config`)).status, 404);
   });
