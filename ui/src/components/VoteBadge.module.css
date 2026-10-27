@@ -1,2 +1,8 @@
-.badge, .complete { font-size: var(--fs-small); color: var(--text-muted); }
-.complete { color: var(--accent); }
+.badge,
+.complete {
+  font-size: var(--fs-small);
+  color: var(--text-muted);
+}
+.complete {
+  color: var(--accent);
+}
