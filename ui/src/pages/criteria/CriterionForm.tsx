@@ -69,11 +69,11 @@ export function CriterionForm({
           )}
           <label className={styles.field}>
             Group
-            <input
-              aria-label="Group"
+            <TextField
+              label="Group"
               list="criterion-groups"
               value={fields.group}
-              onChange={(event) => change("group", event.target.value)}
+              onChange={(value) => change("group", value)}
             />
           </label>
           <datalist id="criterion-groups">

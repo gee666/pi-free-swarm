@@ -69,15 +69,17 @@ interface TextFieldProps {
   placeholder?: string;
   /** Shows a CharCounter after the input. */
   limit?: number;
+  list?: string;
   disabled?: boolean;
 }
 
 /** Single-line 44px input. */
-export function TextField({ value, onChange, label, placeholder, limit, disabled }: TextFieldProps) {
+export function TextField({ value, onChange, label, placeholder, limit, list, disabled }: TextFieldProps) {
   return (
     <div className={styles.inputWrap}>
       <input
         className={cx(styles.control, styles.input)}
+        list={list}
         value={value}
         aria-label={label}
         placeholder={placeholder}

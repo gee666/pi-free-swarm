@@ -110,7 +110,7 @@ export function CriteriaPage() {
               />
               <FilterMenu
                 label="Group"
-                items={["", ...(groups.data?.groups ?? [])].map((key) => ({
+                items={["", ...(groups.data?.groups.map((coverage) => coverage.group) ?? [])].map((key) => ({
                   key,
                   label: key || "All",
                   selected: group === key,
@@ -153,7 +153,9 @@ export function CriteriaPage() {
                         <div className={styles.group}>
                           <span>{name}</span>
                           <span>
-                            {records.filter((item) => item.status === "satisfied").length}/{records.length}
+                            {groups.data?.groups.find((coverage) => coverage.group === name)?.satisfied ??
+                              records.filter((item) => item.status === "satisfied").length}
+                            /{groups.data?.groups.find((coverage) => coverage.group === name)?.total ?? records.length}
                           </span>
                         </div>
                         {rows(records)}
@@ -175,7 +177,7 @@ export function CriteriaPage() {
         criterionId === "new" ? (
           <CriterionForm
             swarmId={swarmId}
-            groups={groups.data?.groups ?? []}
+            groups={groups.data?.groups.map((coverage) => coverage.group) ?? []}
             onCancel={() => navigate(base)}
             onSaved={(id) => {
               list.reload();
@@ -187,7 +189,7 @@ export function CriteriaPage() {
             key={criterionId}
             swarmId={swarmId}
             id={Number(criterionId)}
-            groups={groups.data?.groups ?? []}
+            groups={groups.data?.groups.map((coverage) => coverage.group) ?? []}
             onChanged={list.reload}
           />
         ) : (

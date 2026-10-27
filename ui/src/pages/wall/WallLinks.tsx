@@ -32,8 +32,12 @@ export function WallLinks({
   const tasks = useWorkList<TaskListItem>(swarmId, "tasks", query, open);
   const criteria = useWorkList<CriterionListItem>(swarmId, "criteria", query, open);
   const choices: WallLink[] = [
-    ...(tasks.data?.items.map((task): WallLink => ({ targetKind: "task", targetId: task.id, title: task.title, status: task.waiting ? "waiting" : task.status })) ??
-      []),
+    ...(tasks.data?.items.map((task): WallLink => ({
+      targetKind: "task",
+      targetId: task.id,
+      title: task.title,
+      status: task.waiting ? "waiting" : task.status,
+    })) ?? []),
     ...(criteria.data?.items.map((criterion): WallLink => ({
       targetKind: "criterion",
       targetId: criterion.id,
@@ -61,7 +65,12 @@ export function WallLinks({
       {links.map((link) => (
         <span className={styles.line} key={keyFor(link)}>
           <Pill>
-            <StatusGlyph waiting={link.status === "waiting"} status={link.status && link.status !== "waiting" ? link.status : link.targetKind === "task" ? "new" : "unlinked"} />{" "}
+            <StatusGlyph
+              waiting={link.status === "waiting"}
+              status={
+                link.status && link.status !== "waiting" ? link.status : link.targetKind === "task" ? "new" : "unlinked"
+              }
+            />{" "}
             <IdLink swarmId={swarmId} kind={link.targetKind} id={link.targetId} title={link.title} />
           </Pill>
           <IconButton icon={X} label={`Unlink ${link.targetKind} #${link.targetId}`} onClick={() => onRemove(link)} />
