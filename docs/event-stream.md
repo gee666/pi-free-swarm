@@ -1,5 +1,7 @@
 # Board event recovery
 
+Work graph events include `criterion.changed`, `task.changed`, `project.changed` and `post.links.changed`. Catalogue changes emit `skill.changed` for each swarm. Clients refetch affected records and lists.
+
 The board opens its SSE stream before fetching snapshots. Every successful open, including a reconnect, triggers the existing snapshot refresh once. Events written while a snapshot request is in flight remain available on that open stream.
 
 Outbox scans track raw row progress separately from recognized events. Unsupported event types advance the scan without being sent. Invalid JSON or a non-object payload for a supported type fails the scan visibly and closes clients rather than silently skipping the row.

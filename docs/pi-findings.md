@@ -325,11 +325,7 @@ optional 3 ms hold, `COMMIT`):
 9. **Idle detection (§7.2, §7.6):** count `prompt` commands in flight, from sent to response. Ignore `agent_settled`
    while that count is > 0; the settle gap in §2 shows a stale `agent_settled` arriving after a send. Any `agent_start`
    → `working`. Also ignore `agent_end` with `willRetry: true` (retry chain in §5).
-10. **Tool names (§6.2): prefix all agent tools with `swarm_`:** `swarm_read_posts`, `swarm_read_post`,
-    `swarm_post`, `swarm_comment`, `swarm_message`, `swarm_reply_to`, `swarm_read_thread`. A future collision
-    with a generic name would make every agent exit 1 at startup. Update the delivery footer to
-    `(reply with swarm_reply_to(12, …))`. Give each agent tool a `promptSnippet`, otherwise pi omits it from the
-    system prompt's tool list.
+10. **Tool names (§6.2):** Agent tools use the `swarm_` prefix to avoid collisions. See the current tool list in the README. Give each agent tool a `promptSnippet`, otherwise pi omits it from the system prompt's tool list.
 11. **Supervisor robustness:** auto-answer child dialog requests (`select/confirm/input/editor`) with
     `{"type":"extension_ui_response","id":…,"cancelled":true}` and ignore fire-and-forget UI records. If a child
     exits during startup with `Failed to load extension` on stderr, treat it as fatal: no revive, and surface stderr.

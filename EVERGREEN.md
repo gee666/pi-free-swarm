@@ -1,72 +1,35 @@
 ## Summary
-- Runs leaderless Pi peers on one task in one shared working tree, not a manager/worker hierarchy.
-- Peers coordinate through a durable wall/messages; matching terminal votes end execution.
-- Main reviews artifacts; peer acceptance is not independent verification.
-- Integrates through extension tools/commands/events, CLI/RPC, model context and session JSONL.
-- No private Pi imports or internal API calls; workers reuse the running Pi executable or CLI entrypoint.
-- Weak points are model judgment, concurrent edits, protocol drift, accounting gaps and process cleanup.
+
+Pi peers work as a flat swarm in one shared working tree. A work graph links grouped acceptance criteria to tasks, dependencies, reviews and criterion votes. User approval and five deterministic gates decide completion. Main still reviews the artifacts.
+
+The extension uses public Pi tools, commands, events, CLI/RPC and session JSONL. Workers reuse the running Pi executable or CLI entrypoint. No private Pi imports or internal API calls are used.
 
 ## Intent
-Workers share task/criteria/tools without assigned roles or nested swarms. Idle is not finished:
-at least 70% of active workers must agree on accepted or blocked.
-Watcher, Main and User do not vote. Dissent and reasons remain in Main's result.
-Resume preserves worker sessions, task, criteria and history but requires new votes.
-The localhost board exposes the same persisted work and communication, not a second state machine.
-History evolved from the initial wall/RPC board into explicit acceptance, durable delivery,
-recovery, budgets, retirement and live configuration; these serve the shared-task workflow.
+
+There are no agent roles or task hierarchies. Agents record intent, develop testable criteria, take ownership of tasks, provide evidence and review each other's work. Votes belong to individual criteria and become stale when their inputs change. The user approves the current scope and decides agreed blocker exceptions. A task awaiting another task is not a blocker.
+
+The five gates require current scope approval, links for every active criterion, accepted or deferred tasks, satisfied criteria or approved exceptions, and no tasks in review. Idleness, interruption and budget stops do not mean completion. The board and agent tools share the same persisted domain rules.
 
 ## Pi integration (public APIs)
-`index.ts` registers flags, session commands, tools and lifecycle hooks; opt-in is session-scoped.
-Main reads live model/thinking/trust context and forwards explicit extension arguments.
-Workers run `pi --mode rpc` with explicit sessions and appended system-prompt files.
-The runner consumes JSONL lifecycle, message, tool, usage, compaction and queue events;
-it sends prompts/steering, clears queues and observes settlement rather than just agent_end.
-Worker tools use TypeBox schemas; idle eligibility follows agent_settled.
-Exported TUI components render tools; the board reads documented session JSONL.
+
+`index.ts` registers flags, session commands, tools and lifecycle hooks. Opt-in is session-scoped. Main forwards model, thinking, trust and explicit extension arguments. Workers run `pi --mode rpc` with explicit sessions and appended system-prompt files. The runner consumes JSONL events, sends prompts and steering, clears queues and observes settlement. Worker tools use TypeBox schemas. Exported TUI components render tools; the board reads session JSONL.
+
 ## Internal Pi APIs
-None: no private/deep imports, monkey patches or direct internal runtime access.
-`getPiCommand` reuses process.execPath for Bun-compiled Pi and the runtime plus entrypoint for Node.
-SQLite uses bun:sqlite under Bun and node:sqlite under Node, with missing rows normalized at the DB boundary.
-Public event/session shapes, usage provenance and terminate semantics are compatibility seams.
-Historical probes in docs/pi-findings.md are not current guarantees.
+
+None. `getPiCommand` reuses process.execPath for Bun-compiled Pi and the runtime plus entrypoint for Node. SQLite uses bun:sqlite under Bun and node:sqlite under Node. Public event/session shapes, usage provenance and termination semantics are compatibility seams. Historical probes in docs/pi-findings.md are not current guarantees.
 
 ## Weak points
-Peers can overwrite each other's shared-tree edits or vote without adequate evidence.
-Messages entering context do not prove understanding; linked files may remain unread.
-RPC framing/order, session changes and startup failures can affect delivery/recovery.
-POSIX process groups and parent watches underpin cleanup; Windows is unsupported.
-Budget reports can lag or be incomplete; they exclude Main and cannot guarantee a billing ceiling.
-The board is unauthenticated localhost tooling, not a sandbox or multi-user service.
+
+Votes and reviews rely on model judgment and can miss defects. Agents share a working tree and can overwrite each other's edits. BM25 ranking may miss relevant work; optional remote ranking can degrade. Hundreds of agents are a scale target, not a demonstrated result.
+
+RPC ordering, startup failures and process cleanup affect recovery. Budget reports can lag or be incomplete and exclude Main. The board is unauthenticated localhost tooling, not a sandbox or multi-user service. Windows process cleanup is unsupported.
 
 ## Tests
-Run `npm run test:evergreen`: backend unit/integration tests, UI tests, then live Pi e2e.
-Backend/UI pretests refresh Pi SDK dependencies to latest and typecheck both projects.
-UI files run serially to avoid jsdom contention. Delivery coverage uses an explicit fake-peer
-barrier rather than a short busy window; snooze tests reduce unrelated polling during time jumps.
-The budget-notification test holds its clock through fake-worker startup so a slow host cannot
-exhaust the budget before evidence is posted. On a busy host, NODE_COMPILE_CACHE=$PWD/tmp/node-compile-cache
-also avoids repeated TypeScript compilation in fake-worker processes.
-`test/integration/evergreen-workflow.test.ts` connects Main's tool, real runner, SQLite and
-HTTP board with fake Pi peers: split votes stay running, quorum closes, dissent/evidence
-survive and Main receives the review warning and board link.
-Existing run-acceptance, run-delivery, run-resume, retirement, budget and cleanup suites
-protect fresh quorum, durable communication, preserved identity and bounded execution.
-UI suites cover board components, not a live browser or real TUI Esc.
-`test/e2e/runtime.e2e.ts` launches `$EVERGREEN_PI_BIN` (default `pi`) in print mode with stdin ignored.
-Without model calls it checks extension loading, SQLite migrations, missing rows, writes/rollback,
-WAL/foreign keys, the HTTP board and worker-command relaunch. Node reopens the same database afterward.
-Run it against the installed Bun binary, not only a Node launcher, to catch runtime import failures.
-`test/e2e/evergreen.e2e.ts` uses the same installed binary in print/JSON mode with stdin ignored
-and only this extension enabled, and requires `$EVERGREEN_E2E_MODEL` for model calls.
-It checks delegated file output, wall evidence, worker voting/session persistence, Main's read
-and resume with changed output and a new vote in the same worker session.
-Live tests cost tokens; failures retain projects under tmp/. They do not establish multi-model
-quality, browser rendering, host takeover or crash recovery.
-Pi 1.4.0 live delegation/resume passes with the installed Bun 1.3.14 compiled binary.
-Backend/UI tests run under Node; the runtime e2e also passes with the npm CLI under Node.
-CLI prompts use `--` after extension flags. Live model/tool latency can exhaust the
-cumulative three-minute test budget.
+
+`npm run test:evergreen` runs backend tests, UI tests and live Pi e2e tests. Backend and UI pretests refresh Pi SDK dependencies to latest and typecheck both projects. Live tests use `$EVERGREEN_PI_BIN` or `pi` on PATH and require `$EVERGREEN_E2E_MODEL`, credentials and network access. They spend tokens; failures retain projects under `tmp/`.
+
+Work-graph tests should cover task transitions and dependencies, criterion votes and staleness, scope approval, blocker decisions and all five completion gates. Integration tests exercise the runner, SQLite and board with fake peers. UI tests cover components, not a live browser or terminal. Runtime e2e checks extension loading, SQLite, the board and worker relaunch with the installed Pi binary. Live e2e checks delegation and resume, not multi-model quality, scale, host takeover or crash recovery.
+
 ## Relevant changelog topics
-Watch extension tool registration/exposure/termination, lifecycle/settlement and cancellation;
-CLI flags/trust/extension loading; RPC queue/framing/event ordering; session JSONL migration;
-model/thinking/catalog/pricing and native usage/compaction reports; TUI render contracts.
+
+Watch extension tool registration and termination, lifecycle settlement and cancellation, CLI flags and trust, RPC framing and ordering, session JSONL, model and pricing reports, and TUI render contracts.
