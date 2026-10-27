@@ -84,9 +84,7 @@ export function DashboardPage() {
                   <h1>{RUN_LABELS[data.header.state]}</h1>
                   <p>
                     Run {data.header.run} · {data.header.agentCount} agents ·{" "}
-                    {data.header.startedAt === null
-                      ? "not started"
-                      : `started ${timeAgo(data.header.startedAt)}`}
+                    {data.header.startedAt === null ? "not started" : `started ${timeAgo(data.header.startedAt)}`}
                   </p>
                 </div>
                 {data.attention.scopeApprovalNeeded && (
@@ -195,11 +193,7 @@ export function DashboardPage() {
                   ) : (
                     <ol className={styles.activity}>
                       {data.recentActivity.map((entry) => (
-                        <AuthoredEntry
-                          key={entry.id}
-                          author={entry.actor}
-                          time={timeAgo(entry.createdAt)}
-                        >
+                        <AuthoredEntry key={entry.id} author={entry.actor} time={timeAgo(entry.createdAt)}>
                           <p>
                             {activityLabel(entry.kind)}{" "}
                             <IdLink swarmId={swarmId} kind={entry.targetKind} id={entry.targetId} title={entry.title} />{" "}

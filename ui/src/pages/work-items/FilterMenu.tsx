@@ -52,9 +52,16 @@ export function FilterMenu({
         {items.some((item) => item.selected !== undefined) ? (
           <>
             <span className={styles.filterLabel}>{label}:</span>{" "}
-            <span className={styles.filterValue}>{items.filter((item) => item.selected).map((item) => item.label).join(", ")}</span>
+            <span className={styles.filterValue}>
+              {items
+                .filter((item) => item.selected)
+                .map((item) => item.label)
+                .join(", ")}
+            </span>
           </>
-        ) : label}
+        ) : (
+          label
+        )}
       </Button>
       <Popover anchorRef={anchor} open={open} onClose={close}>
         <div tabIndex={0} onKeyDown={nav.onKeyDown}>

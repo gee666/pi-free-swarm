@@ -26,7 +26,10 @@ export function SegmentedControl<T extends string>({ options, value, onChange, l
     const available = options.filter((option) => !option.disabledReason);
     if (available.length === 0) return;
     const index = available.findIndex((option) => option.value === value);
-    const next = available[index < 0 ? (step > 0 ? 0 : available.length - 1) : (index + step + available.length) % available.length];
+    const next =
+      available[
+        index < 0 ? (step > 0 ? 0 : available.length - 1) : (index + step + available.length) % available.length
+      ];
     onChange(next.value);
     event.currentTarget.querySelector<HTMLButtonElement>(`[data-value="${next.value}"]`)?.focus();
   };

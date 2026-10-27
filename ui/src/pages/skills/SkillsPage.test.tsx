@@ -62,7 +62,9 @@ it("lists valid and invalid skills, opens files and renders SKILL.md", async () 
   expect(await screen.findByRole("heading", { name: "search", level: 1 })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "Search skill" })).toBeInTheDocument();
   expect(screen.queryByText(/Frontmatter description/)).not.toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "SKILL.md" }).parentElement).not.toBe(screen.getByRole("link", { name: "examples.md" }).parentElement);
+  expect(screen.getByRole("link", { name: "SKILL.md" }).parentElement).not.toBe(
+    screen.getByRole("link", { name: "examples.md" }).parentElement,
+  );
   expect(screen.getByRole("link", { name: "examples.md" })).toHaveAttribute(
     "title",
     "Preview .pi/swarm/skills/search/examples.md",
