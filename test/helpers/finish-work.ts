@@ -44,13 +44,13 @@ export function finishWork(db: SwarmDb, swarmId: number): void {
         voteCriterion(db, {
           ...input(actor),
           criterionId: criterion.id,
-          verdict: "satisfied",
+          verdict: "covered",
           reason: "Output checked",
         });
       voteCriterion(db, {
         ...input("User"),
         criterionId: criterion.id,
-        verdict: "satisfied",
+        verdict: "covered",
         reason: "Independent fixture verification",
       });
     }

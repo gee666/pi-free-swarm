@@ -63,7 +63,7 @@ test("unlinking the last open task coalesces stale and needed vote requests per 
     source: "",
   });
   for (const actor of ["Ann", "Ben"])
-    voteCriterion(f.db, { ...f.input(actor), criterionId: f.criterion.id, verdict: "incomplete", reason: "Open task" });
+    voteCriterion(f.db, { ...f.input(actor), criterionId: f.criterion.id, verdict: "gap", reason: "Open task" });
   const after = lastMessage(f);
   const current = getTask(f.db, f.swarmId, open.id);
   assert.ok(current);

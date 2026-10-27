@@ -23,7 +23,7 @@ import { postsForUser } from "../store/user-post-state.js";
 
 type CriterionDetail = Omit<ReturnType<typeof getCriterionDetail>, "linkedPosts">;
 type TaskDetail = ReturnType<typeof getTaskDetail>;
-function progress(detail: CriterionDetail, verdict: "satisfied" | "blocked"): VoteProgress {
+function progress(detail: CriterionDetail, verdict: "covered" | "blocked"): VoteProgress {
   const votes = detail.votes.filter((vote) => !vote.stale && vote.verdict === verdict);
   const owners = new Set(detail.tasks.flatMap((task) => (task.owner === null ? [] : [task.owner])));
   const current =
@@ -50,7 +50,7 @@ function listCriterion(detail: CriterionDetail): CriterionListItem {
     updatedAt: detail.updatedAt,
     status: detail.status,
     linkedTaskCount: detail.tasks.length,
-    voteProgress: progress(detail, blocked ? "blocked" : "satisfied"),
+    voteProgress: progress(detail, blocked ? "blocked" : "covered"),
     reasons: detail.reasons,
   };
 }
@@ -108,8 +108,8 @@ export function criterionDetail(db: SwarmDb, swarmId: number, id: number): Crite
     missingVoters:
       detail.blocker && detail.votes.some((vote) => !vote.stale && vote.verdict === "blocked")
         ? detail.missingBlocked
-        : detail.missingSatisfied,
-    missingSatisfied: detail.missingSatisfied,
+        : detail.missingCovered,
+    missingCovered: detail.missingCovered,
     missingBlocked: detail.missingBlocked,
     blocker: detail.blocker,
     agreement: progress(detail, "blocked"),
@@ -146,6 +146,7 @@ function listTask(db: SwarmDb, detail: TaskDetail): TaskListItem {
     owner: detail.owner,
     author: detail.author,
     revision: detail.revision,
+    contentRevision: detail.contentRevision,
     createdAt: detail.createdAt,
     updatedAt: detail.updatedAt,
     acceptedAt: detail.acceptedAt,

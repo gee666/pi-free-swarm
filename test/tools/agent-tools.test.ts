@@ -41,6 +41,15 @@ test("task and criterion handlers adapt snake_case, preserve identity and return
   });
   const id = Number(/#(\d+)/.exec(output)?.[1]);
   assert.match(output, /r2 \[claimed\]/);
+  assert.match(output, new RegExp(`You now vote on criteria #${f.criterion.id}`));
+  assert.match(
+    run.criteriaVote({
+      criterion_id: f.criterion.id,
+      verdict: "covered",
+      reason: "Implementation and verification cover the requirement",
+    }),
+    /incomplete/,
+  );
   const detail = getTaskDetail(f.db, f.swarmId, id);
   assert.equal(detail.owner, "Ann");
   assert.equal(detail.criteria[0]?.criterionId, f.criterion.id);
@@ -89,6 +98,8 @@ test("dependency follow-ups and searches show compact status lines, cursor and m
   });
   assert.match(output, new RegExp(`Waiting on #${dependency.id}`));
   assert.match(output, /you will be notified/);
+  const unclaimed = f.task();
+  assert.match(run.tasksClaim({ id: unclaimed.id }), new RegExp(`You now vote on criteria #${f.criterion.id}`));
   const search = await run.tasksSearch({ query: "Dependent", waiting: true, limit: 1 });
   assert.match(search, /\[claimed\] Dependent · owner Ann/);
   assert.match(search, /Next cursor:|Search: bm25/);

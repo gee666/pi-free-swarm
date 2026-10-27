@@ -40,6 +40,13 @@ test("worker prompt covers the v2 workflow in order without inlining the brief",
     "parallel",
     "not a task state",
     "you will be notified",
+    "Do the linked tasks, when done, fully satisfy this criterion?",
+    "without waiting for acceptance",
+    "Vote covered",
+    "Vote gap",
+    "its reason must name the missing part",
+    "Vote blocked",
+    "reopen, handoff and dependency changes do not",
     "stale",
     "swarm finishes on its own",
     "no task is in review",
@@ -56,7 +63,7 @@ test("worker prompt covers the v2 workflow in order without inlining the brief",
     assert.ok(prompt.includes(text), text);
   assert.doesNotMatch(
     prompt,
-    /swarm-task|swarm_acceptance|70%|quorum|bodyMaxChars|versioned|user approval|wait for User/i,
+    /swarm-task|swarm_acceptance|70%|quorum|bodyMaxChars|versioned|user approval|wait for User|vote satisfied|vote incomplete|vote only after/i,
   );
 });
 

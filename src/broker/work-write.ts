@@ -41,12 +41,13 @@ export function writeWork<T>(db: SwarmDb, input: WorkInput, mutate: (actor: stri
           input.now,
         );
       }
+      notifyVoteNeeded(db, input.swarmId, id, input.now, notified);
       if (
         state.taskCount > 0 &&
         state.unacceptedCount === 0 &&
         (old === undefined || old.taskCount === 0 || old.unacceptedCount > 0)
       ) {
-        notifyVoteNeeded(db, input.swarmId, id, input.now, notified);
+        notifyVoteNeeded(db, input.swarmId, id, input.now, notified, "accepted");
       }
     }
     db.afterCommit(() => {

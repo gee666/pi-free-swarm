@@ -23,13 +23,12 @@ export function CriterionVotes({
   const [verdict, setVerdict] = useState<VoteVerdict>();
   const [reason, setReason] = useState("");
   const mutation = useWorkMutation(swarmId, onChanged);
-  const allAccepted = detail.tasks.length > 0 && detail.tasks.every((task) => task.status === "accepted");
   const blockedReason = !detail.blocker
     ? "Record a blocker first"
     : detail.blocker.rejectedRevision === detail.blocker.revision
       ? "Revise the rejected blocker before voting blocked"
       : undefined;
-  const disabled = (verdict === "satisfied" && !allAccepted) || (verdict === "blocked" && blockedReason !== undefined);
+  const disabled = verdict === "blocked" && blockedReason !== undefined;
   return (
     <Section title="Votes">
       {detail.votes.map((vote) => (
@@ -38,8 +37,8 @@ export function CriterionVotes({
             <Avatar name={vote.voter} size="sm" />
             <span>{vote.voter}</span>
             <Pill>{vote.role}</Pill>
-            <span className={vote.verdict === "satisfied" ? styles.pink : undefined}>
-              {vote.verdict === "satisfied" ? "Satisfied" : vote.verdict === "blocked" ? "Blocked" : "Incomplete"}
+            <span className={vote.verdict === "covered" ? styles.pink : undefined}>
+              {vote.verdict === "covered" ? "Covered" : vote.verdict === "blocked" ? "Blocked" : "Gap"}
             </span>
             {vote.stale && <span className={styles.stale}>stale</span>}
           </div>
@@ -60,18 +59,15 @@ export function CriterionVotes({
         }}
       >
         <h3>Your vote</h3>
+        <p className={styles.muted}>Do the linked tasks, when done, fully satisfy this criterion?</p>
         {mutation.error && <ErrorBanner>{mutation.error.message}</ErrorBanner>}
         <SegmentedControl<VoteVerdict>
           label="Your vote"
           value={verdict}
           onChange={setVerdict}
           options={[
-            {
-              value: "satisfied",
-              label: "Satisfied",
-              disabledReason: allAccepted ? undefined : "Linked tasks are not all accepted",
-            },
-            { value: "incomplete", label: "Incomplete" },
+            { value: "covered", label: "Covered" },
+            { value: "gap", label: "Gap" },
             {
               value: "blocked",
               label: "Blocked",
@@ -79,7 +75,11 @@ export function CriterionVotes({
             },
           ]}
         />
-        <LongField label="Reason" value={reason} onChange={setReason} />
+        <LongField
+          label={verdict === "gap" ? "Reason: what is missing?" : "Reason"}
+          value={reason}
+          onChange={setReason}
+        />
         <Button variant="primary" type="submit" disabled={mutation.busy || disabled || !verdict || !reason.trim()}>
           Vote
         </Button>

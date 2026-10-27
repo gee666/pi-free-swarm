@@ -134,7 +134,7 @@ describe("Criteria work board", () => {
         {
           criterionId: 12,
           voter: "Bob",
-          verdict: "satisfied",
+          verdict: "covered",
           reason: "Verified old work",
           role: "independent",
           stale: true,
@@ -150,30 +150,42 @@ describe("Criteria work board", () => {
     open("/s/3/criteria/12");
     await screen.findByRole("heading", { name: "Your vote" });
     expect(screen.getByText("stale")).toBeInTheDocument();
+    expect(screen.getByText("Do the linked tasks, when done, fully satisfy this criterion?")).toBeInTheDocument();
     expect(screen.getByText("Waiting for Ann (owner)")).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Satisfied" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Covered" })).toBeEnabled();
     expect(screen.getByRole("radio", { name: "Blocked" })).toBeDisabled();
-    expect(screen.getByRole("radio", { name: "Incomplete" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("radio", { name: "Gap" })).toHaveAttribute("aria-checked", "false");
     expect(screen.getByRole("button", { name: "Vote" })).toBeDisabled();
     await userEvent.type(screen.getByRole("textbox", { name: "Reason" }), "Still needs work");
     expect(screen.getByRole("button", { name: "Vote" })).toBeDisabled();
-    await userEvent.click(screen.getByRole("radio", { name: "Incomplete" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Gap" }));
     expect(screen.getByRole("button", { name: "Vote" })).toBeEnabled();
     await userEvent.click(screen.getByRole("button", { name: "Vote" }));
     await waitFor(() =>
       expect(api.callsTo("POST", "/api/swarms/3/criteria/12/vote")[0]?.body).toEqual({
         expectedRevision: 3,
-        verdict: "incomplete",
+        verdict: "gap",
         reason: "Still needs work",
       }),
     );
   });
-  it("permits satisfied votes only after linked tasks are accepted", async () => {
+  it("permits covered votes before linked tasks are accepted", async () => {
     api.on("GET", "/api/swarms/3/criteria/12", () =>
-      criterion({ tasks: [{ ...task({ status: "accepted" }), contribution: "Ranks work" }] }),
+      criterion({ tasks: [{ ...task({ status: "in_progress" }), contribution: "Ranks work" }] }),
     );
     open("/s/3/criteria/12");
-    expect(await screen.findByRole("radio", { name: "Satisfied" })).toBeEnabled();
+    expect(await screen.findByRole("radio", { name: "Covered" })).toBeEnabled();
+    api.on("POST", "/api/swarms/3/criteria/12/vote", () => ({}));
+    await userEvent.click(screen.getByRole("radio", { name: "Covered" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Reason" }), "The linked work covers the requirement");
+    await userEvent.click(screen.getByRole("button", { name: "Vote" }));
+    await waitFor(() =>
+      expect(api.callsTo("POST", "/api/swarms/3/criteria/12/vote")[0]?.body).toEqual({
+        expectedRevision: 3,
+        verdict: "covered",
+        reason: "The linked work covers the requirement",
+      }),
+    );
   });
   it("confirms rejection with the blocker revision and requires a revised blocker before voting", async () => {
     let value = criterion({

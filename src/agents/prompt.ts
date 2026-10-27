@@ -15,24 +15,26 @@ Read ${input.briefPath} first. It contains the full user request.
 ## Workflow
 1. Record the user intent in a file, then register its summary and path with swarm_intent_update.
 2. Develop exhaustive, testable, grouped acceptance criteria covering the whole intent, automation, quality and integration.
-3. Decide how to store and share artifacts. Establish shared contracts when needed and make them findable, for example by linking them from tasks or posts.
+3. Decide how to store and share artifacts. Establish shared contracts when needed and make them findable, for example by linking them from tasks or criterias.
 4. Make every piece of work a task. Search before creating to avoid duplicates. Link tasks to criteria with their contribution.
 5. Implement, test, integrate and run end-to-end checks. Request independent review with file paths, commands and results as evidence.
-6. Work in parallel as soon as some criteria exist. Do not wait for all planning to finish.
+6. Work in parallel as soon as some criteria exist. Do not wait for all planning to finish. You can create tasks, claim them, work on them, create/edit criteria, keep developing the project all in parallel.
 
 ## Tasks and dependencies
 Use new → claimed → in_progress → review → accepted. Claim explicitly; start only after dependencies are accepted. An independent reviewer accepts or requests changes. Reopen accepted work with a reason when it breaks.
 Waiting is derived from dependencies, not a task state. Mark waiting by linking the dependency and move on; you will be notified when it is accepted. Release or hand off work you cannot own.
 
 ## Voting duty
-Use swarm_criteria_vote_context. Owners and at least one independent voter must assess each criterion. Vote satisfied only after all linked tasks are accepted; otherwise vote incomplete with a reason. Edits, link changes and reopened work stale votes. Reread and vote again.
+Use swarm_criteria_vote_context. Owners and at least one independent voter must judge coverage: "Do the linked tasks, when done, fully satisfy this criterion?" Vote as soon as tasks are linked, without waiting for acceptance.
+Vote covered for full coverage. Vote gap when something is missing; its reason must name the missing part. Add or link a task to close the gap. Vote blocked for an external limitation the swarm cannot resolve.
+Task completion is checked separately. A criterion becomes satisfied only when all linked tasks are accepted and required current covered votes agree without dissent. Criterion edits and task title/body/link/contribution changes stale votes; claim, start, review, accept, reopen, handoff and dependency changes do not. Reread and vote again when coverage changes.
 
 ## Stop rules and blockers
 Finish only when at least one active criterion exists and every active criterion is linked, every task is accepted or deferred, every active criterion is satisfied or blocked, and no task is in review. A task is deferred when it is not accepted and every linked criterion is blocked.
 A blocker needs a reason, missing resource or decision, attempted resolutions and what would unblock it. A criterion is blocked when all required owners and at least one independent voter agree on the current blocker. User may optionally reject an agreed blocker; then keep working and revise the blocker if needed. Waiting for another swarm task is never a blocker.
 
 ## Skills
-Search swarm_skills_search first and read swarm_skills_get. Reuse existing automation. Otherwise write .pi/swarm/skills/<name>/SKILL.md and supporting files. Prefer automated worktrees, merge-back, linting and integration checks.
+Search swarm_skills_search first and read swarm_skills_get. Reuse existing automation. Otherwise write .pi/swarm/skills/<name>/SKILL.md and supporting files. Prefer automated worktrees, merge-back, linting and integration checks, create automation scripts-skills for everything that can benefit from scripting. Start any skill description with "Use when ..." and describe when this skill is useful.
 
 ## Discovery
 Start with swarm_project for gates, your queue and the tool guide. Search tasks, criteria and posts; use their get tools for detail. Posts are not delivered automatically. Comments notify subscribers. swarm_messages_send takes one recipient and continues your 1:1 conversation; swarm_messages_read reads it.

@@ -124,7 +124,7 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
   register(
     T.criteriaVote,
     S.criteriaVote,
-    "Vote satisfied, incomplete or blocked with evidence. Re-vote when work changes. Agreed blockers are final; User may optionally reject them.",
+    "Judge coverage: Do the linked tasks, when done, fully satisfy this criterion? Vote covered, gap or blocked. A gap reason must name the missing part. Re-vote after criterion or task content/link edits, not lifecycle changes.",
     run.criteriaVote,
   );
   register(

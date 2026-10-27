@@ -74,7 +74,7 @@ export interface CriterionDetailResponse extends CriterionListItem {
   requiredOwners: string[];
   offlineTasks: number[];
   missingVoters: string[];
-  missingSatisfied: string[];
+  missingCovered: string[];
   missingBlocked: string[];
   blocker: CriterionBlocker | null;
   agreement: VoteProgress;

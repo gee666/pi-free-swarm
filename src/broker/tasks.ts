@@ -110,17 +110,16 @@ export function editTask(
         input.now,
       );
     }
+    const title = input.fields.title === undefined ? task.title : workText(input.fields.title, "title", actor, true);
+    const body =
+      input.fields.body === undefined ? task.body : storedWorkText(db, input.swarmId, input.fields.body, "body", actor);
+    const links = taskLinks(db, task.id);
+    const coverageChanged =
+      title !== task.title || body !== task.body || JSON.stringify(beforeLinks) !== JSON.stringify(links);
     return commitTask(
       db,
       input,
-      {
-        ...task,
-        title: input.fields.title === undefined ? task.title : workText(input.fields.title, "title", actor, true),
-        body:
-          input.fields.body === undefined
-            ? task.body
-            : storedWorkText(db, input.swarmId, input.fields.body, "body", actor),
-      },
+      { ...task, title, body, contentRevision: task.contentRevision + Number(coverageChanged) },
       actor,
       "edited",
     );

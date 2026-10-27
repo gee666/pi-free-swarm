@@ -112,7 +112,7 @@ describe("work searches", () => {
   it("shows stale votes, contributions and missing voters in criterion detail", async () => {
     const criterion = await createHttpCriterion(board);
     const task = await createHttpTask(board, criterion.id, { claim: true });
-    await postJson(board.url(`/criteria/${criterion.id}/vote`), { verdict: "incomplete", reason: "Not finished" });
+    await postJson(board.url(`/criteria/${criterion.id}/vote`), { verdict: "gap", reason: "Not finished" });
     await action(board, task.id, "edit", { expectedRevision: task.revision, fields: { body: "Updated work" } });
     const detail = await getJson<CriterionDetailResponse>(board.url(`/criteria/${criterion.id}`));
     assert.equal(detail.body.tasks[0].contribution, "Expose the graph");
@@ -160,6 +160,7 @@ describe("dashboard", () => {
       reason: "Owner agrees",
     });
     await postJson(board.url(`/criteria/${criterion.id}/vote`), { verdict: "blocked", reason: "Independent agrees" });
+    const unreadBefore = (await getJson<DashboardResponse>(board.url("/dashboard"))).body.attention.unreadUserMessages;
     sendMessage(board.temp.db, {
       swarmId: board.swarm.id,
       from: "Maria",
@@ -179,7 +180,8 @@ describe("dashboard", () => {
       ["linked", "tasks", "criteria", "review"],
     );
     assert.equal(data.attention.agreedBlockers[0].id, criterion.id);
-    assert.equal(data.attention.unreadUserMessages, 1);
+    assert.equal(unreadBefore, 1, "claiming tasks also requests the User owner\'s coverage vote");
+    assert.equal(data.attention.unreadUserMessages, unreadBefore + 1);
     assert.deepEqual(
       data.criteriaCoverage.find((group) => group.group === "HTTP"),
       {
@@ -224,11 +226,11 @@ describe("dashboard", () => {
         actor: "Maria",
         now: Date.now(),
         criterionId: item.id,
-        verdict: "satisfied",
+        verdict: "covered",
         reason: "Owner verified",
       });
       await postJson(board.url(`/criteria/${item.id}/vote`), {
-        verdict: "satisfied",
+        verdict: "covered",
         reason: "Independent verification",
       });
     }

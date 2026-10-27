@@ -14,13 +14,13 @@ export interface CriterionAssessment extends CriterionState {
   requiredOwners: string[];
   offlineTasks: number[];
   votes: (CriterionVote & { stale: boolean })[];
-  missingSatisfied: string[];
+  missingCovered: string[];
   missingBlocked: string[];
 }
 export function linksSignature(tasks: readonly TaskRecord[]): string {
   return [...tasks]
     .sort((a, b) => a.id - b.id)
-    .map((task) => `${task.id}:${task.revision}`)
+    .map((task) => `${task.id}:${task.contentRevision}`)
     .join(",");
 }
 export function voteIsCurrent(
@@ -76,14 +76,14 @@ function assess(
       !voteIsCurrent(vote, criterion.revision, state.linksSignature, blocker?.revision ?? null) ||
       (vote.verdict === "blocked" && blocker !== null && blocker.rejectedRevision === blocker.revision),
   }));
-  const missing = (verdict: "satisfied" | "blocked") => {
+  const missing = (verdict: "covered" | "blocked") => {
     const current = votes.filter((vote) => !vote.stale && vote.verdict === verdict);
     return [
       ...requiredOwners.filter((owner) => !current.some((vote) => vote.voter === owner)),
       ...(!current.some((vote) => !owners.has(vote.voter)) ? ["independent"] : []),
     ];
   };
-  const missingSatisfied = missing("satisfied");
+  const missingCovered = missing("covered");
   const missingBlocked = missing("blocked");
   const reasons: string[] = [];
   if (state.status === "unlinked") reasons.push("No linked tasks. Create or link a task.");
@@ -93,9 +93,9 @@ function assess(
     for (const task of tasks.filter((item) => item.status !== "accepted"))
       reasons.push(`task #${task.id} ${task.status}`);
     const needed =
-      blocker && votes.some((vote) => !vote.stale && vote.verdict === "blocked") ? missingBlocked : missingSatisfied;
+      blocker && votes.some((vote) => !vote.stale && vote.verdict === "blocked") ? missingBlocked : missingCovered;
     if (needed.length) reasons.push(`waiting for votes: ${needed.join(", ")}`);
-    for (const vote of votes.filter((item) => !item.stale && item.verdict !== "satisfied"))
+    for (const vote of votes.filter((item) => !item.stale && item.verdict !== "covered"))
       reasons.push(`${vote.voter}: ${vote.verdict}: ${vote.reason}`);
   }
   if (state.status === "satisfied") reasons.push("All linked tasks accepted and required votes current.");
@@ -108,7 +108,7 @@ function assess(
     requiredOwners,
     offlineTasks,
     votes,
-    missingSatisfied,
+    missingCovered,
     missingBlocked,
   };
 }

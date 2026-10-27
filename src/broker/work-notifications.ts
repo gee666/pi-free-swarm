@@ -2,6 +2,7 @@ import { SYSTEM_NAME } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
 import { criterionTasks } from "../store/criteria.js";
 import { workRoster, type WorkAgent } from "../store/work-roster.js";
+import { recordVoteRequest, requestedVoters, type VoteRequestPhase } from "../store/vote-requests.js";
 import { assessCriterion } from "./criterion-status.js";
 import { createThread, insertMessage } from "./message-insert.js";
 
@@ -32,37 +33,32 @@ export function notifyVoteNeeded(
   swarmId: number,
   criterionId: number,
   now: number,
-  alreadyNotified: ReadonlySet<string> = new Set(),
+  alreadyNotified: Set<string> = new Set(),
+  phase: VoteRequestPhase = "coverage",
 ): void {
   const assessment = assessCriterion(db, swarmId, criterionId);
+  if (assessment.archivedAt !== null || assessment.taskCount === 0 || assessment.unownedCount > 0) return;
   const owners = criterionTasks(db, criterionId).flatMap((task) => (task.owner === null ? [] : [task.owner]));
-  for (const owner of assessment.requiredOwners.filter(
-    (name) => assessment.missingSatisfied.includes(name) && !alreadyNotified.has(name),
-  )) {
+  const current = assessment.votes.filter((vote) => !vote.stale);
+  const requested = requestedVoters(db, assessment, phase);
+  const send = (recipient: string, independent: boolean) => {
+    if (requested.includes(recipient)) return;
+    recordVoteRequest(db, assessment, phase, recipient);
+    if (alreadyNotified.has(recipient)) return;
+    alreadyNotified.add(recipient);
+    const readiness = phase === "accepted" ? " All linked tasks are accepted." : " Coverage is staffed.";
     notifyWork(
       db,
       swarmId,
-      owner,
-      `Criterion #${criterionId} needs your vote. Call swarm_criteria_get then swarm_criteria_vote.`,
+      recipient,
+      `Criterion #${criterionId} needs ${independent ? "an independent vote" : "your vote"}.${readiness} Do the linked tasks, when done, fully satisfy this criterion? Call swarm_criteria_get then swarm_criteria_vote (covered/gap/blocked).`,
       now,
     );
+  };
+  for (const owner of assessment.requiredOwners.filter((name) => !current.some((vote) => vote.voter === name)))
+    send(owner, false);
+  if (!current.some((vote) => !owners.includes(vote.voter)) && !requested.some((name) => !owners.includes(name))) {
+    const recipient = chooseWorkRecipient(workRoster(db, swarmId), owners);
+    if (recipient !== null) send(recipient, true);
   }
-  if (assessment.missingSatisfied.includes("independent")) {
-    notifyWork(
-      db,
-      swarmId,
-      independentRecipient(db, swarmId, owners, alreadyNotified),
-      `Criterion #${criterionId} needs an independent vote. Call swarm_criteria_get then swarm_criteria_vote.`,
-      now,
-    );
-  }
-}
-function independentRecipient(
-  db: SwarmDb,
-  swarmId: number,
-  owners: string[],
-  notified: ReadonlySet<string>,
-): string | null {
-  const recipient = chooseWorkRecipient(workRoster(db, swarmId), owners);
-  return recipient !== null && !notified.has(recipient) ? recipient : null;
 }

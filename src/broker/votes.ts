@@ -14,16 +14,12 @@ export function voteCriterion(
   return writeWork(db, input, (actor) => {
     const criterion = requireCriterion(db, input.swarmId, input.criterionId);
     checkRevision(criterion.revision, input.expectedRevision);
-    if (!["satisfied", "incomplete", "blocked"].includes(input.verdict))
+    if (!["covered", "gap", "blocked"].includes(input.verdict))
       throw new BrokerError("validation", "Unknown vote verdict.");
+    if (input.verdict === "gap" && !input.reason.trim())
+      throw new BrokerError("validation", "A gap vote's reason must name the missing part.", "reason");
     const tasks = criterionTasks(db, criterion.id);
     const blocker = getBlocker(db, criterion.id);
-    if (input.verdict === "satisfied" && tasks.some((task) => task.status !== "accepted")) {
-      throw new BrokerError(
-        "validation",
-        "A satisfied vote requires all linked tasks accepted. Finish and review the tasks first.",
-      );
-    }
     if (input.verdict === "blocked" && blocker === null)
       throw new BrokerError("validation", "A blocked vote requires a blocker record. Call swarm_criteria_block first.");
     if (input.verdict === "blocked" && blocker !== null && blocker.rejectedRevision === blocker.revision)

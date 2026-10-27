@@ -50,6 +50,41 @@ describe("criteria writes", () => {
     assert.equal(restored.body.archivedAt, null);
   });
 
+  it("accepts early coverage verdicts, rejects old verdicts and keeps votes current through review and reopen", async () => {
+    const criterion = await createHttpCriterion(board);
+    const task = await createHttpTask(board, criterion.id, { claim: true });
+    await action(board, task.id, "handoff", { to: "Maria" });
+    const path = `/criteria/${criterion.id}`;
+    for (const verdict of ["satisfied", "incomplete"])
+      assert.equal((await postJson(board.url(`${path}/vote`), { verdict, reason: "Old verdict" })).status, 400);
+    assert.equal((await postJson(board.url(`${path}/vote`), { verdict: "gap", reason: "" })).status, 400);
+    const vote = await postJson<{ verdict: string }>(board.url(`${path}/vote`), {
+      verdict: "covered",
+      reason: "The linked work covers the requirement",
+    });
+    assert.equal(vote.status, 200);
+    assert.equal(vote.body.verdict, "covered");
+    voteCriterion(board.temp.db, {
+      swarmId: board.swarm.id,
+      actor: "Maria",
+      now: Date.now(),
+      criterionId: criterion.id,
+      verdict: "covered",
+      reason: "Implementation and tests cover the requirement",
+    });
+    const detail = async () => (await getJson<CriterionDetailResponse>(board.url(path))).body;
+    assert.equal((await detail()).status, "incomplete");
+    await action(board, task.id, "start");
+    await action(board, task.id, "request-review", { evidence: "Tests passed" });
+    await action(board, task.id, "review", { verdict: "accept", reason: "Verified" });
+    assert.equal((await detail()).status, "satisfied");
+    await action(board, task.id, "reopen", { reason: "Regression" });
+    const reopened = await detail();
+    assert.equal(reopened.status, "incomplete");
+    assert.ok(reopened.votes.every((item) => !item.stale));
+    assert.equal(reopened.tasks[0].contentRevision, task.contentRevision);
+  });
+
   it("records a blocker, counts owner and independent agreement, and allows User to reject it", async () => {
     const criterion = await createHttpCriterion(board);
     const task = await createHttpTask(board, criterion.id, { claim: true });
@@ -129,7 +164,7 @@ describe("criteria writes", () => {
     const task = await createHttpTask(board, criterion.id, { body: long, claim: true });
     assert.match(task.body, /full text:/);
     const vote = await postJson<{ reason: string }>(board.url(`/criteria/${criterion.id}/vote`), {
-      verdict: "incomplete",
+      verdict: "gap",
       reason: long,
     });
     assert.equal(vote.status, 200);

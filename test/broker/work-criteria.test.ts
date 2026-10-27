@@ -72,35 +72,38 @@ test("satisfaction needs every owner and independent current votes, with any cur
   const f = workFixture(t);
   const first = f.task();
   const second = f.task();
-  assert.throws(
-    () => voteCriterion(f.db, { ...f.input(), criterionId: f.criterion.id, verdict: "satisfied", reason: "Done" }),
-    /all linked tasks accepted/,
-  );
+  voteCriterion(f.db, {
+    ...f.input(),
+    criterionId: f.criterion.id,
+    verdict: "covered",
+    reason: "Tasks cover the requirement",
+  });
+  assert.equal(assessCriterion(f.db, f.swarmId, f.criterion.id).status, "incomplete");
   f.accept(first.id);
   f.accept(second.id, "Ben", "Ann");
-  const vote = (actor: string, verdict: "satisfied" | "incomplete" = "satisfied") =>
+  const vote = (actor: string, verdict: "covered" | "gap" = "covered") =>
     voteCriterion(f.db, { ...f.input(actor), criterionId: f.criterion.id, verdict, reason: "Checked" });
   vote("Ann");
-  assert.deepEqual(assessCriterion(f.db, f.swarmId, f.criterion.id).missingSatisfied, ["Ben", "independent"]);
+  assert.deepEqual(assessCriterion(f.db, f.swarmId, f.criterion.id).missingCovered, ["Ben", "independent"]);
   vote("Ben");
   assert.equal(assessCriterion(f.db, f.swarmId, f.criterion.id).status, "incomplete");
   vote("User");
   assert.equal(assessCriterion(f.db, f.swarmId, f.criterion.id).status, "satisfied");
-  vote("Cam", "incomplete");
+  vote("Cam", "gap");
   const incomplete = assessCriterion(f.db, f.swarmId, f.criterion.id);
   assert.equal(incomplete.status, "incomplete");
-  assert.ok(incomplete.reasons.some((reason) => reason.includes("Cam: incomplete")));
+  assert.ok(incomplete.reasons.some((reason) => reason.includes("Cam: gap")));
   vote("Cam");
   assert.equal(assessCriterion(f.db, f.swarmId, f.criterion.id).status, "satisfied");
 });
 
-test("criterion edits, task edits, link changes and reopen keep visible stale votes", (t) => {
+test("criterion edits, task content edits and link changes keep visible stale votes", (t) => {
   const f = workFixture(t);
   const task = f.task();
   const accepted = f.accept(task.id);
   const vote = () => {
     for (const actor of ["Ann", "Ben"])
-      voteCriterion(f.db, { ...f.input(actor), criterionId: f.criterion.id, verdict: "satisfied", reason: "Checked" });
+      voteCriterion(f.db, { ...f.input(actor), criterionId: f.criterion.id, verdict: "covered", reason: "Checked" });
   };
   vote();
   const editedCriterion = editCriterion(f.db, {
@@ -140,14 +143,14 @@ test("offline linked owners block agreement until an active agent takes the task
   const task = f.task();
   f.accept(task.id);
   for (const actor of ["Ann", "Ben"])
-    voteCriterion(f.db, { ...f.input(actor), criterionId: f.criterion.id, verdict: "satisfied", reason: "Verified" });
+    voteCriterion(f.db, { ...f.input(actor), criterionId: f.criterion.id, verdict: "covered", reason: "Verified" });
   f.db.sql.prepare("UPDATE participants SET status = 'stopped' WHERE swarm_id = ? AND name = 'Ann'").run(f.swarmId);
   const offline = assessCriterion(f.db, f.swarmId, f.criterion.id);
   assert.equal(offline.status, "incomplete");
   assert.ok(offline.reasons.includes(`owner offline — hand off task #${task.id}`));
   handoffTask(f.db, { ...f.input("Cam"), id: task.id, to: "Cam" });
   for (const actor of ["Cam", "Ben"])
-    voteCriterion(f.db, { ...f.input(actor), criterionId: f.criterion.id, verdict: "satisfied", reason: "Rechecked" });
+    voteCriterion(f.db, { ...f.input(actor), criterionId: f.criterion.id, verdict: "covered", reason: "Rechecked" });
   assert.equal(assessCriterion(f.db, f.swarmId, f.criterion.id).status, "satisfied");
 });
 
@@ -247,7 +250,7 @@ test("SQL filters and vote context include ownership, author, group, archive and
   assert.equal(context.nextAfter, null);
   assert.equal(context.tasks[0]?.id, task.id);
   assert.equal(context.criteria[0]?.tasks[0]?.owner, "Ann");
-  assert.ok(context.criteria[0]?.missingSatisfied.includes("Ann"));
+  assert.ok(context.criteria[0]?.missingCovered.includes("Ann"));
   archiveCriterion(f.db, { ...f.input(), id: f.criterion.id });
   assert.deepEqual(searchCriterionCandidates(f.db, f.swarmId, "Ann", criterionFilters), []);
   assert.equal(

@@ -68,8 +68,15 @@ export const criteriaBlock = object({
 });
 export const criteriaVote = object({
   criterion_id: id,
-  verdict: Type.Union([Type.Literal("satisfied"), Type.Literal("incomplete"), Type.Literal("blocked")]),
-  reason: text,
+  verdict: Type.Union([
+    Type.Literal("covered", { description: "linked tasks, when done, fully satisfy the criterion" }),
+    Type.Literal("gap", { description: "something is missing — say what, or add/link a task" }),
+    Type.Literal("blocked", { description: "an external limitation the swarm cannot resolve" }),
+  ]),
+  reason: Type.String({
+    ...text,
+    description: `For gap, name the missing part. Keep under ${TEXT_MAX} characters; put longer material in a file and reference its path.`,
+  }),
 });
 export const tasksSearch = object({
   ...searchPage,

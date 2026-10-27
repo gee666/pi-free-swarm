@@ -51,11 +51,11 @@ export function workFixture(t: TestContext) {
     }
     for (const task of listTasks(temp.db, swarm.id)) if (task.status !== "accepted") accept(task.id);
     for (const criterion of listCriteria(temp.db, swarm.id)) {
-      voteCriterion(temp.db, { ...input(), criterionId: criterion.id, verdict: "satisfied", reason: "Verified." });
+      voteCriterion(temp.db, { ...input(), criterionId: criterion.id, verdict: "covered", reason: "Verified." });
       voteCriterion(temp.db, {
         ...input("Ben"),
         criterionId: criterion.id,
-        verdict: "satisfied",
+        verdict: "covered",
         reason: "Independent check.",
       });
     }

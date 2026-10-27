@@ -67,7 +67,7 @@ test("criterion audit keeps creator and editor distinct and records every mutati
     voteCriterion(f.db, {
       ...f.input("Ben"),
       criterionId: f.criterion.id,
-      verdict: "incomplete",
+      verdict: "gap",
       reason: "Still working",
     });
   assert.equal(recentWorkActivity(f.db, f.swarmId, 20).length, 20);

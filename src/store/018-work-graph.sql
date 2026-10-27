@@ -88,13 +88,21 @@ CREATE TABLE criterion_blockers (
 CREATE TABLE criterion_votes (
   criterion_id INTEGER NOT NULL REFERENCES criteria(id),
   voter TEXT NOT NULL,
-  verdict TEXT NOT NULL CHECK (verdict IN ('satisfied','incomplete','blocked')),
+  verdict TEXT NOT NULL CHECK (verdict IN ('covered','gap','blocked')),
   reason TEXT NOT NULL,
   criterion_revision INTEGER NOT NULL CHECK (criterion_revision > 0),
   links_signature TEXT NOT NULL,
   blocker_revision INTEGER CHECK (blocker_revision > 0),
   created_at INTEGER NOT NULL,
   PRIMARY KEY (criterion_id, voter)
+);
+CREATE TABLE criterion_vote_requests (
+  criterion_id INTEGER NOT NULL REFERENCES criteria(id),
+  criterion_revision INTEGER NOT NULL,
+  links_signature TEXT NOT NULL,
+  phase TEXT NOT NULL CHECK (phase IN ('coverage','accepted')),
+  voter TEXT NOT NULL,
+  PRIMARY KEY (criterion_id, criterion_revision, links_signature, phase, voter)
 );
 CREATE TABLE tasks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,6 +113,7 @@ CREATE TABLE tasks (
   owner TEXT,
   author TEXT NOT NULL,
   revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+  content_revision INTEGER NOT NULL DEFAULT 1 CHECK (content_revision > 0),
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   accepted_at INTEGER,

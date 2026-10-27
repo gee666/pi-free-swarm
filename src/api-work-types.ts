@@ -1,6 +1,6 @@
 export type TaskStatus = "new" | "claimed" | "in_progress" | "review" | "accepted";
 export type CriterionStatus = "unlinked" | "incomplete" | "satisfied" | "blocked";
-export type VoteVerdict = "satisfied" | "incomplete" | "blocked";
+export type VoteVerdict = "covered" | "gap" | "blocked";
 export type WorkOutcome = "completed" | "stopped_with_blockers";
 
 export interface TaskRecord {
@@ -12,6 +12,7 @@ export interface TaskRecord {
   owner: string | null;
   author: string;
   revision: number;
+  contentRevision: number;
   createdAt: number;
   updatedAt: number;
   acceptedAt: number | null;

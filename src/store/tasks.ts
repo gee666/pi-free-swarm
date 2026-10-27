@@ -66,7 +66,7 @@ export function insertTask(
 export function saveTask(db: SwarmDb, task: TaskRecord): void {
   db.sql
     .prepare(
-      `UPDATE tasks SET title = ?, body = ?, status = ?, owner = ?, revision = ?, updated_at = ?,
+      `UPDATE tasks SET title = ?, body = ?, status = ?, owner = ?, revision = ?, content_revision = ?, updated_at = ?,
     accepted_at = ?, accepted_by = ? WHERE id = ? AND swarm_id = ?`,
     )
     .run(
@@ -75,6 +75,7 @@ export function saveTask(db: SwarmDb, task: TaskRecord): void {
       task.status,
       task.owner,
       task.revision,
+      task.contentRevision,
       task.updatedAt,
       task.acceptedAt,
       task.acceptedBy,

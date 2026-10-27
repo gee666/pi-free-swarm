@@ -26,6 +26,7 @@ export function taskOf(row: Row): TaskRecord {
     owner: textOrNull(row, "owner"),
     author: text(row, "author"),
     revision: int(row, "revision"),
+    contentRevision: int(row, "content_revision"),
     createdAt: int(row, "created_at"),
     updatedAt: int(row, "updated_at"),
     acceptedAt: intOrNull(row, "accepted_at"),
@@ -53,7 +54,7 @@ export function voteOf(row: Row): CriterionVote {
   return {
     criterionId: int(row, "criterion_id"),
     voter: text(row, "voter"),
-    verdict: enumText(row, "verdict", ["satisfied", "incomplete", "blocked"]),
+    verdict: enumText(row, "verdict", ["covered", "gap", "blocked"]),
     reason: text(row, "reason"),
     criterionRevision: int(row, "criterion_revision"),
     linksSignature: text(row, "links_signature"),

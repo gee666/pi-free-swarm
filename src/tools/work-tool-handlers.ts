@@ -34,10 +34,13 @@ export function projectText(identity: AgentToolIdentity): string {
 export function createWorkHandlers(identity: AgentToolIdentity) {
   const db = () => identity.getDb();
   const input = () => workInput(identity);
-  const taskResult = (task: TaskRecord) => {
+  const taskResult = (task: TaskRecord, claimed = false) => {
     const detail = getTaskDetail(db(), identity.swarmId, task.id);
     const waiting = detail.dependencies.filter((dependency) => dependency.status !== "accepted");
-    return `Task #${task.id} r${task.revision} [${task.status}].${waiting.length ? ` Waiting on ${waiting.map((item) => `#${item.id}`).join(", ")} — you will be notified when they are accepted.` : ""}`;
+    const voteDuty = claimed
+      ? ` You now vote on criteria ${detail.criteria.map((link) => `#${link.criterionId}`).join(", ")}. Do the linked tasks, when done, fully satisfy this criterion?`
+      : "";
+    return `Task #${task.id} r${task.revision} [${task.status}].${voteDuty}${waiting.length ? ` Waiting on ${waiting.map((item) => `#${item.id}`).join(", ")} — you will be notified when they are accepted.` : ""}`;
   };
   const criterionResult = (id: number) => {
     const criterion = getCriterionDetail(db(), identity.swarmId, id);
@@ -64,8 +67,8 @@ export function createWorkHandlers(identity: AgentToolIdentity) {
       return `${criterionResult(criterion_id)} Blocker r${blocker.revision}; gather current blocked votes from every required owner and an independent voter to finalize the blocker. User may optionally reject it. Waiting for another task is a dependency, not a blocker.`;
     },
     criteriaVote({ criterion_id, ...fields }: Static<typeof S.criteriaVote>) {
-      voteCriterion(db(), { ...fields, criterionId: criterion_id, ...input() });
-      return criterionResult(criterion_id);
+      const vote = voteCriterion(db(), { ...fields, criterionId: criterion_id, ...input() });
+      return `${criterionResult(criterion_id)} Coverage vote ${vote.verdict} recorded.`;
     },
     criteriaVoteContext(params: Static<typeof S.paged>) {
       const scope = `votes:${identity.swarmId}:${identity.agentName}`;
@@ -91,6 +94,7 @@ export function createWorkHandlers(identity: AgentToolIdentity) {
           criteria: criteria.map(({ criterion_id, contribution }) => ({ criterionId: criterion_id, contribution })),
           dependsOn: depends_on,
         }),
+        fields.claim,
       );
     },
     tasksEdit({ id, expected_revision, criteria, depends_on, ...fields }: Static<typeof S.tasksEdit>) {
@@ -114,7 +118,7 @@ export function createWorkHandlers(identity: AgentToolIdentity) {
         }),
       );
     },
-    tasksClaim: ({ id }: Static<typeof S.byId>) => taskResult(claimTask(db(), { ...input(), id })),
+    tasksClaim: ({ id }: Static<typeof S.byId>) => taskResult(claimTask(db(), { ...input(), id }), true),
     tasksRelease: ({ id }: Static<typeof S.byId>) => taskResult(releaseTask(db(), { ...input(), id })),
     tasksHandoff: (params: Static<typeof S.tasksHandoff>) => taskResult(handoffTask(db(), { ...params, ...input() })),
     tasksTransition({ id, action, evidence, reason }: Static<typeof S.tasksTransition>) {

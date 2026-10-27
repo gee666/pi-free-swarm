@@ -58,11 +58,9 @@ try {
         createdBlocker = true;
       }
       const detail = getCriterionDetail(db, swarmId, criterion.id);
-      const verdict = blocked ? "blocked" : "satisfied";
+      const verdict = blocked ? "blocked" : "covered";
       const voted = detail.votes.some((vote) => vote.voter === actor && !vote.stale && vote.verdict === verdict);
-      const eligible = blocked
-        ? detail.blocker !== null
-        : detail.tasks.length > 0 && detail.tasks.every((task) => task.status === "accepted");
+      const eligible = blocked ? detail.blocker !== null : detail.tasks.length > 0;
       if (!voted && eligible)
         voteCriterion(db, {
           ...input(),

@@ -28,13 +28,13 @@ it("shares dashboard group coverage and counts every derived status with optiona
     actor: "Maria",
     now: Date.now(),
     criterionId: satisfied.id,
-    verdict: "satisfied",
+    verdict: "covered",
     reason: "Owner verified",
   });
   assert.equal(
     (
       await postJson(board.url(`/criteria/${satisfied.id}/vote`), {
-        verdict: "satisfied",
+        verdict: "covered",
         reason: "Independently verified",
       })
     ).status,

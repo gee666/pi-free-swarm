@@ -11,6 +11,7 @@ export function removeWorkSchema(db: SwarmDb): void {
       "task_criteria",
       "criterion_events",
       "criterion_votes",
+      "criterion_vote_requests",
       "criterion_blockers",
       "tasks",
       "criteria",

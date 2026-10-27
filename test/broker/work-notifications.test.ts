@@ -51,9 +51,10 @@ test("recipient selection is pure, prefers idle then load and name, falls back t
 test("handoff, review request, review result and vote duty go to one recipient per durable message", (t) => {
   const f = workFixture(t);
   const task = f.task(f.criterion.id, [], true);
+  const handoffCursor = last(f.db);
   handoffTask(f.db, { ...f.input(), id: task.id, to: "Ben" });
   assert.deepEqual(
-    notices(f.db).map((notice) => notice.to),
+    notices(f.db, handoffCursor).map((notice) => notice.to),
     ["Ben"],
   );
   f.db.sql
@@ -93,7 +94,7 @@ test("dependencies ready, dependency reopen and stale votes notify exactly the a
   );
   f.accept(second.id, "Ben", "Ann");
   for (const actor of ["Ann", "Ben", "Cam"])
-    voteCriterion(f.db, { ...f.input(actor), criterionId: f.criterion.id, verdict: "satisfied", reason: "Checked" });
+    voteCriterion(f.db, { ...f.input(actor), criterionId: f.criterion.id, verdict: "covered", reason: "Checked" });
   cursor = last(f.db);
   reopenTask(f.db, { ...f.input(), id: first.id, reason: "Regression" });
   const reopened = notices(f.db, cursor);
@@ -103,12 +104,22 @@ test("dependencies ready, dependency reopen and stale votes notify exactly the a
   );
   assert.deepEqual(
     reopened.filter((message) => message.body.includes("is stale")).map((message) => message.to),
-    ["Ann", "Ben", "Cam"],
+    [],
   );
-  assert.ok(assessCriterion(f.db, f.swarmId, f.criterion.id).votes.every((vote) => vote.stale));
+  assert.ok(assessCriterion(f.db, f.swarmId, f.criterion.id).votes.every((vote) => !vote.stale));
   cursor = last(f.db);
   editCriterion(f.db, { ...f.input(), id: f.criterion.id, expectedRevision: 1, fields: { title: "Clarify" } });
-  assert.deepEqual(notices(f.db, cursor), [], "already stale votes are not repeatedly notified");
+  assert.deepEqual(
+    notices(f.db, cursor).map((notice) => notice.to),
+    ["Ann", "Ben", "Cam"],
+  );
+  assert.ok(notices(f.db, cursor).every((notice) => notice.body.includes("is stale")));
+  cursor = last(f.db);
+  editCriterion(f.db, { ...f.input(), id: f.criterion.id, expectedRevision: 2, fields: { title: "Clarify again" } });
+  assert.ok(
+    notices(f.db, cursor).every((notice) => !notice.body.includes("is stale")),
+    "already stale votes are not repeatedly notified",
+  );
 });
 
 test("User blocker rejection notify required owners and independent voters once", (t) => {
@@ -159,6 +170,7 @@ test("post linking notifies the task owner without subscribing and repeated link
 test("failed transactions roll back graph, outbox and notifications and do not wake delivery", (t) => {
   const f = workFixture(t);
   const task = f.task(f.criterion.id, [], true);
+  const initialNotices = notices(f.db);
   const before = f.db.sql.prepare("SELECT count(*) AS n FROM events").get()?.n;
   const delivered: number[] = [];
   const changed: number[] = [];
@@ -175,7 +187,7 @@ test("failed transactions roll back graph, outbox and notifications and do not w
       }),
     /rollback/,
   );
-  assert.deepEqual(notices(f.db), []);
+  assert.deepEqual(notices(f.db), initialNotices);
   assert.deepEqual(delivered, []);
   assert.deepEqual(changed, []);
   assert.equal(f.db.sql.prepare("SELECT count(*) AS n FROM events").get()?.n, before);

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { DeliveryOutcome, PromptPayload } from "../../src/agents/supervisor.js";
 import { workReminder } from "../../src/broker/work-reminder.js";
+import { markRead } from "../../src/broker/delivery-state.js";
 import { IdleReminders } from "../../src/broker/idle-reminder.js";
 import { snoozeReminders } from "../../src/broker/reminder-snooze.js";
 import { requestTaskReview, startTask } from "../../src/broker/task-transitions.js";
@@ -35,6 +36,11 @@ test("reminders contain unmet gates, own queue, reviews, votes, five runnable ta
   const f = workFixture(t);
   const owned = f.task(f.criterion.id, [], true);
   for (let i = 0; i < 8; i++) f.task();
+  const messageIds = f.db.sql
+    .prepare("SELECT id FROM messages")
+    .all()
+    .map((row) => Number(row.id));
+  markRead(f.db, f.swarmId, "Ann", messageIds, f.input().now);
   const { clock, prompts, idle } = reminders(f);
   assert.equal(idle.update(), true);
   idle.update();

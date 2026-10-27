@@ -9,12 +9,14 @@ export const WORK_STATE_CTE = `WITH
   work_links AS (
     SELECT c.id AS criterion_id,
       COALESCE((SELECT group_concat(signature, ',') FROM (
-        SELECT t.id || ':' || t.revision AS signature FROM task_criteria l JOIN tasks t ON t.id = l.task_id
+        SELECT t.id || ':' || t.content_revision AS signature FROM task_criteria l JOIN tasks t ON t.id = l.task_id
         WHERE l.criterion_id = c.id ORDER BY t.id
       )), '') AS links_signature,
       (SELECT count(*) FROM task_criteria l WHERE l.criterion_id = c.id) AS task_count,
       (SELECT count(*) FROM task_criteria l JOIN tasks t ON t.id = l.task_id
-        WHERE l.criterion_id = c.id AND t.status <> 'accepted') AS unaccepted_count
+        WHERE l.criterion_id = c.id AND t.status <> 'accepted') AS unaccepted_count,
+      (SELECT count(*) FROM task_criteria l JOIN tasks t ON t.id = l.task_id
+        WHERE l.criterion_id = c.id AND t.owner IS NULL) AS unowned_count
     FROM criteria c WHERE c.swarm_id = ?
   ),
   work_votes AS (
@@ -35,29 +37,29 @@ export const WORK_STATE_CTE = `WITH
     SELECT l.*,
       (SELECT count(*) FROM work_owners o WHERE o.criterion_id = c.id AND o.active = 0) AS offline_count,
       (SELECT count(*) FROM work_owners o WHERE o.criterion_id = c.id AND o.active = 1 AND NOT EXISTS (
-        SELECT 1 FROM work_votes v WHERE v.criterion_id = c.id AND v.voter = o.owner AND v.verdict = 'satisfied'
-      )) AS missing_satisfied,
+        SELECT 1 FROM work_votes v WHERE v.criterion_id = c.id AND v.voter = o.owner AND v.verdict = 'covered'
+      )) AS missing_covered,
       (SELECT count(*) FROM work_owners o WHERE o.criterion_id = c.id AND o.active = 1 AND NOT EXISTS (
         SELECT 1 FROM work_votes v WHERE v.criterion_id = c.id AND v.voter = o.owner AND v.verdict = 'blocked'
       )) AS missing_blocked,
-      EXISTS (SELECT 1 FROM work_votes v WHERE v.criterion_id = c.id AND v.verdict = 'satisfied' AND NOT EXISTS (
+      EXISTS (SELECT 1 FROM work_votes v WHERE v.criterion_id = c.id AND v.verdict = 'covered' AND NOT EXISTS (
         SELECT 1 FROM work_owners o WHERE o.criterion_id = c.id AND o.owner = v.voter
-      )) AS independent_satisfied,
+      )) AS independent_covered,
       EXISTS (SELECT 1 FROM work_votes v WHERE v.criterion_id = c.id AND v.verdict = 'blocked' AND NOT EXISTS (
         SELECT 1 FROM work_owners o WHERE o.criterion_id = c.id AND o.owner = v.voter
       )) AS independent_blocked,
-      EXISTS (SELECT 1 FROM work_votes v WHERE v.criterion_id = c.id AND v.verdict <> 'satisfied') AS negative_vote,
+      EXISTS (SELECT 1 FROM work_votes v WHERE v.criterion_id = c.id AND v.verdict <> 'covered') AS negative_vote,
       b.revision AS blocker_revision
     FROM work_links l JOIN criteria c ON c.id = l.criterion_id
       LEFT JOIN criterion_blockers b ON b.criterion_id = c.id
   ),
   work_criteria AS (
-    SELECT c.*, a.links_signature, a.task_count, a.unaccepted_count, a.offline_count,
-      a.missing_satisfied, a.missing_blocked, a.independent_satisfied, a.independent_blocked,
+    SELECT c.*, a.links_signature, a.task_count, a.unaccepted_count, a.unowned_count, a.offline_count,
+      a.missing_covered, a.missing_blocked, a.independent_covered, a.independent_blocked,
       CASE WHEN a.task_count = 0 THEN 'unlinked'
         WHEN a.offline_count = 0 AND a.blocker_revision IS NOT NULL AND a.missing_blocked = 0 AND a.independent_blocked = 1 THEN 'blocked'
-        WHEN a.offline_count = 0 AND a.unaccepted_count = 0 AND a.missing_satisfied = 0
-          AND a.independent_satisfied = 1 AND a.negative_vote = 0 THEN 'satisfied'
+        WHEN a.offline_count = 0 AND a.unaccepted_count = 0 AND a.missing_covered = 0
+          AND a.independent_covered = 1 AND a.negative_vote = 0 THEN 'satisfied'
         ELSE 'incomplete' END AS work_status
     FROM criteria c JOIN work_agreement a ON a.criterion_id = c.id
   ),
@@ -77,6 +79,7 @@ export interface CriterionState {
   linksSignature: string;
   taskCount: number;
   unacceptedCount: number;
+  unownedCount: number;
   offlineCount: number;
 }
 function criterionStateOf(row: Row): CriterionState {
@@ -86,6 +89,7 @@ function criterionStateOf(row: Row): CriterionState {
     linksSignature: text(row, "links_signature"),
     taskCount: int(row, "task_count"),
     unacceptedCount: int(row, "unaccepted_count"),
+    unownedCount: int(row, "unowned_count"),
     offlineCount: int(row, "offline_count"),
   };
 }

@@ -95,6 +95,19 @@ test("fresh graph enforces enums, foreign keys and same-swarm links", () => {
     const task = listTasks(db, swarm.id)[0];
     const criterion = listCriteria(db, other.id)[0];
     assert.ok(task && criterion);
+    assert.equal(task.contentRevision, 1);
+    for (const verdict of ["satisfied", "incomplete"])
+      assert.throws(
+        () =>
+          db.sql
+            .prepare(
+              `INSERT INTO criterion_votes
+        (criterion_id, voter, verdict, reason, criterion_revision, links_signature, created_at)
+        VALUES (?, 'User', ?, 'Old verdict', 1, '', ?)`,
+            )
+            .run(criterion.id, verdict, T0),
+        /CHECK/,
+      );
     assert.throws(() => db.sql.prepare("UPDATE tasks SET status = 'waiting' WHERE id = ?").run(task.id), /CHECK/);
     assert.throws(() => db.sql.prepare("UPDATE swarms SET outcome = 'paused' WHERE id = ?").run(swarm.id), /CHECK/);
     assert.throws(

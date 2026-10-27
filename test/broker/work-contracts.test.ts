@@ -8,12 +8,12 @@ import { updatePostLinks } from "../../src/broker/post-links.js";
 import { createPost } from "../../src/broker/wall.js";
 import { workFixture } from "../helpers/work-graph.js";
 
-test("unlinked status takes precedence even if a vacuously current satisfied vote exists", (t) => {
+test("unlinked status takes precedence even if a vacuously current covered vote exists", (t) => {
   const f = workFixture(t);
   voteCriterion(f.db, {
     ...f.input(),
     criterionId: f.criterion.id,
-    verdict: "satisfied",
+    verdict: "covered",
     reason: "No linked work yet",
   });
   const state = assessCriterion(f.db, f.swarmId, f.criterion.id);

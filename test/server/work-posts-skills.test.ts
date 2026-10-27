@@ -122,13 +122,13 @@ describe("post links and search", () => {
       actor: "Maria",
       now: Date.now(),
       criterionId: criterion.id,
-      verdict: "satisfied",
+      verdict: "covered",
       reason: "Owner verified",
     });
     assert.equal(
       (
         await postJson(board.url(`/criteria/${criterion.id}/vote`), {
-          verdict: "satisfied",
+          verdict: "covered",
           reason: "Independent verified",
         })
       ).status,

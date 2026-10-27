@@ -94,7 +94,7 @@ export function workWriteRoutes(deps: ApiDeps): ApiRoute[] {
         voteCriterion(db, {
           ...input,
           criterionId: params.id("criterionId"),
-          verdict: choice(body.verdict, ["satisfied", "incomplete", "blocked"], "verdict"),
+          verdict: choice(body.verdict, ["covered", "gap", "blocked"], "verdict"),
           reason: stringField(body, "reason"),
         }),
       ),
