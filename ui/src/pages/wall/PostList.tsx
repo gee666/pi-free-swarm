@@ -7,7 +7,7 @@ import { Button } from "../../components/Button";
 import { CountBadge } from "../../components/Indicators";
 import { ListRow } from "../../components/ListRow";
 import { AgentName } from "../../components/AgentName";
-import { Panel, PanelBody } from "../../components/Panel";
+import { Panel, PanelBody, PanelHeader } from "../../components/Panel";
 import styles from "./Wall.module.css";
 import { RowList } from "../../components/RowList";
 import { ShowMore } from "../../components/ShowMore";
@@ -43,11 +43,14 @@ export function PostList({
 }: PostListProps) {
   return (
     <Panel aria-label="Wall">
-      <div className={styles.toolbar}>
-        <Button size="sm" icon={Plus} onClick={onNewPost}>
-          New post
-        </Button>
-      </div>
+      <PanelHeader
+        title="Wall"
+        action={
+          <Button size="sm" icon={Plus} onClick={onNewPost}>
+            New post
+          </Button>
+        }
+      />
       {filters}
       {newPost}
       {error && (

@@ -3,7 +3,6 @@ import { cx } from "../../lib/cx";
 import { Check, Circle } from "lucide-react";
 import type { TaskDetailResponse, TaskEvent, TaskRecord, TaskStatus } from "../../../../src/api-types";
 import { getJson } from "../../api/http";
-import { AuthoredEntry } from "../../components/AuthoredEntry";
 import { Button } from "../../components/Button";
 import { IdLink } from "../../components/IdLink";
 import { Markdown } from "../../components/Markdown";
@@ -20,6 +19,7 @@ import { useWorkEditor } from "../work-items/useWorkEditor";
 import styles from "../work-items/WorkItems.module.css";
 import { TaskHeader } from "./TaskHeader";
 import { TaskForm } from "./TaskForm";
+import { TaskTimeline } from "./TaskTimeline";
 
 const steps: TaskStatus[] = ["new", "claimed", "in_progress", "review", "accepted"];
 export function TaskStepper({ task }: { task: Pick<TaskDetailResponse, "status" | "waiting" | "waitsOn"> }) {
@@ -156,12 +156,16 @@ export function TaskDetail({ swarmId, id, onChanged }: { swarmId: string; id: nu
             </div>
           ))}
         </Section>
-        <Section title="Depends on">
-          <TaskLinks swarmId={swarmId} tasks={detail.dependencies} />
-        </Section>
-        <Section title="Blocks">
-          <TaskLinks swarmId={swarmId} tasks={detail.dependents} />
-        </Section>
+        {detail.dependencies.length > 0 && (
+          <Section title="Depends on">
+            <TaskLinks swarmId={swarmId} tasks={detail.dependencies} />
+          </Section>
+        )}
+        {detail.dependents.length > 0 && (
+          <Section title="Blocks">
+            <TaskLinks swarmId={swarmId} tasks={detail.dependents} />
+          </Section>
+        )}
         <Section title="Evidence">
           {detail.latestEvidence ? (
             <>
@@ -186,15 +190,7 @@ export function TaskDetail({ swarmId, id, onChanged }: { swarmId: string; id: nu
           )}
         </Section>
         <Section title="Timeline">
-          {events.map((event) => (
-            <AuthoredEntry
-              key={event.id}
-              author={event.actor}
-              time={`${event.kind.replaceAll("_", " ")} · ${relativeTime(event.createdAt)}`}
-            >
-              <RichText text={[event.body, event.evidence].filter(Boolean).join("\n")} />
-            </AuthoredEntry>
-          ))}
+          <TaskTimeline events={events} />
           {moreError && <ErrorBanner>{moreError.message}</ErrorBanner>}
           {nextAfter !== null && (
             <Button disabled={loadingMore} onClick={loadMore}>

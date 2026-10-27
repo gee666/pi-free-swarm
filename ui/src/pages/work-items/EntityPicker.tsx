@@ -5,7 +5,8 @@ import { TextField } from "../../components/Field";
 import { Menu, useMenuNavigation } from "../../components/Menu";
 import { Popover } from "../../components/Popover";
 import { ErrorBanner, SkeletonRows } from "../../components/States";
-import { useDebounced, useWorkList } from "./useWorkData";
+import { useDebounced } from "../../lib/useDebounced";
+import { useWorkList } from "./useWorkData";
 import styles from "./WorkItems.module.css";
 
 export interface EntityChoice {

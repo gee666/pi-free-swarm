@@ -28,7 +28,9 @@ export function usePosts(swarmId: string, query = ""): AsyncState<WallPageData> 
   const state = useAsync((signal) => fetchPage(signal), [swarmId, query, stream.openCount]);
   useWorkRefresh(
     state.reload,
-    (event) => event.type === "post.links.changed" || (Boolean(query) && event.type === "post.created"),
+    (event) =>
+      event.type === "post.links.changed" ||
+      (Boolean(query) && (event.type === "post.created" || event.type === "comment.created")),
   );
   const { update } = state;
   useStreamListener(stream, (event) => {

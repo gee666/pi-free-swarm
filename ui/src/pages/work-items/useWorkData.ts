@@ -4,18 +4,9 @@ import { getJson } from "../../api/http";
 import { useAsync } from "../../api/useAsync";
 import { useSwarmStream } from "../../api/SwarmStream";
 import { useStreamListener } from "../../api/useEventStream";
+import { REFRESH_DEBOUNCE_MS } from "../../lib/useDebounced";
 
-export const SEARCH_DELAY = 250;
 export const workUrl = (swarmId: string, path: string) => `/api/swarms/${encodeURIComponent(swarmId)}/${path}`;
-
-export function useDebounced(value: string) {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebounced(value), SEARCH_DELAY);
-    return () => window.clearTimeout(timer);
-  }, [value]);
-  return debounced;
-}
 
 export function useWorkRefresh(reload: () => void, matches: (event: SwarmEvent) => boolean) {
   const stream = useSwarmStream();
@@ -24,9 +15,13 @@ export function useWorkRefresh(reload: () => void, matches: (event: SwarmEvent) 
   useStreamListener(stream, (event) => {
     if (!matches(event)) return;
     window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(reload, SEARCH_DELAY);
+    timer.current = window.setTimeout(reload, REFRESH_DEBOUNCE_MS);
   });
   return stream.openCount;
+}
+
+function affectsWork(event: SwarmEvent) {
+  return ["criterion.changed", "task.changed", "post.links.changed", "participant.updated"].includes(event.type);
 }
 
 export function useWorkDetail<T>(swarmId: string, path: string | undefined) {
@@ -35,11 +30,7 @@ export function useWorkDetail<T>(swarmId: string, path: string | undefined) {
     (signal) => (path ? getJson<T>(workUrl(swarmId, path), signal) : Promise.resolve(undefined)),
     [swarmId, path, stream.openCount],
   );
-  useWorkRefresh(
-    state.reload,
-    (event) =>
-      event.type === "criterion.changed" || event.type === "task.changed" || event.type === "post.links.changed",
-  );
+  useWorkRefresh(state.reload, affectsWork);
   return state;
 }
 
@@ -55,11 +46,7 @@ export function useWorkList<T extends { id: number }>(swarmId: string, path: str
   const key = `${swarmId}/${path}?${query}`;
   const activeKey = useRef(key);
   activeKey.current = key;
-  useWorkRefresh(
-    state.reload,
-    (event) =>
-      event.type === "criterion.changed" || event.type === "task.changed" || event.type === "post.links.changed",
-  );
+  useWorkRefresh(state.reload, affectsWork);
   const loadMore = async () => {
     const cursor = state.data?.nextCursor;
     if (!cursor || loadingMore) return;

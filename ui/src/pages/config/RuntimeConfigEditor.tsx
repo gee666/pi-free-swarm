@@ -130,7 +130,9 @@ export function RuntimeConfigEditor({
             Add workers
           </Button>
         </form>
-        <p className={styles.hint}>Removing a worker stops it and excludes its vote. Reassign any unfinished work.</p>
+        <p className={styles.hint}>
+          Removing a worker keeps its votes; tasks it owns must be handed off before their criteria can be agreed.
+        </p>
       </div>
       <section className={styles.card} aria-labelledby="budget-editor-title">
         <div className={styles.sectionHeader}>

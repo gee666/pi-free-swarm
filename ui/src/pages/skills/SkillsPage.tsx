@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Puzzle } from "lucide-react";
 import type { SkillResponse, SkillsResponse } from "../../../../src/api-types";
@@ -18,23 +18,20 @@ import { Section } from "../../components/Section";
 import { EmptyState, ErrorBanner, SkeletonRows } from "../../components/States";
 import { formatTimestamp } from "../../lib/time";
 import { PanelLayout } from "../../shell/AppShell";
+import { useDebounced } from "../../lib/useDebounced";
 import styles from "./Skills.module.css";
 
 export function SkillsPage() {
   const { id = "", name } = useParams();
   const stream = useSwarmStream();
   const [search, setSearch] = useState("");
-  const [query, setQuery] = useState("");
-  const [cursor, setCursor] = useState<string>();
-  const [previous, setPrevious] = useState<SkillsResponse["items"]>([]);
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setQuery(search);
-      setCursor(undefined);
-      setPrevious([]);
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [search]);
+  const query = useDebounced(search);
+  const [pagination, setPagination] = useState<{
+    query: string;
+    cursor?: string;
+    previous: SkillsResponse["items"];
+  }>({ query: "", previous: [] });
+  const { cursor, previous } = pagination.query === query ? pagination : { previous: [] };
   const root = `/api/swarms/${encodeURIComponent(id)}/skills`;
   const params = new URLSearchParams({ query });
   if (cursor) params.set("cursor", cursor);
@@ -50,8 +47,7 @@ export function SkillsPage() {
   );
   useStreamListener(stream, (event) => {
     if (event.type === "skill.changed") {
-      setCursor(undefined);
-      setPrevious([]);
+      setPagination({ query, previous: [] });
       list.reload();
       detail.reload();
     }
@@ -106,8 +102,7 @@ export function SkillsPage() {
                 {list.data?.nextCursor && (
                   <Button
                     onClick={() => {
-                      setPrevious(items);
-                      setCursor(list.data?.nextCursor ?? undefined);
+                      setPagination({ query, previous: items, cursor: list.data?.nextCursor ?? undefined });
                     }}
                     disabled={list.loading}
                   >

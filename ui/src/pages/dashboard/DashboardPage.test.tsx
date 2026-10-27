@@ -9,6 +9,7 @@ import { installDialogFixture } from "../../test/dialogFixture";
 import { installFakeApi, jsonResponse, type FakeApi } from "../../test/fakeApi";
 import { installFakeEventSource, type FakeEventSource } from "../../test/fakeEventSource";
 import { DashboardPage } from "./DashboardPage";
+import { agent, eventBase } from "../agents/testFixtures";
 import { dashboardFixture } from "./testFixture";
 
 let api: FakeApi;
@@ -127,6 +128,25 @@ it("debounces project, task and criterion events into one live refetch", async (
     }
   });
   expect(await screen.findByText("19/42")).toBeInTheDocument();
+  expect(api.callsTo("GET", "/api/swarms/3/dashboard")).toHaveLength(2);
+});
+
+it("debounces participant updates before refreshing derived gates", async () => {
+  let data = dashboardFixture();
+  api.on("GET", "/api/swarms/3/dashboard", () => data);
+  mount();
+  await screen.findByText("18/42");
+  data = { ...data, counts: { ...data.counts, satisfied: 17 } };
+  act(() => {
+    for (let i = 0; i < 3; i++)
+      source().emit({
+        ...eventBase,
+        type: "participant.updated",
+        payload: { participant: agent("John", 1, { status: "crashed" }) },
+      });
+  });
+  expect(api.callsTo("GET", "/api/swarms/3/dashboard")).toHaveLength(1);
+  expect(await screen.findByText("17/42")).toBeInTheDocument();
   expect(api.callsTo("GET", "/api/swarms/3/dashboard")).toHaveLength(2);
 });
 

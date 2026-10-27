@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installFakeApi, jsonResponse, type FakeApi } from "../../test/fakeApi";
 import { installFakeEventSource, type FakeEventSource } from "../../test/fakeEventSource";
-import { eventBase } from "../agents/testFixtures";
+import { agent, eventBase } from "../agents/testFixtures";
 import { criterion, page, renderWork, task, workApi } from "../work-items/testFixtures";
 import { CriteriaPage } from "./CriteriaPage";
 
@@ -23,6 +23,28 @@ const list = () => screen.getByRole("region", { name: "Criteria" });
 const calls = () => api.callsTo("GET", "/api/swarms/3/criteria");
 
 describe("Criteria work board", () => {
+  it("refreshes derived list and detail on debounced participant updates", async () => {
+    open("/s/3/criteria/12");
+    await screen.findByRole("heading", { name: "Rank matches" });
+    const listBefore = calls().length;
+    const detailBefore = api.callsTo("GET", "/api/swarms/3/criteria/12").length;
+    const updated = criterion({ updatedBy: "John", reasons: ["Owner John is offline"] });
+    api.on("GET", "/api/swarms/3/criteria", () => page([updated]));
+    api.on("GET", "/api/swarms/3/criteria/12", () => updated);
+    act(() => {
+      for (let i = 0; i < 3; i++)
+        source().emit({
+          ...eventBase,
+          type: "participant.updated",
+          payload: { participant: agent("John", 1, { status: "crashed" }) },
+        });
+    });
+    expect(calls()).toHaveLength(listBefore);
+    expect(await screen.findByText("Owner John is offline")).toBeInTheDocument();
+    expect(screen.getByText(/by Ann · edited by John/)).toBeInTheDocument();
+    expect(calls()).toHaveLength(listBefore + 1);
+    expect(api.callsTo("GET", "/api/swarms/3/criteria/12")).toHaveLength(detailBefore + 1);
+  });
   it("operates status menus from the keyboard", async () => {
     open();
     await within(list()).findByText("Rank matches");

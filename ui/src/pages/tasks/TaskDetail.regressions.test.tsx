@@ -1,0 +1,130 @@
+import { act, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import type { ReviewTaskRequest, TaskEvent } from "../../../../src/api-types";
+import { installFakeApi, jsonResponse, type FakeApi } from "../../test/fakeApi";
+import { installFakeEventSource, type FakeEventSource } from "../../test/fakeEventSource";
+import { agent, eventBase } from "../agents/testFixtures";
+import { page, renderWork, task, workApi } from "../work-items/testFixtures";
+import { TasksPage } from "./TasksPage";
+
+let api: FakeApi;
+let source: () => FakeEventSource;
+beforeEach(() => {
+  api = installFakeApi();
+  source = installFakeEventSource();
+  workApi(api);
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+const open = (path = "/s/3/tasks/34") => renderWork(path, "/s/:id/tasks/:taskId?", <TasksPage />, source);
+
+it("requires a non-empty acceptance note and sends the review payload contract", async () => {
+  api.on("GET", "/api/swarms/3/tasks/34", () => task({ status: "review", validActions: ["review"] }));
+  api.on("POST", "/api/swarms/3/tasks/34/review", ({ body }) => {
+    if (
+      typeof body !== "object" ||
+      body === null ||
+      !("reason" in body) ||
+      typeof body.reason !== "string" ||
+      !body.reason.trim()
+    ) {
+      return jsonResponse(400, { error: "validation", message: "reason must not be empty" });
+    }
+    return task({ status: "accepted" });
+  });
+  open();
+  await userEvent.click(await screen.findByRole("button", { name: "Accept" }));
+  const note = screen.getByRole("textbox", { name: "Acceptance note" });
+  expect(note).toBeRequired();
+  expect(note).toHaveAttribute("placeholder", "What you checked");
+  const submit = within(note.closest("form") ?? note).getByRole("button", { name: "Accept" });
+  expect(submit).toBeDisabled();
+  await userEvent.type(note, "   ");
+  expect(submit).toBeDisabled();
+  expect(api.callsTo("POST", "/api/swarms/3/tasks/34/review")).toHaveLength(0);
+  await userEvent.clear(note);
+  await userEvent.type(note, "Checked the diff and test results");
+  await userEvent.click(submit);
+  await waitFor(() =>
+    expect(api.callsTo("POST", "/api/swarms/3/tasks/34/review")[0]?.body).toEqual({
+      expectedRevision: 6,
+      verdict: "accept",
+      reason: "Checked the diff and test results",
+    } satisfies ReviewTaskRequest),
+  );
+  await waitFor(() => expect(screen.queryByRole("textbox", { name: "Acceptance note" })).not.toBeInTheDocument());
+});
+
+it("shows the contribution counter and long-text notice without truncating the input", async () => {
+  open("/s/3/tasks/new");
+  await userEvent.click(screen.getByRole("button", { name: "Add criterion" }));
+  await userEvent.click(await screen.findByRole("option", { name: "#12 Rank matches" }));
+  const contribution = screen.getByRole("textbox", { name: "Contribution to #12" });
+  await userEvent.type(contribution, "x".repeat(201));
+  expect(screen.getByText("201/200")).toBeInTheDocument();
+  expect(screen.getByRole("status")).toHaveTextContent("Over 200 characters, the full text is saved to a file");
+  expect(contribution).toHaveValue("x".repeat(201));
+});
+
+it("hides empty dependency sections but keeps the evidence empty state", async () => {
+  open();
+  await screen.findByRole("heading", { name: "Add ranking index" });
+  expect(screen.queryByRole("heading", { name: "Depends on" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Blocks" })).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Evidence" })).toBeInTheDocument();
+  expect(screen.getByText("No evidence yet")).toBeInTheDocument();
+});
+
+it.each(["", '{"reviewer":"Jonah"}'])(
+  "renders review requests as authored actions without raw metadata %s",
+  async (body) => {
+    const event: TaskEvent = {
+      id: 1,
+      swarmId: 3,
+      taskId: 34,
+      actor: "Ada",
+      kind: "review_requested",
+      body,
+      evidence: "Checked the tests",
+      reviewer: "Jonah",
+      createdAt: 1,
+    };
+    api.on("GET", "/api/swarms/3/tasks/34", () => task({ timeline: [event] }));
+    open();
+    const timeline = await screen.findByRole("list", { name: "Task timeline" });
+    const row = await within(timeline).findByRole("listitem");
+    expect(row).toHaveTextContent("Ada requested review from Jonah");
+    expect(within(row).getByText("Checked the tests")).toBeInTheDocument();
+    expect(row).not.toHaveTextContent("review_requested");
+    expect(row).not.toHaveTextContent('{"reviewer"');
+  },
+);
+
+it("debounces participant updates and refreshes both task list and detail", async () => {
+  open();
+  await screen.findByRole("heading", { name: "Add ranking index" });
+  const listBefore = api.callsTo("GET", "/api/swarms/3/tasks").length;
+  const detailBefore = api.callsTo("GET", "/api/swarms/3/tasks/34").length;
+  api.on("GET", "/api/swarms/3/tasks", () => page([task({ owner: "John" })]));
+  api.on("GET", "/api/swarms/3/tasks/34", () =>
+    task({ owner: "John", validActions: ["handoff"], handoffTargets: ["Maria"] }),
+  );
+  act(() => {
+    for (let i = 0; i < 3; i++)
+      source().emit({
+        ...eventBase,
+        type: "participant.updated",
+        payload: { participant: agent("John", 1, { status: "crashed" }) },
+      });
+  });
+  expect(api.callsTo("GET", "/api/swarms/3/tasks")).toHaveLength(listBefore);
+  await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/tasks")).toHaveLength(listBefore + 1));
+  await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/tasks/34")).toHaveLength(detailBefore + 1));
+  await userEvent.click(screen.getByRole("button", { name: "More" }));
+  await userEvent.click(screen.getByRole("option", { name: "Hand off…" }));
+  expect(screen.getByRole("option", { name: "Maria" })).toBeInTheDocument();
+  expect(screen.queryByRole("option", { name: "John" })).not.toBeInTheDocument();
+});

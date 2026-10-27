@@ -4,6 +4,7 @@ import { getJson, postJson } from "./http";
 import { useAsync, type AsyncState } from "./useAsync";
 import { useSwarmStream } from "./SwarmStream";
 import { useStreamListener } from "./useEventStream";
+import { REFRESH_DEBOUNCE_MS } from "../lib/useDebounced";
 
 export const RUN_LABELS: Record<RunHeaderState, string> = {
   running: "Running",
@@ -14,7 +15,6 @@ export const RUN_LABELS: Record<RunHeaderState, string> = {
   interrupted: "Interrupted",
 };
 const DashboardContext = createContext<AsyncState<DashboardResponse> | null>(null);
-const REFRESH_DEBOUNCE_MS = 250;
 
 export function DashboardProvider({ swarmId, children }: { swarmId: string; children: ReactNode }) {
   const stream = useSwarmStream();
@@ -32,6 +32,7 @@ export function DashboardProvider({ swarmId, children }: { swarmId: string; chil
         "task.changed",
         "criterion.changed",
         "swarm.updated",
+        "participant.updated",
         "message.created",
         "message.status",
       ].includes(event.type)

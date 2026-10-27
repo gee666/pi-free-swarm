@@ -24,6 +24,7 @@ export function criterion(patch: Partial<CriterionDetailResponse> = {}): Criteri
     verification: "Run ranking tests",
     source: "",
     author: "Ann",
+    updatedBy: "Ann",
     revision: 3,
     archivedAt: null,
     createdAt: at,
@@ -77,6 +78,7 @@ export function task(patch: Partial<TaskDetailResponse> = {}): TaskDetailRespons
     nextAfter: null,
     linkedPosts: [],
     validActions: ["claim", "edit"],
+    handoffTargets: ["John"],
     ...patch,
   };
 }

@@ -9,7 +9,8 @@ import { Pill } from "../../components/Pill";
 import { Popover } from "../../components/Popover";
 import { StatusGlyph } from "../../components/StatusGlyph";
 import { ErrorBanner, SkeletonRows } from "../../components/States";
-import { useDebounced, useWorkList } from "../work-items/useWorkData";
+import { useDebounced } from "../../lib/useDebounced";
+import { useWorkList } from "../work-items/useWorkData";
 import styles from "../work-items/WorkItems.module.css";
 
 export type WallLink = Pick<PostLinkView, "targetId" | "targetKind" | "title"> & { status?: PostLinkView["status"] };

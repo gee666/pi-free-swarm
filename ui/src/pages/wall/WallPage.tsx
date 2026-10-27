@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { TextField } from "../../components/Field";
 import { FilterMenu, FilterPill } from "../work-items/FilterMenu";
-import { useDebounced } from "../work-items/useWorkData";
+import { useDebounced } from "../../lib/useDebounced";
 import workStyles from "../work-items/WorkItems.module.css";
 import { navigationLinkIds, useWallPrefill } from "./useWallPrefill";
 import { Button } from "../../components/Button";

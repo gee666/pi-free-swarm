@@ -23,6 +23,8 @@ const linked: PostLinkView = {
   targetId: 34,
   title: "Add ranking index",
   status: "review",
+  linkedBy: "Ann",
+  linkedAt: 1,
 };
 let api: FakeApi;
 let source: () => FakeEventSource;
@@ -92,6 +94,7 @@ describe("Wall work links and search", () => {
     }));
     open("/s/3/wall?criterion=12");
     await screen.findByText(post.title);
+    expect(screen.getByRole("heading", { name: "Wall" })).toBeInTheDocument();
     expect(api.callsTo("GET", "/api/swarms/3/posts").at(-1)?.query.get("criterionId")).toBe("12");
     await userEvent.type(screen.getByRole("textbox", { name: "Search posts" }), "ranking");
     await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/posts").at(-1)?.query.get("query")).toBe("ranking"));
@@ -103,6 +106,33 @@ describe("Wall work links and search", () => {
     await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/posts").at(-1)?.query.get("author")).toBe("User"));
     await userEvent.click(screen.getByRole("button", { name: "Remove Linked to criterion #12" }));
     await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/posts").at(-1)?.query.has("criterionId")).toBe(false));
+  });
+  it("refetches an active search when new comments change its matches", async () => {
+    let matches = false;
+    api.on("GET", "/api/swarms/3/posts", () => ({
+      ...page(matches ? [post] : []),
+      posts: matches ? [post] : [],
+      total: matches ? 1 : 0,
+    }));
+    open("/s/3/wall");
+    await userEvent.type(screen.getByRole("textbox", { name: "Search posts" }), "ranking");
+    await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/posts").at(-1)?.query.get("query")).toBe("ranking"));
+    const before = api.callsTo("GET", "/api/swarms/3/posts").length;
+    matches = true;
+    act(() => {
+      for (let i = 0; i < 3; i++)
+        source().emit({
+          ...eventBase,
+          type: "comment.created",
+          payload: {
+            comment: { id: 2, postId: 1, swarmId: 3, author: "Ann", text: "ranking", createdAt: 2 },
+            commentCount: 1,
+          },
+        });
+    });
+    expect(api.callsTo("GET", "/api/swarms/3/posts")).toHaveLength(before);
+    expect(await screen.findByText(post.title)).toBeInTheDocument();
+    expect(api.callsTo("GET", "/api/swarms/3/posts")).toHaveLength(before + 1);
   });
   it("refreshes linked post details after a debounced link event", async () => {
     open();

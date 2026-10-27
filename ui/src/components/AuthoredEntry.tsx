@@ -11,6 +11,7 @@ interface AuthoredEntryProps {
   system?: boolean;
   /** Already formatted, e.g. "10:24 AM". */
   time: string;
+  action?: ReactNode;
   /** Marks the user's own entry with the 3px pink bar. */
   own?: boolean;
   /** Body and anything under it, e.g. the delivery list. */
@@ -19,13 +20,24 @@ interface AuthoredEntryProps {
 }
 
 /** A thread message or wall comment with its author, time and body. */
-export function AuthoredEntry({ author, system = false, time, own = false, children, className }: AuthoredEntryProps) {
+export function AuthoredEntry({
+  author,
+  system = false,
+  time,
+  action,
+  own = false,
+  children,
+  className,
+}: AuthoredEntryProps) {
   return (
     <li className={cx(styles.entry, own && styles.own, className)}>
       <Avatar name={author} size="sm" system={system} />
       <div className={styles.main}>
         <div className={styles.head}>
-          <AgentName className={styles.author} name={author} />
+          <span>
+            <AgentName className={styles.author} name={author} />
+            {action && <span className={styles.action}> {action}</span>}
+          </span>
           <span className={styles.time}>{time}</span>
         </div>
         {children}

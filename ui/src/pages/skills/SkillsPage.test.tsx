@@ -84,6 +84,26 @@ it("searches after debounce, surfaces search notes and refetches skill changes",
   expect(api.callsTo("GET", "/api/swarms/3/skills/search")).toHaveLength(2);
 });
 
+it("starts a fresh first page when the debounced search changes", async () => {
+  api.on("GET", "/api/swarms/3/skills", ({ query }) => ({
+    ...page,
+    items: query.get("query") ? [skill] : [{ ...skill, name: query.has("cursor") ? "second" : "first" }],
+    nextCursor: !query.get("query") && !query.has("cursor") ? "next" : null,
+  }));
+  mount();
+  await screen.findByRole("link", { name: /first Rank matching work/ });
+  await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+  await screen.findByRole("link", { name: /second Rank matching work/ });
+  const before = api.callsTo("GET", "/api/swarms/3/skills").length;
+  await userEvent.type(screen.getByRole("textbox", { name: "Search skills" }), "search");
+  await screen.findByRole("link", { name: /search Rank matching work/ });
+  const searches = api.callsTo("GET", "/api/swarms/3/skills").slice(before);
+  expect(searches).toHaveLength(1);
+  expect(searches[0]?.query.get("query")).toBe("search");
+  expect(searches[0]?.query.has("cursor")).toBe(false);
+  expect(screen.queryByRole("link", { name: /first Rank matching work/ })).not.toBeInTheDocument();
+});
+
 it("retries errors and displays the empty catalogue", async () => {
   api.on("GET", "/api/swarms/3/skills", () => jsonResponse(500, { error: "internal", message: "Unavailable" }));
   mount();

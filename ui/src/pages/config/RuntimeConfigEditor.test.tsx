@@ -17,10 +17,14 @@ function fixture() {
   return { actions, workers, budget: configuration.effective.budget, maxAgents: 5 };
 }
 
-it("requests worker additions and explains removal's active-quorum effect", async () => {
+it("requests worker additions and explains retained votes and required task handoffs", async () => {
   const { actions, ...props } = fixture();
   render(<RuntimeConfigEditor {...props} {...actions} />);
-  expect(screen.getByText(/Removing a worker stops it and excludes its vote/)).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      /Removing a worker keeps its votes; tasks it owns must be handed off before their criteria can be agreed/,
+    ),
+  ).toBeInTheDocument();
   const count = screen.getByRole("textbox", { name: "Workers to add" });
   await userEvent.clear(count);
   await userEvent.type(count, "2");

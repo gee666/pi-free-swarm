@@ -148,6 +148,14 @@ describe("Task work board", () => {
     {
       status: "review",
       action: "review",
+      label: "Accept",
+      field: "Acceptance note",
+      body: { verdict: "accept", reason: "Verified test/output.txt" },
+      validActions: ["review"],
+    },
+    {
+      status: "review",
+      action: "review",
       label: "Request changes",
       field: "Reason",
       body: { verdict: "changes", reason: "Verified test/output.txt" },
@@ -183,8 +191,10 @@ describe("Task work board", () => {
       }),
     );
   });
-  it("claims and hands work off through the active agent picker", async () => {
-    api.on("GET", "/api/swarms/3/tasks/34", () => task({ validActions: ["claim", "handoff"] }));
+  it("claims and hands work off through the API-provided target picker", async () => {
+    api.on("GET", "/api/swarms/3/tasks/34", () =>
+      task({ validActions: ["claim", "handoff"], handoffTargets: ["Jonah"] }),
+    );
     api.on("POST", "/api/swarms/3/tasks/34/claim", () => task());
     api.on("POST", "/api/swarms/3/tasks/34/handoff", () => task());
     open();
@@ -194,11 +204,12 @@ describe("Task work board", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "More" }));
     await userEvent.click(screen.getByRole("option", { name: "Hand off…" }));
-    await userEvent.click(screen.getByRole("option", { name: "John" }));
+    expect(screen.queryByRole("option", { name: "John" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("option", { name: "Jonah" }));
     await waitFor(() =>
       expect(api.callsTo("POST", "/api/swarms/3/tasks/34/handoff")[0]?.body).toEqual({
         expectedRevision: 6,
-        to: "John",
+        to: "Jonah",
       }),
     );
   });
@@ -236,6 +247,7 @@ describe("Task work board", () => {
       kind: "created",
       body: "First entry",
       evidence: "",
+      reviewer: null,
       createdAt: 1,
     } satisfies TaskDetailResponse["timeline"][number];
     api.on("GET", "/api/swarms/3/tasks/34", ({ query }) =>

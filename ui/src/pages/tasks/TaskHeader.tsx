@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { TaskDetailResponse } from "../../../../src/api-types";
-import { useSwarmDetail } from "../../api/SwarmView";
 import { Button } from "../../components/Button";
 import { EntityHeader } from "../../components/EntityHeader";
 import { StatusGlyph } from "../../components/StatusGlyph";
@@ -25,10 +24,9 @@ export function TaskHeader({
   onChanged: () => void;
   onEdit: () => void;
 }) {
-  const [form, setForm] = useState<"request-review" | "changes" | "reopen">();
+  const [form, setForm] = useState<"request-review" | "accept" | "changes" | "reopen">();
   const [text, setText] = useState("");
   const [handoff, setHandoff] = useState(false);
-  const swarm = useSwarmDetail(swarmId);
   const navigate = useNavigate();
   const mutation = useWorkMutation(swarmId, () => {
     setForm(undefined);
@@ -71,11 +69,7 @@ export function TaskHeader({
             )}
             {allowed("review") && (
               <>
-                <Button
-                  variant="primary"
-                  disabled={mutation.busy}
-                  onClick={() => act("review", { verdict: "accept", reason: "" })}
-                >
+                <Button variant="primary" disabled={mutation.busy} onClick={() => setForm("accept")}>
                   Accept
                 </Button>
                 <Button onClick={() => setForm("changes")}>Request changes</Button>
@@ -100,11 +94,7 @@ export function TaskHeader({
                 label="Hand off to"
                 initialOpen
                 onClose={() => setHandoff(false)}
-                items={
-                  swarm.data?.participants
-                    .filter((p) => p.kind === "agent" && p.retiredAt == null)
-                    .map((p) => ({ key: p.name, label: p.name })) ?? []
-                }
+                items={task.handoffTargets.map((name) => ({ key: name, label: name }))}
                 onSelect={(to) => {
                   act("handoff", { to });
                 }}
@@ -119,15 +109,28 @@ export function TaskHeader({
           className={styles.form}
           onSubmit={(event) => {
             event.preventDefault();
+            if (!text.trim()) return;
             if (form === "request-review") act(form, { evidence: text });
-            else if (form === "changes") act("review", { verdict: "changes", reason: text });
+            else if (form === "changes" || form === "accept") act("review", { verdict: form, reason: text });
             else act(form, { reason: text });
           }}
         >
-          <LongField label={form === "request-review" ? "Evidence" : "Reason"} value={text} onChange={setText} />
+          <LongField
+            label={form === "request-review" ? "Evidence" : form === "accept" ? "Acceptance note" : "Reason"}
+            placeholder={form === "accept" ? "What you checked" : undefined}
+            required
+            value={text}
+            onChange={setText}
+          />
           <div className={styles.actions}>
             <Button type="submit" variant="primary" disabled={mutation.busy || !text.trim()}>
-              {form === "request-review" ? "Request review" : form === "changes" ? "Request changes" : "Reopen"}
+              {form === "request-review"
+                ? "Request review"
+                : form === "accept"
+                  ? "Accept"
+                  : form === "changes"
+                    ? "Request changes"
+                    : "Reopen"}
             </Button>
             <Button onClick={() => setForm(undefined)}>Cancel</Button>
           </div>

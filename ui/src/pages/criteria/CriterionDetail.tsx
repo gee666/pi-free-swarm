@@ -74,7 +74,7 @@ export function CriterionDetail({
       <EntityHeader
         avatar={<StatusGlyph status={detail.status} />}
         title={detail.title}
-        subtitle={`#${id} · ${detail.group} · rev ${detail.revision} · by ${detail.author} · ${relativeTime(detail.updatedAt)}`}
+        subtitle={`#${id} · ${detail.group} · rev ${detail.revision} · by ${detail.author}${detail.updatedBy !== detail.author ? ` · edited by ${detail.updatedBy}` : ""} · ${relativeTime(detail.updatedAt)}`}
         actions={
           <>
             <Button onClick={() => editor.edit(detail)}>Edit</Button>

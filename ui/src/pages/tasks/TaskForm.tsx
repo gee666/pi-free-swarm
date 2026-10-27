@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TITLE_MAX } from "../../../../src/limits";
+import { TITLE_MAX, USER_BODY_PREVIEW_CHARS } from "../../../../src/limits";
 import type { CriterionLink, TaskDetailResponse, TaskRecord } from "../../../../src/api-types";
 import { ApiError, postJson } from "../../api/http";
 import { Button } from "../../components/Button";
@@ -8,7 +8,7 @@ import { Panel, PanelBody, PanelHeader } from "../../components/Panel";
 import { ErrorBanner } from "../../components/States";
 import { EntityPicker, type EntityChoice } from "../work-items/EntityPicker";
 import { FilterPill } from "../work-items/FilterMenu";
-import { LongField } from "../work-items/WorkFields";
+import { LongField, LongTextNotice } from "../work-items/WorkFields";
 import { workUrl } from "../work-items/useWorkData";
 import styles from "../work-items/WorkItems.module.css";
 
@@ -89,6 +89,7 @@ export function TaskForm({
                 <TextField
                   label={`Contribution to #${item.id}`}
                   placeholder="Contribution"
+                  limit={USER_BODY_PREVIEW_CHARS}
                   value={item.contribution}
                   onChange={(contribution) =>
                     setCriteria((current) =>
@@ -96,6 +97,7 @@ export function TaskForm({
                     )
                   }
                 />
+                <LongTextNotice value={item.contribution} />
               </div>
             ))}
             <EntityPicker

@@ -39,6 +39,10 @@
   font-weight: var(--fw-medium);
 }
 
+.action {
+  color: var(--text-secondary);
+}
+
 .time {
   margin-inline-start: auto;
   white-space: nowrap;
@@ -51,7 +55,7 @@
     flex-wrap: wrap;
     row-gap: 0;
   }
-  .author {
+  .head > :first-child {
     overflow-wrap: anywhere;
     min-width: 0;
   }
