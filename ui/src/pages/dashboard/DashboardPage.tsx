@@ -14,7 +14,7 @@ import { StatTile } from "../../components/StatTile";
 import { StatusGlyph } from "../../components/StatusGlyph";
 import { Tooltip } from "../../components/Tooltip";
 import { Coverage } from "./Coverage";
-import { activityLabel, GATE_FILTERS, GATE_LABELS, shortDuration } from "./dashboardModel";
+import { activityLabel, gateDetail, GATE_FILTERS, GATE_LABELS, shortDuration } from "./dashboardModel";
 import { ScopeDialog } from "./ScopeDialog";
 import styles from "./Dashboard.module.css";
 
@@ -99,7 +99,7 @@ export function DashboardPage() {
                           {gate.ok ? <Check size={14} aria-label="Met" /> : <span aria-label="Unmet">●</span>}
                         </span>
                         <span>{GATE_LABELS[gate.key]}</span>
-                        <span className={styles.gateDetail}>{gate.detail}</span>
+                        <span className={styles.gateDetail}>{gateDetail(data, gate)}</span>
                       </>
                     );
                     return gate.ok ? (

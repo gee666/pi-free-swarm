@@ -13,41 +13,43 @@ const SEGMENTS = ["satisfied", "blocked", "incomplete", "unlinked"] satisfies (k
 
 export function Coverage({ swarmId, groups }: { swarmId: string; groups: CriteriaCoverage[] }) {
   return (
-    <Panel inset>
-      <PanelHeader title="Coverage by group" />
-      {groups.length === 0 ? (
-        <EmptyState icon={ListChecks} text="No criteria yet" />
-      ) : (
-        <RowList>
-          {groups.map((group) => (
-            <Link
-              {...rowFocusProps}
-              key={group.group}
-              className={styles.coverageRow}
-              aria-label={`${group.group} ${group.satisfied}/${group.total}`}
-              to={`/s/${swarmId}/criteria?group=${encodeURIComponent(group.group)}`}
-            >
-              <span className={styles.groupName}>{group.group}</span>
-              <span
-                className={styles.track}
-                role="img"
-                aria-label={`${group.group}: ${SEGMENTS.map((key) => `${group[key]} ${key}`).join(", ")}`}
+    <div>
+      <Panel inset>
+        <PanelHeader title="Coverage by group" />
+        {groups.length === 0 ? (
+          <EmptyState icon={ListChecks} text="No criteria yet" />
+        ) : (
+          <RowList>
+            {groups.map((group) => (
+              <Link
+                {...rowFocusProps}
+                key={group.group}
+                className={styles.coverageRow}
+                aria-label={`${group.group} ${group.satisfied}/${group.total}`}
+                to={`/s/${swarmId}/criteria?group=${encodeURIComponent(group.group)}`}
               >
-                {SEGMENTS.filter((key) => group[key] > 0).map((key) => (
-                  <span
-                    key={key}
-                    className={styles[key]}
-                    style={{ width: `${group.total ? (group[key] / group.total) * 100 : 0}%` }}
-                  />
-                ))}
-              </span>
-              <span>
-                {group.satisfied}/{group.total}
-              </span>
-            </Link>
-          ))}
-        </RowList>
-      )}
+                <span className={styles.groupName}>{group.group}</span>
+                <span
+                  className={styles.track}
+                  role="img"
+                  aria-label={`${group.group}: ${SEGMENTS.map((key) => `${group[key]} ${key}`).join(", ")}`}
+                >
+                  {SEGMENTS.filter((key) => group[key] > 0).map((key) => (
+                    <span
+                      key={key}
+                      className={styles[key]}
+                      style={{ width: `${group.total ? (group[key] / group.total) * 100 : 0}%` }}
+                    />
+                  ))}
+                </span>
+                <span>
+                  {group.satisfied}/{group.total}
+                </span>
+              </Link>
+            ))}
+          </RowList>
+        )}
+      </Panel>
       <p className={styles.legend}>
         {SEGMENTS.map((key) => (
           <span key={key}>
@@ -56,6 +58,6 @@ export function Coverage({ swarmId, groups }: { swarmId: string; groups: Criteri
           </span>
         ))}
       </p>
-    </Panel>
+    </div>
   );
 }

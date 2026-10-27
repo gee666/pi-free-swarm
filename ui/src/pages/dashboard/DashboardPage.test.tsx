@@ -46,6 +46,7 @@ function mount() {
 it("renders five gates, linked intent, numbers, coverage, and recent activity", async () => {
   const data = dashboardFixture();
   data.gates[0].ok = true;
+  data.gates[1].detail = "Active criteria without linked tasks.";
   data.attention.scopeApprovalNeeded = false;
   api.on("GET", "/api/swarms/3/dashboard", () => data);
   mount();
@@ -54,6 +55,9 @@ it("renders five gates, linked intent, numbers, coverage, and recent activity", 
   if (!rules) throw new Error("Stop rules missing");
   expect(within(rules).getByText("Scope approved")).toBeInTheDocument();
   expect(within(rules).getAllByRole("link")).toHaveLength(4);
+  expect(within(rules).getByText("3 unlinked")).toBeInTheDocument();
+  expect(within(rules).getByText("14 open, 2 deferred")).toBeInTheDocument();
+  expect(within(rules).getByText("rev 7 approved")).toBeInTheDocument();
   expect(within(rules).getByRole("link", { name: /Every criterion linked/ })).toHaveAttribute(
     "href",
     "/s/3/criteria?status=unlinked",

@@ -1,4 +1,4 @@
-import type { CompletionGate } from "../../../../src/api-types";
+import type { CompletionGate, DashboardResponse } from "../../../../src/api-types";
 
 export const GATE_LABELS: Record<CompletionGate["key"], string> = {
   scope: "Scope approved",
@@ -14,6 +14,23 @@ export const GATE_FILTERS: Record<CompletionGate["key"], string> = {
   criteria: "criteria?status=unlinked,incomplete,blocked",
   review: "tasks?status=review",
 };
+export function gateDetail(data: DashboardResponse, gate: CompletionGate): string {
+  switch (gate.key) {
+    case "scope":
+      return `rev ${data.project.scopeRevision} ${gate.ok ? "approved" : "needs approval"}`;
+    case "linked":
+      return `${gate.count} unlinked`;
+    case "tasks":
+      return `${gate.count} open, ${data.counts.deferred} deferred`;
+    case "criteria": {
+      const pending = data.attention.blockerDecisions.length;
+      return `${gate.count} awaiting votes${pending ? ` · ${pending} blocker${pending === 1 ? "" : "s"} awaiting you` : ""}`;
+    }
+    case "review":
+      return `${gate.count} in review`;
+  }
+}
+
 export function shortDuration(ms: number): string {
   const minutes = Math.floor(Math.max(0, ms) / 60000);
   const hours = Math.floor(minutes / 60);
