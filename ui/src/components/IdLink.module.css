@@ -1,0 +1,2 @@
+.link { font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); text-decoration: none; }
+.link:hover { color: var(--accent); text-decoration: underline; }
