@@ -50,7 +50,8 @@ export function filteredTaskCandidates(
     values.push(value);
   };
   if (filters.status) add("t.status IN (SELECT value FROM json_each(?))", JSON.stringify(filters.status));
-  if (filters.owner !== undefined) add("t.owner = ? COLLATE NOCASE", filters.owner);
+  if (filters.owner === "unowned") where.push("t.owner IS NULL");
+  else if (filters.owner !== undefined) add("t.owner = ? COLLATE NOCASE", filters.owner);
   if (filters.author !== undefined) add("t.author = ? COLLATE NOCASE", filters.author);
   if (filters.mine) add("t.owner = ? COLLATE NOCASE", actor);
   if (filters.criterionId !== undefined)
@@ -67,7 +68,7 @@ export function filteredTaskCandidates(
     .prepare(
       `${WORK_STATE_CTE} SELECT t.*,
     t.body || ' ' || COALESCE((SELECT group_concat(contribution, ' ') FROM task_criteria WHERE task_id = t.id), '') AS search_text
-    FROM work_tasks t ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY t.id`,
+    FROM work_tasks t ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY t.updated_at DESC, t.id DESC`,
     )
     .all(...values)
     .map(candidateOf);
@@ -100,7 +101,7 @@ export function filteredCriterionCandidates(
   return db.sql
     .prepare(
       `${WORK_STATE_CTE} SELECT c.*, c.group_name || ' ' || c.body || ' ' || c.verification AS search_text
-    FROM work_criteria c ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY c.id`,
+    FROM work_criteria c ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY c.updated_at DESC, c.id DESC`,
     )
     .all(...values)
     .map(candidateOf);
