@@ -94,7 +94,7 @@ export function PostList({
               );
             })}
           </RowList>
-          <ShowMore more={more} />
+          <ShowMore more={more} list />
         </PanelBody>
       )}
     </Panel>

@@ -19,6 +19,20 @@
   gap: var(--space-4);
   flex-wrap: wrap;
 }
+.unlink {
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  vertical-align: middle;
+}
+.filterLabel {
+  color: var(--text-muted);
+}
+.filterValue {
+  color: var(--text-primary);
+}
 .body {
   padding: var(--space-8);
 }

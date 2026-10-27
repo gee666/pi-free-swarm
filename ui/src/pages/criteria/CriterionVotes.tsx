@@ -20,7 +20,7 @@ export function CriterionVotes({
   detail: CriterionDetailResponse;
   onChanged: () => void;
 }) {
-  const [verdict, setVerdict] = useState<VoteVerdict>("incomplete");
+  const [verdict, setVerdict] = useState<VoteVerdict>();
   const [reason, setReason] = useState("");
   const mutation = useWorkMutation(swarmId, onChanged);
   const allAccepted = detail.tasks.length > 0 && detail.tasks.every((task) => task.status === "accepted");
@@ -50,6 +50,7 @@ export function CriterionVotes({
         className={styles.form}
         onSubmit={(event) => {
           event.preventDefault();
+          if (!verdict || disabled || !reason.trim() || mutation.busy) return;
           void mutation.mutate(`criteria/${detail.id}/vote`, { expectedRevision: detail.revision, verdict, reason });
         }}
       >
@@ -74,7 +75,7 @@ export function CriterionVotes({
           ]}
         />
         <LongField label="Reason" value={reason} onChange={setReason} />
-        <Button variant="primary" type="submit" disabled={mutation.busy || disabled || !reason.trim()}>
+        <Button variant="primary" type="submit" disabled={mutation.busy || disabled || !verdict || !reason.trim()}>
           Vote
         </Button>
       </form>

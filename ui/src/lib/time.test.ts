@@ -9,6 +9,8 @@ describe("compact work times", () => {
   });
   it("measures work timestamps against the supplied clock", () => {
     expect(relativeTime(120000, 300000)).toBe("3 min");
-    expect(relativeTime(300000, 120000)).toBe("0 min");
+    expect(relativeTime(300000, 120000)).toBe("just now");
+    expect(relativeTime(241000, 300000)).toBe("just now");
+    expect(relativeTime(240000, 300000)).toBe("1 min");
   });
 });

@@ -16,6 +16,7 @@ import { FilterMenu, FilterPill } from "../work-items/FilterMenu";
 import { useDebounced } from "../../lib/useDebounced";
 import { useWorkList } from "../work-items/useWorkData";
 import styles from "../work-items/WorkItems.module.css";
+import moreStyles from "../../components/ShowMore.module.css";
 import { TaskDetail } from "./TaskDetail";
 import { TaskForm } from "./TaskForm";
 
@@ -148,7 +149,7 @@ export function TasksPage() {
             )}
             {list.moreError && <ErrorBanner>{list.moreError.message}</ErrorBanner>}
             {list.data?.nextCursor && (
-              <Button disabled={list.loadingMore} onClick={list.loadMore}>
+              <Button className={moreStyles.loadMore} disabled={list.loadingMore} onClick={list.loadMore}>
                 Load more
               </Button>
             )}

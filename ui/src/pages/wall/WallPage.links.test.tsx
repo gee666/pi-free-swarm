@@ -81,7 +81,10 @@ describe("Wall work links and search", () => {
     await userEvent.hover(link.parentElement ?? link);
     expect(await screen.findByRole("tooltip")).toHaveTextContent("Add ranking index");
     await userEvent.unhover(link.parentElement ?? link);
-    await userEvent.click(screen.getByRole("button", { name: "Unlink task #34" }));
+    const remove = screen.getByRole("button", { name: "Remove link #34" });
+    expect(remove.closest("span")?.parentElement).toContainElement(link);
+    expect(remove.querySelector("svg")).toHaveAttribute("width", "12");
+    await userEvent.click(remove);
     await waitFor(() => expect(screen.queryByRole("link", { name: "#34" })).not.toBeInTheDocument());
     expect(api.callsTo("POST", "/api/swarms/3/posts/1/unlink")[0]?.body).toEqual({ taskIds: [34], criterionIds: [] });
   });
@@ -101,8 +104,9 @@ describe("Wall work links and search", () => {
     await screen.findByText("Highest ranked");
     const rows = screen.getByRole("region", { name: "Wall" }).querySelectorAll("[data-agent-row]");
     expect(rows[0]).toHaveTextContent("Highest ranked");
-    await userEvent.click(screen.getByRole("button", { name: "Author" }));
+    await userEvent.click(screen.getByRole("button", { name: "Author: Anyone" }));
     await userEvent.click(screen.getByRole("option", { name: "Me" }));
+    expect(screen.getByRole("button", { name: "Author: Me" })).toBeInTheDocument();
     await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/posts").at(-1)?.query.get("author")).toBe("User"));
     await userEvent.click(screen.getByRole("button", { name: "Remove Linked to criterion #12" }));
     await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/posts").at(-1)?.query.has("criterionId")).toBe(false));

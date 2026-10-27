@@ -35,7 +35,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 
 interface IconButtonProps extends NativeButtonProps {
   icon: LucideIcon;
-  iconSize?: "inline" | "status";
+  iconSize?: "small" | "inline" | "status";
   /** Accessible name; icon buttons have no visible text. */
   label: string;
 }

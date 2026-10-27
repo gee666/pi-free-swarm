@@ -50,6 +50,9 @@
 .invalid {
   color: var(--accent);
 }
+.fileRow {
+  padding: var(--space-4) 0;
+}
 .detail {
   padding: 16px;
 }

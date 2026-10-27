@@ -18,7 +18,7 @@ const skill: SkillResponse = {
   revision: 3,
   error: null,
   updatedAt: 1000,
-  content: "# Search skill\nRead the catalogue.",
+  content: "---\nname: search\ndescription: Frontmatter description\n---\n# Search skill\nRead the catalogue.",
   files: ["SKILL.md", "examples.md"],
 };
 const page: SkillsResponse = {
@@ -61,6 +61,8 @@ it("lists valid and invalid skills, opens files and renders SKILL.md", async () 
   await userEvent.click(screen.getByRole("link", { name: /search Rank matching work rev 3/ }));
   expect(await screen.findByRole("heading", { name: "search", level: 1 })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "Search skill" })).toBeInTheDocument();
+  expect(screen.queryByText(/Frontmatter description/)).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "SKILL.md" }).parentElement).not.toBe(screen.getByRole("link", { name: "examples.md" }).parentElement);
   expect(screen.getByRole("link", { name: "examples.md" })).toHaveAttribute(
     "title",
     "Preview .pi/swarm/skills/search/examples.md",

@@ -73,8 +73,8 @@ export function WallLinks({
               }
             />{" "}
             <IdLink swarmId={swarmId} kind={link.targetKind} id={link.targetId} title={link.title} />
+            <IconButton icon={X} iconSize="small" className={styles.unlink} label={`Remove link #${link.targetId}`} onClick={() => onRemove(link)} />
           </Pill>
-          <IconButton icon={X} label={`Unlink ${link.targetKind} #${link.targetId}`} onClick={() => onRemove(link)} />
         </span>
       ))}
       <Button ref={anchor} size="sm" onClick={() => setOpen(!open)} aria-expanded={open}>

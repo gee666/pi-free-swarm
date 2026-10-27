@@ -1,6 +1,6 @@
 .content {
-  width: 100%;
-  max-width: 1200px;
+  max-width: 960px;
+  box-sizing: content-box;
   margin: 0 auto;
   padding: 16px;
   display: flex;
@@ -21,10 +21,6 @@
 .runHeader p,
 .cardBody {
   color: var(--text-secondary);
-}
-.heading {
-  font-size: var(--fs-body);
-  margin: 0 0 8px;
 }
 .gate {
   min-height: 40px;
@@ -67,9 +63,10 @@ a.gate:hover,
 }
 .tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
   gap: var(--gap-panels);
   margin: 0;
+  padding: 0 var(--space-8) var(--space-8);
 }
 .coverageRow {
   display: flex;
@@ -167,8 +164,5 @@ a.gate:hover,
   .attention,
   .coverageRow {
     min-height: 44px;
-  }
-  .tiles {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

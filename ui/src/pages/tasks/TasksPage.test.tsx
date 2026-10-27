@@ -55,10 +55,10 @@ describe("Task work board", () => {
       "new,claimed,in_progress,review",
     );
     expect(api.callsTo("GET", "/api/swarms/3/tasks").at(-1)?.query.get("criterionId")).toBe("12");
-    await userEvent.click(screen.getByRole("button", { name: "Owner" }));
+    await userEvent.click(screen.getByRole("button", { name: "Owner: Anyone" }));
     await userEvent.click(screen.getByRole("option", { name: "Me" }));
     await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/tasks").at(-1)?.query.get("owner")).toBe("User"));
-    await userEvent.click(screen.getByRole("button", { name: "Status" }));
+    await userEvent.click(screen.getByRole("button", { name: "Status: Open" }));
     await userEvent.click(screen.getByRole("option", { name: "Waiting" }));
     await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/tasks").at(-1)?.query.get("waiting")).toBe("true"));
     await userEvent.click(screen.getByRole("button", { name: "Remove Criterion #12" }));

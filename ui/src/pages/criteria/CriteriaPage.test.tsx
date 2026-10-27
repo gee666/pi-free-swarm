@@ -48,7 +48,8 @@ describe("Criteria work board", () => {
   it("operates status menus from the keyboard", async () => {
     open();
     await within(list()).findByText("Rank matches");
-    const status = screen.getByRole("button", { name: "Status" });
+    const status = screen.getByRole("button", { name: "Status: All" });
+    expect(screen.getByRole("button", { name: "Group: All" })).toBeInTheDocument();
     status.focus();
     await userEvent.keyboard("{Enter}{ArrowDown}{Enter}");
     await waitFor(() => expect(calls().at(-1)?.query.get("status")).toBe("unlinked"));
@@ -100,8 +101,9 @@ describe("Criteria work board", () => {
     expect(within(list()).getByText("0/1")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Remove Search" }));
     await waitFor(() => expect(calls().at(-1)?.query.has("group")).toBe(false));
-    await userEvent.click(screen.getByRole("button", { name: "Status" }));
+    await userEvent.click(screen.getByRole("button", { name: "Status: Blocked" }));
     await userEvent.click(screen.getByRole("option", { name: "Needs my vote" }));
+    expect(screen.getByRole("button", { name: "Status: Needs my vote" })).toBeInTheDocument();
     await waitFor(() => expect(calls().at(-1)?.query.get("needsMyVote")).toBe("true"));
     await userEvent.click(screen.getByRole("button", { name: "Archived" }));
     await waitFor(() => expect(calls().at(-1)?.query.get("includeArchived")).toBe("true"));
@@ -151,7 +153,12 @@ describe("Criteria work board", () => {
     expect(screen.getByText("Waiting for Ann (owner)")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Satisfied" })).toBeDisabled();
     expect(screen.getByRole("radio", { name: "Blocked" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Incomplete" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("button", { name: "Vote" })).toBeDisabled();
     await userEvent.type(screen.getByRole("textbox", { name: "Reason" }), "Still needs work");
+    expect(screen.getByRole("button", { name: "Vote" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("radio", { name: "Incomplete" }));
+    expect(screen.getByRole("button", { name: "Vote" })).toBeEnabled();
     await userEvent.click(screen.getByRole("button", { name: "Vote" }));
     await waitFor(() =>
       expect(api.callsTo("POST", "/api/swarms/3/criteria/12/vote")[0]?.body).toEqual({

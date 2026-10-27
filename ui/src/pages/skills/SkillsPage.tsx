@@ -20,6 +20,7 @@ import { formatTimestamp } from "../../lib/time";
 import { PanelLayout } from "../../shell/AppShell";
 import { useDebounced } from "../../lib/useDebounced";
 import styles from "./Skills.module.css";
+import moreStyles from "../../components/ShowMore.module.css";
 
 export function SkillsPage() {
   const { id = "", name } = useParams();
@@ -101,6 +102,7 @@ export function SkillsPage() {
                 ))}
                 {list.data?.nextCursor && (
                   <Button
+                    className={moreStyles.loadMore}
                     onClick={() => {
                       setPagination({ query, previous: items, cursor: list.data?.nextCursor ?? undefined });
                     }}
@@ -141,15 +143,15 @@ export function SkillsPage() {
                         <EmptyState icon={Puzzle} text="No files" />
                       ) : (
                         selected.files.map((file) => (
-                          <FileLink key={file} reference={`${selected?.path}/${file}`}>
-                            {file}
-                          </FileLink>
+                          <div key={file} className={styles.fileRow}>
+                            <FileLink reference={`${selected.path}/${file}`}>{file}</FileLink>
+                          </div>
                         ))
                       )}
                     </Section>
                     <Section title="SKILL.md">
                       {selected.content ? (
-                        <Markdown source={selected.content} />
+                        <Markdown source={selected.content.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, "")} />
                       ) : (
                         <EmptyState icon={Puzzle} text="SKILL.md not available" />
                       )}

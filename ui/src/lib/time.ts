@@ -27,5 +27,6 @@ export function shortDuration(ms: number): string {
 }
 
 export function relativeTime(epochMs: number, now = Date.now()): string {
-  return shortDuration(now - epochMs);
+  const elapsed = now - epochMs;
+  return elapsed < 60000 ? "just now" : shortDuration(elapsed);
 }

@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 
 /** Icon sizes: 20px inline, 24px in the rail, 16px for delivery status. */
-const ICON_SIZE = { status: 16, inline: 20, rail: 24, empty: 40 } as const;
+const ICON_SIZE = { small: 12, status: 16, inline: 20, rail: 24, empty: 40 } as const;
 const STROKE_WIDTH = 1.75;
 
 interface IconProps {

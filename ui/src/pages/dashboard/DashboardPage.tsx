@@ -15,9 +15,14 @@ import { StatusGlyph } from "../../components/StatusGlyph";
 import { Tooltip } from "../../components/Tooltip";
 import { Coverage } from "./Coverage";
 import { activityLabel, gateDetail, GATE_FILTERS, GATE_LABELS } from "./dashboardModel";
-import { shortDuration } from "../../lib/time";
+import { relativeTime, shortDuration } from "../../lib/time";
 import { ScopeDialog } from "./ScopeDialog";
 import styles from "./Dashboard.module.css";
+
+function timeAgo(epochMs: number): string {
+  const time = relativeTime(epochMs);
+  return time === "just now" ? time : `${time} ago`;
+}
 
 function Numbers({ data }: { data: DashboardResponse }) {
   const c = data.counts;
@@ -34,8 +39,8 @@ function Numbers({ data }: { data: DashboardResponse }) {
     ["Accepted · 60 min", data.velocity.accepted60Minutes],
   ] satisfies [string, string | number][];
   return (
-    <section aria-label="Numbers">
-      <h2 className={styles.heading}>Numbers</h2>
+    <Panel inset aria-label="Numbers">
+      <PanelHeader title="Numbers" />
       <dl className={styles.tiles}>
         {tiles.map(([label, value]) => (
           <StatTile key={label} label={label} value={value} />
@@ -53,7 +58,7 @@ function Numbers({ data }: { data: DashboardResponse }) {
           }
         />
       </dl>
-    </section>
+    </Panel>
   );
 }
 
@@ -81,7 +86,7 @@ export function DashboardPage() {
                     Run {data.header.run} · {data.header.agentCount} agents ·{" "}
                     {data.header.startedAt === null
                       ? "not started"
-                      : `started ${shortDuration(Date.now() - data.header.startedAt)} ago`}
+                      : `started ${timeAgo(data.header.startedAt)}`}
                   </p>
                 </div>
                 {data.attention.scopeApprovalNeeded && (
@@ -193,7 +198,7 @@ export function DashboardPage() {
                         <AuthoredEntry
                           key={entry.id}
                           author={entry.actor}
-                          time={`${shortDuration(Date.now() - entry.createdAt)} ago`}
+                          time={timeAgo(entry.createdAt)}
                         >
                           <p>
                             {activityLabel(entry.kind)}{" "}

@@ -19,6 +19,7 @@ import { FilterMenu, FilterPill } from "../work-items/FilterMenu";
 import { useDebounced } from "../../lib/useDebounced";
 import { useWorkList, workUrl } from "../work-items/useWorkData";
 import styles from "../work-items/WorkItems.module.css";
+import moreStyles from "../../components/ShowMore.module.css";
 import { CriterionDetail } from "./CriterionDetail";
 import { CriterionForm } from "./CriterionForm";
 
@@ -176,7 +177,7 @@ export function CriteriaPage() {
             )}
             {list.moreError && <ErrorBanner>{list.moreError.message}</ErrorBanner>}
             {list.data?.nextCursor && (
-              <Button onClick={list.loadMore} disabled={list.loadingMore}>
+              <Button className={moreStyles.loadMore} onClick={list.loadMore} disabled={list.loadingMore}>
                 Load more
               </Button>
             )}
