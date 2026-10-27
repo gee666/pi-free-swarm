@@ -1,4 +1,3 @@
-import { continueConversation } from "../helpers/conversation.js";
 import assert from "node:assert/strict";
 import { it } from "node:test";
 import type { MailboxResponse } from "../../src/api-types.js";
@@ -11,14 +10,15 @@ it("filters unread User threads before pagination, including beyond the first un
   const board = await startTestBoard();
   t.after(() => board.close());
   const { db } = board.temp;
-  const swarm = seedSwarm(db, { now: Date.now() });
+  const readers = Array.from({ length: 25 }, (_, index) => `Reader${index + 1}`);
+  const swarm = seedSwarm(db, { now: Date.now(), agents: ["Maria", "John", ...readers] });
   const now = Date.now();
-  const first = sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "User", text: "old unread one", now: now });
+  const first = sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "User", text: "old unread one", now });
   const second = sendMessage(db, { swarmId: swarm.id, from: "John", to: "User", text: "old unread two", now: now + 1 });
-  for (let index = 0; index < 25; index++) {
+  for (const [index, from] of readers.entries()) {
     const message = sendMessage(db, {
       swarmId: swarm.id,
-      from: "Maria",
+      from,
       to: "User",
       text: `new read ${index}`,
       now: now + 2 + index,
@@ -54,7 +54,14 @@ it("keeps full inbox context in an unread thread and removes it only after its u
   const now = Date.now();
   const first = sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "User", text: "read context", now: now });
   markRead(db, swarm.id, "User", [first.id], now + 1);
-  const latest = continueConversation(db, swarm.id, "Maria", first.threadId, "unread follow-up", now + 2);
+  const latest = sendMessage(db, {
+    swarmId: swarm.id,
+    from: "Maria",
+    to: "User",
+    text: "unread follow-up",
+    now: now + 2,
+  });
+  assert.equal(latest.threadId, first.threadId);
   const route = `${board.base}/api/swarms/${swarm.id}/participants/User/messages?unreadOnly=true`;
   const filtered = await getJson<MailboxResponse>(route);
   assert.equal(filtered.body.total, 1);

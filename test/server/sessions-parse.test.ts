@@ -140,7 +140,7 @@ test("delivered prompts split into swarm messages; revive, resume and plain prom
     "swarm_message #3",
     "swarm_message #4",
     "thinking",
-    "tool_call swarm_read_posts",
+    "tool_call swarm_posts_search",
     "swarm_message #7",
     "swarm_message #8",
     "swarm_message #9",
@@ -154,7 +154,7 @@ test("delivered prompts split into swarm messages; revive, resume and plain prom
     "user",
   ]);
   const kickoff = items[0];
-  assert.equal(kickoff.kind === "user" && kickoff.text.startsWith("Task for the swarm:\nBuild a CLI todo app"), true);
+  assert.equal(kickoff.kind === "user" && kickoff.text.startsWith("Start: call swarm_project"), true);
   assert.equal(kickoff.kind === "user" && kickoff.text.includes("[swarm message"), false);
   assert.deepEqual(items[1], {
     kind: "swarm_message",
@@ -163,7 +163,7 @@ test("delivered prompts split into swarm messages; revive, resume and plain prom
     messageId: 3,
     threadId: 3,
     from: "User",
-    to: ["Maria", "You"],
+    to: ["You"],
     text: "Please use TypeScript.",
   });
   assert.deepEqual(
@@ -177,7 +177,7 @@ test("delivered prompts split into swarm messages; revive, resume and plain prom
   assert.equal(items[9].kind === "system" && items[9].text, "Model changed to openai/gpt-5");
   assert.equal(items[10].kind === "system" && items[10].id, "a1000017:0");
   assert.equal(items[13].kind === "user" && items[13].text.startsWith("[swarm resumed by Main]"), true);
-  assert.deepEqual(items[14].kind === "swarm_message" && items[14].to, ["Maria", "John", "You"]);
+  assert.deepEqual(items[14].kind === "swarm_message" && items[14].to, ["You"]);
   assert.equal(items[15].kind === "user" && items[15].text, "plain string content");
 });
 

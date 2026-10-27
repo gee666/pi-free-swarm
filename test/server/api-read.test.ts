@@ -1,4 +1,3 @@
-import { continueConversation } from "../helpers/conversation.js";
 import assert from "node:assert/strict";
 import { appendFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
@@ -146,23 +145,13 @@ describe("messages", () => {
   let userThreadId: number;
   before(() => {
     const { db } = board.temp;
-    const opening = sendMessage(db, {
-      swarmId: swarmId,
-      from: "Maria",
-      to: "User",
-      text: "Plan is on the wall.",
-      now: Date.now(),
-    });
-    threadId = opening.threadId;
-    continueConversation(db, swarmId, "John", threadId, "Agreed.", Date.now());
-    sendMessage(db, { swarmId: swarmId, from: "Maria", to: "John", text: "Just us.", now: Date.now() });
-    userThreadId = sendMessage(db, {
-      swarmId: swarmId,
-      from: "User",
-      to: "Liam",
-      text: "Status?",
-      now: Date.now(),
-    }).threadId;
+    const send = (from: string, to: string, text: string) =>
+      sendMessage(db, { swarmId, from, to, text, now: Date.now() });
+    threadId = send("Maria", "User", "Plan is on the wall.").threadId;
+    assert.equal(send("User", "Maria", "Which checks?").threadId, threadId);
+    assert.equal(send("Maria", "User", "Agreed.").threadId, threadId);
+    send("Maria", "John", "Just us.");
+    userThreadId = send("User", "Liam", "Status?").threadId;
   });
 
   it("groups the inbox by thread with only the box's messages and unread counts", async () => {
@@ -172,12 +161,12 @@ describe("messages", () => {
     assert.equal(body.total, 1);
     assert.equal(body.unread, 2);
     assert.equal(body.threads[0].thread.id, threadId);
-    assert.deepEqual(body.threads[0].thread.members, ["Maria", "User", "John"]);
+    assert.deepEqual(body.threads[0].thread.members, ["Maria", "User"]);
     assert.deepEqual(
       body.threads[0].messages.map((m) => [m.sender, m.text]),
       [
         ["Maria", "Plan is on the wall."],
-        ["John", "Agreed."],
+        ["Maria", "Agreed."],
       ],
     );
     assert.equal(body.threads[0].unread, 2);
@@ -188,7 +177,7 @@ describe("messages", () => {
     assert.equal(sent.body.name, "User");
     assert.deepEqual(
       sent.body.threads.map((t) => t.thread.id),
-      [userThreadId],
+      [userThreadId, threadId],
     );
     assert.equal(sent.body.threads[0].unread, 0);
     const maria = await getJson<MailboxResponse>(url("/participants/maria/messages?box=sent&count=1"));
@@ -221,13 +210,18 @@ describe("messages", () => {
   it("returns a whole thread and 404 for a missing one", async () => {
     const { status, body } = await getJson<ThreadResponse>(url(`/threads/${threadId}`));
     assert.equal(status, 200);
-    assert.equal(body.messages.length, 2);
+    assert.equal(body.messages.length, 3);
+    assert.deepEqual(
+      body.messages.map((message) => message.sender),
+      ["Maria", "User", "Maria"],
+    );
     assert.deepEqual(
       body.messages[1].recipients.map((r) => [r.name, r.status]),
-      [
-        ["Maria", "pending"],
-        ["User", "delivered"],
-      ],
+      [["Maria", "pending"]],
+    );
+    assert.deepEqual(
+      body.messages[2].recipients.map((r) => [r.name, r.status]),
+      [["User", "delivered"]],
     );
     await expectError(url("/threads/999"), 404, { error: "not_found", message: "Thread #999 not found." });
     await expectError(`${board.base}/api/swarms/${otherSwarmId}/threads/${threadId}`, 404, {

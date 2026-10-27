@@ -64,9 +64,9 @@ describe("request bodies", () => {
       message: '"title" must be a string.',
       field: "title",
     });
-    await expectError(postJson(url("/messages"), { to: "Maria", text: "hi" }), 400, {
+    await expectError(postJson(url("/messages"), { to: ["Maria"], text: "hi" }), 400, {
       error: "bad_request",
-      message: '"to" must be an array of strings.',
+      message: '"to" must be a string.',
       field: "to",
     });
   });
@@ -95,9 +95,9 @@ describe("wall writes", () => {
   });
 
   it("returns the limit errors, 404s and keeps the wall writable after the run ended", async () => {
-    await expectError(postJson(url("/posts"), { title: "t".repeat(72), text: "x" }), 400, {
+    await expectError(postJson(url("/posts"), { title: "t".repeat(101), text: "x" }), 400, {
       error: "validation",
-      message: "Title too long: 72/60 characters. Shorten it.",
+      message: "Title too long (101 chars): keep it under 60; put long material in a file and reference its path.",
       field: "title",
     });
     await expectError(postJson(url("/posts"), { title: "t", text: " " }), 400, {
@@ -127,41 +127,34 @@ describe("wall writes", () => {
 });
 
 describe("messages", () => {
-  it("sends a new thread from User with pending agent recipients", async () => {
-    const { status, body } = await postJson<SendMessageResponse>(url("/messages"), {
-      to: ["maria", "John"],
-      text: "Go",
-    });
+  it("starts a conversation from User with exactly one pending agent recipient", async () => {
+    const { status, body } = await postJson<SendMessageResponse>(url("/messages"), { to: "maria", text: "Go" });
     assert.equal(status, 201);
     assert.equal(body.message.sender, "User");
     assert.deepEqual(
       body.message.recipients.map((r) => [r.name, r.status]),
-      [
-        ["Maria", "pending"],
-        ["John", "pending"],
-      ],
+      [["Maria", "pending"]],
     );
   });
 
   it("validates recipients and text", async () => {
-    await expectError(postJson(url("/messages"), { to: ["Bob"], text: "hi" }), 400, {
+    await expectError(postJson(url("/messages"), { to: "Bob", text: "hi" }), 400, {
       error: "validation",
-      message: "Unknown participant: Bob. Known participants: Maria, John, Liam, Watcher, User.",
+      message: "Unknown participant: Bob.",
+    });
+    await expectError(postJson(url("/messages"), { to: "User", text: "hi" }), 400, {
+      error: "validation",
+      message: "Choose one recipient other than yourself. Available: Maria, John, Liam, Watcher, User.",
       field: "to",
     });
-    await expectError(postJson(url("/messages"), { to: ["User"], text: "hi" }), 400, {
-      error: "validation",
-      message: "Add at least one recipient other than yourself.",
-      field: "to",
-    });
-    await expectError(postJson(url("/messages"), { to: ["Maria"], text: "" }), 400, {
+    await expectError(postJson(url("/messages"), { to: "Maria", text: "" }), 400, {
       error: "validation",
       message: "Text is empty.",
       field: "text",
     });
   });
 
-  it("replies in a thread and refuses non-members and missing threads", async () => {
+  it("continues its conversation without entering another pair's thread", async () => {
     const { db } = board.temp;
     const thread = sendMessage(db, {
       swarmId: swarmId,
@@ -170,8 +163,9 @@ describe("messages", () => {
       text: "Question?",
       now: Date.now(),
     }).threadId;
-    const replied = await postJson<SendMessageResponse>(url(`/threads/${thread}/reply`), { text: "Answer." });
+    const replied = await postJson<SendMessageResponse>(url("/messages"), { to: "Maria", text: "Answer." });
     assert.equal(replied.status, 201);
+    assert.equal(replied.body.message.threadId, thread);
     assert.deepEqual(
       replied.body.message.recipients.map((r) => [r.name, r.status]),
       [["Maria", "pending"]],
@@ -183,44 +177,31 @@ describe("messages", () => {
       text: "Between us",
       now: Date.now(),
     }).threadId;
-    await expectError(postJson(url(`/threads/${private_}/reply`), { text: "Hi" }), 403, {
-      error: "not_member",
-      message: `You are not a member of thread #${private_}.`,
-    });
-    await expectError(postJson(url("/threads/999/reply"), { text: "Hi" }), 404, {
-      error: "not_found",
-      message: "Thread #999 not found.",
-    });
+    const separate = await postJson<SendMessageResponse>(url("/messages"), { to: "John", text: "Hi" });
+    assert.equal(separate.status, 201);
+    assert.notEqual(separate.body.message.threadId, private_);
+    const privateThread = await getJson<ThreadResponse>(url(`/threads/${private_}`));
+    assert.deepEqual(privateThread.body.thread.members, ["Maria", "John"]);
+    assert.equal(privateThread.body.messages.length, 1);
   });
 
   it("answers 409 swarm_not_running for ended and interrupted swarms and stores nothing", async () => {
     const { db } = board.temp;
     const ended = seedSwarm(db, { now: Date.now(), name: "done" });
-    const thread = sendMessage(db, {
-      swarmId: ended.id,
-      from: "Maria",
-      to: "User",
-      text: "Bye",
-      now: Date.now(),
-    }).threadId;
+    sendMessage(db, { swarmId: ended.id, from: "Maria", to: "User", text: "Bye", now: Date.now() });
     endRun(db, ended.id, process.pid, "finished", Date.now());
     const orphaned = seedSwarm(db, { now: Date.now(), name: "orphan", runnerPid: DEAD_PID });
     const notRunning: ApiErrorBody = { error: "swarm_not_running", message: NOT_RUNNING_TEXT };
     const before = messageCount();
     for (const id of [ended.id, orphaned.id]) {
       await expectError(
-        postJson(`${board.base}/api/swarms/${id}/messages`, { to: ["Maria"], text: "hi" }),
+        postJson(`${board.base}/api/swarms/${id}/messages`, { to: "Maria", text: "hi" }),
         409,
         notRunning,
       );
     }
-    await expectError(
-      postJson(`${board.base}/api/swarms/${ended.id}/threads/${thread}/reply`, { text: "hi" }),
-      409,
-      notRunning,
-    );
     assert.equal(messageCount(), before);
-    await expectError(postJson(`${board.base}/api/swarms/999/messages`, { to: ["Maria"], text: "hi" }), 404, {
+    await expectError(postJson(`${board.base}/api/swarms/999/messages`, { to: "Maria", text: "hi" }), 404, {
       error: "not_found",
       message: "Swarm #999 not found.",
     });
@@ -239,7 +220,7 @@ describe("the liveness race", () => {
     const { db } = raceBoard.temp;
     const id = seedSwarm(db, { now: Date.now(), runnerPid: DEAD_PID }).id;
     const sent = await postJson<SendMessageResponse>(`${raceBoard.base}/api/swarms/${id}/messages`, {
-      to: ["Maria"],
+      to: "Maria",
       text: "Still there?",
     });
     assert.equal(sent.status, 201);
@@ -272,7 +253,8 @@ describe("User read marks", () => {
         .get(swarmId)?.n,
     );
     const first = sendMessage(db, { swarmId: swarmId, from: "Maria", to: "User", text: "One", now: Date.now() });
-    const second = sendMessage(db, { swarmId: swarmId, from: "Liam", to: "User", text: "Two", now: Date.now() });
+    const second = sendMessage(db, { swarmId, from: "Liam", to: "User", text: "Two", now: Date.now() });
+    const other = sendMessage(db, { swarmId, from: "Maria", to: "John", text: "Private", now: Date.now() });
     const marked = await postJson<MarkReadResponse>(reads, { messageIds: [first.id, second.id, first.id] });
     assert.equal(marked.status, 200);
     assert.deepEqual(marked.body, { updated: 2, unread: unreadBefore });
@@ -280,8 +262,8 @@ describe("User read marks", () => {
     assert.deepEqual(again.body, { updated: 0, unread: unreadBefore });
     const johnStatus = db.sql
       .prepare("SELECT status FROM message_recipients WHERE message_id = ? AND name = 'John'")
-      .get(first.id)?.status;
-    assert.equal(johnStatus, "pending", "other recipients are untouched");
+      .get(other.id)?.status;
+    assert.equal(johnStatus, "pending", "other conversations are untouched");
   });
 
   it("answers 404 for other participants and 400 for bad ids", async () => {

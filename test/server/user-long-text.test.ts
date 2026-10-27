@@ -30,7 +30,7 @@ function assertAttachment(board: TestBoard, stored: string, original: string): s
   return absolute;
 }
 
-it("accepts User text beyond the old request ceiling on every text channel without changing title rules", async (t) => {
+it("accepts long User text on every channel and caps titles at 100 Unicode code points", async (t) => {
   const board = await startTestBoard();
   t.after(() => board.close());
   writeFileSync(path.join(board.temp.db.dataDir, "settings.json"), JSON.stringify({}));
@@ -48,14 +48,15 @@ it("accepts User text beyond the old request ceiling on every text channel witho
   assert.equal(comment.body.comment.author, "User");
   files.add(assertAttachment(board, comment.body.comment.text, text));
 
-  const message = await postJson<SendMessageResponse>(url("/messages"), { to: ["Maria"], text, sender: "Maria" });
+  const message = await postJson<SendMessageResponse>(url("/messages"), { to: "Maria", text, sender: "Maria" });
   assert.equal(message.status, 201);
   assert.equal(message.body.message.sender, "User");
   files.add(assertAttachment(board, message.body.message.text, text));
 
-  const reply = await postJson<SendMessageResponse>(url(`/threads/${message.body.message.threadId}/reply`), { text });
-  assert.equal(reply.status, 201);
-  files.add(assertAttachment(board, reply.body.message.text, text));
+  const followUp = await postJson<SendMessageResponse>(url("/messages"), { to: "Maria", text });
+  assert.equal(followUp.status, 201);
+  assert.equal(followUp.body.message.threadId, message.body.message.threadId);
+  files.add(assertAttachment(board, followUp.body.message.text, text));
 
   const watcher = await postJson<SendMessageResponse>(url("/watcher"), { text });
   assert.equal(watcher.status, 201);
@@ -63,9 +64,11 @@ it("accepts User text beyond the old request ceiling on every text channel witho
   files.add(assertAttachment(board, watcher.body.message.text, text));
   assert.equal(files.size, 5, "independent body IDs do not overwrite another channel's attachment");
 
-  const invalidTitle = await postJson(url("/posts"), { title: "x".repeat(61), text });
+  const validTitle = await postJson(url("/posts"), { title: "🙂".repeat(100), text: "Short body" });
+  assert.equal(validTitle.status, 201);
+  const invalidTitle = await postJson(url("/posts"), { title: "🙂".repeat(101), text });
   assert.equal(invalidTitle.status, 400);
-  const invalidText = await postJson(url("/messages"), { to: ["Maria"], text: [text] });
+  const invalidText = await postJson(url("/messages"), { to: "Maria", text: [text] });
   assert.equal(invalidText.status, 400);
 });
 
@@ -74,7 +77,7 @@ it("accepts chunked User text beyond 64 KiB and preserves the Unicode tail", asy
   t.after(() => board.close());
   const swarm = seedSwarm(board.temp.db, { now: Date.now() });
   const endpoint = `${board.base}/api/swarms/${swarm.id}/messages`;
-  const payload = Buffer.from(JSON.stringify({ to: ["Maria"], text }), "utf8");
+  const payload = Buffer.from(JSON.stringify({ to: "Maria", text }), "utf8");
   const received = await new Promise<{ status: number; body: string }>((resolve, reject) => {
     const req = request(endpoint, { method: "POST", headers: { "Content-Type": "application/json" } }, (res) => {
       const chunks: Buffer[] = [];
@@ -103,7 +106,7 @@ it("preserves leading and trailing whitespace in long User originals", async (t)
   const swarm = seedSwarm(board.temp.db, { now: Date.now() });
   const original = "\n  leading space " + "🙂".repeat(250) + " trailing space \n\n";
   const response = await postJson<SendMessageResponse>(`${board.base}/api/swarms/${swarm.id}/messages`, {
-    to: ["Maria"],
+    to: "Maria",
     text: original,
   });
   assert.equal(response.status, 201);
@@ -115,7 +118,7 @@ it("keeps short User text inline and retains the cap on non-text control request
   t.after(() => board.close());
   const swarm = seedSwarm(board.temp.db, { now: Date.now() });
   const root = `${board.base}/api/swarms/${swarm.id}`;
-  const short = await postJson<SendMessageResponse>(`${root}/messages`, { to: ["Maria"], text: "🙂".repeat(200) });
+  const short = await postJson<SendMessageResponse>(`${root}/messages`, { to: "Maria", text: "🙂".repeat(200) });
   assert.equal(short.status, 201);
   assert.equal(short.body.message.text, "🙂".repeat(200));
   const oversizedControl = await postJson(`${root}/participants/User/read`, {
