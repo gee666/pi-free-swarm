@@ -1,4 +1,4 @@
-// Wall writes and per-reader "(new)" marks. Posts wake agents only through explicit mentions.
+// Wall writes notify mentions and subscribers; work-link notifications live in post-links.
 import type { CommentView, PostSummary } from "../api-types.js";
 import type { SwarmDb } from "../store/db.js";
 import { insertEvent } from "../store/events.js";

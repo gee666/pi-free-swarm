@@ -41,7 +41,7 @@ test("completion poll uses graph gates and refuses completion during budget/paus
   canRun = true;
   await completion.check();
   assert.equal(closed, 1);
-  assert.equal(readProject(f.db, f.swarmId).outcome, "completed");
+  assert.equal(readProject(f.db, f.swarmId).outcome, null, "outcome waits for the final atomic recheck");
 });
 
 test("committed work mutations invoke the runner completion check immediately", async (t) => {
@@ -76,5 +76,5 @@ test("committed work mutations invoke the runner completion check immediately", 
   t.after(remove);
   approveScope(f.db, f.input("User"));
   assert.equal(closed, true);
-  assert.equal(readProject(f.db, f.swarmId).outcome, "completed");
+  assert.equal(readProject(f.db, f.swarmId).outcome, null, "outcome waits for the final atomic recheck");
 });

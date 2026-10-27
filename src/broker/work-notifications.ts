@@ -27,10 +27,18 @@ export function notifyWork(db: SwarmDb, swarmId: number, recipient: string | nul
     now,
   });
 }
-export function notifyVoteNeeded(db: SwarmDb, swarmId: number, criterionId: number, now: number): void {
+export function notifyVoteNeeded(
+  db: SwarmDb,
+  swarmId: number,
+  criterionId: number,
+  now: number,
+  alreadyNotified: ReadonlySet<string> = new Set(),
+): void {
   const assessment = assessCriterion(db, swarmId, criterionId);
   const owners = criterionTasks(db, criterionId).flatMap((task) => (task.owner === null ? [] : [task.owner]));
-  for (const owner of assessment.requiredOwners.filter((name) => assessment.missingSatisfied.includes(name))) {
+  for (const owner of assessment.requiredOwners.filter(
+    (name) => assessment.missingSatisfied.includes(name) && !alreadyNotified.has(name),
+  )) {
     notifyWork(
       db,
       swarmId,
@@ -43,11 +51,20 @@ export function notifyVoteNeeded(db: SwarmDb, swarmId: number, criterionId: numb
     notifyWork(
       db,
       swarmId,
-      chooseWorkRecipient(workRoster(db, swarmId), owners),
+      independentRecipient(db, swarmId, owners, alreadyNotified),
       `Criterion #${criterionId} needs an independent vote. Call swarm_criteria_get then swarm_criteria_vote.`,
       now,
     );
   }
+}
+function independentRecipient(
+  db: SwarmDb,
+  swarmId: number,
+  owners: string[],
+  notified: ReadonlySet<string>,
+): string | null {
+  const recipient = chooseWorkRecipient(workRoster(db, swarmId), owners);
+  return recipient !== null && !notified.has(recipient) ? recipient : null;
 }
 export function notifyBlockerDecision(
   db: SwarmDb,

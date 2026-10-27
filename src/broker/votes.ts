@@ -1,5 +1,5 @@
 import type { CriterionVote, VoteVerdict } from "../api-work-types.js";
-import { getBlocker, saveVote, criterionTasks } from "../store/criteria.js";
+import { getBlocker, saveVote, criterionTasks, addCriterionEvent } from "../store/criteria.js";
 import type { SwarmDb } from "../store/db.js";
 import { BrokerError } from "./errors.js";
 import { linksSignature } from "./criterion-status.js";
@@ -37,6 +37,7 @@ export function voteCriterion(
       createdAt: input.now,
     };
     saveVote(db, vote);
+    addCriterionEvent(db, input.swarmId, criterion.id, actor, "voted", `${vote.verdict}: ${vote.reason}`, input.now);
     return vote;
   });
 }

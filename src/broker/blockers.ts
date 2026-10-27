@@ -1,5 +1,5 @@
 import type { CriterionBlocker } from "../api-work-types.js";
-import { getBlocker, saveBlocker, type BlockerFields } from "../store/criteria.js";
+import { getBlocker, saveBlocker, addCriterionEvent, type BlockerFields } from "../store/criteria.js";
 import type { SwarmDb } from "../store/db.js";
 import { assessCriterion } from "./criterion-status.js";
 import { BrokerError } from "./errors.js";
@@ -30,6 +30,7 @@ export function recordCriterionBlocker(
       decidedAt: null,
     };
     saveBlocker(db, blocker);
+    addCriterionEvent(db, input.swarmId, input.criterionId, actor, "blocker_recorded", blocker.reason, input.now);
     return blocker;
   });
 }
@@ -60,6 +61,7 @@ export function decideCriterionBlocker(
       decidedAt: input.now,
     };
     saveBlocker(db, updated);
+    addCriterionEvent(db, input.swarmId, input.criterionId, actor, "blocker_decided", input.decision, input.now);
     notifyBlockerDecision(db, input.swarmId, input.criterionId, input.decision, input.now);
     return updated;
   });

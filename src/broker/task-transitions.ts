@@ -38,8 +38,9 @@ export function requestTaskReview(db: SwarmDb, input: TaskActionInput & { eviden
       { ...task, status: "review" },
       actor,
       "review_requested",
-      JSON.stringify({ reviewer }),
+      "",
       evidence,
+      reviewer,
     );
     notifyWork(
       db,

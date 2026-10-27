@@ -5,7 +5,6 @@ DROP TRIGGER wall_post_insert;
 DROP TRIGGER wall_comment_insert;
 DROP TABLE acceptance_votes;
 DROP TABLE acceptance;
-ALTER TABLE swarms DROP COLUMN acceptance_criteria;
 DROP TABLE post_claims;
 DROP TABLE post_contracts;
 DROP TABLE post_coverage;
@@ -49,6 +48,7 @@ CREATE TABLE criteria (
   verification TEXT NOT NULL,
   source TEXT NOT NULL DEFAULT '',
   author TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
   revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
   archived_at INTEGER,
   created_at INTEGER NOT NULL,
@@ -56,6 +56,26 @@ CREATE TABLE criteria (
   FOREIGN KEY (swarm_id, author) REFERENCES participants(swarm_id, name)
 );
 CREATE INDEX criteria_by_swarm ON criteria(swarm_id, archived_at, group_name);
+
+CREATE TABLE criterion_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  swarm_id INTEGER NOT NULL REFERENCES swarms(id),
+  criterion_id INTEGER NOT NULL REFERENCES criteria(id),
+  actor TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('created','edited','archived','restored','voted','blocker_recorded','blocker_decided')),
+  body TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (swarm_id, actor) REFERENCES participants(swarm_id, name)
+);
+CREATE INDEX criterion_timeline ON criterion_events(criterion_id, id);
+INSERT INTO criteria(swarm_id, group_name, title, body, verification, author, updated_by, created_at, updated_at)
+SELECT s.id, 'Main', substr(j.value, 1, 60), j.value, 'Verify the requirement against task evidence.',
+  'Main', 'Main', s.created_at, s.created_at
+FROM swarms s, json_each(s.acceptance_criteria) j;
+INSERT INTO criterion_events(swarm_id, criterion_id, actor, kind, body, created_at)
+SELECT swarm_id, id, author, 'created', body, created_at FROM criteria;
+UPDATE swarms SET scope_revision = (SELECT count(*) FROM criteria WHERE swarm_id = swarms.id);
+ALTER TABLE swarms DROP COLUMN acceptance_criteria;
 
 CREATE TABLE criterion_blockers (
   criterion_id INTEGER PRIMARY KEY REFERENCES criteria(id),
@@ -135,6 +155,7 @@ CREATE TABLE task_events (
     'dependency_added','dependency_removed','dependencies_ready','dependency_reopened')),
   body TEXT NOT NULL DEFAULT '',
   evidence TEXT NOT NULL DEFAULT '',
+  reviewer TEXT,
   created_at INTEGER NOT NULL,
   FOREIGN KEY (swarm_id, actor) REFERENCES participants(swarm_id, name)
 );
@@ -143,6 +164,8 @@ CREATE TABLE post_links (
   post_id INTEGER NOT NULL REFERENCES posts(id),
   target_kind TEXT NOT NULL CHECK (target_kind IN ('task','criterion')),
   target_id INTEGER NOT NULL,
+  linked_by TEXT NOT NULL,
+  linked_at INTEGER NOT NULL,
   PRIMARY KEY (post_id, target_kind, target_id)
 );
 CREATE INDEX posts_by_target ON post_links(target_kind, target_id, post_id);

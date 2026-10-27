@@ -15,6 +15,7 @@ import {
   type CriterionFilters,
   type TaskFilters,
 } from "../store/work-search.js";
+import { workRoster } from "../store/work-roster.js";
 import { taskStates } from "../store/work-state.js";
 import { latestTaskEvidence, listTasks, taskDependencies, taskLinks, taskTimeline } from "../store/tasks.js";
 import { assessCriteria, assessCriterion } from "./criterion-status.js";
@@ -41,6 +42,9 @@ export function getTaskDetail(db: SwarmDb, swarmId: number, id: number, after = 
   const timeline = taskTimeline(db, id, after, limit + 1);
   return {
     ...task,
+    handoffTargets: workRoster(db, swarmId)
+      .filter((agent) => agent.active && agent.name !== task.owner)
+      .map((agent) => agent.name),
     ...taskStates(db, swarmId).find((state) => state.id === id),
     criteria: taskLinks(db, id),
     dependencies: taskDependencies(db, id),
@@ -86,17 +90,23 @@ export function criterionVoteContext(
     (criterion) => criterion.id > after && (ownIds.has(criterion.id) || needed.has(criterion.id)),
   );
   const page = candidates.slice(0, limit);
+  const relevantTasks = ownTasks.filter((task) =>
+    taskLinks(db, task.id).some((link) => page.some((criterion) => criterion.id === link.criterionId)),
+  );
   return {
-    tasks: ownTasks,
+    tasks: relevantTasks.slice(0, PAGE_MAX_COUNT).map(({ id, title, status }) => ({ id, title, status })),
+    tasksTruncated: relevantTasks.length > PAGE_MAX_COUNT,
     criteria: page.map((criterion) => ({
       ...criterion,
       ...assessCriterion(db, swarmId, criterion.id),
-      tasks: criterionTasks(db, criterion.id).map((task) => ({
-        id: task.id,
-        title: task.title,
-        status: task.status,
-        owner: task.owner,
-      })),
+      tasks: criterionTasks(db, criterion.id)
+        .slice(0, PAGE_MAX_COUNT)
+        .map((task) => ({
+          id: task.id,
+          title: task.title,
+          status: task.status,
+          owner: task.owner,
+        })),
     })),
     nextAfter: candidates.length > limit ? (page.at(-1)?.id ?? null) : null,
   };

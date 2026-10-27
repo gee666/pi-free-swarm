@@ -27,8 +27,8 @@ export function evaluateCompletion(db: SwarmDb, swarmId: number): CompletionResu
     ),
     gate(
       "linked",
-      criteria.filter((criterion) => criterion.status === "unlinked").length,
-      "Active criteria without linked tasks.",
+      criteria.length === 0 ? 1 : criteria.filter((criterion) => criterion.status === "unlinked").length,
+      "At least one active criterion is required, and each must have linked tasks.",
     ),
     gate(
       "tasks",
@@ -46,16 +46,22 @@ export function evaluateCompletion(db: SwarmDb, swarmId: number): CompletionResu
       .filter((criterion) => criterion.status === "blocked" && criterion.exception === "pending")
       .map((criterion) => criterion.id),
   );
+  const agreedExceptions = new Set(
+    criteria
+      .filter((criterion) => criterion.status === "blocked" && ["approved", "pending"].includes(criterion.exception))
+      .map((criterion) => criterion.id),
+  );
   const unfinished = tasks.filter(
     (task) => task.status !== "accepted" && !states.some((state) => state.id === task.id && state.deferred),
   );
   const awaitingUser =
     !done &&
+    (pendingExceptions.size > 0 || project.scopeApprovedRevision !== project.scopeRevision) &&
     gates.every((item) => item.ok || ["scope", "criteria", "tasks"].includes(item.key)) &&
     unmetCriteria.every((criterion) => pendingExceptions.has(criterion.id)) &&
     unfinished.every((task) => {
       const links = taskLinks(db, task.id);
-      return links.length > 0 && links.every((link) => pendingExceptions.has(link.criterionId));
+      return links.length > 0 && links.every((link) => agreedExceptions.has(link.criterionId));
     });
   return {
     done,

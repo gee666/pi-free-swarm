@@ -133,8 +133,9 @@ test("completed outcome is persisted only by an owning active runner", (t) => {
     prepareWorkRunCompletion(f.db, { swarmId: f.swarmId, run: 1, runnerPid: process.pid, now: T0 }).kind,
     "closed",
   );
-  assert.equal(readProject(f.db, f.swarmId).outcome, "completed");
+  assert.equal(readProject(f.db, f.swarmId).outcome, null);
   assert.equal(endRun(f.db, f.swarmId, process.pid, "finished", T0, 1), true);
+  assert.equal(readProject(f.db, f.swarmId).outcome, "completed");
   assert.equal(f.db.sql.prepare("SELECT status FROM swarms WHERE id = ?").get(f.swarmId)?.status, "finished");
   assert.equal(evaluateCompletion(f.db, f.swarmId).done, true);
   assert.ok(evaluateCompletion(f.db, f.swarmId).gates.every((gate) => gate.ok));
@@ -163,6 +164,8 @@ test("pending/rejected exceptions do not complete, approved exceptions defer tas
     prepareWorkRunCompletion(f.db, { swarmId: f.swarmId, run: 1, runnerPid: process.pid, now: T0 }).kind,
     "closed",
   );
+  assert.equal(readProject(f.db, f.swarmId).outcome, null);
+  assert.equal(endRun(f.db, f.swarmId, process.pid, "finished", T0, 1), true);
   assert.equal(readProject(f.db, f.swarmId).outcome, "stopped_with_blockers");
 });
 

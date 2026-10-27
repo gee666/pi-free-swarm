@@ -12,6 +12,7 @@ import { sendMessage } from "../../src/broker/messages.js";
 import { endRun } from "../../src/broker/swarms.js";
 import { createPost } from "../../src/broker/wall.js";
 import { NOT_RUNNING_TEXT, UNDELIVERABLE_REPLY_TEXT } from "../../src/constants.js";
+import { finishWork } from "../helpers/finish-work.js";
 import { seedSwarm } from "../helpers/temp-db.js";
 import { DEAD_PID, getJson, postJson, startTestBoard, type TestBoard } from "./helpers.js";
 
@@ -189,6 +190,7 @@ describe("messages", () => {
     const { db } = board.temp;
     const ended = seedSwarm(db, { now: Date.now(), name: "done" });
     sendMessage(db, { swarmId: ended.id, from: "Maria", to: "User", text: "Bye", now: Date.now() });
+    finishWork(db, ended.id);
     endRun(db, ended.id, process.pid, "finished", Date.now());
     const orphaned = seedSwarm(db, { now: Date.now(), name: "orphan", runnerPid: DEAD_PID });
     const notRunning: ApiErrorBody = { error: "swarm_not_running", message: NOT_RUNNING_TEXT };

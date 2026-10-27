@@ -114,11 +114,14 @@ export interface TaskDetailResponse extends TaskListItem {
   nextAfter: number | null;
   linkedPosts: PostSummary[];
   validActions: TaskUserAction[];
+  handoffTargets: string[];
 }
 export interface PostLinkView {
   postId: number;
   targetKind: "task" | "criterion";
   targetId: number;
+  linkedBy: string;
+  linkedAt: number;
   title: string;
   status: TaskStatus | "waiting" | CriterionStatus;
 }

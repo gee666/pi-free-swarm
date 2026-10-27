@@ -59,7 +59,7 @@ const recovery =
 
 export function buildResumePrompt(input: { messages: string }): string {
   return withMessages(
-    `${RESUME_PROMPT_HEADER} Shared files and the work graph are preserved. Old votes remain and may be stale. ${recovery}`,
+    `${RESUME_PROMPT_HEADER} Shared files and the work graph are preserved. Old votes remain and may be stale. Turn new criteria in group Feedback into linked tasks, complete and review them, collect current votes, and ask User to re-approve scope. ${recovery}`,
     input.messages,
   );
 }

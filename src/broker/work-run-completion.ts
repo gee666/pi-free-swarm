@@ -5,6 +5,14 @@ import { evaluateCompletion } from "./completion.js";
 import { readRunOwnership } from "./run-ownership.js";
 import { closeRunAdmission } from "./run-admission.js";
 
+export function commitWorkRunCompletion(db: SwarmDb, swarmId: number, now: number): boolean {
+  const completion = evaluateCompletion(db, swarmId);
+  saveWorkOutcome(db, swarmId, completion.outcome);
+  if (!completion.done) db.sql.prepare("UPDATE swarms SET admission_closed_run = NULL WHERE id = ?").run(swarmId);
+  insertEvent(db, swarmId, "project.changed", { id: swarmId }, now);
+  return completion.done;
+}
+
 export function prepareWorkRunCompletion(
   db: SwarmDb,
   input: { swarmId: number; run: number; runnerPid: number; now: number },
@@ -13,8 +21,6 @@ export function prepareWorkRunCompletion(
     if (readRunOwnership(db, input.swarmId, input.run, input.runnerPid) === "lost") return { kind: "lost" };
     const completion = evaluateCompletion(db, input.swarmId);
     if (!completion.done) return { kind: "pending" };
-    saveWorkOutcome(db, input.swarmId, completion.outcome);
-    insertEvent(db, input.swarmId, "project.changed", { id: input.swarmId }, input.now);
     closeRunAdmission(db, input.swarmId, input.run, input.runnerPid);
     return { kind: "closed" };
   });

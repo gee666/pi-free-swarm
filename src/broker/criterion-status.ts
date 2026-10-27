@@ -3,7 +3,7 @@ import { USER_NAME } from "../constants.js";
 import { criterionTasks, criterionVotes, getBlocker, getCriterion, listCriteria } from "../store/criteria.js";
 import type { SwarmDb } from "../store/db.js";
 import { criterionStates, type CriterionState } from "../store/work-state.js";
-import { hasActiveWorkRun, workRoster } from "../store/work-roster.js";
+import { workRoster } from "../store/work-roster.js";
 import { BrokerError } from "./errors.js";
 
 export interface CriterionAssessment extends CriterionState {
@@ -51,11 +51,10 @@ export function assessCriteria(db: SwarmDb, swarmId: number, includeArchived = f
   });
 }
 function activeNames(db: SwarmDb, swarmId: number): Set<string> {
-  const running = hasActiveWorkRun(db, swarmId);
   return new Set([
     USER_NAME,
     ...workRoster(db, swarmId)
-      .filter((agent) => !running || agent.active)
+      .filter((agent) => agent.active)
       .map((agent) => agent.name),
   ]);
 }

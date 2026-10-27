@@ -38,21 +38,33 @@ export function insertCriterion(
   author: string,
   now: number,
 ): number {
-  return count(
+  const id = count(
     db.sql
       .prepare(
-        `INSERT INTO criteria(swarm_id, group_name, title, body, verification, source, author, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO criteria(swarm_id, group_name, title, body, verification, source, author, updated_by, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(swarmId, fields.group, fields.title, fields.body, fields.verification, fields.source, author, now, now)
-      .lastInsertRowid,
+      .run(
+        swarmId,
+        fields.group,
+        fields.title,
+        fields.body,
+        fields.verification,
+        fields.source,
+        author,
+        author,
+        now,
+        now,
+      ).lastInsertRowid,
   );
+  addCriterionEvent(db, swarmId, id, author, "created", fields.body, now);
+  return id;
 }
 export function saveCriterion(db: SwarmDb, criterion: CriterionRecord): void {
   db.sql
     .prepare(
       `UPDATE criteria SET group_name = ?, title = ?, body = ?, verification = ?, source = ?, revision = ?,
-    archived_at = ?, updated_at = ? WHERE id = ? AND swarm_id = ?`,
+    archived_at = ?, updated_at = ?, updated_by = ? WHERE id = ? AND swarm_id = ?`,
     )
     .run(
       criterion.group,
@@ -63,9 +75,29 @@ export function saveCriterion(db: SwarmDb, criterion: CriterionRecord): void {
       criterion.revision,
       criterion.archivedAt,
       criterion.updatedAt,
+      criterion.updatedBy,
       criterion.id,
       criterion.swarmId,
     );
+}
+export function addCriterionEvent(
+  db: SwarmDb,
+  swarmId: number,
+  criterionId: number,
+  actor: string,
+  kind: "created" | "edited" | "archived" | "restored" | "voted" | "blocker_recorded" | "blocker_decided",
+  body: string,
+  now: number,
+): void {
+  db.sql
+    .prepare(
+      `INSERT INTO criterion_events(swarm_id, criterion_id, actor, kind, body, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+    .run(swarmId, criterionId, actor, kind, body, now);
+  db.sql
+    .prepare("UPDATE criteria SET updated_by = ?, updated_at = ? WHERE id = ? AND swarm_id = ?")
+    .run(actor, now, criterionId, swarmId);
 }
 export function saveVote(db: SwarmDb, vote: CriterionVote): void {
   db.sql

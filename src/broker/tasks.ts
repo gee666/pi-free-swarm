@@ -9,11 +9,13 @@ import {
   replaceTaskLinks,
   taskDependencies,
   taskLinks,
+  taskWaiting,
 } from "../store/tasks.js";
 import { BrokerError } from "./errors.js";
 import { storedWorkText } from "./work-text.js";
 import { checkRevision, requireCriterion, requireTask, workText, type WorkInput } from "./work-validation.js";
 import { writeWork } from "./work-write.js";
+import { notifyWork } from "./work-notifications.js";
 import { commitTask } from "./task-write.js";
 import { claimTaskInTransaction } from "./task-ownership.js";
 
@@ -32,7 +34,10 @@ function checkedLinks(db: SwarmDb, input: WorkInput, actor: string, links: reado
     if (ids.has(link.criterionId))
       throw new BrokerError("validation", `Duplicate criterion #${link.criterionId}.`, "criteria");
     ids.add(link.criterionId);
-    return { criterionId: link.criterionId, contribution: workText(link.contribution, "contribution", actor) };
+    return {
+      criterionId: link.criterionId,
+      contribution: storedWorkText(db, input.swarmId, link.contribution, "contribution", actor),
+    };
   });
 }
 function checkedDependencies(db: SwarmDb, input: WorkInput, taskId: number, ids: readonly number[]): number[] {
@@ -70,6 +75,7 @@ export function editTask(
     const task = requireTask(db, input.swarmId, input.id);
     checkRevision(task.revision, input.expectedRevision, true);
     const beforeLinks = taskLinks(db, task.id);
+    const wasWaiting = taskWaiting(db, task.id);
     const beforeDeps = taskDependencies(db, task.id).map((dep) => dep.id);
     if (input.fields.criteria !== undefined) {
       const links = checkedLinks(db, input, actor, input.fields.criteria);
@@ -86,6 +92,23 @@ export function editTask(
         addTaskEvent(db, task, actor, "dependency_added", input.now, `Task #${id}.`);
       for (const id of beforeDeps.filter((id) => !deps.includes(id)))
         addTaskEvent(db, task, actor, "dependency_removed", input.now, `Task #${id}.`);
+    }
+    if (wasWaiting && task.status === "claimed" && !taskWaiting(db, task.id)) {
+      addTaskEvent(
+        db,
+        task,
+        actor,
+        "dependencies_ready",
+        input.now,
+        "Dependencies updated; all remaining dependencies accepted.",
+      );
+      notifyWork(
+        db,
+        input.swarmId,
+        task.owner,
+        `Dependencies ready for task #${task.id}. Call swarm_tasks_transition with action start.`,
+        input.now,
+      );
     }
     return commitTask(
       db,

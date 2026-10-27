@@ -16,14 +16,20 @@ export function updatePostLinks(
     remove?: boolean;
   },
 ): { id: number; links: PostLink[] } {
-  return writeWork(db, input, () => {
+  return writeWork(db, input, (actor) => {
     if (!postExists(db, input.swarmId, input.postId))
       throw new BrokerError("not_found", `Post #${input.postId} not found.`);
     let changed = false;
     const notified = new Set<string>();
     for (const id of new Set(input.taskIds ?? [])) {
       const task = requireTask(db, input.swarmId, id);
-      if (!changePostLink(db, { postId: input.postId, targetKind: "task", targetId: id }, input.remove ?? false))
+      if (
+        !changePostLink(
+          db,
+          { postId: input.postId, targetKind: "task", targetId: id, linkedBy: actor, linkedAt: input.now },
+          input.remove ?? false,
+        )
+      )
         continue;
       changed = true;
       if (!input.remove && task.owner !== null && !notified.has(task.owner)) {
@@ -40,8 +46,11 @@ export function updatePostLinks(
     for (const id of new Set(input.criterionIds ?? [])) {
       requireCriterion(db, input.swarmId, id, true);
       changed =
-        changePostLink(db, { postId: input.postId, targetKind: "criterion", targetId: id }, input.remove ?? false) ||
-        changed;
+        changePostLink(
+          db,
+          { postId: input.postId, targetKind: "criterion", targetId: id, linkedBy: actor, linkedAt: input.now },
+          input.remove ?? false,
+        ) || changed;
     }
     if (changed) insertEvent(db, input.swarmId, "post.links.changed", { id: input.postId }, input.now);
     return { id: input.postId, links: listPostLinks(db, input.postId) };

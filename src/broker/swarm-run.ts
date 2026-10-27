@@ -8,18 +8,18 @@ import { LiveWorkers } from "./live-workers.js";
 import { RunControls } from "./run-controls.js";
 import { RunCompletion } from "./run-completion.js";
 import { onWorkChanged } from "./work-write.js";
-import { readProject } from "./project.js";
+import { runOutcome } from "./run-outcome.js";
 import { RunRecovery } from "./run-recovery.js";
 import { readRunOwnership } from "./run-ownership.js";
 import { configureRun } from "./run-configuration.js";
 import { heartbeatRunLock } from "../store/locks.js";
-import { getSwarm, listAgentSessions } from "../store/swarm-queries.js";
+import { listAgentSessions } from "../store/swarm-queries.js";
 import { getPendingReplacementHandoff } from "../store/replacement-handoff.js";
 import { readReplacementHandoff } from "./replacement-handoff.js";
 import { DeliveryLoop } from "./delivery.js";
 import { RunResources } from "./run-resources.js";
 import { RunLifecycle } from "./run-lifecycle.js";
-import { readBudget, assertBudgetPricing } from "./budget.js";
+import { assertBudgetPricing } from "./budget.js";
 import { RunBudget } from "./run-budget.js";
 import { IdleReminders } from "./idle-reminder.js";
 import { closeRunAdmission } from "./run-admission.js";
@@ -86,6 +86,7 @@ export class SwarmRun {
     return this.#lifecycle.ending;
   }
   #ending: Promise<void> | null = null;
+  #requestedEnd: RunEndStatus | undefined;
   readonly #onAbort = () => void this.stop();
 
   constructor(env: RunEnvironment, swarm: SwarmListItem, run: number, options: RunOptions) {
@@ -306,20 +307,23 @@ export class SwarmRun {
   }
 
   #end(end: RunEndStatus, lockLost = false): Promise<void> {
+    if (end !== "finished") this.#requestedEnd = end;
     if (this.#ending) return this.#ending;
     this.#lifecycle.end();
-    this.#ending = this.#shutDown(end, lockLost).then(
-      (outcome) => (this.#failure ? this.#settle.reject(this.#failure.error) : this.#settle.resolve(outcome)),
-      (error: unknown) => {
-        if (!this.#failure) reportRunFailure(this.#env, this.#swarm.id);
-        bestEffortEnd(this.#env, this.#swarm.id, this.#run);
-        this.#settle.reject(this.#failure?.error ?? error);
-      },
-    );
+    this.#ending = this.#shutDown(end, lockLost)
+      .then((outcome) => outcome ?? new SwarmRun(this.#env, this.#swarm, this.#run, this.#options).execute(0))
+      .then(
+        (outcome) => (this.#failure ? this.#settle.reject(this.#failure.error) : this.#settle.resolve(outcome)),
+        (error: unknown) => {
+          if (!this.#failure) reportRunFailure(this.#env, this.#swarm.id);
+          bestEffortEnd(this.#env, this.#swarm.id, this.#run);
+          this.#settle.reject(this.#failure?.error ?? error);
+        },
+      );
     return this.#ending;
   }
 
-  async #shutDown(end: RunEndStatus, lockLost: boolean): Promise<RunOutcome> {
+  async #shutDown(end: RunEndStatus, lockLost: boolean): Promise<RunOutcome | null> {
     this.#admission.close();
     this.#recovery.close();
     try {
@@ -329,17 +333,12 @@ export class SwarmRun {
       } finally {
         await this.#resources.close();
       }
+      end = this.#requestedEnd ?? end;
       const ended = !lockLost && endRun(db, this.#swarm.id, runnerPid, end, clock.now(), this.#run);
+      if (!ended && end === "finished" && readRunOwnership(db, this.#swarm.id, this.#run, runnerPid) === "owned")
+        return null;
       this.#reportProgress();
-      const swarm = getSwarm(db, this.#swarm.id, clock.now()) ?? this.#swarm;
-      return {
-        swarm,
-        run: this.#run,
-        end: ended ? end : "interrupted",
-        outcome: ended && end === "finished" ? readProject(db, this.#swarm.id).outcome : null,
-        ...(this.#budgetStop ? { stopReason: "budget-exhausted" as const } : {}),
-        budget: readBudget(db, this.#swarm.id, this.#env.settings, clock.now()),
-      };
+      return runOutcome(this.#env, this.#swarm, this.#run, end, ended, this.#budgetStop);
     } finally {
       unregisterRun(this);
       this.#releaseOwnership?.();

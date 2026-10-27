@@ -200,9 +200,7 @@ describe("dashboard", () => {
       data.recentActivity.some((row) => row.targetKind === "task" && row.title === task.title && row.actor === "User"),
     );
     assert.ok(
-      data.recentActivity.some(
-        (row) => row.kind === "vote_blocked" && row.targetId === criterion.id && row.actor === "Maria",
-      ),
+      data.recentActivity.some((row) => row.kind === "voted" && row.targetId === criterion.id && row.actor === "Maria"),
     );
   });
 

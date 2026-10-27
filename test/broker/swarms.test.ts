@@ -13,6 +13,7 @@ import { getMessages, getThread } from "../../src/store/message-queries.js";
 import { getStats } from "../../src/store/stats-queries.js";
 import { getSwarm, listAgentSessions, listParticipants, listSwarms } from "../../src/store/swarm-queries.js";
 import { listCriteria } from "../../src/store/criteria.js";
+import { finishWork } from "../helpers/finish-work.js";
 import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
 
 const temp = createTempDb();
@@ -220,6 +221,7 @@ describe("runs", () => {
     setAgentStatus(db, swarm.id, "Maria", "idle", T0);
     setAgentStatus(db, swarm.id, "John", "crashed", T0);
     setAgentStatus(db, swarm.id, "Liam", "idle", T0);
+    finishWork(db, swarm.id);
     endRun(db, swarm.id, process.pid, "finished", T0 + 1);
     assert.deepEqual(agents(swarm.id), { Maria: "stopped", John: "crashed", Liam: "stopped", Watcher: "stopped" });
   });
@@ -235,6 +237,7 @@ describe("runs", () => {
     });
     assert.throws(() => beginResume(db, 9999, process.pid, T0), { message: "Swarm #9999 not found." });
     setAgentStatus(db, swarm.id, "Maria", "idle", T0);
+    finishWork(db, swarm.id);
     endRun(db, swarm.id, process.pid, "finished", T0 + 10);
     const resumed = beginResume(db, swarm.id, OTHER_PID, T0 + 20);
     assert.equal(resumed.run, 2);
@@ -272,6 +275,7 @@ describe("runs", () => {
     assert.deepEqual(agents(swarm.id), { Maria: "pending", John: "pending", Liam: "pending", Watcher: "pending" });
     markSwarmRunning(db, swarm.id, process.pid, now + 2, resumed.run);
     assert.equal(getSwarm(db, swarm.id, now + 2)?.status, "running");
+    finishWork(db, swarm.id);
     assert.equal(endRun(db, swarm.id, process.pid, "finished", now + 3, resumed.run), true);
     assert.equal(getSwarm(db, swarm.id, now + 3)?.status, "finished");
   });

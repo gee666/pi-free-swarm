@@ -27,6 +27,7 @@ export interface CriterionRecord {
   verification: string;
   source: string;
   author: string;
+  updatedBy: string;
   revision: number;
   archivedAt: number | null;
   createdAt: number;
@@ -84,6 +85,7 @@ export interface TaskEvent {
   kind: TaskEventKind;
   body: string;
   evidence: string;
+  reviewer: string | null;
   createdAt: number;
 }
 export interface ProjectRecord {

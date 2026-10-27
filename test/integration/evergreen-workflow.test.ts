@@ -100,12 +100,19 @@ it(
       assert.ok(text.includes(`${base}/s/1`));
       assert.equal(evaluateCompletion(db, 1).awaitingUser, true);
       const before = fake.log().filter((entry) => entry.fake === "spawn").length;
-      const attached = await tools.resume(
+      const attachedRun = tools.resume(
         { swarm_id: 1, message: "Wait for the User scope decision." },
         undefined,
         undefined,
         ctx,
       );
+      await waitFor(
+        () =>
+          db.sql.prepare("SELECT 1 FROM criteria WHERE swarm_id = 1 AND group_name = 'Feedback'").get() !== undefined,
+        "feedback criterion created",
+      );
+      finishWork(db, 1, false);
+      const attached = await attachedRun;
       assert.match(
         attached.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n"),
         /awaits User/,

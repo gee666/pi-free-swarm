@@ -14,7 +14,8 @@ import { BrokerError } from "./errors.js";
 import { requireAcceptanceCriteria } from "./validate.js";
 import { cleanupRun, type RunEndStatus } from "./run-cleanup.js";
 import { interruptedActiveUntil } from "./interrupted-time.js";
-import { seedWorkGraph } from "./project.js";
+import { ensureWorkGraphInitialized } from "./project.js";
+import { commitWorkRunCompletion } from "./work-run-completion.js";
 
 export type { RunEndStatus } from "./run-cleanup.js";
 
@@ -80,7 +81,7 @@ export function createSwarm(
       agent.run(swarmId, agentName, sessionFile, order);
     });
     ensureWatcher(db, swarmId);
-    seedWorkGraph(db, swarmId, input.taskPrompt, acceptanceCriteria, now);
+    ensureWorkGraphInitialized(db, swarmId, now, acceptanceCriteria);
     emitSwarmUpdated(db, swarmId, now);
     return swarmOrThrow(db, swarmId, now);
   });
@@ -119,6 +120,7 @@ export function beginResume(
     }
     rejectRunConfigurationRequests(db, swarmId, int(row, "run_count"), now);
     ensureWatcher(db, swarmId);
+    ensureWorkGraphInitialized(db, swarmId, now);
     const run = int(row, "run_count") + 1;
     db.sql
       .prepare(
@@ -178,6 +180,7 @@ export function endRun(
     if (row === undefined) throw new BrokerError("not_found", `Swarm #${swarmId} not found.`);
     if (intOrNull(row, "runner_pid") !== runnerPid) return false;
     if (expectedRun !== undefined && int(row, "run_count") !== expectedRun) return false;
+    if (end === "finished" && !commitWorkRunCompletion(db, swarmId, now)) return false;
     cleanupRun(db, swarmId, end, now);
     return true;
   });

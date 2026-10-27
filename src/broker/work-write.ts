@@ -24,9 +24,11 @@ export function writeWork<T>(db: SwarmDb, input: WorkInput, mutate: (actor: stri
       const old = before.get(id);
       if (JSON.stringify(old) === JSON.stringify(state)) continue;
       insertEvent(db, input.swarmId, "criterion.changed", { id }, input.now);
+      const notified = new Set<string>();
       for (const vote of state.votes.filter(
         (vote) => vote.stale && old?.votes.some((previous) => previous.voter === vote.voter && !previous.stale),
       )) {
+        notified.add(vote.voter);
         notifyWork(
           db,
           input.swarmId,
@@ -40,7 +42,7 @@ export function writeWork<T>(db: SwarmDb, input: WorkInput, mutate: (actor: stri
         state.unacceptedCount === 0 &&
         (old === undefined || old.taskCount === 0 || old.unacceptedCount > 0)
       ) {
-        notifyVoteNeeded(db, input.swarmId, id, input.now);
+        notifyVoteNeeded(db, input.swarmId, id, input.now, notified);
       }
     }
     db.afterCommit(() => {

@@ -1,9 +1,7 @@
-import type { DashboardResponse, RunHeaderState, SwarmListItem, WorkActivityRow } from "../api-types.js";
+import type { DashboardResponse, RunHeaderState, SwarmListItem } from "../api-types.js";
 import { workDashboard } from "../broker/work-queries.js";
-import { WORK_ACTIVITY_LIMIT } from "../constants.js";
-import { listCriteria, criterionVotes, getBlocker } from "../store/criteria.js";
 import type { SwarmDb } from "../store/db.js";
-import { getTask, listTasks } from "../store/tasks.js";
+import { listTasks } from "../store/tasks.js";
 import { taskStates } from "../store/work-state.js";
 import { userUnreadSummary } from "../store/user-unread.js";
 import { criteriaCoverage, criterionListItems } from "./work-projection.js";
@@ -13,58 +11,6 @@ function runState(swarm: SwarmListItem, work: ReturnType<typeof workDashboard>):
   if (swarm.status === "stopped") return "stopped";
   if (swarm.status === "finished") return work.project.outcome ?? "stopped";
   return work.completion.awaitingUser ? "awaiting_user" : "running";
-}
-function activity(db: SwarmDb, swarmId: number, work: ReturnType<typeof workDashboard>): WorkActivityRow[] {
-  const rows: WorkActivityRow[] = work.recentActivity.map((event) => ({
-    id: `task-event:${event.id}`,
-    actor: event.actor,
-    kind: event.kind,
-    targetKind: "task",
-    targetId: event.taskId,
-    title: getTask(db, swarmId, event.taskId)?.title ?? `Task #${event.taskId}`,
-    createdAt: event.createdAt,
-  }));
-  for (const criterion of listCriteria(db, swarmId, true)) {
-    const target: Pick<WorkActivityRow, "targetKind" | "targetId" | "title"> = {
-      targetKind: "criterion",
-      targetId: criterion.id,
-      title: criterion.title,
-    };
-    rows.push({
-      ...target,
-      id: `criterion:${criterion.id}`,
-      actor: criterion.author,
-      kind: "criterion_created",
-      createdAt: criterion.createdAt,
-    });
-    for (const vote of criterionVotes(db, criterion.id))
-      rows.push({
-        ...target,
-        id: `criterion-vote:${criterion.id}:${vote.voter}`,
-        actor: vote.voter,
-        kind: `vote_${vote.verdict}`,
-        createdAt: vote.createdAt,
-      });
-    const blocker = getBlocker(db, criterion.id);
-    if (blocker) {
-      rows.push({
-        ...target,
-        id: `criterion-blocker:${criterion.id}`,
-        actor: blocker.author,
-        kind: "blocker_updated",
-        createdAt: blocker.updatedAt,
-      });
-      if (blocker.decidedAt !== null)
-        rows.push({
-          ...target,
-          id: `blocker-decision:${criterion.id}`,
-          actor: "User",
-          kind: blocker.approvedRevision === blocker.revision ? "blocker_approved" : "blocker_rejected",
-          createdAt: blocker.decidedAt,
-        });
-    }
-  }
-  return rows.sort((a, b) => b.createdAt - a.createdAt || a.id.localeCompare(b.id)).slice(0, WORK_ACTIVITY_LIMIT);
 }
 export function dashboard(db: SwarmDb, swarm: SwarmListItem, now: number): DashboardResponse {
   const work = workDashboard(db, swarm.id, now);
@@ -95,7 +41,7 @@ export function dashboard(db: SwarmDb, swarm: SwarmListItem, now: number): Dashb
       startedAt: swarm.startedAt,
     },
     criteriaCoverage: criteriaCoverage(criteria),
-    recentActivity: activity(db, swarm.id, work),
+    recentActivity: work.recentActivity,
     attention: {
       scopeApprovalNeeded: work.project.scopeApprovedRevision !== work.project.scopeRevision,
       blockerDecisions: criteria.filter((criterion) => criterion.exceptionPending),

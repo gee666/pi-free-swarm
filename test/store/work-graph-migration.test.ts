@@ -1,4 +1,9 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { beginResume, endRun } from "../../src/broker/swarms.js";
+import { approveScope, ensureWorkGraphInitialized, readProject } from "../../src/broker/project.js";
+import { evaluateCompletion } from "../../src/broker/completion.js";
 import { test } from "node:test";
 import { openSwarmDb, SCHEMA_VERSION } from "../../src/store/db.js";
 import { createPost, addComment } from "../../src/broker/wall.js";
@@ -27,6 +32,9 @@ test("work graph migrates populated v17, preserving communication and dropping r
       .prepare("INSERT INTO acceptance_votes VALUES (?, 'Maria', 1, 'accepted', 'Historical vote', ?)")
       .run(swarm.id, T0);
     db.sql.prepare("UPDATE acceptance SET closed_run = 1 WHERE swarm_id = ?").run(swarm.id);
+    db.sql
+      .prepare("UPDATE swarms SET acceptance_criteria = ? WHERE id = ?")
+      .run(JSON.stringify(["Must preserve this requirement", "Keep Unicode 😀"]), swarm.id);
     db.sql.exec("PRAGMA user_version = 17");
     const upgraded = openSwarmDb(db.path, { create: false });
     try {
@@ -49,9 +57,29 @@ test("work graph migrates populated v17, preserving communication and dropping r
       ])
         assert.equal(upgraded.sql.prepare("SELECT name FROM sqlite_master WHERE name = ?").get(table), undefined);
       assert.deepEqual(listTasks(upgraded, swarm.id), []);
-      assert.deepEqual(listCriteria(upgraded, swarm.id), []);
-      assert.equal(upgraded.sql.prepare("SELECT scope_revision FROM swarms").get()?.scope_revision, 0);
+      assert.deepEqual(
+        listCriteria(upgraded, swarm.id).map((criterion) => [criterion.group, criterion.author, criterion.body]),
+        [
+          ["Main", "Main", "Must preserve this requirement"],
+          ["Main", "Main", "Keep Unicode 😀"],
+        ],
+      );
+      assert.equal(upgraded.sql.prepare("SELECT scope_revision FROM swarms").get()?.scope_revision, 2);
       assert.equal(upgraded.sql.prepare("SELECT admission_closed_run FROM swarms").get()?.admission_closed_run, 1);
+      approveScope(upgraded, { swarmId: swarm.id, actor: "User", now: T0 + 1 });
+      assert.equal(evaluateCompletion(upgraded, swarm.id).done, false);
+      endRun(upgraded, swarm.id, process.pid, "stopped", T0 + 2);
+      beginResume(upgraded, swarm.id, process.pid, T0 + 3);
+      const project = readProject(upgraded, swarm.id);
+      assert.ok(project.briefPath);
+      assert.equal(readFileSync(path.join(temp.cwd, project.briefPath), "utf8"), swarm.taskPrompt);
+      assert.equal(listCriteria(upgraded, swarm.id).length, 3);
+      assert.equal(listTasks(upgraded, swarm.id).length, 2);
+      const events = upgraded.sql.prepare("SELECT count(*) AS n FROM events").get();
+      ensureWorkGraphInitialized(upgraded, swarm.id, T0 + 4);
+      assert.equal(listCriteria(upgraded, swarm.id).length, 3);
+      assert.equal(listTasks(upgraded, swarm.id).length, 2);
+      assert.deepEqual(upgraded.sql.prepare("SELECT count(*) AS n FROM events").get(), events);
     } finally {
       upgraded.close();
     }

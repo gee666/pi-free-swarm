@@ -42,6 +42,7 @@ export function criterionOf(row: Row): CriterionRecord {
     verification: text(row, "verification"),
     source: text(row, "source"),
     author: text(row, "author"),
+    updatedBy: text(row, "updated_by"),
     revision: int(row, "revision"),
     archivedAt: intOrNull(row, "archived_at"),
     createdAt: int(row, "created_at"),
@@ -101,6 +102,7 @@ export function taskEventOf(row: Row): TaskEvent {
     ]),
     body: text(row, "body"),
     evidence: text(row, "evidence"),
+    reviewer: textOrNull(row, "reviewer"),
     createdAt: int(row, "created_at"),
   };
 }

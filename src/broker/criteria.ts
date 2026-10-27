@@ -1,6 +1,6 @@
 import type { CriterionRecord } from "../api-work-types.js";
 import type { SwarmDb } from "../store/db.js";
-import { insertCriterion, saveCriterion, type CriterionFields } from "../store/criteria.js";
+import { insertCriterion, saveCriterion, addCriterionEvent, type CriterionFields } from "../store/criteria.js";
 import { insertEvent } from "../store/events.js";
 import { bumpScope } from "../store/project.js";
 import { BrokerError } from "./errors.js";
@@ -56,8 +56,15 @@ export function editCriterion(
     const criterion = requireCriterion(db, input.swarmId, input.id);
     checkRevision(criterion.revision, input.expectedRevision, true);
     const fields = fieldsFor(db, input, actor, { ...criterion, ...input.fields }, input.fields);
-    const updated = { ...criterion, ...fields, revision: criterion.revision + 1, updatedAt: input.now };
+    const updated = {
+      ...criterion,
+      ...fields,
+      revision: criterion.revision + 1,
+      updatedAt: input.now,
+      updatedBy: actor,
+    };
     saveCriterion(db, updated);
+    addCriterionEvent(db, input.swarmId, criterion.id, actor, "edited", updated.body, input.now);
     scopeChanged(db, input);
     return updated;
   });
@@ -84,8 +91,10 @@ function setArchived(
       revision: criterion.revision + 1,
       archivedAt: archive ? input.now : null,
       updatedAt: input.now,
+      updatedBy: actor,
     };
     saveCriterion(db, updated);
+    addCriterionEvent(db, input.swarmId, criterion.id, actor, archive ? "archived" : "restored", "", input.now);
     scopeChanged(db, input);
     return updated;
   });

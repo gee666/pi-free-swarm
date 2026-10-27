@@ -1,3 +1,4 @@
+import { recordResumeFeedback } from "./project.js";
 import { findActiveRun } from "./run-registry.js";
 import { RESUME_STAGGER_MS } from "../constants.js";
 import { pickAgentNames } from "../names.js";
@@ -52,11 +53,15 @@ export async function resumeSwarm(
   const { db, runnerPid, clock } = env;
   const active = findActiveRun(db.path, input.swarmId);
   if (active) {
-    sendMainFeedback(db, input.swarmId, input.message, clock.now());
+    db.write(() => {
+      recordResumeFeedback(db, input.swarmId, input.message, clock.now());
+      sendMainFeedback(db, input.swarmId, input.message, clock.now());
+    });
     return active.wait(options);
   }
   const { swarm, run } = db.write(() => {
     const resumed = beginResume(db, input.swarmId, runnerPid, clock.now());
+    recordResumeFeedback(db, input.swarmId, input.message, clock.now());
     sendMainFeedback(db, input.swarmId, input.message, clock.now());
     return resumed;
   });

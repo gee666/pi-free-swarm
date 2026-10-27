@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import { reopenTask } from "../../src/broker/task-transitions.js";
+import { evaluateCompletion } from "../../src/broker/completion.js";
+import { listCriteria } from "../../src/store/criteria.js";
+import { approveScope } from "../../src/broker/project.js";
 import { getMessages } from "../../src/store/message-queries.js";
-import { listTasks } from "../../src/store/tasks.js";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { afterEach, describe, it } from "node:test";
@@ -58,12 +59,24 @@ describe("resume_swarm", () => {
       assert.equal(first.end, "finished");
       const sessions = spawnsOf(run.fake).map((spawn) => spawn.session);
 
-      const task = listTasks(db, swarmId)[0];
-      assert.ok(task);
-      reopenTask(db, { swarmId, actor: "User", now: Date.now(), id: task.id, reason: "Feedback requires rework." });
       const secondRun = resumeSwarm(run.env, { swarmId, message: FEEDBACK }, {});
+      const feedbackCriterion = listCriteria(db, swarmId).find((criterion) => criterion.group === "Feedback");
+      assert.ok(feedbackCriterion);
+      assert.equal(feedbackCriterion.author, "Main");
+      assert.equal(Array.from(feedbackCriterion.title).length, 60);
+      assert.match(feedbackCriterion.body, /full text:/);
+      assert.equal(evaluateCompletion(db, swarmId).done, false);
+      assert.deepEqual(
+        evaluateCompletion(db, swarmId)
+          .gates.filter((gate) => !gate.ok)
+          .map((gate) => gate.key),
+        ["scope", "linked", "criteria"],
+      );
       await waitForWorkersIdle(run, swarmId);
-      finishWork(db, swarmId);
+      assert.equal(getSwarm(db, swarmId, Date.now())?.status, "running");
+      finishWork(db, swarmId, false);
+      assert.equal(evaluateCompletion(db, swarmId).done, false, "finishing tasks and votes still needs scope approval");
+      approveScope(db, { swarmId, actor: "User", now: Date.now() });
       const second = await secondRun;
       assert.equal(second.end, "finished");
       assert.equal(second.run, 2);

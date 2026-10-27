@@ -1,6 +1,7 @@
 import type { SwarmDb } from "./db.js";
-import { int, intOrNull } from "./rows.js";
-import { taskOf, taskEventOf } from "./work-rows.js";
+import type { WorkActivityRow } from "../api-types.js";
+import { int, intOrNull, text } from "./rows.js";
+import { taskOf, enumText } from "./work-rows.js";
 import {
   WORK_VELOCITY_SHORT_MS,
   WORK_VELOCITY_LONG_MS,
@@ -12,7 +13,7 @@ export function assignedReviews(db: SwarmDb, swarmId: number, actor: string) {
   return db.sql
     .prepare(
       `SELECT t.* FROM tasks t WHERE t.swarm_id = ? AND t.status = 'review'
-    AND (SELECT json_extract(e.body, '$.reviewer') FROM task_events e
+    AND (SELECT e.reviewer FROM task_events e
       WHERE e.task_id = t.id AND e.kind = 'review_requested' ORDER BY e.id DESC LIMIT 1) = ? ORDER BY t.id`,
     )
     .all(swarmId, actor)
@@ -39,9 +40,26 @@ export function workVelocity(db: SwarmDb, swarmId: number, now: number, remainin
         : null,
   };
 }
-export function recentWorkActivity(db: SwarmDb, swarmId: number, limit: number) {
+export function recentWorkActivity(db: SwarmDb, swarmId: number, limit: number): WorkActivityRow[] {
   return db.sql
-    .prepare("SELECT * FROM task_events WHERE swarm_id = ? ORDER BY id DESC LIMIT ?")
-    .all(swarmId, limit)
-    .map(taskEventOf);
+    .prepare(
+      `SELECT * FROM (
+    SELECT 'task-event:' || e.id AS id, e.actor, e.kind, 'task' AS target_kind,
+      e.task_id AS target_id, t.title, e.created_at
+    FROM task_events e JOIN tasks t ON t.id = e.task_id WHERE e.swarm_id = ?
+    UNION ALL
+    SELECT 'criterion-event:' || e.id, e.actor, e.kind, 'criterion', e.criterion_id, c.title, e.created_at
+    FROM criterion_events e JOIN criteria c ON c.id = e.criterion_id WHERE e.swarm_id = ?
+  ) ORDER BY created_at DESC, id DESC LIMIT ?`,
+    )
+    .all(swarmId, swarmId, limit)
+    .map((row) => ({
+      id: text(row, "id"),
+      actor: text(row, "actor"),
+      kind: text(row, "kind"),
+      targetKind: enumText(row, "target_kind", ["task", "criterion"]),
+      targetId: int(row, "target_id"),
+      title: text(row, "title"),
+      createdAt: int(row, "created_at"),
+    }));
 }

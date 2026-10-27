@@ -15,7 +15,12 @@ export interface AgentToolIdentity {
   clock?: Clock;
 }
 export function workInput(identity: AgentToolIdentity) {
-  return { swarmId: identity.swarmId, actor: identity.agentName, now: (identity.clock ?? systemClock).now() };
+  return {
+    swarmId: identity.swarmId,
+    run: identity.run,
+    actor: identity.agentName,
+    now: (identity.clock ?? systemClock).now(),
+  };
 }
 export function registerTextTool<S extends TSchema>(
   pi: Pick<ExtensionAPI, "registerTool">,
@@ -84,7 +89,7 @@ export function checkedQuery(query?: string): string | undefined {
   if (query && charCount(query.trim()) > WORK_TEXT_ACCEPTED)
     throw new BrokerError(
       "validation",
-      `too long (${charCount(query.trim())} chars): keep it under 200; put long material in a file and reference its path`,
+      `too long (${charCount(query.trim())} chars): keep it under ${TEXT_MAX}; put long material in a file and reference its path`,
       "query",
     );
   return query;

@@ -43,6 +43,7 @@ function listCriterion(detail: CriterionDetail): CriterionListItem {
     verification: detail.verification,
     source: detail.source,
     author: detail.author,
+    updatedBy: detail.updatedBy,
     revision: detail.revision,
     archivedAt: detail.archivedAt,
     createdAt: detail.createdAt,
@@ -130,7 +131,7 @@ function latestEvent(db: SwarmDb, taskId: number, kinds: readonly string[]) {
 function reviewer(db: SwarmDb, taskId: number): string | null {
   const row = db.sql
     .prepare(
-      `SELECT json_extract(body, '$.reviewer') AS reviewer FROM task_events
+      `SELECT reviewer FROM task_events
     WHERE task_id = ? AND kind = 'review_requested' ORDER BY id DESC LIMIT 1`,
     )
     .get(taskId);
@@ -202,6 +203,7 @@ export function taskDetail(
     nextAfter: detail.nextAfter,
     linkedPosts: linkedPosts(db, swarmId, detail.linkedPosts),
     validActions: validActions(db, item),
+    handoffTargets: detail.handoffTargets,
   };
 }
 export function postLinks(db: SwarmDb, swarmId: number, postId: number): PostLinkView[] {

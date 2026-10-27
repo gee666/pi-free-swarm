@@ -1,11 +1,13 @@
 import type { SwarmDb } from "./db.js";
-import { count, int } from "./rows.js";
+import { count, int, text } from "./rows.js";
 import { enumText } from "./work-rows.js";
 
 export interface PostLink {
   postId: number;
   targetKind: "task" | "criterion";
   targetId: number;
+  linkedBy: string;
+  linkedAt: number;
 }
 export function listPostLinks(db: SwarmDb, postId: number): PostLink[] {
   return db.sql
@@ -15,6 +17,8 @@ export function listPostLinks(db: SwarmDb, postId: number): PostLink[] {
       postId: int(row, "post_id"),
       targetKind: enumText(row, "target_kind", ["task", "criterion"]),
       targetId: int(row, "target_id"),
+      linkedBy: text(row, "linked_by"),
+      linkedAt: int(row, "linked_at"),
     }));
 }
 export function linkedPostIds(db: SwarmDb, kind: "task" | "criterion", id: number): number[] {
@@ -29,7 +33,9 @@ export function changePostLink(db: SwarmDb, link: PostLink, remove: boolean): bo
         .prepare("DELETE FROM post_links WHERE post_id = ? AND target_kind = ? AND target_id = ?")
         .run(link.postId, link.targetKind, link.targetId)
     : db.sql
-        .prepare("INSERT OR IGNORE INTO post_links(post_id, target_kind, target_id) VALUES (?, ?, ?)")
-        .run(link.postId, link.targetKind, link.targetId);
+        .prepare(
+          "INSERT OR IGNORE INTO post_links(post_id, target_kind, target_id, linked_by, linked_at) VALUES (?, ?, ?, ?, ?)",
+        )
+        .run(link.postId, link.targetKind, link.targetId, link.linkedBy, link.linkedAt);
   return count(result.changes) > 0;
 }

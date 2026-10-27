@@ -100,13 +100,14 @@ export function addTaskEvent(
   now: number,
   body = "",
   evidence = "",
+  reviewer: string | null = null,
 ): void {
   db.sql
     .prepare(
-      `INSERT INTO task_events(swarm_id, task_id, actor, kind, body, evidence, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO task_events(swarm_id, task_id, actor, kind, body, evidence, reviewer, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(task.swarmId, task.id, actor, kind, body, evidence, now);
+    .run(task.swarmId, task.id, actor, kind, body, evidence, reviewer, now);
 }
 export function taskTimeline(db: SwarmDb, taskId: number, after = 0, limit = PAGE_MAX_COUNT): TaskEvent[] {
   return db.sql

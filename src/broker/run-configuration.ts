@@ -18,6 +18,12 @@ export function configureRun(
   timing: RunTimings,
 ): ReadonlyMap<string, ModelSelection> {
   const workers = names.filter((name) => name !== WATCHER_NAME);
+  const continuing = getRunConfiguration(env.db, swarmId, run);
+  if (continuing) {
+    const assignments = retainAssignments(continuing.effective.workers, workers);
+    validateRetainedModels(assignments, env);
+    return new Map(assignments.map(({ name, ...model }) => [name, model]));
+  }
   const requested = resolveModelAssignments(
     workers.length,
     env.settings.models,
