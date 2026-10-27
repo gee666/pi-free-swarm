@@ -7,6 +7,8 @@ import { runAgentFactory } from "./run-agent-factory.js";
 import { LiveWorkers } from "./live-workers.js";
 import { RunControls } from "./run-controls.js";
 import { RunCompletion } from "./run-completion.js";
+import { onWorkChanged } from "./work-write.js";
+import { readProject } from "./project.js";
 import { RunRecovery } from "./run-recovery.js";
 import { readRunOwnership } from "./run-ownership.js";
 import { configureRun } from "./run-configuration.js";
@@ -208,6 +210,10 @@ export class SwarmRun {
 
   execute(staggerMs: number): Promise<RunOutcome> {
     this.#lifecycle.activate();
+    const removeWorkListener = onWorkChanged((id) => {
+      if (id === this.#swarm.id) this.#guard(() => this.#completion.check());
+    });
+    this.#resources.add("quiesce", removeWorkListener);
     registerRun(this, this.#env.runOwner);
     this.#releaseOwnership = registerActiveRun(this.#env.db, this.#swarm.id, this.#env.runnerPid);
     this.#resources.add("quiesce", () => {
@@ -330,6 +336,7 @@ export class SwarmRun {
         swarm,
         run: this.#run,
         end: ended ? end : "interrupted",
+        outcome: ended && end === "finished" ? readProject(db, this.#swarm.id).outcome : null,
         acceptance: this.#acceptance,
         ...(this.#budgetStop ? { stopReason: "budget-exhausted" as const } : {}),
         budget: readBudget(db, this.#swarm.id, this.#env.settings, clock.now()),

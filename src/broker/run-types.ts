@@ -61,6 +61,7 @@ export interface RunOutcome {
   run: number;
   end: RunEndStatus;
   stopReason?: "budget-exhausted";
+  outcome?: import("../api-work-types.js").WorkOutcome | null;
   budget?: import("../budget.js").BudgetStatus;
   acceptance: AcceptanceRecord;
 }
