@@ -91,6 +91,7 @@ export interface ProjectRecord {
   briefPath: string | null;
   intentSummary: string | null;
   intentPath: string | null;
+  intentUpdatedBy: string | null;
   intentRevision: number;
   scopeRevision: number;
   scopeApprovedRevision: number | null;

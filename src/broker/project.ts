@@ -34,7 +34,7 @@ export function updateProjectIntent(
     checkRevision(project.intentRevision, input.expectedRevision);
     const summary = storedWorkText(db, input.swarmId, input.summary, "summary", actor);
     const intentPath = workText(input.path, "path", actor);
-    saveIntent(db, input.swarmId, summary, intentPath);
+    saveIntent(db, input.swarmId, summary, intentPath, actor);
     insertEvent(db, input.swarmId, "project.changed", { id: input.swarmId }, input.now);
     return readProject(db, input.swarmId);
   });

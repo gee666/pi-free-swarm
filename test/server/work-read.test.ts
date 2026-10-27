@@ -12,6 +12,7 @@ import type {
 } from "../../src/api-types.js";
 import { sendMessage } from "../../src/broker/messages.js";
 import { voteCriterion } from "../../src/broker/votes.js";
+import { readProject, updateProjectIntent } from "../../src/broker/project.js";
 import { listTasks } from "../../src/store/tasks.js";
 import { listCriteria } from "../../src/store/criteria.js";
 import { getJson, postJson } from "./helpers.js";
@@ -122,6 +123,24 @@ describe("work searches", () => {
 });
 
 describe("dashboard", () => {
+  it("persists the canonical last intent editor and exposes it in the dashboard", async () => {
+    assert.equal(readProject(board.temp.db, board.swarm.id).intentUpdatedBy, null);
+    const input = { swarmId: board.swarm.id, now: Date.now(), summary: "Document the user intent", path: "intent.md" };
+    const first = updateProjectIntent(board.temp.db, { ...input, actor: "maria", expectedRevision: 0 });
+    assert.equal(first.intentUpdatedBy, "Maria");
+    assert.equal(readProject(board.temp.db, board.swarm.id).intentUpdatedBy, "Maria");
+    assert.equal((await getJson<DashboardResponse>(board.url("/dashboard"))).body.project.intentUpdatedBy, "Maria");
+    assert.throws(() => updateProjectIntent(board.temp.db, { ...input, actor: "User", expectedRevision: 0 }));
+    assert.equal(readProject(board.temp.db, board.swarm.id).intentUpdatedBy, "Maria");
+    const second = updateProjectIntent(board.temp.db, {
+      ...input,
+      actor: "User",
+      expectedRevision: first.intentRevision,
+    });
+    assert.equal(second.intentUpdatedBy, "User");
+    assert.equal((await getJson<DashboardResponse>(board.url("/dashboard"))).body.project.intentUpdatedBy, "User");
+  });
+
   it("returns work gates, grouped coverage, attention, velocity, activity and run header", async () => {
     const criterion = await createHttpCriterion(board);
     const task = await createHttpTask(board, criterion.id, { claim: true });

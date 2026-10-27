@@ -1,6 +1,7 @@
 ALTER TABLE swarms ADD COLUMN brief_path TEXT;
 ALTER TABLE swarms ADD COLUMN intent_summary TEXT;
 ALTER TABLE swarms ADD COLUMN intent_path TEXT;
+ALTER TABLE swarms ADD COLUMN intent_updated_by TEXT;
 ALTER TABLE swarms ADD COLUMN intent_revision INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE swarms ADD COLUMN scope_revision INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE swarms ADD COLUMN scope_approved_revision INTEGER;

@@ -110,6 +110,7 @@ export function projectOf(row: Row): ProjectRecord {
     briefPath: textOrNull(row, "brief_path"),
     intentSummary: textOrNull(row, "intent_summary"),
     intentPath: textOrNull(row, "intent_path"),
+    intentUpdatedBy: textOrNull(row, "intent_updated_by"),
     intentRevision: int(row, "intent_revision"),
     scopeRevision: int(row, "scope_revision"),
     scopeApprovedRevision: intOrNull(row, "scope_approved_revision"),
