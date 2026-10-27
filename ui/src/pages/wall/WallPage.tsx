@@ -1,5 +1,10 @@
-import type { ReactNode } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useState, type ReactNode } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { TextField } from "../../components/Field";
+import { FilterMenu, FilterPill } from "../work-items/FilterMenu";
+import { useDebounced } from "../work-items/useWorkData";
+import workStyles from "../work-items/WorkItems.module.css";
+import type { WallLink } from "./WallLinks";
 import { FileQuestion, MessageSquare } from "lucide-react";
 import { USER_BODY_PREVIEW_CHARS } from "../../../../src/limits";
 import { useSwarmStream } from "../../api/SwarmStream";
@@ -16,7 +21,7 @@ import { usePost } from "./usePost";
 import { usePosts } from "./usePosts";
 import { useSeenComments } from "./useSeenComments";
 import { useUserCommentRead } from "./useUserCommentRead";
-import { withComment, withCommentCount, withPost, withPostContract, withPostListContract } from "./wallModel";
+import { withComment, withCommentCount, withPost } from "./wallModel";
 
 /** `/s/:id/wall/new` opens the new-post form; any other value is a post id. */
 const NEW_POST_ROUTE = "new";
@@ -34,7 +39,18 @@ export function WallPage() {
   const { id: swarmId = "", postId: route } = useParams();
   const navigate = useNavigate();
   const stream = useSwarmStream();
-  const posts = usePosts(swarmId);
+  const [params, setParams] = useSearchParams();
+  const [search, setSearch] = useState("");
+  const query = useDebounced(search);
+  const author = params.get("author") ?? "";
+  const task = params.get("task");
+  const criterion = params.get("criterion");
+  const request = new URLSearchParams();
+  if (query) request.set("query", query);
+  if (author) request.set("author", author);
+  if (task) request.set("taskId", task);
+  if (criterion) request.set("criterionId", criterion);
+  const posts = usePosts(swarmId, request.toString());
   const postId = parsePostId(route);
   const post = usePost(swarmId, postId);
   const swarm = useSwarmDetail(swarmId);
@@ -45,6 +61,18 @@ export function WallPage() {
     posts.update((current) => current && withCommentCount(current, comment.postId, commentCount));
   });
   const wallUrl = `/s/${swarmId}/wall`;
+  const initialLinks: WallLink[] = [
+    ...(task ? [{ targetKind: "task", targetId: Number(task), title: `Task #${task}` } satisfies WallLink] : []),
+    ...(criterion
+      ? [{ targetKind: "criterion", targetId: Number(criterion), title: `Criterion #${criterion}` } satisfies WallLink]
+      : []),
+  ];
+  const removeFilter = (key: string) =>
+    setParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete(key);
+      return next;
+    });
   const mentionNames =
     swarm.data?.participants
       .filter((participant) => participant.kind === "agent" && participant.retiredAt == null)
@@ -54,6 +82,7 @@ export function WallPage() {
   const newPost = route === NEW_POST_ROUTE && (
     <NewPostForm
       swarmId={swarmId}
+      initialLinks={initialLinks}
       mentionNames={mentionNames}
       banners={reconnecting}
       onCancel={() => navigate(wallUrl)}
@@ -70,10 +99,8 @@ export function WallPage() {
       <PostView
         detail={post.data}
         error={post.error}
-        onContractChange={(contract) => {
-          post.update((current) => current && withPostContract(current, contract));
-          posts.update((current) => current && withPostListContract(current, contract));
-        }}
+        onRetry={post.reload}
+        onLinksChange={(links) => post.update((current) => current && { ...current, links })}
         banners={
           <>
             {reconnecting}
@@ -103,13 +130,47 @@ export function WallPage() {
       list={
         <PostList
           newPost={newPost}
+          onRetry={posts.reload}
+          filters={
+            <div className={workStyles.toolbar}>
+              <TextField label="Search posts" placeholder="Search posts" value={search} onChange={setSearch} />
+              <div className={workStyles.line}>
+                <FilterMenu
+                  label="Author"
+                  items={[
+                    { key: "", label: "Anyone" },
+                    { key: "User", label: "Me" },
+                    ...mentionNames.map((name) => ({ key: name, label: name })),
+                  ].map((item) => ({ ...item, selected: item.key === author }))}
+                  onSelect={(value) =>
+                    setParams((current) => {
+                      const next = new URLSearchParams(current);
+                      if (value) next.set("author", value);
+                      else next.delete("author");
+                      return next;
+                    })
+                  }
+                />
+                {author && <FilterPill label={author} onRemove={() => removeFilter("author")} />}
+                {task && <FilterPill label={`Linked to task #${task}`} onRemove={() => removeFilter("task")} />}
+                {criterion && (
+                  <FilterPill label={`Linked to criterion #${criterion}`} onRemove={() => removeFilter("criterion")} />
+                )}
+              </div>
+              {posts.data?.notes?.map((note) => (
+                <p key={note} className={workStyles.muted}>
+                  {note}
+                </p>
+              ))}
+            </div>
+          }
           posts={posts.data?.posts}
           error={posts.error}
           more={posts}
           selected={postId}
           unreadComments={unreadComments}
-          onSelect={(id) => navigate(`${wallUrl}/${id}`)}
-          onNewPost={() => navigate(`${wallUrl}/${NEW_POST_ROUTE}`)}
+          onSelect={(id) => navigate(`${wallUrl}/${id}?${params}`)}
+          onNewPost={() => navigate(`${wallUrl}/${NEW_POST_ROUTE}?${params}`)}
         />
       }
       main={main}

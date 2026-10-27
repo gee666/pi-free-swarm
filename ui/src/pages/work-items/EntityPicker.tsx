@@ -34,6 +34,7 @@ export function EntityPicker({
     swarmId,
     kind === "task" ? "tasks" : "criteria",
     new URLSearchParams({ query }).toString(),
+    open,
   );
   const items = (list.data?.items ?? []).filter((item) => !excluded.includes(item.id));
   const options = items.map((item) => ({ key: String(item.id), label: `#${item.id} ${item.title}` }));

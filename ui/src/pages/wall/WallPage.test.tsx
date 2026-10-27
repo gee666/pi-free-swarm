@@ -188,9 +188,9 @@ describe("WallPage", () => {
     const submit = screen.getByRole("button", { name: "Post" });
     expect(screen.queryByText("0/60")).not.toBeInTheDocument();
     expect(within(postList()).getByRole("region", { name: "New post" })).toContainElement(body);
-    await userEvent.type(title, "x".repeat(61));
+    await userEvent.type(title, "x".repeat(101));
     await userEvent.type(body, "Ship login first.");
-    expect(screen.getByText("61/60")).toBeInTheDocument();
+    expect(screen.getByText("101/60")).toBeInTheDocument();
     expect(screen.queryByText("17/200")).not.toBeInTheDocument();
     expect(submit).toBeDisabled();
 
@@ -290,7 +290,7 @@ describe("WallPage", () => {
     }));
     await renderWall("/s/3/wall/new");
     const user = userEvent.setup();
-    const notice = /automatically.*file/i;
+    const notice = "Over 200 characters, the full text is saved to a file";
     const body = screen.getByRole("textbox", { name: "Body" });
     await user.type(screen.getByRole("textbox", { name: "Title" }), "Overflow");
     await user.click(body);
@@ -328,14 +328,14 @@ describe("WallPage", () => {
     const body = screen.getByRole("textbox", { name: "Body" });
     await user.click(body);
     await user.paste(`${"x".repeat(199)}  `);
-    expect(screen.getByRole("status")).toHaveTextContent("201 characters");
-    expect(screen.getByRole("status")).toHaveTextContent(/automatically.*file/i);
+    expect(screen.getByText("201/200")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Over 200 characters, the full text is saved to a file");
     await user.click(within(postList()).getByText("Plan: split OAuth work"));
     const box = await screen.findByRole("textbox", { name: "Write a comment…" });
     await user.click(box);
     await user.paste(`${"y".repeat(199)}  `);
-    expect(screen.getByRole("status")).toHaveTextContent("201 characters");
-    expect(screen.getByRole("status")).toHaveTextContent(/automatically.*file/i);
+    expect(screen.getByText("201/200")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Over 200 characters, the full text is saved to a file");
   });
 
   it("explains an unknown post", async () => {

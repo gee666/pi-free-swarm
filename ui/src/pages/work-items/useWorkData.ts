@@ -43,11 +43,12 @@ export function useWorkDetail<T>(swarmId: string, path: string | undefined) {
   return state;
 }
 
-export function useWorkList<T extends { id: number }>(swarmId: string, path: string, query: string) {
+export function useWorkList<T extends { id: number }>(swarmId: string, path: string, query: string, enabled = true) {
   const stream = useSwarmStream();
   const state = useAsync(
     (signal) => getJson<SearchPage<T>>(workUrl(swarmId, `${path}?${query}`), signal),
     [swarmId, path, query, stream.openCount],
+    enabled,
   );
   const [moreError, setMoreError] = useState<Error>();
   const [loadingMore, setLoadingMore] = useState(false);

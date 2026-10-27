@@ -1,8 +1,15 @@
 import { FileQuestion } from "lucide-react";
-import type { ReactNode } from "react";
-import type { CommentView, PostContract, PostDetailResponse, UserPostAttention } from "../../../../src/api-types";
+import { useState, type ReactNode } from "react";
+import type {
+  CommentView,
+  PostDetailResponse,
+  PostLinkView,
+  PostLinksResponse,
+  UserPostAttention,
+} from "../../../../src/api-types";
 import { displayName, USER_NAME } from "../../api/agents";
-import { ApiError } from "../../api/http";
+import { ApiError, postJson } from "../../api/http";
+import { Button } from "../../components/Button";
 import { AuthoredEntry } from "../../components/AuthoredEntry";
 import { Avatar } from "../../components/Avatar";
 import { AgentName } from "../../components/AgentName";
@@ -14,19 +21,34 @@ import { formatTimestamp } from "../../lib/time";
 import styles from "./Wall.module.css";
 import { commentCountLabel } from "./wallModel";
 import { PostSubscriptionButton } from "./PostSubscriptionButton";
-import { PostClaims } from "./PostClaims";
-import { PostContractDocument } from "./PostContractDocument";
+import { WallLinks, linkRequest, type WallLink } from "./WallLinks";
+import { workUrl } from "../work-items/useWorkData";
 
 interface PostViewProps {
   detail: PostDetailResponse | undefined;
   error: Error | undefined;
   banners: ReactNode;
   onSubscriptionChange?: (state: UserPostAttention) => void;
-  onContractChange?: (contract: PostContract) => void;
+  onLinksChange?: (links: PostLinkView[]) => void;
+  onRetry?: () => void;
 }
 
 /** Main panel of the Wall tab: the post, then its comments. */
-export function PostView({ detail, error, banners, onSubscriptionChange, onContractChange }: PostViewProps) {
+export function PostView({ detail, error, banners, onSubscriptionChange, onLinksChange, onRetry }: PostViewProps) {
+  const [linkError, setLinkError] = useState<Error>();
+  const changeLink = async (action: "link" | "unlink", link: WallLink) => {
+    if (!detail) return;
+    setLinkError(undefined);
+    try {
+      const result = await postJson<PostLinksResponse>(
+        workUrl(String(detail.post.swarmId), `posts/${detail.post.id}/${action}`),
+        linkRequest([link]),
+      );
+      onLinksChange?.(result.links);
+    } catch (failure) {
+      setLinkError(failure instanceof Error ? failure : new Error(String(failure)));
+    }
+  };
   if (!detail) {
     const missing = error instanceof ApiError && error.code === "not_found";
     return (
@@ -35,7 +57,9 @@ export function PostView({ detail, error, banners, onSubscriptionChange, onContr
         {missing ? (
           <EmptyState icon={FileQuestion} text="Post not found" />
         ) : error ? (
-          <ErrorBanner>{`Could not load the post: ${error.message}`}</ErrorBanner>
+          <ErrorBanner
+            action={<Button onClick={onRetry}>Retry</Button>}
+          >{`Could not load the post: ${error.message}`}</ErrorBanner>
         ) : (
           <SkeletonRows count={3} />
         )}
@@ -65,14 +89,14 @@ export function PostView({ detail, error, banners, onSubscriptionChange, onContr
         }
       />
       <PanelBody key={post.id} className={styles.postBody}>
-        <RichText text={post.text} className={styles.postText} />
-        <PostClaims claims={post.claims} />
-        <PostContractDocument
-          key={post.id}
-          swarmId={post.swarmId}
-          contract={detail.contract}
-          onSaved={(contract) => onContractChange?.(contract)}
+        {linkError && <ErrorBanner>{linkError.message}</ErrorBanner>}
+        <WallLinks
+          swarmId={String(post.swarmId)}
+          links={detail.links ?? []}
+          onAdd={(link) => void changeLink("link", link)}
+          onRemove={(link) => void changeLink("unlink", link)}
         />
+        <RichText text={post.text} className={styles.postText} />
         <hr className={styles.divider} />
         <h2 className={styles.commentsTitle}>{commentCountLabel(comments.length)}</h2>
         <ol className={styles.comments}>

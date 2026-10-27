@@ -10,16 +10,26 @@ import { TextField } from "../../components/Field";
 import { ErrorBanner } from "../../components/States";
 import { Tooltip } from "../../components/Tooltip";
 import styles from "./Wall.module.css";
+import { WallLinks, linkRequest, type WallLink } from "./WallLinks";
 
 interface NewPostFormProps {
   swarmId: string;
+  initialLinks?: WallLink[];
   mentionNames?: readonly string[];
   banners: ReactNode;
   onCreated: (post: PostSummary) => void;
   onCancel: () => void;
 }
 
-export function NewPostForm({ swarmId, mentionNames, banners, onCreated, onCancel }: NewPostFormProps) {
+export function NewPostForm({
+  swarmId,
+  initialLinks = [],
+  mentionNames,
+  banners,
+  onCreated,
+  onCancel,
+}: NewPostFormProps) {
+  const [links, setLinks] = useState(initialLinks);
   const [title, setTitle, clearSubmittedTitle] = useComposerDraft(`post:${swarmId}:title`);
   const [text, setText, clearSubmittedText] = useComposerDraft(`post:${swarmId}:body`);
   const [busy, setBusy] = useState(false);
@@ -29,7 +39,7 @@ export function NewPostForm({ swarmId, mentionNames, banners, onCreated, onCance
     if (!checkTitle(title).ok || busy) return;
     setBusy(true);
     setError(undefined);
-    createPost(swarmId, { title, text })
+    createPost(swarmId, { title, text, ...(links.length > 0 ? linkRequest(links) : {}) })
       .then(({ post }) => {
         clearSubmittedTitle();
         clearSubmittedText();
@@ -72,6 +82,16 @@ export function NewPostForm({ swarmId, mentionNames, banners, onCreated, onCance
             />
           </Tooltip>
         </div>
+        <WallLinks
+          swarmId={swarmId}
+          links={links}
+          onAdd={(link) => setLinks((current) => [...current, link])}
+          onRemove={(link) =>
+            setLinks((current) =>
+              current.filter((item) => item.targetKind !== link.targetKind || item.targetId !== link.targetId),
+            )
+          }
+        />
       </ComposeBox>
     </section>
   );

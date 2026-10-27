@@ -24,6 +24,8 @@ interface PostListProps {
   onSelect: (postId: number) => void;
   onNewPost: () => void;
   newPost?: ReactNode;
+  filters?: ReactNode;
+  onRetry?: () => void;
 }
 
 /** List panel of the Wall tab. */
@@ -36,6 +38,8 @@ export function PostList({
   onSelect,
   onNewPost,
   newPost,
+  filters,
+  onRetry,
 }: PostListProps) {
   return (
     <Panel aria-label="Wall">
@@ -44,8 +48,13 @@ export function PostList({
           New post
         </Button>
       </div>
+      {filters}
       {newPost}
-      {error && <ErrorBanner>{`Could not load posts: ${error.message}`}</ErrorBanner>}
+      {error && (
+        <ErrorBanner
+          action={<Button onClick={onRetry}>Retry</Button>}
+        >{`Could not load posts: ${error.message}`}</ErrorBanner>
+      )}
       {posts === undefined ? (
         !error && <SkeletonRows avatar count={8} />
       ) : posts.length === 0 ? (
@@ -70,19 +79,6 @@ export function PostList({
                   onSelect={() => onSelect(post.id)}
                   trailing={
                     <>
-                      {post.contract && (
-                        <span className={styles.commentCount} title={`Contract revision ${post.contract.revision}`}>
-                          Contract r{post.contract.revision}
-                        </span>
-                      )}
-                      {post.claims && post.claims.length > 0 && (
-                        <span
-                          className={styles.commentCount}
-                          title={post.claims.map((claim) => `${claim.role}: ${claim.agent}`).join("\n")}
-                        >
-                          {post.claims.length} {post.claims.length === 1 ? "claim" : "claims"}
-                        </span>
-                      )}
                       {post.commentCount > 0 && (
                         <span className={styles.commentCount} title={commentCountLabel(post.commentCount)}>
                           💬 {post.commentCount}
