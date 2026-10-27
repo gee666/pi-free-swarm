@@ -1,6 +1,6 @@
 import type { Static } from "typebox";
 import * as S from "./agent-schemas.js";
-import { cursorAfter, nextCursor, workInput, type AgentToolIdentity } from "./agent-tool-context.js";
+import { cursorAfter, nextCursor, workInput, writeAgentTool, type AgentToolIdentity } from "./agent-tool-context.js";
 import { createPost, addComment } from "../broker/wall.js";
 import { getPostPage } from "../broker/post-queries.js";
 import { updatePostLinks } from "../broker/post-links.js";
@@ -33,11 +33,13 @@ export function createCommunicationHandlers(identity: AgentToolIdentity) {
       return `${JSON.stringify(result)}\nNext cursor: ${nextCursor(result.nextAfter, scope) ?? "none"}`;
     },
     postsComment(params: Static<typeof S.postsComment>) {
-      const { comment } = addComment(db(), swarmId, agentName, params.post_id, params.body, input().now);
+      const { comment } = writeAgentTool(identity, () =>
+        addComment(db(), swarmId, agentName, params.post_id, params.body, input().now),
+      );
       return `Comment #${comment.id} [published]. Subscribed to post #${comment.postId}.`;
     },
     postsUnsubscribe({ post_id }: Static<typeof S.postId>) {
-      setPostSubscription(db(), swarmId, agentName, post_id, false, input().now);
+      writeAgentTool(identity, () => setPostSubscription(db(), swarmId, agentName, post_id, false, input().now));
       return `Unsubscribed from post #${post_id}.`;
     },
     postsLink(params: Static<typeof S.postsLink>, remove = false) {
@@ -53,13 +55,15 @@ export function createCommunicationHandlers(identity: AgentToolIdentity) {
     messagesSend(params: Static<typeof S.messagesSend>) {
       if (agentName === WATCHER_NAME && params.to.trim().toLowerCase() !== USER_NAME.toLowerCase())
         throw new BrokerError("validation", "Watcher may send messages only to User.", "to");
-      const message = sendMessage(db(), {
-        swarmId,
-        from: agentName,
-        to: params.to,
-        text: params.body,
-        now: input().now,
-      });
+      const message = writeAgentTool(identity, () =>
+        sendMessage(db(), {
+          swarmId,
+          from: agentName,
+          to: params.to,
+          text: params.body,
+          now: input().now,
+        }),
+      );
       return `Message #${message.id} [sent] to ${message.recipients[0]?.name}. Conversation #${message.threadId}.`;
     },
     messagesRead(params: Static<typeof S.messagesRead>) {

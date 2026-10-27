@@ -1,5 +1,11 @@
+import { BrokerError } from "./errors.js";
 import type { SwarmDb } from "../store/db.js";
 import { int, intOrNull, text } from "../store/rows.js";
+
+export function requireOpenRun(db: SwarmDb, swarmId: number, run: number): void {
+  if (readRunOwnership(db, swarmId, run) !== "owned")
+    throw new BrokerError("validation", "This run is closing/ended. Reread the current run before writing.");
+}
 
 export type RunOwnership = "owned" | "closed" | "lost";
 

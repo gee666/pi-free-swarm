@@ -5,7 +5,7 @@ import { getTask } from "../store/tasks.js";
 import { USER_NAME } from "../constants.js";
 import { WORK_TEXT_ACCEPTED, WORK_TITLE_ACCEPTED, TEXT_MAX, TITLE_MAX, charCount } from "../limits.js";
 import { BrokerError } from "./errors.js";
-import { readRunOwnership } from "./run-ownership.js";
+import { requireOpenRun } from "./run-ownership.js";
 import { actAs, requireSwarm } from "./validate.js";
 import { workRoster } from "../store/work-roster.js";
 
@@ -48,8 +48,7 @@ export function workActor(db: SwarmDb, input: WorkInput): string {
   const actor = actAs(db, input.swarmId, input.actor, input.now);
   if (actor.kind !== "agent" && actor.kind !== "user")
     throw new BrokerError("validation", "Only agents and User can change the work graph.");
-  if (actor.kind === "agent" && input.run !== undefined && readRunOwnership(db, input.swarmId, input.run) !== "owned")
-    throw new BrokerError("validation", "This run is closing/ended. Reread the current run before writing.");
+  if (actor.kind === "agent" && input.run !== undefined) requireOpenRun(db, input.swarmId, input.run);
   if (
     actor.kind === "agent" &&
     !workRoster(db, input.swarmId).some((agent) => agent.name === actor.name && agent.active)

@@ -2,6 +2,7 @@ import type { ExtensionAPI, ExtensionToolContext } from "@earendil-works/pi-codi
 import type { Static, TSchema } from "typebox";
 import { Value } from "typebox/value";
 import { systemClock, type Clock } from "../clock.js";
+import { requireOpenRun } from "../broker/run-ownership.js";
 import { BrokerError } from "../broker/errors.js";
 import { charCount, WORK_TEXT_ACCEPTED, WORK_TITLE_ACCEPTED, TEXT_MAX, TITLE_MAX } from "../limits.js";
 import type { SwarmDb } from "../store/db.js";
@@ -21,6 +22,13 @@ export function workInput(identity: AgentToolIdentity) {
     actor: identity.agentName,
     now: (identity.clock ?? systemClock).now(),
   };
+}
+export function writeAgentTool<T>(identity: AgentToolIdentity, mutate: () => T): T {
+  const db = identity.getDb();
+  return db.write(() => {
+    requireOpenRun(db, identity.swarmId, identity.run);
+    return mutate();
+  });
 }
 export function registerTextTool<S extends TSchema>(
   pi: Pick<ExtensionAPI, "registerTool">,

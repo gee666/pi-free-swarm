@@ -6,7 +6,7 @@ import { requestRetirement } from "../broker/retirement.js";
 import { createRetirementTool, retirementToolParameters } from "./retirement-tool.js";
 import type { Static, TSchema } from "typebox";
 import * as S from "./agent-schemas.js";
-import { registerTextTool, workInput, type AgentToolIdentity } from "./agent-tool-context.js";
+import { registerTextTool, workInput, writeAgentTool, type AgentToolIdentity } from "./agent-tool-context.js";
 export type { AgentToolIdentity } from "./agent-tool-context.js";
 import { createWorkHandlers } from "./work-tool-handlers.js";
 import { createSearchHandlers } from "./search-tool-handlers.js";
@@ -18,18 +18,22 @@ export function createAgentToolHandlers(identity: AgentToolIdentity) {
     ...createSearchHandlers(identity),
     ...createCommunicationHandlers(identity),
     retire(params: Static<typeof retirementToolParameters>) {
-      const result = requestRetirement(
-        identity.getDb(),
-        identity.swarmId,
-        identity.agentName,
-        identity.run,
-        params.handoff,
-        workInput(identity).now,
+      const result = writeAgentTool(identity, () =>
+        requestRetirement(
+          identity.getDb(),
+          identity.swarmId,
+          identity.agentName,
+          identity.run,
+          params.handoff,
+          workInput(identity).now,
+        ),
       );
       return `Replacement request #${result.requestId} queued. Handoff saved to \`${result.handoffPath}\`. Do not start more work or repeat this request.`;
     },
     snooze() {
-      const until = snoozeReminders(identity.getDb(), identity.swarmId, identity.agentName, workInput(identity).now);
+      const until = writeAgentTool(identity, () =>
+        snoozeReminders(identity.getDb(), identity.swarmId, identity.agentName, workInput(identity).now),
+      );
       return `Idle reminders snoozed for 5 minutes, until ${new Date(until).toISOString()}. Direct messages and subscribed comments still arrive.`;
     },
   };
