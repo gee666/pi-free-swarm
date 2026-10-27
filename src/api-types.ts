@@ -299,7 +299,13 @@ export interface ApiErrorBody {
 
 // ── SSE: GET /events?swarm=:id ────────────────────────────────────────────────
 
+export type * from "./api-work-types.js";
+
 export interface SwarmEventPayloads {
+  "criterion.changed": { id: number };
+  "task.changed": { id: number };
+  "project.changed": { id: number };
+  "post.links.changed": { id: number };
   "acceptance.updated": { revision: number };
   "post.created": { post: PostSummary };
   "post.claimed": { postId: number; claim: PostClaim };

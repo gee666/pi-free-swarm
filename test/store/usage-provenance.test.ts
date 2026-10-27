@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
-import { openSwarmDb } from "../../src/store/db.js";
+import { SCHEMA_VERSION, openSwarmDb } from "../../src/store/db.js";
 import { agentUsageTotals } from "../../src/store/stats-queries.js";
 
 // Build the actual pre-provenance schema, rather than lowering a modern DB's version number.
@@ -75,7 +75,7 @@ test("v14 preserves usage records, high-water IDs, indexes and known category am
     legacy.close();
     const db = openSwarmDb(legacy.file, { create: false });
     try {
-      assert.equal(db.sql.prepare("PRAGMA user_version").get()?.user_version, 17);
+      assert.equal(db.sql.prepare("PRAGMA user_version").get()?.user_version, SCHEMA_VERSION);
       assert.deepEqual(db.sql.prepare(`SELECT ${columns} FROM usage ORDER BY id`).all(), before);
       assert.deepEqual(
         db.sql

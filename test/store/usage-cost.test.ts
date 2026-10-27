@@ -1,10 +1,11 @@
+import { removeWorkSchema } from "../helpers/legacy-work-schema.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { recordUsage } from "../../src/broker/agent-state.js";
 import { createAgentHooks } from "../../src/broker/agent-hooks.js";
 import { beginResume, endRun } from "../../src/broker/swarms.js";
 import { hasBudgetAccountingGap } from "../../src/store/budget.js";
-import { openSwarmDb } from "../../src/store/db.js";
+import { SCHEMA_VERSION, openSwarmDb } from "../../src/store/db.js";
 import { agentUsageTotals, getStats } from "../../src/store/stats-queries.js";
 import { FakeClock } from "../agents/fake-clock.js";
 import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
@@ -83,12 +84,13 @@ test("v12 migration preserves old totals without inventing category prices", () 
   try {
     const swarm = seedSwarm(temp.db);
     recordUsage(temp.db, swarm.id, "Maria", legacy, T0);
+    removeWorkSchema(temp.db);
     temp.db.sql.exec(
       "ALTER TABLE usage DROP COLUMN cost_input; ALTER TABLE usage DROP COLUMN cost_output; ALTER TABLE usage DROP COLUMN cost_cache_read; ALTER TABLE usage DROP COLUMN cost_cache_write; DROP TABLE user_comment_attention; DROP TABLE post_claims; DROP TABLE post_contracts; PRAGMA user_version = 12;",
     );
     const upgraded = openSwarmDb(temp.db.path, { create: false });
     try {
-      assert.equal(upgraded.sql.prepare("PRAGMA user_version").get()?.user_version, 17);
+      assert.equal(upgraded.sql.prepare("PRAGMA user_version").get()?.user_version, SCHEMA_VERSION);
       assert.deepEqual(agentUsageTotals(upgraded, swarm.id, "Maria"), {
         input: 2,
         output: 3,

@@ -8,7 +8,7 @@ import { inspectAcceptance } from "../../src/broker/acceptance.js";
 import { initialWallCursor, readWallDeltaAs } from "../../src/broker/wall-delta.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
 import { bodyCeiling, TEXT_MAX } from "../../src/limits.js";
-import { openSwarmDb } from "../../src/store/db.js";
+import { SCHEMA_VERSION, openSwarmDb } from "../../src/store/db.js";
 
 it("upgrades released v1 without losing history, delivery state, foreign keys or sequence high-water marks", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "swarm-migration-"));
@@ -40,7 +40,7 @@ it("upgrades released v1 without losing history, delivery state, foreign keys or
         before,
       );
       assert.deepEqual(db.sql.prepare("PRAGMA foreign_key_check").all(), []);
-      assert.equal(db.sql.prepare("PRAGMA user_version").get()?.user_version, 17);
+      assert.equal(db.sql.prepare("PRAGMA user_version").get()?.user_version, SCHEMA_VERSION);
       assert.equal(inspectAcceptance(db, 1).verdict, "unchecked");
       assert.equal(inspectAcceptance(db, 1).originalTask, "task");
       assert.equal(db.sql.prepare("PRAGMA foreign_keys").get()?.foreign_keys, 1);

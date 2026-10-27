@@ -1,0 +1,64 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { openSwarmDb, SCHEMA_VERSION } from "../../src/store/db.js";
+import { createPost, addComment } from "../../src/broker/wall.js";
+import { sendMessage } from "../../src/broker/messages.js";
+import { listCriteria } from "../../src/store/criteria.js";
+import { listTasks } from "../../src/store/tasks.js";
+import { removeWorkSchema } from "../helpers/legacy-work-schema.js";
+import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
+
+test("work graph migrates populated v17 without losing communication or old feature tables", () => {
+  const temp = createTempDb();
+  try {
+    const { db } = temp;
+    const swarm = seedSwarm(db);
+    const post = createPost(db, swarm.id, "Maria", { title: "History", text: "Evidence" }, T0);
+    addComment(db, swarm.id, "John", post.id, "Reviewed", T0);
+    sendMessage(db, swarm.id, "User", ["Maria"], "Keep this", T0);
+    const tables = ["posts", "comments", "messages", "message_recipients", "post_claims", "post_contracts"];
+    const before = tables.map((table) => db.sql.prepare(`SELECT * FROM ${table}`).all());
+    removeWorkSchema(db);
+    db.sql.exec("PRAGMA user_version = 17");
+    const upgraded = openSwarmDb(db.path, { create: false });
+    try {
+      assert.equal(upgraded.sql.prepare("PRAGMA user_version").get()?.user_version, SCHEMA_VERSION);
+      assert.deepEqual(
+        tables.map((table) => upgraded.sql.prepare(`SELECT * FROM ${table}`).all()),
+        before,
+      );
+      assert.deepEqual(upgraded.sql.prepare("PRAGMA foreign_key_check").all(), []);
+      assert.deepEqual(listTasks(upgraded, swarm.id), []);
+      assert.deepEqual(listCriteria(upgraded, swarm.id), []);
+      assert.equal(upgraded.sql.prepare("SELECT scope_revision FROM swarms").get()?.scope_revision, 0);
+    } finally {
+      upgraded.close();
+    }
+  } finally {
+    temp.cleanup();
+  }
+});
+
+test("fresh graph enforces enums, foreign keys and same-swarm links", () => {
+  const temp = createTempDb();
+  try {
+    const { db } = temp;
+    const swarm = seedSwarm(db);
+    const other = seedSwarm(db);
+    const task = listTasks(db, swarm.id)[0];
+    const criterion = listCriteria(db, other.id)[0];
+    assert.ok(task && criterion);
+    assert.throws(() => db.sql.prepare("UPDATE tasks SET status = 'waiting' WHERE id = ?").run(task.id), /CHECK/);
+    assert.throws(() => db.sql.prepare("UPDATE swarms SET outcome = 'paused' WHERE id = ?").run(swarm.id), /CHECK/);
+    assert.throws(
+      () => db.sql.prepare("INSERT INTO task_criteria VALUES (?, ?, 'test')").run(task.id, criterion.id),
+      /swarm/,
+    );
+    assert.throws(() => db.sql.prepare("INSERT INTO task_dependencies VALUES (?, ?)").run(task.id, task.id), /CHECK/);
+    assert.throws(() => db.sql.prepare("UPDATE tasks SET owner = 'Ghost' WHERE id = ?").run(task.id), /FOREIGN KEY/);
+    assert.throws(() => db.sql.prepare("INSERT INTO post_links VALUES (999, 'task', ?)").run(task.id));
+    assert.deepEqual(db.sql.prepare("PRAGMA foreign_key_check").all(), []);
+  } finally {
+    temp.cleanup();
+  }
+});

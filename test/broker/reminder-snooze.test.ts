@@ -1,10 +1,11 @@
+import { removeWorkSchema } from "../helpers/legacy-work-schema.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { snoozeReminders, reminderSnoozedUntil, REMINDER_SNOOZE_MS } from "../../src/broker/reminder-snooze.js";
 import { sendMessage } from "../../src/broker/messages.js";
 import { setAgentStatus } from "../../src/broker/agent-state.js";
 import { workerHasIdled } from "../../src/broker/worker-eligibility.js";
-import { openSwarmDb } from "../../src/store/db.js";
+import { SCHEMA_VERSION, openSwarmDb } from "../../src/store/db.js";
 import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
 
 test("snooze persists the exact five-minute deadline, isolated by worker and swarm", () => {
@@ -88,6 +89,7 @@ test("additive v10 upgrade preserves pending messages and starts with no snoozes
   try {
     const swarm = seedSwarm(temp.db);
     const message = sendMessage(temp.db, swarm.id, "User", ["Maria"], "Preserve me", T0);
+    removeWorkSchema(temp.db);
     temp.db.sql.exec(`DROP TABLE user_comment_attention;
       DROP TABLE post_claims; DROP TABLE post_contracts;
       DROP TABLE reminder_snoozes;
@@ -106,7 +108,7 @@ test("additive v10 upgrade preserves pending messages and starts with no snoozes
       PRAGMA user_version = 10;`);
     const upgraded = openSwarmDb(temp.db.path, { create: false });
     try {
-      assert.equal(upgraded.sql.prepare("PRAGMA user_version").get()?.user_version, 17);
+      assert.equal(upgraded.sql.prepare("PRAGMA user_version").get()?.user_version, SCHEMA_VERSION);
       assert.equal(reminderSnoozedUntil(upgraded, swarm.id, "Maria"), 0);
       assert.equal(
         upgraded.sql.prepare("SELECT status FROM message_recipients WHERE message_id = ?").get(message.id)?.status,

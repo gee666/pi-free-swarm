@@ -1,8 +1,9 @@
+import { removeWorkSchema } from "../helpers/legacy-work-schema.js";
 import assert from "node:assert/strict";
 import { it } from "node:test";
 import { createThread, insertMessage } from "../../src/broker/message-insert.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
-import { openSwarmDb } from "../../src/store/db.js";
+import { SCHEMA_VERSION, openSwarmDb } from "../../src/store/db.js";
 import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
 
 it("migrates historical User comment attention without deleting mailbox history or reopening read items", () => {
@@ -27,12 +28,13 @@ it("migrates historical User comment attention without deleting mailbox history 
       return comment;
     });
     const before = db.sql.prepare("SELECT id, body FROM messages WHERE swarm_id = ? ORDER BY id").all(swarm.id);
+    removeWorkSchema(db);
     db.sql.exec(
       "DROP TABLE user_comment_attention; DROP TABLE post_claims; DROP TABLE post_contracts; PRAGMA user_version = 14;",
     );
     const upgraded = openSwarmDb(db.path, { create: false });
     try {
-      assert.equal(upgraded.sql.prepare("PRAGMA user_version").get()?.user_version, 17);
+      assert.equal(upgraded.sql.prepare("PRAGMA user_version").get()?.user_version, SCHEMA_VERSION);
       const attention = upgraded.sql
         .prepare("SELECT comment_id, swarm_id, post_id, read_at FROM user_comment_attention ORDER BY comment_id")
         .all();

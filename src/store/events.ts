@@ -4,6 +4,10 @@ import type { SwarmDb, WriteTransaction } from "./db.js";
 import { count, int, text } from "./rows.js";
 
 const EVENT_TYPES: ReadonlySet<string> = new Set<SwarmEventType>([
+  "criterion.changed",
+  "task.changed",
+  "project.changed",
+  "post.links.changed",
   "acceptance.updated",
   "post.created",
   "post.claimed",

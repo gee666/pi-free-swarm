@@ -117,6 +117,13 @@ export const WATCHER_OVERVIEW_POSTS = 3;
 
 // ── Participants ─────────────────────────────────────────────────────────────
 export const USER_NAME = "User";
+export const WORK_VELOCITY_SHORT_MS = 15 * 60_000;
+export const WORK_VELOCITY_LONG_MS = 60 * 60_000;
+export const WORK_ETA_MIN_AGE_MS = 30 * 60_000;
+export const WORK_ETA_MIN_ACCEPTED = 5;
+export const WORK_QUEUE_LIMIT = 5;
+export const WORK_ACTIVITY_LIMIT = 20;
+export const WORK_CONTEXT_PAGE_SIZE = 10;
 export const MAIN_NAME = "Main";
 export const SYSTEM_NAME = "System";
 export const WATCHER_NAME = "Watcher";

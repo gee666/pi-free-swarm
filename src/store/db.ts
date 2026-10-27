@@ -83,8 +83,10 @@ const MIGRATIONS: readonly { version: number; file: string }[] = [
   { version: 15, file: "015-user-comment-attention.sql" },
   { version: 16, file: "016-post-claims.sql" },
   { version: 17, file: "017-post-contracts.sql" },
+  { version: 18, file: "018-work-graph.sql" },
+  { version: 19, file: "019-search-skills.sql" },
 ];
-const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
+export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 
 export function swarmDataDir(cwd: string): string {
   return path.join(path.resolve(cwd), SWARM_DIR);
@@ -147,15 +149,15 @@ export function openSwarmDb(dbPath: string, options: { create: boolean }): Swarm
 }
 
 function migrate(db: SwarmDb): void {
-  if (userVersion(db) === LATEST_VERSION) return;
+  if (userVersion(db) === SCHEMA_VERSION) return;
   db.sql.exec("PRAGMA foreign_keys = OFF");
   try {
     db.write(() => {
       // Re-read under the write lock: another process may have migrated since the first check.
       const current = userVersion(db);
-      if (current > LATEST_VERSION) {
+      if (current > SCHEMA_VERSION) {
         throw new Error(
-          `${DB_FILE} schema v${current} is newer than this extension (v${LATEST_VERSION}). Update pi-free-swarm.`,
+          `${DB_FILE} schema v${current} is newer than this extension (v${SCHEMA_VERSION}). Update pi-free-swarm.`,
         );
       }
       for (const migration of MIGRATIONS) {
@@ -165,7 +167,7 @@ function migrate(db: SwarmDb): void {
       if (db.sql.prepare("PRAGMA foreign_key_check").all().length > 0) {
         throw new Error("Schema migration would violate foreign keys");
       }
-      db.sql.exec(`PRAGMA user_version = ${LATEST_VERSION}`);
+      db.sql.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
     });
   } finally {
     db.sql.exec("PRAGMA foreign_keys = ON");

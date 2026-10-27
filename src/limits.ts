@@ -1,6 +1,8 @@
 // Shared by the broker and the UI counters, so it must stay free of Node imports.
 
 export const TITLE_MAX = 60;
+export const WORK_TITLE_ACCEPTED = 100;
+export const WORK_TEXT_ACCEPTED = 300;
 /** Default stated worker body limit (`bodyMaxChars`). */
 export const TEXT_MAX = 200;
 export const BODY_STATED_MIN = 100;
