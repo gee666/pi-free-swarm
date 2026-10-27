@@ -13,9 +13,13 @@ it("links Config to the current swarm and retains every existing section", async
   const config = screen.getByRole("link", { name: "Config" });
   expect(config).toHaveAttribute("href", "/s/7/config");
   expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
-    "Agents",
+    "Dashboard",
+    "Criteria",
+    "Tasks",
     "Wall",
+    "Agents",
     "Work",
+    "Skills",
     "Watcher",
     "Stats",
     "Config",

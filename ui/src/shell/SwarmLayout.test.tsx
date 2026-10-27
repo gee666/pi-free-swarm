@@ -55,13 +55,13 @@ it("keeps selectors live across scoped pages and selection changes with one shar
   expect(screen.getByRole("heading", { name: "Current 3/config" })).toBeInTheDocument();
   expect(api.callsTo("GET", "/api/swarms/3")).toHaveLength(detailCalls);
   await userEvent.click(option);
-  expect(await screen.findByRole("heading", { name: "Current 4/agents" })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Current 4/dashboard" })).toBeInTheDocument();
   expect(scoped?.readyState).toBe(FakeEventSource.CLOSED);
   expect(FakeEventSource.instances.filter((source) => source.url === "/events")).toHaveLength(1);
   expect(api.callsTo("GET", "/api/swarms")).toHaveLength(1);
   rows = [later, next, swarm];
   act(() => index?.emit({ ...eventBase, swarmId: 5, type: "swarm.updated", payload: { swarm: later } }));
-  expect(screen.getByRole("heading", { name: "Current 4/agents" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Current 4/dashboard" })).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "new swarm · #4" }));
   expect(await screen.findByRole("option", { name: "later swarm · #5" })).toBeInTheDocument();
   act(() => index?.open());

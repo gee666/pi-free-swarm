@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import type { SavedRunConfiguration } from "../../../src/run-configuration";
 import { ConfigurationDetails } from "./ConfigurationDetails";
 import { Popover } from "./Popover";
-import styles from "./AcceptanceSummary.module.css";
+import styles from "./RunSummary.module.css";
 
 export function RunConfiguration({ configuration }: { configuration?: SavedRunConfiguration | null }) {
   const anchor = useRef<HTMLButtonElement>(null);

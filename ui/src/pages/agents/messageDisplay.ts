@@ -15,14 +15,13 @@ export function visibleRecipients(message: MessageView, viewer: string, box: Mai
   return shown.map((recipient) => ({ ...recipient, name: displayName(recipient.name) }));
 }
 
-/** Who a reply from the user reaches: the members minus the user and the senders-only. */
-export function replyRecipients(thread: ThreadView): string[] {
-  return thread.members.filter((name) => name !== USER_NAME && !SENDERS_ONLY.includes(name));
+export function replyRecipient(thread: ThreadView): string | undefined {
+  const recipients = thread.members.filter((name) => name !== USER_NAME && !SENDERS_ONLY.includes(name));
+  return recipients.length === 1 ? recipients[0] : undefined;
 }
 
-/** The user can reply once they are a member and somebody else would receive it. */
 export function canUserReply(thread: ThreadView): boolean {
-  return thread.members.includes(USER_NAME) && replyRecipients(thread).length > 0;
+  return thread.members.includes(USER_NAME) && replyRecipient(thread) !== undefined;
 }
 
 /** Collapsed rows show the first line of the last message as the subject. */

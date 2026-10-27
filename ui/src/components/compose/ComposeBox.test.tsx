@@ -5,31 +5,23 @@ import { describe, expect, it, vi } from "vitest";
 import { ComposeBox, SWARM_NOT_RUNNING_NOTICE } from "./ComposeBox";
 
 interface HarnessProps {
-  onSend?: (text: string, to: readonly string[]) => void;
+  onSend?: (text: string, to: string) => void;
   initialText?: string;
   withRecipients?: boolean;
   disabled?: boolean;
-  thread?: boolean;
 }
 
-function Harness({
-  onSend = () => undefined,
-  initialText = "",
-  withRecipients = true,
-  disabled,
-  thread,
-}: HarnessProps) {
+function Harness({ onSend = () => undefined, initialText = "", withRecipients = true, disabled }: HarnessProps) {
   const [text, setText] = useState(initialText);
-  const [to, setTo] = useState<string[]>(["Maria"]);
+  const [to, setTo] = useState("Maria");
   return (
     <ComposeBox
       text={text}
       onTextChange={setText}
       onSend={() => onSend(text, to)}
-      limit={10}
+      attachmentThreshold={10}
       disabled={disabled}
-      thread={thread ? { id: 12, onCancel: () => undefined } : undefined}
-      recipients={withRecipients ? { names: to, options: ["Maria", "John", "Liam"], onChange: setTo } : undefined}
+      recipients={withRecipients ? { name: to, options: ["Maria", "John", "Liam"], onChange: setTo } : undefined}
     />
   );
 }
@@ -38,7 +30,7 @@ const textbox = () => screen.getByRole("textbox", { name: "Type a message…" })
 const sendButton = () => screen.getByRole("button", { name: "Send" });
 
 describe("ComposeBox", () => {
-  it("counts characters and blocks sending above the limit", async () => {
+  it("counts characters without blocking longer User text", async () => {
     render(<Harness />);
     expect(screen.queryByText("0/10")).not.toBeInTheDocument();
     expect(textbox()).toHaveAttribute("rows", "1");
@@ -50,7 +42,7 @@ describe("ComposeBox", () => {
     expect(screen.getByText("8/10")).toBeInTheDocument();
     await userEvent.type(textbox(), "rld!");
     expect(screen.getByText("12/10")).toBeInTheDocument();
-    expect(sendButton()).toBeDisabled();
+    expect(sendButton()).toBeEnabled();
   });
 
   it("sends with Ctrl+Enter and ⌘+Enter, while plain Enter adds a newline", async () => {
@@ -62,7 +54,7 @@ describe("ComposeBox", () => {
     await userEvent.keyboard("{Control>}{Enter}{/Control}");
     await userEvent.keyboard("{Meta>}{Enter}{/Meta}");
     expect(onSend).toHaveBeenCalledTimes(2);
-    expect(onSend).toHaveBeenLastCalledWith("hi\nthere", ["Maria"]);
+    expect(onSend).toHaveBeenLastCalledWith("hi\nthere", "Maria");
   });
 
   it("puts the shortcut in the send tooltip, not the composer", async () => {
@@ -80,36 +72,34 @@ describe("ComposeBox", () => {
     expect(screen.queryByText(SWARM_NOT_RUNNING_NOTICE)).not.toBeInTheDocument();
     expect(textbox()).toBeDisabled();
     expect(sendButton()).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Remove Maria" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "add agent" })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Recipient" })).toBeDisabled();
   });
 
-  it("removes chips and adds agents through the autocomplete", async () => {
+  it("selects exactly one recipient and disables send without one", async () => {
     const onSend = vi.fn();
     render(<Harness onSend={onSend} initialText="hello" />);
-    await userEvent.click(screen.getByRole("button", { name: "add agent" }));
-    const search = screen.getByRole("combobox", { name: "Find an agent" });
-    expect(search).toHaveFocus();
-    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(["John", "Liam"]);
-    await userEvent.type(search, "li");
-    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(["Liam"]);
-    await userEvent.keyboard("{Enter}");
-    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "Remove Maria" }));
+    const recipient = screen.getByRole("combobox", { name: "Recipient" });
+    expect(recipient).not.toHaveAttribute("multiple");
+    await userEvent.selectOptions(recipient, "Liam");
     await userEvent.click(sendButton());
-    expect(onSend).toHaveBeenCalledWith("hello", ["Liam"]);
-
-    await userEvent.click(screen.getByRole("button", { name: "Remove Liam" }));
+    expect(onSend).toHaveBeenCalledWith("hello", "Liam");
+    await userEvent.selectOptions(recipient, "");
     expect(sendButton()).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "add agent" })).not.toBeInTheDocument();
   });
 
-  it("makes thread members read-only in thread mode", () => {
-    render(<Harness thread />);
-    expect(screen.getByText("Replying in thread #12")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cancel reply" })).toBeEnabled();
-    expect(screen.queryByRole("button", { name: "Remove Maria" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "add agent" })).not.toBeInTheDocument();
+  it("warns near the preview allowance but accepts longer text", () => {
+    render(
+      <ComposeBox
+        text={"x".repeat(201)}
+        onTextChange={() => undefined}
+        onSend={() => undefined}
+        attachmentThreshold={200}
+      />,
+    );
+    expect(screen.getByText("201/200")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Over 200 characters, the full text is saved to a file");
+    expect(sendButton()).toBeEnabled();
   });
 
   it("has no To row in the wall comment variant", () => {

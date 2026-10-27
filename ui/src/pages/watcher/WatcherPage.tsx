@@ -1,3 +1,4 @@
+import { USER_BODY_PREVIEW_CHARS } from "../../../../src/limits";
 import { useLayoutEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { WATCHER_NAME } from "../../../../src/constants";
@@ -87,6 +88,7 @@ function WatcherChat({ swarmId }: { swarmId: string }) {
         onTextChange={setText}
         onSend={() => void send()}
         busy={sending}
+        attachmentThreshold={USER_BODY_PREVIEW_CHARS}
         disabled={!detail.data}
         disabledNotice="Watcher starts with the next run"
         placeholder={available ? "Ask about the swarm…" : "Watcher starts with the next run"}

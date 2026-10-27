@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import type { BudgetStatus } from "../../../src/budget";
 import { Popover } from "./Popover";
-import styles from "./AcceptanceSummary.module.css";
+import styles from "./RunSummary.module.css";
 
 export function BudgetDetails({ budget }: { budget?: BudgetStatus | null }) {
   if (!budget) return <p>No budget accounting was recorded for this run.</p>;

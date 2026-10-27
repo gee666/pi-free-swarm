@@ -18,6 +18,12 @@ afterEach(() => {
 function installFakeApi() {
   const api = installBaseFakeApi();
   api.on("GET", "/api/swarms/3", () => detail({ budget }));
+  api.on("GET", "/api/swarms/3/search-config", () => ({
+    ranking: "bm25",
+    embedding: "off",
+    reranker: "off",
+    maxResults: 20,
+  }));
   return api;
 }
 

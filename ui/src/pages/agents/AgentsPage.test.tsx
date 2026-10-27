@@ -10,7 +10,7 @@ import { installFakeEventSource, type FakeEventSource } from "../../test/fakeEve
 import { AgentsPage } from "./AgentsPage";
 import { agent, detail, eventBase, mailbox, mailboxThread, message, thread } from "./testFixtures";
 
-const scopesThread = thread(2, ["User", "John", "Maria"]);
+const scopesThread = thread(2, ["User", "Maria"]);
 const kickoff = message(
   2,
   "User",
@@ -94,25 +94,9 @@ describe("AgentsPage", () => {
   it("addresses and focuses a new message from a compose deep link", async () => {
     serve();
     mount("/s/3/agents/User?compose=maria");
-    await waitFor(() => expect(screen.getByRole("button", { name: "Remove Maria" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Recipient" })).toHaveValue("Maria"));
     expect(textbox()).toHaveFocus();
-    expect(screen.queryByRole("button", { name: "Remove John" })).not.toBeInTheDocument();
-  });
-
-  it("switches from a reply to a new message through a name action", async () => {
-    serve();
-    await renderAgents();
-    await expandScopes();
-    await userEvent.click(await screen.findByRole("button", { name: "Reply" }));
-    await userEvent.type(textbox(), "Draft");
-    await userEvent.click(within(participantList()).getByRole("button", { name: "Send message: Emma" }));
-    await waitFor(() => expect(screen.queryByText("Replying in thread #2")).not.toBeInTheDocument());
-    expect(screen.getByRole("button", { name: "Remove Emma" })).toBeInTheDocument();
-    expect(textbox()).toHaveValue("Draft");
-    expect(textbox()).toHaveFocus();
-    await userEvent.click(screen.getByRole("button", { name: "Remove Emma" }));
-    await userEvent.click(within(participantList()).getByRole("button", { name: "Send message: Emma" }));
-    expect(screen.getByRole("button", { name: "Remove Emma" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Recipient" })).not.toHaveValue("John");
   });
 
   it("sends uncapped User messages without applying the worker body allowance", async () => {
@@ -124,23 +108,27 @@ describe("AgentsPage", () => {
     await user.click(textbox());
     await user.paste(text);
     expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
-    expect(screen.queryByText(/72000\//)).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Over 200 characters, the full text is saved to a file");
     await user.click(screen.getByRole("button", { name: "Send" }));
-    await waitFor(() => expect(api.callsTo("POST", "/api/swarms/3/messages")[0]?.body).toEqual({ to: ["John"], text }));
+    await waitFor(() => expect(api.callsTo("POST", "/api/swarms/3/messages")[0]?.body).toEqual({ to: "John", text }));
   });
 
-  it("sends the complete long User reply to the selected thread", async () => {
+  it("continues a conversation by messaging its single recipient", async () => {
     serve();
-    api.on("POST", "/api/swarms/3/threads/2/reply", () => ({ message: kickoff }));
+    api.on("POST", "/api/swarms/3/messages", () => ({ message: scopes }));
     await renderAgents();
     await expandScopes();
     await userEvent.click(screen.getByRole("button", { name: "Reply" }));
-    const text = "reply".repeat(15000);
-    await userEvent.click(textbox());
-    await userEvent.paste(text);
+    expect(screen.getByRole("combobox", { name: "Recipient" })).toHaveValue("Maria");
+    expect(textbox()).toHaveFocus();
+    expect(screen.queryByText(/Replying in thread/)).not.toBeInTheDocument();
+    await userEvent.type(textbox(), "Thanks");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
-    await waitFor(() => expect(api.callsTo("POST", "/api/swarms/3/threads/2/reply")[0]?.body).toEqual({ text }));
+    await waitFor(() =>
+      expect(api.callsTo("POST", "/api/swarms/3/messages")[0]?.body).toEqual({ to: "Maria", text: "Thanks" }),
+    );
   });
+
   it("keeps stable order for equal activity timestamps and shows unread badges", async () => {
     serve();
     await renderAgents();
@@ -214,38 +202,17 @@ describe("AgentsPage", () => {
     expect(messages.firstElementChild).toHaveTextContent("Live reply");
   });
 
-  it("replies in thread mode and restores the selected agent afterwards", async () => {
-    serve();
-    api.on("POST", "/api/swarms/3/threads/2/reply", () => ({ message: scopes }));
-    await renderAgents();
-    await expandScopes();
-    await userEvent.click(await screen.findByRole("button", { name: "Reply" }));
-
-    expect(screen.getByText("Replying in thread #2")).toBeInTheDocument();
-    expect(textbox()).toHaveFocus();
-    expect(screen.queryByRole("button", { name: "Remove John" })).not.toBeInTheDocument();
-    await userEvent.type(textbox(), "Thanks both");
-    await userEvent.click(screen.getByRole("button", { name: "Send" }));
-    await waitFor(() => expect(textbox()).toHaveValue(""));
-    expect(api.callsTo("POST", "/api/swarms/3/threads/2/reply")[0].body).toEqual({ text: "Thanks both" });
-
-    await userEvent.click(screen.getByRole("button", { name: "Cancel reply" }));
-    expect(screen.queryByText("Replying in thread #2")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Remove John" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Remove Maria" })).not.toBeInTheDocument();
-  });
-
   it("pre-fills To from the envelope button and sends a new thread", async () => {
     serve();
     api.on("POST", "/api/swarms/3/messages", () => ({ message: sent }));
     await renderAgents();
     await userEvent.click(within(participantList()).getByRole("button", { name: "Send message: Maria" }));
     expect(textbox()).toHaveFocus();
-    expect(screen.queryByRole("button", { name: "Remove John" })).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Recipient" })).not.toHaveValue("John");
     await userEvent.type(textbox(), "Status?");
     await userEvent.keyboard("{Control>}{Enter}{/Control}");
     await waitFor(() => expect(api.callsTo("POST", "/api/swarms/3/messages")).toHaveLength(1));
-    expect(api.callsTo("POST", "/api/swarms/3/messages")[0].body).toEqual({ to: ["Maria"], text: "Status?" });
+    expect(api.callsTo("POST", "/api/swarms/3/messages")[0].body).toEqual({ to: "Maria", text: "Status?" });
   });
 
   it("disables compose and Reply while the swarm does not accept messages", async () => {

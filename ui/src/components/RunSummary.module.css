@@ -7,11 +7,9 @@
   font-size: var(--fs-small);
   white-space: nowrap;
 }
-
 .pill:hover {
   background: var(--bg-hover);
 }
-
 .summary {
   display: flex;
   flex-direction: column;
@@ -24,12 +22,10 @@
   color: var(--text-secondary);
   line-height: var(--lh-body);
 }
-
 .summary h3 {
   color: var(--text-primary);
   font-size: var(--fs-body);
 }
-
 .summary pre {
   white-space: pre-wrap;
 }

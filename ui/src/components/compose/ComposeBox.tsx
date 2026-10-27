@@ -1,11 +1,10 @@
 import { useRef, type KeyboardEvent, type ReactNode } from "react";
-import { Paperclip, Reply, Send, X } from "lucide-react";
+import { Paperclip, Send } from "lucide-react";
 import { charCount, checkText } from "../../../../src/limits";
 import { cx } from "../../lib/cx";
 import { sendModifierLabel } from "../../lib/platform";
 import { IconButton } from "../Button";
 import { AutoTextarea, CharCounter } from "../Field";
-import { Icon } from "../Icon";
 import { Tooltip } from "../Tooltip";
 import styles from "./Compose.module.css";
 import { RecipientField } from "./RecipientField";
@@ -16,15 +15,9 @@ import { ErrorBanner } from "../States";
 export const SWARM_NOT_RUNNING_NOTICE = "Swarm is not running. Messages can't be sent.";
 
 export interface ComposeRecipients {
-  names: readonly string[];
-  /** Every participant that may be added via "+ add agent". */
+  name: string;
   options: readonly string[];
-  onChange: (names: string[]) => void;
-}
-
-export interface ComposeThread {
-  id: number;
-  onCancel: () => void;
+  onChange: (name: string) => void;
 }
 
 export interface ComposeBoxProps {
@@ -32,12 +25,8 @@ export interface ComposeBoxProps {
   onTextChange: (text: string) => void;
   /** Called by the button and by ⌘/Ctrl+Enter, only when the text is sendable. */
   onSend: () => void;
-  /** Omit for uncapped User input. Worker-facing forms may retain a bound. */
-  limit?: number;
   /** Omit for the wall comment variant without a "To" row. */
   recipients?: ComposeRecipients;
-  /** Thread mode: "Replying in thread #id" with cancel; chips become read-only. */
-  thread?: ComposeThread;
   placeholder?: string;
   sendLabel?: string;
   /** Swarm not running: controls are disabled. */
@@ -58,9 +47,7 @@ export function ComposeBox({
   text,
   onTextChange,
   onSend,
-  limit,
   recipients,
-  thread,
   placeholder = "Type a message…",
   sendLabel = "Send",
   disabled = false,
@@ -83,10 +70,10 @@ export function ComposeBox({
     controls,
     disabled: disabled || busy,
   });
-  const hasRecipients = recipients === undefined || recipients.names.length > 0;
+  const hasRecipients = recipients === undefined || recipients.name.length > 0;
   const characterCount = charCount(text);
   const canSend =
-    !disabled && !busy && !uploads.uploading && !sendDisabled && hasRecipients && checkText(text, limit ?? Infinity).ok;
+    !disabled && !busy && !uploads.uploading && !sendDisabled && hasRecipients && checkText(text, Infinity).ok;
   const send = () => {
     if (canSend) onSend();
   };
@@ -104,19 +91,11 @@ export function ComposeBox({
         className={cx(styles.controls, uploadSwarmId && styles.withUploads, disabled && styles.dimmed)}
       >
         {children}
-        {thread && (
-          <div className={styles.threadLine}>
-            <Icon icon={Reply} size="status" />
-            Replying in thread #{thread.id}
-            <IconButton icon={X} label="Cancel reply" onClick={thread.onCancel} />
-          </div>
-        )}
         {recipients && (
           <RecipientField
-            names={recipients.names}
+            name={recipients.name}
             options={recipients.options}
             onChange={recipients.onChange}
-            readOnly={thread !== undefined}
             disabled={disabled}
           />
         )}
@@ -162,7 +141,7 @@ export function ComposeBox({
               />
             </Tooltip>
           )}
-          {limit !== undefined && <CharCounter text={text} limit={limit} />}
+          {attachmentThreshold !== undefined && <CharCounter text={text} limit={attachmentThreshold} />}
           <Tooltip content={`Send (${sendModifierLabel()}+Enter)`}>
             <IconButton icon={Send} label={sendLabel} className={styles.send} disabled={!canSend} onClick={send} />
           </Tooltip>
@@ -176,8 +155,7 @@ export function ComposeBox({
       {uploads.error && <ErrorBanner>{`File upload failed: ${uploads.error}`}</ErrorBanner>}
       {attachmentThreshold !== undefined && characterCount >= attachmentThreshold && (
         <p role="status" className={styles.attachmentNotice}>
-          {characterCount} characters. Over {attachmentThreshold} characters, the full text is automatically saved to a
-          file.
+          Over {attachmentThreshold} characters, the full text is saved to a file
         </p>
       )}
     </section>

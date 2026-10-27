@@ -9,7 +9,6 @@ import { CountBadge, StatusDot, UnreadDot } from "../components/Indicators";
 import { Menu, useMenuNavigation } from "../components/Menu";
 import { Popover } from "../components/Popover";
 import { Pill, RecipientPill } from "../components/Pill";
-import { RecipientChip } from "../components/RecipientChip";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { Tooltip } from "../components/Tooltip";
 import styles from "./Gallery.module.css";
@@ -114,8 +113,6 @@ export function ControlsSection() {
         <RecipientPill names={["Maria", "John", "Liam", "Ava"]} />
         <Pill>you</Pill>
         <Pill icon={MessageCircle}>4</Pill>
-        <RecipientChip name="Maria" onRemove={() => undefined} />
-        <RecipientChip name="John" />
       </Section>
       <Section title="Delivery status">
         {mockRecipients.map((recipient) => (

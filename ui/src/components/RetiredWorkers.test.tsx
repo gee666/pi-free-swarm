@@ -58,6 +58,6 @@ it("preserves retired mailbox evidence but excludes retired workers from new-mes
   act(() => source().open());
   expect(await screen.findByText("Archived handoff evidence")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Remove Maria" })).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "add agent" }));
-  expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(["John"]);
+  expect(screen.getByRole("combobox", { name: "Recipient" })).toHaveValue("");
+  expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(["Select an agent", "John"]);
 });

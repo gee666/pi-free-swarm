@@ -107,7 +107,6 @@ describe("StatsPage", () => {
             status: "finished",
             acceptsMessages: false,
             taskPrompt: "test",
-            acceptanceCriteria: ["Task complete."],
             agentAmount: 3,
             agentsWorking: 0,
             runCount: 1,

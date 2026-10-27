@@ -10,15 +10,12 @@ import type {
   ThreadView,
 } from "../../../../src/api-types";
 
-import { acceptance } from "../../test/acceptanceFixture";
-
 const AT = new Date(2026, 3, 12, 10, 24).getTime();
 
 export const swarm: SwarmListItem = {
   id: 3,
   name: "auth-refactor",
   taskPrompt: "Implement OAuth login",
-  acceptanceCriteria: ["OAuth login works."],
   status: "running",
   acceptsMessages: true,
   agentAmount: 3,
@@ -46,7 +43,6 @@ export const agent = (name: string, launchOrder: number, patch: Partial<AgentPar
 
 export const detail = (patch: Partial<SwarmListItem> = {}): SwarmDetailResponse => ({
   swarm: { ...swarm, ...patch },
-  acceptance,
   bodyMaxChars: 200,
   participants: [
     { kind: "user", name: "User", unread: 1, joinedAt: AT, lastActivityAt: AT },

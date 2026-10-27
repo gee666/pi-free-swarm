@@ -1,5 +1,5 @@
 import type { StatsTotals } from "../../../../src/api-types";
-import { cx } from "../../lib/cx";
+import { StatTile } from "../../components/StatTile";
 import { formatCost, formatDuration, formatTokens } from "../../lib/format";
 import { TOKEN_CATEGORIES } from "./usageCategories";
 import { hasIncompleteCosts, UsageCost } from "./UsageCost";
@@ -25,21 +25,17 @@ export function StatTiles({ totals }: { totals: StatsTotals }) {
       <div className={styles.tileGroups}>
         <dl className={styles.tiles}>
           {summary.map((tile) => (
-            <div key={tile.label} className={styles.tile}>
-              <dt className={styles.tileLabel}>{tile.label}</dt>
-              <dd className={cx(styles.tileValue, tile.accent && styles.accent)}>{tile.value}</dd>
-            </div>
+            <StatTile key={tile.label} {...tile} />
           ))}
         </dl>
         <dl className={styles.tiles}>
           {TOKEN_CATEGORIES.map(({ key, label }) => (
-            <div key={key} className={styles.tile}>
-              <dt className={styles.tileLabel}>{label} tokens</dt>
-              <dd className={styles.tileValue}>{formatTokens(totals[key])}</dd>
-              <dd className={styles.tileCost}>
-                <UsageCost usage={totals} category={key} label={label} />
-              </dd>
-            </div>
+            <StatTile
+              key={key}
+              label={`${label} tokens`}
+              value={formatTokens(totals[key])}
+              detail={<UsageCost usage={totals} category={key} label={label} />}
+            />
           ))}
         </dl>
       </div>

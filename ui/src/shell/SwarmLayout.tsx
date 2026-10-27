@@ -2,6 +2,7 @@ import { useSwarmDetail } from "../pages/agents/useSwarmDetail";
 import { Outlet, useNavigate, useParams } from "react-router-dom";
 import { SwarmViewProvider } from "../api/SwarmView";
 import { useSwarmList } from "../api/SwarmList";
+import { DashboardProvider, useDashboard } from "../api/dashboard";
 import { AppShell } from "./AppShell";
 import { TabRail } from "./TabRail";
 import { TopBar } from "./TopBar";
@@ -13,7 +14,9 @@ export function SwarmLayout() {
   return (
     <SwarmViewProvider key={id} swarmId={id}>
       <FilePreviewProvider swarmId={id}>
-        <SwarmFrame swarmId={id} />
+        <DashboardProvider swarmId={id}>
+          <SwarmFrame swarmId={id} />
+        </DashboardProvider>
       </FilePreviewProvider>
     </SwarmViewProvider>
   );
@@ -23,18 +26,23 @@ function SwarmFrame({ swarmId }: { swarmId: string }) {
   const navigate = useNavigate();
   const { list } = useSwarmList();
   const detail = useSwarmDetail(swarmId);
+  const dashboard = useDashboard().data;
+  const attention = dashboard
+    ? Number(dashboard.attention.scopeApprovalNeeded) + dashboard.attention.blockerDecisions.length
+    : 0;
   const swarms = list.data?.swarms ?? [];
   return (
     <AppShell
       topBar={
         <TopBar
           detail={detail.data}
+          runState={dashboard?.header.state}
           swarms={swarms}
           current={swarms.find((swarm) => String(swarm.id) === swarmId)}
-          onSelectSwarm={(id) => navigate(`/s/${id}/agents`)}
+          onSelectSwarm={(id) => navigate(`/s/${id}/dashboard`)}
         />
       }
-      rail={<TabRail basePath={`/s/${swarmId}`} unread={detail.data?.userUnread} />}
+      rail={<TabRail basePath={`/s/${swarmId}`} unread={detail.data?.userUnread} attention={attention} />}
     >
       <Outlet />
     </AppShell>

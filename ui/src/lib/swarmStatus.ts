@@ -7,15 +7,14 @@ export function isSwarmLive(status: SwarmStatus): boolean {
 
 const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`;
 
-/** Top bar status text: "12 agents working", "Finished", "Stopped". */
 export function swarmStatusLabel(swarm: SwarmListItem): string {
   switch (swarm.status) {
     case "starting":
-      return "Starting";
+      return "Running";
     case "running":
-      return `${plural(swarm.agentsWorking, "agent")} working`;
+      return "Running";
     case "finished":
-      return "Finished";
+      return "Stopped";
     case "stopped":
       return "Stopped";
     case "interrupted":

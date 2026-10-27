@@ -36,8 +36,7 @@ function CurrentDetailProvider({ swarmId, children }: { swarmId: string; childre
     stream.openCount > 0 || stream.status === "reconnecting",
   );
   useStreamListener(stream, (event) => {
-    if (event.type === "acceptance.updated" || event.type === "swarm.updated" || event.type === "usage.updated")
-      detail.reload();
+    if (event.type === "swarm.updated" || event.type === "usage.updated") detail.reload();
     detail.update((current) => {
       if (!current) return current;
       if (event.type === "swarm.updated")

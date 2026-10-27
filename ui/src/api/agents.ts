@@ -4,7 +4,6 @@ import type {
   MarkReadRequest,
   MarkReadResponse,
   ParticipantView,
-  ReplyRequest,
   ReservedName,
   SendMessageRequest,
   SendMessageResponse,
@@ -57,15 +56,6 @@ export function fetchThread(swarmId: number | string, threadId: number, signal: 
 /** Starts a new thread as `User`; rejects with `ApiError` code `swarm_not_running` (409) when not live. */
 export function sendMessage(swarmId: number | string, request: SendMessageRequest): Promise<SendMessageResponse> {
   return postJson<SendMessageResponse>(`${swarmUrl(swarmId)}/messages`, request);
-}
-
-/** Same 409 rule as `sendMessage`. */
-export function replyToThread(
-  swarmId: number | string,
-  threadId: number,
-  request: ReplyRequest,
-): Promise<SendMessageResponse> {
-  return postJson<SendMessageResponse>(`${swarmUrl(swarmId)}/threads/${threadId}/reply`, request);
 }
 
 export function markUserRead(swarmId: number | string, messageIds: number[]): Promise<MarkReadResponse> {

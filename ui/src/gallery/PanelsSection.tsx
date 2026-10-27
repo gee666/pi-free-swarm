@@ -1,6 +1,6 @@
+import { USER_BODY_PREVIEW_CHARS } from "../../../src/limits";
 import { useState } from "react";
 import { Inbox, MessageCircle } from "lucide-react";
-import { TEXT_MAX } from "../../../src/limits";
 import { Avatar } from "../components/Avatar";
 import { AgentName } from "../components/AgentName";
 import { Button } from "../components/Button";
@@ -19,23 +19,23 @@ import styles from "./Gallery.module.css";
 import { mockAgents, mockMarkdown, mockRecipients } from "./mockData";
 import { Section } from "./Section";
 
-type ComposeDemoProps = Omit<ComposeBoxProps, "text" | "onTextChange" | "onSend" | "limit" | "recipients"> & {
+type ComposeDemoProps = Omit<ComposeBoxProps, "text" | "onTextChange" | "onSend" | "recipients"> & {
   initialText?: string;
   withRecipients?: boolean;
 };
 
 function ComposeDemo({ initialText = "", withRecipients = true, ...props }: ComposeDemoProps) {
   const [text, setText] = useState(initialText);
-  const [to, setTo] = useState<string[]>(["Maria", "John"]);
-  const options = ["User", ...mockAgents.map((agent) => agent.name)];
+  const [to, setTo] = useState("Maria");
+  const options = mockAgents.map((agent) => agent.name);
   return (
     <ComposeBox
       {...props}
       text={text}
       onTextChange={setText}
       onSend={() => setText("")}
-      limit={TEXT_MAX}
-      recipients={withRecipients ? { names: to, options, onChange: setTo } : undefined}
+      attachmentThreshold={USER_BODY_PREVIEW_CHARS}
+      recipients={withRecipients ? { name: to, options, onChange: setTo } : undefined}
     />
   );
 }
@@ -139,10 +139,9 @@ export function PanelsSection() {
       </Section>
       <Section title="Compose" column>
         <ComposeDemo />
-        <ComposeDemo thread={{ id: 12, onCancel: () => undefined }} initialText="Sounds good." />
         <ComposeDemo disabled />
         <ComposeDemo withRecipients={false} placeholder="Write a comment…" sendLabel="Comment" />
-        <ComposeDemo initialText={"x".repeat(TEXT_MAX + 5)} />
+        <ComposeDemo initialText={"x".repeat(205)} />
       </Section>
       <Section title="Markdown (Work tab)" column>
         <Panel className={styles.markdownPanel}>

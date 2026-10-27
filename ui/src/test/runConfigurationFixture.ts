@@ -33,7 +33,7 @@ export const configuration: SavedRunConfiguration = {
       resumeStaggerMs: 100,
       reviveBackoffMs: [100, 200],
     },
-    limits: { bodyMaxChars: 200, maxRpcFrameBytes: 1048576 },
+    limits: { maxRpcFrameBytes: 1048576 },
     budget: { moneyUsd: 10, timeSeconds: 300, gracefulShutdown: false },
   },
 };

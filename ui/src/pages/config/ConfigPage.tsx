@@ -4,6 +4,7 @@ import { requestConfigurationChange } from "../../api/configuration";
 import { ConfigurationDetails } from "../../components/ConfigurationDetails";
 import { Panel, PanelBody, PanelHeader } from "../../components/Panel";
 import { ErrorBanner, SkeletonRows } from "../../components/States";
+import { SearchConfig } from "./SearchConfig";
 import { RuntimeConfigEditor } from "./RuntimeConfigEditor";
 import { LiveRuntimeAccounting, RuntimeBudgetDetails } from "./RuntimeBudgetMetrics";
 import { useRuntimeConfiguration } from "./useRuntimeConfiguration";
@@ -59,6 +60,7 @@ export function ConfigPage() {
       <Panel aria-label="Swarm configuration" className={styles.page}>
         <PanelHeader title="Swarm configuration" />
         <PanelBody className={styles.details}>
+          <SearchConfig swarmId={id} />
           {state.error && <ErrorBanner>{`Could not load configuration: ${state.error.message}`}</ErrorBanner>}
           {!view ? (
             !state.error && <SkeletonRows />

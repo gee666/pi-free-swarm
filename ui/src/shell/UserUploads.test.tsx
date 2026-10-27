@@ -174,12 +174,12 @@ it("does not insert a pending file after the message recipient changes", async (
   );
   mount("/s/3/agents/User?compose=Maria");
   const box = await screen.findByRole("textbox", { name: "Type a message…" });
-  await screen.findByRole("button", { name: "Remove Maria" });
+  await waitFor(() => expect(screen.getByRole("combobox", { name: "Recipient" })).toHaveValue("Maria"));
   const user = userEvent.setup();
   await user.upload(screen.getByLabelText("Upload files"), new File(["bytes"], "report.txt"));
   await waitFor(() => expect(api.callsTo("POST", uploadRoute)).toHaveLength(1));
   await user.click(screen.getByRole("button", { name: "Send message: John" }));
-  await screen.findByRole("button", { name: "Remove John" });
+  await waitFor(() => expect(screen.getByRole("combobox", { name: "Recipient" })).toHaveValue("John"));
   await user.type(box, "For John only");
   await act(async () => finish());
   expect(box).toHaveValue("For John only");
@@ -192,7 +192,7 @@ it("offers the same file picker for User messages without changing recipients", 
   }));
   mount("/s/3/agents/User?compose=Maria");
   const box = await screen.findByRole("textbox", { name: "Type a message…" });
-  await screen.findByRole("button", { name: "Remove Maria" });
+  await waitFor(() => expect(screen.getByRole("combobox", { name: "Recipient" })).toHaveValue("Maria"));
   const user = userEvent.setup();
   await user.upload(
     screen.getByLabelText("Upload files"),
@@ -200,12 +200,12 @@ it("offers the same file picker for User messages without changing recipients", 
   );
   await waitFor(() => expect(box).toHaveValue(uploadedPath));
   expect(
-    within(screen.getByRole("region", { name: "Compose" })).getByRole("button", { name: "Remove Maria" }),
-  ).toBeInTheDocument();
+    within(screen.getByRole("region", { name: "Compose" })).getByRole("combobox", { name: "Recipient" }),
+  ).toHaveValue("Maria");
   expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
   await user.click(screen.getByRole("button", { name: "Send" }));
   await waitFor(() =>
-    expect(api.callsTo("POST", "/api/swarms/3/messages")[0]?.body).toEqual({ to: ["Maria"], text: uploadedPath }),
+    expect(api.callsTo("POST", "/api/swarms/3/messages")[0]?.body).toEqual({ to: "Maria", text: uploadedPath }),
   );
   expect(api.callsTo("POST", uploadRoute)).toHaveLength(1);
 });

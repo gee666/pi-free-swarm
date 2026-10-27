@@ -1,3 +1,4 @@
+import { USER_BODY_PREVIEW_CHARS } from "../../../../src/limits";
 import { useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { UserX } from "lucide-react";
@@ -11,6 +12,7 @@ import { PanelLayout } from "../../shell/AppShell";
 import styles from "./Agents.module.css";
 import { MailboxPanel } from "./MailboxPanel";
 import { ParticipantList } from "./ParticipantList";
+import { replyRecipient } from "./messageDisplay";
 import { useComposer } from "./useComposer";
 import { useComposeRequest } from "./useComposeRequest";
 import { useSwarmDetail } from "./useSwarmDetail";
@@ -30,14 +32,15 @@ export function AgentsPage() {
   const composer = useComposer(
     swarmId,
     detail.data?.swarm,
-    selected?.kind === "agent" && selected.status !== "retired" ? [selected.name] : [],
+    selected?.kind === "agent" && selected.status !== "retired" ? selected.name : "",
   );
   const composeSlot = useRef<HTMLDivElement>(null);
   const focusCompose = () => composeSlot.current?.querySelector("textarea")?.focus();
 
   useComposeRequest(participants, composer.address, composeSlot);
   const reply = (thread: ThreadView) => {
-    composer.reply(thread);
+    const recipient = replyRecipient(thread);
+    if (recipient) composer.address(recipient);
     focusCompose();
   };
 
@@ -83,12 +86,12 @@ export function AgentsPage() {
         <div ref={composeSlot} className={styles.composeSlot}>
           <ComposeBox
             uploadSwarmId={swarmId}
-            uploadScope={JSON.stringify([composer.to, composer.thread?.id])}
+            uploadScope={composer.to}
             text={composer.text}
             onTextChange={composer.setText}
             onSend={composer.send}
-            recipients={{ names: composer.to, options: agents, onChange: composer.setTo }}
-            thread={composer.thread && { id: composer.thread.id, onCancel: composer.cancelReply }}
+            recipients={{ name: composer.to, options: agents, onChange: composer.setTo }}
+            attachmentThreshold={USER_BODY_PREVIEW_CHARS}
             disabled={composer.disabled}
             busy={composer.busy}
           />

@@ -19,7 +19,7 @@ export function useComposeRequest(
   useEffect(() => {
     if (requested === null || participants === undefined) return;
     if (recipient) {
-      address([recipient]);
+      address(recipient);
       slot.current?.querySelector("textarea")?.focus();
     }
     setQuery(

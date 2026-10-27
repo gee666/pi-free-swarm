@@ -1,4 +1,8 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { DashboardPage } from "./pages/dashboard/DashboardPage";
+import { CriteriaPage } from "./pages/criteria/CriteriaPage";
+import { TasksPage } from "./pages/tasks/TasksPage";
+import { SkillsPage } from "./pages/skills/SkillsPage";
 import { AgentsPage } from "./pages/agents/AgentsPage";
 import { PickerPage } from "./pages/picker/PickerPage";
 import { ConfigPage } from "./pages/config/ConfigPage";
@@ -16,7 +20,11 @@ export function App() {
         <Routes>
           <Route path="/" element={<PickerPage />} />
           <Route path="/s/:id" element={<SwarmLayout />}>
-            <Route index element={<Navigate to="agents" replace />} />
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="criteria/:criterionId?" element={<CriteriaPage />} />
+            <Route path="tasks/:taskId?" element={<TasksPage />} />
+            <Route path="skills/:name?" element={<SkillsPage />} />
             <Route path="agents/:name?" element={<AgentsPage />} />
             <Route path="wall/:postId?" element={<WallPage />} />
             <Route path="work/:name?" element={<WorkPage />} />

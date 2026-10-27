@@ -20,10 +20,10 @@ export function PickerPage() {
     if (initialChoice.current || list.loading || list.error || list.data === undefined) return;
     initialChoice.current = true;
     const current = latestRunningSwarm(list.data.swarms);
-    if (current) navigate(`/s/${current.id}/agents`, { replace: true });
+    if (current) navigate(`/s/${current.id}/dashboard`, { replace: true });
   }, [list.data, list.loading, list.error, navigate]);
   const swarms = list.data?.swarms ?? [];
-  const open = (id: number) => navigate(`/s/${id}/agents`);
+  const open = (id: number) => navigate(`/s/${id}/dashboard`);
 
   return (
     <AppShell topBar={<TopBar swarms={swarms} onSelectSwarm={open} />}>

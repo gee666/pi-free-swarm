@@ -57,10 +57,7 @@ export function ConfigurationDetails({ configuration }: { configuration?: SavedR
             {effective.launch.noExtensions ? "disabled" : "enabled"}
           </p>
           <p>Extension arguments: {effective.launch.extensionArgs.join(" ") || "none"}</p>
-          <p>
-            Body limit: {effective.limits.bodyMaxChars} characters · RPC frame limit:{" "}
-            {effective.limits.maxRpcFrameBytes} bytes
-          </p>
+          <p>RPC frame limit: {effective.limits.maxRpcFrameBytes} bytes</p>
           <h3>Timing</h3>
           <ul>
             {Object.entries(timingLabels).map(([key, label]) => {

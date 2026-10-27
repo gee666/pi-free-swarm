@@ -1,7 +1,7 @@
+import { USER_BODY_PREVIEW_CHARS } from "../../../src/limits";
 import { useState } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { Reply } from "lucide-react";
-import { TEXT_MAX } from "../../../src/limits";
 import { Avatar } from "../components/Avatar";
 import { AgentName } from "../components/AgentName";
 import { Button } from "../components/Button";
@@ -101,7 +101,7 @@ function Mailbox({ name }: { name: string }) {
 /** Static copy of style-reference/variant-a-minimal-agents.png built from the shared components. */
 export function AgentsReplica() {
   const [selected, setSelected] = useState("Maria");
-  const [to, setTo] = useState<string[]>(["Maria", "John"]);
+  const [to, setTo] = useState("Maria");
   const [text, setText] = useState("");
   return (
     <MemoryRouter initialEntries={["/s/3/agents/Maria"]}>
@@ -117,8 +117,8 @@ export function AgentsReplica() {
               text={text}
               onTextChange={setText}
               onSend={() => setText("")}
-              limit={TEXT_MAX}
-              recipients={{ names: to, options: mockAgents.map((agent) => agent.name), onChange: setTo }}
+              attachmentThreshold={USER_BODY_PREVIEW_CHARS}
+              recipients={{ name: to, options: mockAgents.map((agent) => agent.name), onChange: setTo }}
             />
           }
         />

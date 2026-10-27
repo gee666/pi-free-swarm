@@ -2,7 +2,6 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { acceptance } from "../../test/acceptanceFixture";
 import type { AgentParticipantView, SwarmDetailResponse, SwarmEvent } from "../../../../src/api-types";
 import { SwarmViewProvider } from "../../api/SwarmView";
 import { installFakeApi } from "../../test/fakeApi";
@@ -25,13 +24,11 @@ const agent = (name: string, patch: Partial<AgentParticipantView> = {}): AgentPa
 });
 
 const detail: SwarmDetailResponse = {
-  acceptance,
   bodyMaxChars: 200,
   swarm: {
     id: 3,
     name: "auth-refactor",
     taskPrompt: "Implement OAuth",
-    acceptanceCriteria: ["OAuth login works."],
     status: "running",
     acceptsMessages: true,
     agentAmount: 2,
