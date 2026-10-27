@@ -1,5 +1,7 @@
 // Global defaults and project overrides are read fresh for each launch. Env values never enter errors.
 import { globalSettingsFile, layeredSettings } from "./settings-files.js";
+import { parseSearchConfiguration, type SearchConfiguration } from "./search/settings.js";
+export type { SearchSettings, SearchEndpoint } from "./search/settings.js";
 import { SettingsError } from "./settings-error.js";
 export { SettingsError } from "./settings-error.js";
 import {
@@ -27,7 +29,7 @@ import { BODY_SAFETY_MAX, BODY_STATED_MIN, TEXT_MAX } from "./limits.js";
 import { parseModelProfiles, type ModelProfile } from "./model-allocation.js";
 import { DEFAULT_MAX_RPC_FRAME_BYTES } from "./agents/jsonl.js";
 
-export interface SwarmSettings {
+export interface SwarmSettings extends SearchConfiguration {
   budgetMoneyUsd?: number;
   budgetTimeSeconds?: number;
   gracefulShutdownOnBudget?: boolean;
@@ -71,6 +73,8 @@ const KNOWN_KEYS = new Set([
   "budgetMoneyUsd",
   "budgetTimeSeconds",
   "gracefulShutdownOnBudget",
+  "search",
+  "helperModel",
 ]);
 const PORT_MIN = 1;
 const PORT_MAX = 65_535;
@@ -123,6 +127,7 @@ export function loadSettings(
   return {
     settings: buildSettings(
       {
+        ...parseSearchConfiguration(parsed),
         models,
         budgetMoneyUsd,
         budgetTimeSeconds,
@@ -197,7 +202,7 @@ function positiveBudget(parsed: Record<string, unknown>, key: string): number | 
   return value;
 }
 
-interface ParsedNumbers {
+interface ParsedNumbers extends SearchConfiguration {
   budgetMoneyUsd?: number;
   budgetTimeSeconds?: number;
   gracefulShutdownOnBudget?: boolean;
@@ -220,6 +225,8 @@ function buildSettings(values: ParsedNumbers, env: Record<string, string>): Swar
   if (maxAgents < minAgents) throw new SettingsError(`maxAgents (${maxAgents}) must be >= minAgents (${minAgents})`);
   const defaultAgents = Math.min(Math.max(values.defaultAgents ?? DEFAULT_AGENTS, minAgents), maxAgents);
   return {
+    ...(values.search === undefined ? {} : { search: values.search }),
+    ...(values.helperModel === undefined ? {} : { helperModel: values.helperModel }),
     ...(values.models === undefined ? {} : { models: values.models }),
     budgetMoneyUsd: values.budgetMoneyUsd,
     budgetTimeSeconds: values.budgetTimeSeconds,

@@ -17,6 +17,8 @@ export function settingsForPersistence(settings: SwarmSettings) {
     bodyMaxChars: settings.bodyMaxChars,
     maxRpcFrameBytes: settings.maxRpcFrameBytes,
     models: settings.models,
+    search: settings.search,
+    helperModel: settings.helperModel,
     budgetMoneyUsd: settings.budgetMoneyUsd,
     budgetTimeSeconds: settings.budgetTimeSeconds,
     gracefulShutdownOnBudget: settings.gracefulShutdownOnBudget ?? false,

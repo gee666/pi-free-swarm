@@ -175,6 +175,38 @@ These are the agent-count and stagger defaults; `env` defaults to `{}` and `port
 
 The extension does not store configured env values in its database or expose them in settings diagnostics or the board. This is not secret isolation: children inherit them, can read project files, and their commands/output may reveal secrets in sessions. Protect credentials accordingly.
 
+### Search and skills
+
+Search uses local BM25 ranking by default. Omit query text to keep the caller's filtered, most-recent-first order. Pages default to 10 items. `search.maxResults` defaults to 20 and cannot raise the hard cap of 50. Both it and `search.timeoutMs` must be positive safe integers. The timeout defaults to 8000 milliseconds per remote ranking stage.
+
+Optional remote ranking settings:
+
+```json
+{
+  "search": {
+    "maxResults": 20,
+    "timeoutMs": 8000,
+    "embedding": {
+      "url": "https://embedding.example/v1",
+      "model": "your-embedding-model",
+      "apiKeyEnv": "SEARCH_EMBEDDING_KEY"
+    },
+    "reranker": {
+      "url": "https://reranker.example/v1/rerank",
+      "model": "your-reranker-model",
+      "apiKeyEnv": "SEARCH_RERANKER_KEY"
+    }
+  },
+  "helperModel": "provider/model/low"
+}
+```
+
+Endpoints require HTTP or HTTPS URLs without embedded credentials, query strings or fragments, and a nonempty model name. `apiKeyEnv` is optional and names a variable in the calling process's environment, not a literal secret. Embeddings call `<url>/embeddings`, cache document vectors by content hash in SQLite, and fuse cosine and BM25 rankings with reciprocal rank fusion. A dedicated reranker calls its URL directly and reranks the top 30 candidates.
+
+Without a dedicated reranker, tool callers can use `helperModel` through Pi's model registry. Its format is `provider/model/thinking`; model ids may contain slashes. Thinking is `off`, `minimal`, `low`, `medium`, `high`, `xhigh` or `max`. HTTP/UI callers never use this helper. Remote failures keep the preceding ranking and return an explicit degradation note. A failed dedicated reranker does not try the helper.
+
+Project-wide skills live in `.pi/swarm/skills/<name>/SKILL.md`. Require YAML frontmatter with `name` matching the folder and a nonempty `description`. The first Markdown heading supplies the title, otherwise the folder name does. Search/get sync the index on every read, including invalid folders with their validation error. All regular files contribute to the revision hash. Symlinks are invalid. Each folder allows up to 256 files or directories, 1 MiB per file, 8 MiB total and 16 nested directory levels. Skills search stays BM25-only over name, title and description. Sync returns added/updated/removed changes instead of emitting events into an arbitrary swarm.
+
 ## Runtime data and git
 
 ```text
