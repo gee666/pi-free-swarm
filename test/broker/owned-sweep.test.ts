@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
-import { sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { sweepStaleRuns } from "../../src/broker/swarms.js";
 import { latestEventId } from "../../src/store/events.js";
 import { getMessages } from "../../src/store/message-queries.js";
@@ -14,7 +14,7 @@ it("refreshes a paused owned run, but sweeps abandoned same-pid and stale foreig
     const active = seedSwarm(db);
     const abandoned = seedSwarm(db);
     const foreign = seedSwarm(db, { runnerPid: process.ppid });
-    const message = sendMessage(db, { swarmId: active.id, from: "User", to: "Maria", text: "keep working", now: T0 });
+    const message = systemNotice(db, { swarmId: active.id, to: "Maria", text: "keep working", now: T0 });
     const now = T0 + 60_000;
     const calls: [number, number][] = [];
     const swept = sweepStaleRuns(

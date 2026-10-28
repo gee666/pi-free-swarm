@@ -1,4 +1,4 @@
-import { ChartColumn, Mail, SquareTerminal, type LucideIcon } from "lucide-react";
+import { ChartColumn, SquareTerminal, type LucideIcon } from "lucide-react";
 import { useInRouterContext, useLocation, useNavigate, useParams } from "react-router-dom";
 import { cx } from "../lib/cx";
 import { agentDestination, type AgentAction } from "../lib/agentNavigation";
@@ -9,7 +9,6 @@ import styles from "./AgentName.module.css";
 const ACTIONS: ReadonlyArray<{ action: AgentAction; label: string; icon: LucideIcon }> = [
   { action: "work", label: "Open work", icon: SquareTerminal },
   { action: "stats", label: "Show stats", icon: ChartColumn },
-  { action: "compose", label: "Send message", icon: Mail },
 ];
 const RESERVED_NAMES = new Set(["user", "you", "main", "system"]);
 

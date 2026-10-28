@@ -9,7 +9,7 @@ import { startTask } from "../../../src/broker/task-transitions.js";
 import { beginTaskReview } from "../../../src/broker/task-review.js";
 import { finishReview } from "../../helpers/task-review.js";
 import { recordCriterionBlocker } from "../../../src/broker/blockers.js";
-import { sendMessage } from "../../../src/broker/messages.js";
+import { systemNotice } from "../../helpers/system-notice.js";
 import { voteCriterion } from "../../../src/broker/votes.js";
 
 const file = process.env.PI_SWARM_DB;
@@ -72,9 +72,8 @@ try {
     }
     const peer = workers.find((worker) => worker.name !== actor);
     if (createdBlocker && peer)
-      sendMessage(db, {
+      systemNotice(db, {
         swarmId,
-        from: actor,
         to: peer.name,
         text: "Review the criterion blockers and vote independently.",
         now: Date.now(),

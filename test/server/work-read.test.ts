@@ -11,7 +11,7 @@ import type {
   TaskDetailResponse,
   TasksResponse,
 } from "../../src/api-types.js";
-import { sendMessage } from "../../src/broker/messages.js";
+import { createPost } from "../../src/broker/wall.js";
 import { voteCriterion } from "../../src/broker/votes.js";
 import { readProject, updateProjectIntent } from "../../src/broker/project.js";
 import { listTasks } from "../../src/store/tasks.js";
@@ -161,14 +161,8 @@ describe("dashboard", () => {
       reason: "Owner agrees",
     });
     await postJson(board.url(`/criteria/${criterion.id}/vote`), { verdict: "blocked", reason: "Independent agrees" });
-    const unreadBefore = (await getJson<DashboardResponse>(board.url("/dashboard"))).body.attention.unreadUserMessages;
-    sendMessage(board.temp.db, {
-      swarmId: board.swarm.id,
-      from: "Maria",
-      to: "User",
-      text: "Please decide",
-      now: Date.now(),
-    });
+    const unreadBefore = (await getJson<DashboardResponse>(board.url("/dashboard"))).body.attention.unreadUserUpdates;
+    createPost(board.temp.db, board.swarm.id, "Maria", { title: "Attention", text: "@User please check" }, Date.now());
     const response = await getJson<DashboardResponse>(board.url("/dashboard"));
     assert.equal(response.status, 200);
     const data = response.body;
@@ -182,7 +176,7 @@ describe("dashboard", () => {
     );
     assert.equal(data.attention.agreedBlockers[0].id, criterion.id);
     assert.equal(unreadBefore, 0, "claiming tasks does not push coverage requests");
-    assert.equal(data.attention.unreadUserMessages, unreadBefore + 1);
+    assert.equal(data.attention.unreadUserUpdates, unreadBefore + 1);
     assert.deepEqual(
       data.criteriaCoverage.find((group) => group.group === "HTTP"),
       {

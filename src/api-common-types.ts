@@ -7,6 +7,5 @@ export type ParticipantStatus = "pending" | "starting" | "working" | "idle" | "c
 export type RecipientStatus = "pending" | "delivered" | "read" | "undeliverable";
 export type AgentRunEndReason = "settled" | "crashed" | "stopped";
 export type ReservedName = "User" | "Main" | "System" | "Watcher";
-export type MailboxKind = "inbox" | "sent";
 /** What an agent is doing right now; `null` when idle or not running. */
 export type AgentActivity = { kind: "thinking" } | { kind: "writing" } | { kind: "tool"; toolName: string };

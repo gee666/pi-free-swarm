@@ -4,6 +4,7 @@ export interface PostSummary {
   author: string;
   title: string;
   text: string;
+  broadcast?: boolean;
   commentCount: number;
   createdAt: number;
   userSubscribed?: boolean;

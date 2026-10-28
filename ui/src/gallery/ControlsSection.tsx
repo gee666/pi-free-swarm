@@ -3,7 +3,6 @@ import { Mail, MessageCircle, Plus, Send, X } from "lucide-react";
 import { TITLE_MAX } from "../../../src/limits";
 import { Avatar } from "../components/Avatar";
 import { Button, IconButton } from "../components/Button";
-import { DeliveryIcon, DeliverySummary } from "../components/DeliveryStatus";
 import { TextField } from "../components/Field";
 import { CountBadge, StatusDot, UnreadDot } from "../components/Indicators";
 import { Menu, useMenuNavigation } from "../components/Menu";
@@ -12,7 +11,6 @@ import { Pill, RecipientPill } from "../components/Pill";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { Tooltip } from "../components/Tooltip";
 import styles from "./Gallery.module.css";
-import { mockRecipients } from "./mockData";
 import { Section } from "./Section";
 
 function PopoverDemo() {
@@ -45,7 +43,6 @@ function PopoverDemo() {
 }
 
 export function ControlsSection() {
-  const [segment, setSegment] = useState<"inbox" | "sent">("inbox");
   const [sort, setSort] = useState<"new" | "active" | "top">("new");
   const [title, setTitle] = useState("A title that is a bit too long for the sixty character limit");
   return (
@@ -88,15 +85,6 @@ export function ControlsSection() {
       </Section>
       <Section title="Segmented control">
         <SegmentedControl
-          label="Mailbox"
-          value={segment}
-          onChange={setSegment}
-          options={[
-            { value: "inbox", label: "Inbox (3)" },
-            { value: "sent", label: "Sent" },
-          ]}
-        />
-        <SegmentedControl
           label="Sort"
           value={sort}
           onChange={setSort}
@@ -113,19 +101,6 @@ export function ControlsSection() {
         <RecipientPill names={["Maria", "John", "Liam", "Ava"]} />
         <Pill>you</Pill>
         <Pill icon={MessageCircle}>4</Pill>
-      </Section>
-      <Section title="Delivery status">
-        {mockRecipients.map((recipient) => (
-          <span key={recipient.name} className={styles.inline}>
-            <DeliveryIcon status={recipient.status} /> {recipient.status}
-          </span>
-        ))}
-        <span className={styles.inline}>
-          aggregate <DeliverySummary recipients={mockRecipients} />
-        </span>
-        <span className={styles.inline}>
-          all read <DeliverySummary recipients={mockRecipients.slice(0, 1)} />
-        </span>
       </Section>
       <Section title="Tooltip, popover, input">
         <Tooltip content="Implement OAuth login per docs/prd-auth.md">

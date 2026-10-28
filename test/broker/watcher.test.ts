@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, it } from "node:test";
 import { recordUsage, setAgentStatus } from "../../src/broker/agent-state.js";
 import { IdleReminders } from "../../src/broker/idle-reminder.js";
-import { sendMainFeedback } from "../../src/broker/messages.js";
+import { sendMainFeedback } from "../../src/broker/main-feedback.js";
 
 import { readRunProgress } from "../../src/broker/run-progress.js";
 import { createSwarm } from "../../src/broker/swarms.js";
@@ -26,8 +26,6 @@ const create = () =>
     runnerPid: process.pid,
     now: clock.now(),
   });
-
-it("reserves Watcher for the human assistant", () => {});
 
 it("excludes Watcher from worker amount, working count and progress but includes usage in stats", () => {
   const swarm = create();
@@ -56,9 +54,12 @@ it("excludes Watcher from worker amount, working count and progress but includes
   const stats = getStats(db, swarm.id, clock.now());
   assert.equal(stats?.agents.find((agent) => agent.name === WATCHER_NAME)?.turns, 1);
   assert.equal(stats?.totals.cost, 0.5);
-  const feedback = sendMainFeedback(db, swarm.id, "Continue.", clock.now());
+  sendMainFeedback(db, swarm.id, "Continue.", clock.now());
   assert.deepEqual(
-    feedback.recipients.map((recipient) => recipient.name),
+    db.sql
+      .prepare("SELECT name FROM message_recipients WHERE swarm_id = ?")
+      .all(swarm.id)
+      .map((row) => row.name),
     ["Maria"],
   );
 });

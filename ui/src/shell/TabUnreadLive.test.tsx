@@ -5,7 +5,7 @@ import type { PostSummary, SwarmEvent, UserCommentsReadResponse } from "../../..
 import { SwarmViewProvider } from "../api/SwarmView";
 import { installFakeApi } from "../test/fakeApi";
 import { installFakeEventSource } from "../test/fakeEventSource";
-import { detail, eventBase, message } from "../pages/agents/testFixtures";
+import { detail, eventBase } from "../pages/agents/testFixtures";
 import { useSwarmDetail } from "../pages/agents/useSwarmDetail";
 import { WallPage } from "../pages/wall/WallPage";
 import { TabRail } from "./TabRail";
@@ -23,7 +23,7 @@ it("patches live badge totals without refetches and clears only the rendered pos
   const api = installFakeApi();
   const source = installFakeEventSource();
   const snapshot = detail();
-  snapshot.userUnread = { messages: 1, comments: 2 };
+  snapshot.userUnread = { messages: 0, comments: 2 };
   snapshot.participants = snapshot.participants.map((entry) =>
     entry.kind === "user" ? { ...entry, unread: 3 } : entry,
   );
@@ -70,23 +70,11 @@ it("patches live badge totals without refetches and clears only the rendered pos
     </MemoryRouter>,
   );
   act(() => source().open());
-  expect(await screen.findByRole("link", { name: "Wall 2 unread comments" })).toBeInTheDocument();
+  expect(await screen.findByRole("link", { name: "Wall 2 unread updates" })).toBeInTheDocument();
   expect(await screen.findByText("First visible comment")).toBeInTheDocument();
   await waitFor(() => expect(api.callsTo("POST", "/api/swarms/3/posts/1/read")).toHaveLength(1));
   expect(api.callsTo("POST", "/api/swarms/3/posts/1/read")[0].body).toEqual({ commentIds: [10, 11] });
   const emit = (event: SwarmEvent) => act(() => source().emit(event));
-  emit({
-    ...eventBase,
-    type: "message.status",
-    payload: {
-      messageId: 99,
-      threadId: 9,
-      recipient: { name: "User", status: "read", deliveredAt: 1, readAt: 2 },
-      unread: { User: 1 },
-      userUnread: { messages: 1, comments: 0 },
-    },
-  });
-  expect(screen.getByRole("link", { name: "Wall" })).toBeInTheDocument();
   emit({
     ...eventBase,
     type: "user.post.updated",
@@ -94,19 +82,10 @@ it("patches live badge totals without refetches and clears only the rendered pos
       postId: 1,
       userSubscribed: true,
       userUnreadComments: 0,
-      userUnread: { messages: 1, comments: 0 },
+      userUnread: { messages: 0, comments: 0 },
     },
   });
-  emit({
-    ...eventBase,
-    type: "message.created",
-    payload: {
-      message: message(9, "John", [["User", "delivered"]], "New direct message"),
-      unread: { User: 2 },
-      userUnread: { messages: 2, comments: 0 },
-    },
-  });
-  expect(screen.getByRole("link", { name: "Agents 2 unread messages" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Wall" })).toBeInTheDocument();
   emit({
     ...eventBase,
     type: "comment.created",
@@ -117,30 +96,20 @@ it("patches live badge totals without refetches and clears only the rendered pos
   });
   emit({
     ...eventBase,
-    type: "message.created",
-    payload: {
-      message: message(10, "System", [["User", "delivered"]], "Comment on the unopened subscribed post"),
-      unread: { User: 3 },
-      userUnread: { messages: 2, comments: 1 },
-    },
-  });
-  expect(screen.getByRole("link", { name: "Wall 1 unread comments" })).toBeInTheDocument();
-  emit({
-    ...eventBase,
     type: "user.post.updated",
     payload: {
       postId: 2,
-      userSubscribed: true,
+      userSubscribed: false,
       userUnreadComments: 1,
-      userUnread: { messages: 2, comments: 1 },
+      userUnread: { messages: 0, comments: 1 },
     },
   });
   expect(release).toBeDefined();
   await act(async () => {
-    release?.({ updated: 2, userUnread: { messages: 1, comments: 0 } });
+    release?.({ updated: 2, userUnread: { messages: 0, comments: 0 } });
   });
-  expect(screen.getByRole("link", { name: "Agents 2 unread messages" })).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "Wall 1 unread comments" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Agents" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Wall 1 unread updates" })).toBeInTheDocument();
   expect(api.callsTo("POST", "/api/swarms/3/posts/2/read")).toHaveLength(0);
   expect(api.callsTo("GET", "/api/swarms/3")).toHaveLength(1);
 });

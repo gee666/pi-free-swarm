@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createAgentHooks } from "../../src/broker/agent-hooks.js";
 import { recordUsage } from "../../src/broker/agent-state.js";
-import { sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { beginResume, endRun } from "../../src/broker/swarms.js";
 import { getStats } from "../../src/store/stats-queries.js";
 import { saveRunConfiguration } from "../../src/store/run-configuration.js";
@@ -24,13 +24,7 @@ test("closing hooks charge the originating run after resume without advancing cu
   const temp = createTempDb();
   try {
     const swarm = seedSwarm(temp.db);
-    const message = sendMessage(temp.db, {
-      swarmId: swarm.id,
-      from: "User",
-      to: "Maria",
-      text: "Must remain pending",
-      now: T0,
-    });
+    const message = systemNotice(temp.db, { swarmId: swarm.id, to: "Maria", text: "Must remain pending", now: T0 });
     endRun(temp.db, swarm.id, process.pid, "stopped", T0 + 10);
     assert.equal(beginResume(temp.db, swarm.id, process.pid, T0 + 20).run, 2);
     const hooks = createAgentHooks({

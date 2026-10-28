@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { it } from "node:test";
 import type { RunConfiguration } from "../../src/run-configuration.js";
 import { setAgentStatus } from "../../src/broker/agent-state.js";
-import { sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { createPost } from "../../src/broker/wall.js";
 import { applyRosterConfiguration, activeWorkerNames, getActiveAssignments } from "../../src/store/active-roster.js";
 import { appendConfigurationRevision, ConfigurationConflictError } from "../../src/store/configuration-revisions.js";
@@ -48,7 +48,7 @@ it("archives workers with immutable initial provenance, retained messages and de
   const f = fixture();
   t.after(() => f.cleanup());
   setAgentStatus(f.db, f.swarm.id, "Maria", "working", T0);
-  const pending = sendMessage(f.db, { swarmId: f.swarm.id, from: "John", to: "Maria", text: "pending work", now: T0 });
+  const pending = systemNotice(f.db, { swarmId: f.swarm.id, to: "Maria", text: "pending work", now: T0 });
   const request = queueConfigurationChange(f.db, f.swarm.id, "User", { type: "removeAgent", name: "maria" }, 0, T0 + 1);
   assert.deepEqual(request.change, { type: "removeAgent", name: "Maria" });
   assert.equal(claimConfigurationRequest(f.db, request.id, process.pid, T0 + 2).status, "applying");
@@ -92,10 +92,7 @@ it("archives workers with immutable initial provenance, retained messages and de
     listAgentSessions(f.db, f.swarm.id, { activeOnly: true }).some((agent) => agent.name === "Maria"),
     false,
   );
-  assert.throws(
-    () => sendMessage(f.db, { swarmId: f.swarm.id, from: "John", to: "Maria", text: "new", now: T0 + 5 }),
-    /retired/,
-  );
+
   assert.throws(() => createPost(f.db, f.swarm.id, "Maria", { title: "late", text: "late" }, T0 + 5), /retired/);
 });
 

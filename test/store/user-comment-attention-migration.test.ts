@@ -1,7 +1,7 @@
 import { removeWorkSchema } from "../helpers/legacy-work-schema.js";
 import assert from "node:assert/strict";
 import { it } from "node:test";
-import { createThread, insertMessage } from "../../src/broker/message-insert.js";
+import { insertSystemNotice } from "../../src/broker/message-insert.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
 import { SCHEMA_VERSION, openSwarmDb } from "../../src/store/db.js";
 import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
@@ -15,16 +15,14 @@ it("migrates historical User comment attention without deleting mailbox history 
     const states = ["pending", "delivered", "read", "undeliverable"] as const;
     const comments = states.map((status, index) => {
       const comment = addComment(db, swarm.id, "Maria", post.id, `legacy ${status}`, T0 + index).comment;
-      const threadId = createThread(db, swarm.id, ["System", "User"], T0);
-      insertMessage(db, {
+      const notice = insertSystemNotice(db, {
         swarmId: swarm.id,
-        threadId,
-        sender: "System",
+        recipient: "User",
         text: comment.text,
         commentSource: { postId: post.id, commentId: comment.id },
-        recipients: [{ name: "User", status }],
         now: T0 + index,
       });
+      db.sql.prepare("UPDATE message_recipients SET status = ? WHERE message_id = ?").run(status, notice.id);
       return comment;
     });
     const before = db.sql.prepare("SELECT id, body FROM messages WHERE swarm_id = ? ORDER BY id").all(swarm.id);

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { SwarmDetailResponse, UserCommentsReadResponse } from "../../src/api-types.js";
-import { sendMessage } from "../../src/broker/messages.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
 import { EVENTS_TAIL_MS } from "../../src/constants.js";
 import { userUnreadSummary } from "../../src/store/user-unread.js";
@@ -20,21 +19,20 @@ test("User badge counts survive snapshots and live events without clearing unsee
   t.after(() => stream.close());
   const post = createPost(db, swarm.id, "User", { title: "Mine", text: "Read a displayed snapshot." }, T0);
   const seen = addComment(db, swarm.id, "Maria", post.id, "displayed comment", T0).comment;
-  const message = sendMessage(db, { swarmId: swarm.id, from: "John", to: "User", text: "direct message", now: T0 });
   const elsewhere = createPost(db, other.id, "User", { title: "Other", text: "Keep isolated." }, T0);
   addComment(db, other.id, "Maria", elsewhere.id, "foreign comment", T0);
   clock.advance(EVENTS_TAIL_MS);
   const created = await stream.next(
-    ({ event }) => event?.type === "message.created" && event.payload.userUnread?.messages === 1,
+    ({ event }) => event?.type === "user.post.updated" && event.payload.userUnread.comments === 1,
   );
-  assert.ok(created.event?.type === "message.created");
-  assert.deepEqual(created.event.payload.userUnread, { messages: 1, comments: 1 });
+  assert.ok(created.event?.type === "user.post.updated");
+  assert.deepEqual(created.event.payload.userUnread, { messages: 0, comments: 1 });
   const snapshot = await getJson<SwarmDetailResponse>(`${board.base}/api/swarms/${swarm.id}`);
-  assert.deepEqual(snapshot.body.userUnread, { messages: 1, comments: 1 });
+  assert.deepEqual(snapshot.body.userUnread, { messages: 0, comments: 1 });
   await getJson(`${board.base}/api/swarms/${swarm.id}/posts/${post.id}`);
   assert.deepEqual(
     userUnreadSummary(db, swarm.id),
-    { messages: 1, comments: 1 },
+    { messages: 0, comments: 1 },
     "fetching alone never marks failed/unrendered content read",
   );
   addComment(db, swarm.id, "John", post.id, "arrived after displayed snapshot", T0 + 1);
@@ -42,19 +40,16 @@ test("User badge counts survive snapshots and live events without clearing unsee
     commentIds: [seen.id],
   });
   assert.equal(read.status, 200);
-  assert.deepEqual(read.body, { updated: 1, userUnread: { messages: 1, comments: 1 }, userSubscribed: true });
+  assert.deepEqual(read.body, { updated: 1, userUnread: { messages: 0, comments: 1 }, userSubscribed: true });
   clock.advance(EVENTS_TAIL_MS);
   const status = await stream.next(
     ({ event }) =>
       event?.type === "user.post.updated" &&
       event.payload.userUnreadComments === 1 &&
-      event.payload.userUnread.messages === 1,
+      event.payload.userUnread.messages === 0,
   );
   assert.ok(status.event?.type === "user.post.updated");
-  assert.deepEqual(status.event.payload.userUnread, { messages: 1, comments: 1 });
-  await postJson(`${board.base}/api/swarms/${swarm.id}/participants/User/read`, { messageIds: [message.id] });
-  clock.advance(EVENTS_TAIL_MS);
-  await stream.next(({ event }) => event?.type === "message.status" && event.payload.userUnread?.messages === 0);
+  assert.deepEqual(status.event.payload.userUnread, { messages: 0, comments: 1 });
   assert.deepEqual(userUnreadSummary(db, swarm.id), { messages: 0, comments: 1 });
   assert.deepEqual(userUnreadSummary(db, other.id), { messages: 0, comments: 1 });
   assert.ok(

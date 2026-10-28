@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import { it, mock } from "node:test";
 import type { ParticipantStatus } from "../../src/api-types.js";
 import { recordUsage, setAgentStatus } from "../../src/broker/agent-state.js";
-import { sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { readRunProgress, type RunProgress } from "../../src/broker/run-progress.js";
 import { beginResume, endRun, markSwarmRunning } from "../../src/broker/swarms.js";
 import { createPost } from "../../src/broker/wall.js";
 import { USER_NAME, WATCHER_NAME } from "../../src/constants.js";
 import type { SwarmDb } from "../../src/store/db.js";
-import { unreadCounts } from "../../src/store/message-queries.js";
+import { userUnreadState } from "../../src/store/user-unread.js";
 import { getStats } from "../../src/store/stats-queries.js";
 import { getSwarm, listParticipants } from "../../src/store/swarm-queries.js";
 import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
@@ -39,7 +39,7 @@ function reference(db: SwarmDb, id: number, now: number, boardUrl: string | null
     agents,
     posts: totals.posts,
     messages: totals.messages,
-    unreadForUser: unreadCounts(db, id, [USER_NAME])[USER_NAME] ?? 0,
+    unreadForUser: userUnreadState(db, id).total,
     elapsedMs: Math.max(0, (swarm.finishedAt ?? now) - (swarm.startedAt ?? now)),
     cost: totals.cost,
     tokens: totals.input + totals.output + totals.cacheRead + totals.cacheWrite,
@@ -96,28 +96,16 @@ it("preserves cumulative archived/Watcher usage, current-run elapsed, status cou
   );
   createPost(temp.db, swarm.id, "Maria", { title: "result", text: "evidence" }, T0 + 3);
   createPost(temp.db, other.id, "Maria", { title: "unrelated", text: "private" }, T0);
-  const delivered = sendMessage(temp.db, {
-    swarmId: swarm.id,
-    from: "Maria",
-    to: USER_NAME,
-    text: "delivered",
-    now: T0 + 4,
-  });
-  const pending = sendMessage(temp.db, {
-    swarmId: swarm.id,
-    from: "John",
-    to: USER_NAME,
-    text: "pending",
-    now: T0 + 4,
-  });
-  const read = sendMessage(temp.db, { swarmId: swarm.id, from: "Liam", to: USER_NAME, text: "read", now: T0 + 4 });
+  const delivered = systemNotice(temp.db, { swarmId: swarm.id, to: USER_NAME, text: "delivered", now: T0 + 4 });
+  const pending = systemNotice(temp.db, { swarmId: swarm.id, to: USER_NAME, text: "pending", now: T0 + 4 });
+  const read = systemNotice(temp.db, { swarmId: swarm.id, to: USER_NAME, text: "read", now: T0 + 4 });
   temp.db.sql
     .prepare("UPDATE message_recipients SET status = 'pending', delivered_at = NULL WHERE message_id = ?")
     .run(pending.id);
   temp.db.sql
     .prepare("UPDATE message_recipients SET status = 'read', read_at = ? WHERE message_id = ?")
     .run(T0 + 5, read.id);
-  assert.equal(delivered.recipients[0]?.status, "delivered");
+  assert.equal(delivered.recipients[0]?.status, "pending");
   endRun(temp.db, swarm.id, process.pid, "stopped", T0 + 10, 1);
   temp.db.sql
     .prepare("UPDATE participants SET retired_at = ?, status = 'stopped' WHERE swarm_id = ? AND name = 'Maria'")
@@ -139,7 +127,7 @@ it("preserves cumulative archived/Watcher usage, current-run elapsed, status cou
   assert.equal(actual.run, 2);
   assert.equal(actual.elapsedMs, 500);
   assert.equal(actual.tokens, 117);
-  assert.equal(actual.unreadForUser, 2);
+  assert.equal(actual.unreadForUser, 0);
   assert.equal(actual.agents.retired, 1);
   assert.equal(actual.agents.working, 1, "Watcher work is excluded from worker counts, not usage");
 });

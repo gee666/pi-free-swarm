@@ -1,11 +1,8 @@
-import { continueConversation } from "../helpers/conversation.js";
 import assert from "node:assert/strict";
 import { after, describe, it } from "node:test";
 import { setAgentStatus } from "../../src/broker/agent-state.js";
-import { markDelivered } from "../../src/broker/delivery-state.js";
-import { sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
-import { getMailbox, getThread, listInboxAfter } from "../../src/store/message-queries.js";
 import { getStats } from "../../src/store/stats-queries.js";
 import { getParticipant, listParticipants } from "../../src/store/swarm-queries.js";
 import { getPostDetail, listPosts } from "../../src/store/wall-queries.js";
@@ -19,10 +16,9 @@ describe("participants", () => {
   const swarm = seedSwarm(db);
 
   it("lists User first, then agents; Main and System never", () => {
-    sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "John", text: "a", now: T0 });
-    sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "User", text: "a", now: T0 });
+    systemNotice(db, { swarmId: swarm.id, to: "John", text: "a", now: T0 });
     const [user, maria, john] = listParticipants(db, swarm.id);
-    assert.deepEqual(user, { kind: "user", name: "User", unread: 1, joinedAt: null, lastActivityAt: null });
+    assert.deepEqual(user, { kind: "user", name: "User", unread: 0, joinedAt: null, lastActivityAt: null });
     assert.equal(maria.kind === "agent" && maria.launchOrder, 0);
     assert.equal(john.unread, 1);
     assert.equal(getParticipant(db, swarm.id, "main"), null);
@@ -30,60 +26,13 @@ describe("participants", () => {
   });
 });
 
-describe("mailbox", () => {
-  const swarm = seedSwarm(db);
-  const t1 = sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "John", text: "one", now: T0 + 1 });
-  const t2 = sendMessage(db, { swarmId: swarm.id, from: "Liam", to: "John", text: "two", now: T0 + 2 });
-  const t3 = sendMessage(db, { swarmId: swarm.id, from: "Liam", to: "Maria", text: "two", now: T0 + 2 });
-  const reply = continueConversation(db, swarm.id, "John", t1.threadId, "re one", T0 + 3);
-  markDelivered(db, swarm.id, "John", [t2.id], T0 + 4);
-
-  it("groups the inbox by thread, newest activity first, with unread counts", () => {
-    const inbox = getMailbox(db, swarm.id, "maria", "inbox", { count: 20, offset: 0 });
-    assert.equal(inbox.name, "Maria");
-    assert.equal(inbox.total, 2);
-    assert.equal(inbox.unread, 2);
-    assert.deepEqual(
-      inbox.threads.map((t) => [t.thread.id, t.messages.map((m) => m.id), t.unread, t.lastMessageAt]),
-      [
-        [t1.threadId, [reply.id], 1, T0 + 3],
-        [t3.threadId, [t3.id], 1, T0 + 2],
-      ],
-    );
-    const paged = getMailbox(db, swarm.id, "Maria", "inbox", { count: 1, offset: 1 });
-    assert.deepEqual([paged.total, paged.threads.map((t) => t.thread.id)], [2, [t3.threadId]]);
-  });
-
-  it("shows only sent messages in the sent box", () => {
-    const sent = getMailbox(db, swarm.id, "John", "sent", { count: 20, offset: 0 });
-    assert.deepEqual(
-      sent.threads.map((t) => [t.thread.id, t.messages.map((m) => m.id), t.unread]),
-      [[t1.threadId, [reply.id], 0]],
-    );
-    assert.equal(sent.unread, 2, "the badge is always the inbox count");
-  });
-
-  it("returns threads and inbox tails", () => {
-    assert.deepEqual(
-      getThread(db, swarm.id, t1.threadId)?.messages.map((m) => m.text),
-      ["one", "re one"],
-    );
-    assert.deepEqual(getThread(db, swarm.id, t1.threadId)?.thread.members, ["Maria", "John"]);
-    assert.equal(getThread(db, swarm.id + 100, t1.threadId), null);
-    assert.deepEqual(
-      listInboxAfter(db, swarm.id, "John", t1.id).map((m) => m.id),
-      [t2.id],
-    );
-  });
-});
-
-describe("wall and stats", () => {
+describe("wall and statistics", () => {
   it("pages the wall and counts activity", () => {
     const swarm = seedSwarm(db);
     const post = createPost(db, swarm.id, "Maria", { title: "a", text: "x" }, T0);
     createPost(db, swarm.id, "John", { title: "b", text: "y" }, T0);
     addComment(db, swarm.id, "John", post.id, "c", T0);
-    sendMessage(db, { swarmId: swarm.id, from: "John", to: "Maria", text: "m", now: T0 });
+    systemNotice(db, { swarmId: swarm.id, to: "Maria", text: "m", now: T0 });
     setAgentStatus(db, swarm.id, "John", "working", T0);
 
     const page = listPosts(db, swarm.id, { count: 1, offset: 1 });
@@ -95,7 +44,7 @@ describe("wall and stats", () => {
     assert.deepEqual(john && [john.posts, john.comments, john.messagesSent, john.activeTimeMs, john.status], [
       1,
       1,
-      1,
+      0,
       3_000,
       "working",
     ]);

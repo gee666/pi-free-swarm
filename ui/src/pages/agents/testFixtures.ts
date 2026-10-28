@@ -1,13 +1,10 @@
 import type {
   AgentParticipantView,
-  MailboxResponse,
-  MailboxThread,
   MessageView,
   RecipientStatus,
   SwarmDetailResponse,
   SwarmEvent,
   SwarmListItem,
-  ThreadView,
 } from "../../../../src/api-types";
 
 const AT = new Date(2026, 3, 12, 10, 24).getTime();
@@ -73,31 +70,6 @@ export function message(
     ...patch,
   };
 }
-
-export const thread = (id: number, members: string[]): ThreadView => ({
-  id,
-  swarmId: 3,
-  createdBy: members[0],
-  createdAt: AT,
-  members,
-});
-
-export function mailboxThread(record: ThreadView, messages: MessageView[], viewer: string): MailboxThread {
-  const unread = messages.filter((item) =>
-    item.recipients.some(
-      (entry) => entry.name === viewer && (entry.status === "pending" || entry.status === "delivered"),
-    ),
-  ).length;
-  return { thread: record, messages, unread, lastMessageAt: messages[messages.length - 1].createdAt };
-}
-
-export const mailbox = (name: string, box: "inbox" | "sent", threads: MailboxThread[]): MailboxResponse => ({
-  name,
-  box,
-  threads,
-  total: threads.length,
-  unread: threads.reduce((sum, item) => sum + item.unread, 0),
-});
 
 /** Common fields of a test event: `{ ...eventBase, type, payload }`. */
 export const eventBase: Pick<SwarmEvent, "id" | "swarmId" | "createdAt"> = { id: 1, swarmId: 3, createdAt: AT };

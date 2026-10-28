@@ -1,12 +1,10 @@
 import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
-import { USER_NAME } from "../constants.js";
 import type { RunEndStatus } from "../broker/swarms.js";
 import { readRunProgress, type RunProgress } from "../broker/run-progress.js";
 import type { RunOutcome } from "../broker/swarm-run.js";
 import type { SwarmDb } from "../store/db.js";
 import { evaluateCompletion } from "../broker/completion.js";
 import { readProject } from "../broker/project.js";
-import { listInboxAfter, unreadCounts } from "../store/message-queries.js";
 import { listParticipants } from "../store/swarm-queries.js";
 import { formatCost, formatElapsed, formatTokens, plural, swarmBoardUrl } from "./run-format.js";
 import { agentToolResult } from "./agent-tool-result.js";
@@ -65,7 +63,7 @@ export function buildRunResultText(db: SwarmDb, outcome: RunOutcome, boardUrl: s
   lines.push(...completionLines(db, swarm.id, boardUrl));
   if (crashed.length > 0) lines.push(`Crashed and not revived: ${crashed.join(", ")}.`);
   lines.push("", url === null ? "Board: not running." : `Board: ${url}`);
-  lines.push(userMessagesLine(db, swarm.id), "", ...nextSteps(swarm.id, end));
+  lines.push("", ...nextSteps(swarm.id, end));
   return lines.join("\n");
 }
 
@@ -80,13 +78,6 @@ export function completionLines(db: SwarmDb, swarmId: number, boardUrl: string |
     ...completion.gates.map((gate) => `${gate.ok ? "OK" : "UNMET"} ${gate.key} (${gate.count}): ${gate.detail}`),
     url === null ? "Board: not running." : `Board: ${url}`,
   ];
-}
-
-function userMessagesLine(db: SwarmDb, swarmId: number): string {
-  const total = listInboxAfter(db, swarmId, USER_NAME, 0).length;
-  if (total === 0) return `Messages to ${USER_NAME}: none.`;
-  const unread = unreadCounts(db, swarmId, [USER_NAME])[USER_NAME] ?? 0;
-  return `Messages to ${USER_NAME}: ${total}${unread > 0 ? `, ${unread} unread` : ""} (see board).`;
 }
 
 function nextSteps(swarmId: number, end: RunEndStatus): string[] {

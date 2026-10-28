@@ -1,7 +1,7 @@
 :root {
   /* ---- Surfaces ---- */
   --bg-app: #18181b; /* page background, top bar, tab rail */
-  --bg-panel: #1f1f23; /* large content panels (agent list, mailbox, compose) */
+  --bg-panel: #1f1f23; /* large content panels (agent list, posts, compose) */
   --bg-panel-raised: #26262b; /* expanded message, inputs, hovered rows */
   --bg-hover: #2a2a30; /* row hover */
   --bg-chip: #2e2e34; /* neutral pills ("to Maria"), neutral avatars */
@@ -13,7 +13,7 @@
   /* ---- Text ---- */
   --text-primary: #ececf1; /* names, titles, message subjects */
   --text-secondary: #b4b4bd; /* body text, message content */
-  --text-muted: #7c7c86; /* timestamps, placeholders, meta, "Mailbox" label */
+  --text-muted: #7c7c86; /* timestamps, placeholders, meta labels */
   --text-on-accent: #ffffff;
 
   /* ---- Accent (pink) ---- */
@@ -65,7 +65,7 @@
   --topbar-h: 52px;
   --rail-w: 76px;
   --list-w: 350px;
-  --row-h: 40px; /* mailbox / post rows */
+  --row-h: 40px; /* participant / post rows */
   --row-h-lg: 52px; /* agent rows with avatar */
   --avatar-sm: 28px;
   --avatar-md: 36px;

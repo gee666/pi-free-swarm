@@ -35,3 +35,9 @@ it.each(["malformed", "blocked", "quota"])("keeps unread tracking in memory with
   rerender({ count: 3, open: 1 });
   expect(result.current({ ...post, commentCount: 3 })).toBe(0);
 });
+
+it("shows authoritative mention attention even without a subscription", () => {
+  const mentioned = { ...post, userSubscribed: false, userUnreadComments: 1 };
+  const { result } = renderHook(() => useSeenComments("3", [mentioned], undefined));
+  expect(result.current(mentioned)).toBe(1);
+});

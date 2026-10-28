@@ -2,7 +2,7 @@ import { removeWorkSchema } from "../helpers/legacy-work-schema.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { snoozeReminders, reminderSnoozedUntil, REMINDER_SNOOZE_MS } from "../../src/broker/reminder-snooze.js";
-import { sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { setAgentStatus } from "../../src/broker/agent-state.js";
 import { workerHasIdled } from "../../src/broker/worker-eligibility.js";
 import { SCHEMA_VERSION, openSwarmDb } from "../../src/store/db.js";
@@ -41,9 +41,8 @@ test("snooze leaves pending real messages and acceptance unchanged and joins rol
   const temp = createTempDb();
   try {
     const swarm = seedSwarm(temp.db);
-    const message = sendMessage(temp.db, {
+    const message = systemNotice(temp.db, {
       swarmId: swarm.id,
-      from: "User",
       to: "Maria",
       text: "Real work still wakes you",
       now: T0,
@@ -101,13 +100,7 @@ test("additive v10 upgrade preserves pending messages and starts with no snoozes
   const temp = createTempDb();
   try {
     const swarm = seedSwarm(temp.db);
-    const message = sendMessage(temp.db, {
-      swarmId: swarm.id,
-      from: "User",
-      to: "Maria",
-      text: "Preserve me",
-      now: T0,
-    });
+    const message = systemNotice(temp.db, { swarmId: swarm.id, to: "Maria", text: "Preserve me", now: T0 });
     removeWorkSchema(temp.db);
     temp.db.sql.exec(`DROP TABLE user_comment_attention;
       DROP TABLE post_claims; DROP TABLE post_contracts;

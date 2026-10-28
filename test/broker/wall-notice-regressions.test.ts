@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { addComment, createPost } from "../../src/broker/wall.js";
-import { sendMessage } from "../../src/broker/messages.js";
 import { getPostPage } from "../../src/broker/post-queries.js";
 import { setPostSubscription } from "../../src/broker/subscriptions.js";
 import { COMMENT_NOTICE_CHARS, COMMENT_NOTICE_WINDOW_MS, USER_POST_NOTICE_CHARS } from "../../src/constants.js";
@@ -9,14 +8,14 @@ import { openSwarmDb } from "../../src/store/db.js";
 import { getMessages } from "../../src/store/message-queries.js";
 import { workFixture } from "../helpers/work-graph.js";
 
-test("User posts notify every active worker once without subscribing them or notifying Watcher", (t) => {
+test("User broadcasts notify every active worker once without subscribing them or notifying Watcher", (t) => {
   const f = workFixture(t);
   f.db.sql.prepare("UPDATE participants SET status = 'crashed' WHERE swarm_id = ? AND name = 'Ben'").run(f.swarmId);
   f.db.sql
     .prepare("UPDATE participants SET status = 'stopped', retired_at = ? WHERE swarm_id = ? AND name = 'Cam'")
     .run(f.input().now, f.swarmId);
   const body = "😀".repeat(USER_POST_NOTICE_CHARS + 1);
-  const post = createPost(f.db, f.swarmId, "User", { title: "criteria", text: body }, f.input().now);
+  const post = createPost(f.db, f.swarmId, "User", { title: "criteria", text: body, broadcast: true }, f.input().now);
   const messages = getMessages(
     f.db,
     f.db.sql
@@ -32,7 +31,7 @@ test("User posts notify every active worker once without subscribing them or not
     assert.equal(message.sender, "System");
     assert.equal(
       message.text,
-      `User posted #${post.id} "criteria": ${Array.from(body).slice(0, USER_POST_NOTICE_CHARS).join("")}… Read it with swarm_posts_get and reply with swarm_posts_comment.`,
+      `User broadcast post #${post.id} "criteria": ${Array.from(body).slice(0, USER_POST_NOTICE_CHARS).join("")}. Read it with swarm_posts_get.`,
     );
   }
   assert.deepEqual(
@@ -46,7 +45,7 @@ test("User posts notify every active worker once without subscribing them or not
   assert.equal(f.db.sql.prepare("SELECT count(*) AS n FROM messages").get()?.n, 2);
 });
 
-test("comment notices throttle each recipient and post across handles, expire at the boundary and leave DMs alone", (t) => {
+test("comment notices throttle each recipient and post across handles, expire at the boundary without dropping readable comments", (t) => {
   const f = workFixture(t);
   const now = f.input().now;
   const post = createPost(f.db, f.swarmId, "Ann", { title: "criteria", text: "Discuss" }, now);
@@ -72,9 +71,6 @@ test("comment notices throttle each recipient and post across handles, expire at
   );
   addComment(f.db, f.swarmId, "Ben", other.id, "other post", now + 4);
   assert.equal(notices("Ann", other.id).length, 1, "posts have independent windows");
-  for (const text of ["direct one", "direct two"])
-    sendMessage(f.db, { swarmId: f.swarmId, from: "Ben", to: "Ann", text, now: now + 5 });
-  assert.equal(f.db.sql.prepare("SELECT count(*) AS n FROM messages WHERE sender = 'Ben'").get()?.n, 2);
   const reopened = openSwarmDb(f.db.path, { create: false });
   t.after(() => reopened.close());
   addComment(reopened, f.swarmId, "Dan", post.id, "still inside window", now + COMMENT_NOTICE_WINDOW_MS);

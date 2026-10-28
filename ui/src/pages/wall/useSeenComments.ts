@@ -57,8 +57,8 @@ export function useSeenComments(
   }, [swarmId, seen]);
 
   return (post) => {
-    if (post.userSubscribed === false) return 0;
     if (post.userUnreadComments !== undefined) return Math.max(0, post.userUnreadComments);
+    if (post.userSubscribed === false) return 0;
     return Math.max(0, post.commentCount - (seen[post.id] ?? post.commentCount));
   };
 }

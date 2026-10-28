@@ -109,12 +109,12 @@ export const postsSearch = object({
   subscribed: Type.Optional(Type.Boolean()),
 });
 export const postLinks = { task_ids: Type.Optional(Type.Array(id)), criterion_ids: Type.Optional(Type.Array(id)) };
-export const postsCreate = object({ title, body: text, ...postLinks });
+const postFields = { title, body: text };
+export const postsCreate = object({ ...postFields, ...postLinks });
+export const watcherPostsCreate = object({ ...postFields, broadcast: Type.Optional(Type.Boolean()) });
 export const postsComment = object({ post_id: id, body: text });
 export const postsLink = object({ post_id: id, ...postLinks });
 export const postId = object({ post_id: id });
-export const messagesSend = object({ to: text, body: text });
-export const messagesRead = object({ with: text, cursor: page.cursor });
 export const intentUpdate = object({ summary: text, path: text });
 export const skillsGet = object({ name: text });
 export const paged = object(page);

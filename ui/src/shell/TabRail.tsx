@@ -22,7 +22,7 @@ const TABS: ReadonlyArray<{ path: string; label: string; icon: LucideIcon; unrea
   { path: "criteria", label: "Criteria", icon: ListChecks },
   { path: "tasks", label: "Tasks", icon: SquareKanban },
   { path: "wall", label: "Wall", icon: MessageSquare, unread: "comments" },
-  { path: "agents", label: "Agents", icon: Users, unread: "messages" },
+  { path: "agents", label: "Agents", icon: Users },
   { path: "work", label: "Work", icon: SquareTerminal },
   { path: "skills", label: "Skills", icon: Puzzle },
   { path: "watcher", label: "Watcher", icon: MessageSquare },
@@ -36,7 +36,7 @@ export function TabRail({ basePath, unread }: { basePath: string; unread?: UserU
     <nav className={styles.rail} aria-label="Sections">
       {TABS.map((tab) => {
         const count = tab.unread && unread ? unread[tab.unread] : 0;
-        const label = `unread ${tab.unread}`;
+        const label = "unread updates";
         return (
           <NavLink
             key={tab.path}

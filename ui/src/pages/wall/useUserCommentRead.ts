@@ -14,12 +14,14 @@ export function useUserCommentRead(
   const subscribed = detail?.post.userSubscribed;
   const unread = detail?.post.userUnreadComments;
   const [error, setError] = useState<string>();
-  const active = useRef<{ controller: AbortController; through: number; busy: boolean } | undefined>(undefined);
+  const active = useRef<{ controller: AbortController; through: number; busy: boolean; postRead: boolean } | undefined>(
+    undefined,
+  );
   useLayoutEffect(() => {
     latest.current = detail;
   }, [detail]);
   useEffect(() => {
-    const scope = { controller: new AbortController(), through: 0, busy: false };
+    const scope = { controller: new AbortController(), through: 0, busy: false, postRead: false };
     active.current = scope;
     setError(undefined);
     return () => {
@@ -32,7 +34,7 @@ export function useUserCommentRead(
     if (
       !scope ||
       !enabled ||
-      subscribed === false ||
+      (subscribed === false && unread === undefined) ||
       unread === 0 ||
       postId === undefined ||
       scope.busy ||
@@ -47,20 +49,22 @@ export function useUserCommentRead(
         if (!current || current.post.id !== postId || current.post.swarmId !== Number(swarmId)) return;
         inspected = current.comments;
         inspectedUnread = current.post.userUnreadComments;
-        if (current.post.userSubscribed === false || inspectedUnread === 0) return;
+        if (inspectedUnread === 0) return;
         const batch: number[] = [];
         for (let index = current.comments.length - 1; index >= 0; index--) {
           const comment = current.comments[index];
           if (comment.id > scope.through && comment.author !== USER_NAME) batch.push(comment.id);
           if (batch.length === PAGE_MAX_COUNT) break;
         }
-        if (batch.length === 0) {
+        if (batch.length === 0 && scope.postRead) {
           scope.through = Math.max(scope.through, current.comments[0]?.id ?? 0);
           return;
         }
         const response = await markUserCommentsRead(swarmId, postId, batch, scope.controller.signal);
-        if (scope.controller.signal.aborted || response.userSubscribed === false) return;
-        scope.through = batch[batch.length - 1];
+        if (scope.controller.signal.aborted || (response.updated === 0 && response.userSubscribed === false)) return;
+        scope.postRead = true;
+        scope.through = batch.at(-1) ?? scope.through;
+        if (batch.length === 0) return;
       }
     };
     const start = (): void => {
@@ -72,7 +76,6 @@ export function useUserCommentRead(
         !current ||
         current.post.id !== postId ||
         current.post.swarmId !== Number(swarmId) ||
-        current.post.userSubscribed === false ||
         current.post.userUnreadComments === 0
       )
         return;

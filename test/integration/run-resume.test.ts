@@ -37,7 +37,9 @@ const FEEDBACK = `The login form is still broken. ${"Fix the validation and add 
 
 function mainMessages(run: RunFixture, swarmId: number): { id: number; body: string }[] {
   return run.db.sql
-    .prepare("SELECT id, body FROM messages WHERE swarm_id = ? AND sender = 'Main' ORDER BY id")
+    .prepare(
+      "SELECT id, body FROM messages WHERE swarm_id = ? AND sender = 'System' AND body LIKE '%brief file%' ORDER BY id",
+    )
     .all(swarmId)
     .map((row) => ({ id: Number(row.id), body: String(row.body) }));
 }

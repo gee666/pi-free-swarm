@@ -78,7 +78,7 @@ it("ignores self mentions, unknown names, email fragments and longer name prefix
   assert.deepEqual(recipients(swarm.id), []);
 });
 
-it("matches post title mentions case-insensitively and excludes retired agents", () => {
+it("matches participant mentions case-insensitively, including historical participants", () => {
   const swarm = seedSwarm(db);
   db.sql.prepare("UPDATE participants SET retired_at = ? WHERE swarm_id = ? AND name = ?").run(T0, swarm.id, "Liam");
   const post = createPost(
@@ -93,13 +93,13 @@ it("matches post title mentions case-insensitively and excludes retired agents",
   );
   assert.deepEqual(
     recipients(swarm.id).map((row) => row.name),
-    ["John"],
+    ["John", "Liam"],
   );
   assert.equal(subscription(post.id, "John"), undefined);
   assert.equal(subscription(post.id, "Liam"), undefined);
 });
 
-it("broadcasts long User posts once and finds mentions beyond User comment previews", () => {
+it("normal User posts notify only mentions, including beyond long body previews", () => {
   const swarm = seedSwarm(db);
   const post = createPost(
     db,
@@ -113,13 +113,13 @@ it("broadcasts long User posts once and finds mentions beyond User comment previ
   );
   assert.deepEqual(
     recipients(swarm.id).map((row) => row.name),
-    ["John", "Liam", "Maria"],
+    ["John"],
   );
-  assert.ok(recipients(swarm.id).every((row) => String(row.body).startsWith("User posted")));
+  assert.ok(recipients(swarm.id).every((row) => String(row.body).startsWith("User mentioned")));
   addComment(db, swarm.id, "User", post.id, `${"comment evidence ".repeat(500)} @Liam`, T0 + 1);
   assert.deepEqual(
     recipients(swarm.id).map((row) => row.name),
-    ["John", "Liam", "Maria", "Liam"],
+    ["John", "Liam"],
   );
   assert.equal(subscription(post.id, "John"), undefined);
   assert.equal(subscription(post.id, "Liam"), undefined);

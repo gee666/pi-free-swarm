@@ -28,6 +28,7 @@ describe("posts and comments", () => {
       author: "Maria",
       title: "Kickoff",
       text: "I take the API.",
+      broadcast: false,
       commentCount: 0,
       createdAt: T0,
     });

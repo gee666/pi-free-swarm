@@ -7,26 +7,17 @@ import { IconButton } from "../Button";
 import { AutoTextarea, CharCounter } from "../Field";
 import { Tooltip } from "../Tooltip";
 import styles from "./Compose.module.css";
-import { RecipientField } from "./RecipientField";
 import { MentionTextarea } from "./MentionTextarea";
 import { useComposerUploads } from "./useComposerUploads";
 import { ErrorBanner } from "../States";
 
-export const SWARM_NOT_RUNNING_NOTICE = "Swarm is not running. Messages can't be sent.";
-
-export interface ComposeRecipients {
-  name: string;
-  options: readonly string[];
-  onChange: (name: string) => void;
-}
+export const SWARM_NOT_RUNNING_NOTICE = "Swarm is not running.";
 
 export interface ComposeBoxProps {
   text: string;
   onTextChange: (text: string) => void;
   /** Called by the button and by ⌘/Ctrl+Enter, only when the text is sendable. */
   onSend: () => void;
-  /** Omit for the wall comment variant without a "To" row. */
-  recipients?: ComposeRecipients;
   placeholder?: string;
   sendLabel?: string;
   /** Swarm not running: controls are disabled. */
@@ -40,6 +31,7 @@ export interface ComposeBoxProps {
   attachmentThreshold?: number;
   uploadSwarmId?: string;
   uploadScope?: string;
+  afterBody?: ReactNode;
   children?: ReactNode;
 }
 
@@ -47,7 +39,6 @@ export function ComposeBox({
   text,
   onTextChange,
   onSend,
-  recipients,
   placeholder = "Type a message…",
   sendLabel = "Send",
   disabled = false,
@@ -60,6 +51,7 @@ export function ComposeBox({
   uploadSwarmId,
   uploadScope,
   children,
+  afterBody,
 }: ComposeBoxProps) {
   const controls = useRef<HTMLDivElement>(null);
   const uploads = useComposerUploads({
@@ -70,10 +62,8 @@ export function ComposeBox({
     controls,
     disabled: disabled || busy,
   });
-  const hasRecipients = recipients === undefined || recipients.name.length > 0;
   const characterCount = charCount(text);
-  const canSend =
-    !disabled && !busy && !uploads.uploading && !sendDisabled && hasRecipients && checkText(text, Infinity).ok;
+  const canSend = !disabled && !busy && !uploads.uploading && !sendDisabled && checkText(text, Infinity).ok;
   const send = () => {
     if (canSend) onSend();
   };
@@ -91,14 +81,6 @@ export function ComposeBox({
         className={cx(styles.controls, uploadSwarmId && styles.withUploads, disabled && styles.dimmed)}
       >
         {children}
-        {recipients && (
-          <RecipientField
-            name={recipients.name}
-            options={recipients.options}
-            onChange={recipients.onChange}
-            disabled={disabled}
-          />
-        )}
         {mentionNames ? (
           <MentionTextarea
             value={text}
@@ -119,6 +101,7 @@ export function ComposeBox({
             onKeyDown={onKeyDown}
           />
         )}
+        {afterBody}
         {uploadSwarmId && (
           <input
             ref={uploads.picker}

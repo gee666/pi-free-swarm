@@ -1,10 +1,9 @@
-import { SYSTEM_NAME } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
 import { criterionTasks } from "../store/criteria.js";
 import { workRoster, type WorkAgent } from "../store/work-roster.js";
 import { recordVoteRequest, requestedVoters } from "../store/vote-requests.js";
 import { assessCriterion } from "./criterion-status.js";
-import { createThread, insertMessage } from "./message-insert.js";
+import { insertSystemNotice } from "./message-insert.js";
 
 export function chooseWorkRecipient(agents: readonly WorkAgent[], excluded: readonly string[]): string | null {
   const candidates = agents.filter((agent) => agent.active && !excluded.includes(agent.name));
@@ -18,15 +17,7 @@ export function chooseWorkRecipient(agents: readonly WorkAgent[], excluded: read
 /** One recipient row per message makes delivery and acknowledgement independent. */
 export function notifyWork(db: SwarmDb, swarmId: number, recipient: string | null, body: string, now: number): void {
   if (recipient === null) return;
-  const threadId = createThread(db, swarmId, [SYSTEM_NAME, recipient], now);
-  insertMessage(db, {
-    swarmId,
-    threadId,
-    sender: SYSTEM_NAME,
-    text: body,
-    recipients: [{ name: recipient, status: "pending" }],
-    now,
-  });
+  insertSystemNotice(db, { swarmId, recipient, text: body, now });
 }
 export function notifyVoteNeeded(db: SwarmDb, swarmId: number, criterionId: number, now: number): void {
   const assessment = assessCriterion(db, swarmId, criterionId);

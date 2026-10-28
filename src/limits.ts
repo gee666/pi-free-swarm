@@ -2,9 +2,9 @@
 
 export const TITLE_MAX = 60;
 export const WORK_TITLE_ACCEPTED = 100;
-export const WORK_TEXT_ACCEPTED = 300;
+export const WORK_TEXT_ACCEPTED = 400;
 /** Stated agent text limit; accepted limits allow counting errors. */
-export const TEXT_MAX = 200;
+export const TEXT_MAX = 300;
 export const MAIN_FEEDBACK_MAX = 4000;
 export const USER_BODY_PREVIEW_CHARS = 200;
 

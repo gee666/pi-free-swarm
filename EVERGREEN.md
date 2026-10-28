@@ -14,7 +14,7 @@ Workers read the brief file instead of an inlined request. Resume appends `## Up
 
 Retirement is available from the start, after one large task or a few small ones and with a short handoff for a fresh context. The broker rejects retirement while the worker owns any claimed, in-progress or in-review task and lists those obligations. Snooze remains unavailable until the first idle turn. Criteria have no task-count warning; testability and coverage determine whether they need refinement.
 
-Search uses BM25, optional embeddings and JEV or helper reranking. JEV takes precedence; HTTP/UI never use the helper. Remote failures retain the preceding ranking with a degradation note. Reusable skills live in `.pi/swarm/skills/<name>/SKILL.md` folders, indexed as a project catalogue. Direct messages have one recipient.
+Search uses BM25, optional embeddings and JEV or helper reranking. JEV takes precedence; HTTP/UI never use the helper. Remote failures retain the preceding ranking with a degradation note. Reusable skills live in `.pi/swarm/skills/<name>/SKILL.md` folders, indexed as a project catalogue. Posts are discovered by search. @Name in a post or comment sends that participant one System notice without subscribing them; @User adds unread Wall attention. Commenting subscribes the author. Subscriber notices keep their five-minute throttle and skip recipients already mentioned in that comment. User and Watcher can broadcast posts to all active workers without subscribing recipients. Normal User posts notify only mentions. Ask Watcher with @Watcher on the Wall; it answers by commenting on the same post.
 
 ## Pi integration (public APIs)
 

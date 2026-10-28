@@ -1,21 +1,17 @@
 // GET routes of the board API.
 import type {
-  MailboxKind,
-  MailboxResponse,
   PostDetailResponse,
   PostListResponse,
   SessionPage,
   StatsResponse,
   SwarmDetailResponse,
   SwarmListResponse,
-  ThreadResponse,
 } from "../api-types.js";
 import { searchPosts } from "./post-projection.js";
 import { postLinks } from "./work-projection.js";
 import { SESSION_PAGE_DEFAULT, SESSION_PAGE_MAX } from "../constants.js";
-import { getMailbox, getThread } from "../store/message-queries.js";
 import { getStats } from "../store/stats-queries.js";
-import { getParticipant, listAgentSessions, listParticipants, listSwarms } from "../store/swarm-queries.js";
+import { listAgentSessions, listParticipants, listSwarms } from "../store/swarm-queries.js";
 import { getPostDetail, listPosts } from "../store/wall-queries.js";
 import { userUnreadSummary } from "../store/user-unread.js";
 import { postsForUser } from "../store/user-post-state.js";
@@ -30,12 +26,6 @@ import {
   type ApiDeps,
   type ApiRoute,
 } from "./api-util.js";
-
-function boxQuery(url: URL): MailboxKind {
-  const box = url.searchParams.get("box") ?? "inbox";
-  if (box === "inbox" || box === "sent") return box;
-  throw new ApiFailure(400, "validation", 'box must be "inbox" or "sent".', "box");
-}
 
 function sessionLimit(url: URL): number {
   const limit = intQuery(url, "limit", SESSION_PAGE_DEFAULT);
@@ -101,40 +91,6 @@ export function readRoutes(deps: ApiDeps): ApiRoute[] {
       pattern: "/api/swarms/:swarmId/posts/:postId/subscription",
       handle: ({ params }) =>
         deps.db.read(() => reply(getUserPostAttention(db, params.id("swarmId"), params.id("postId")))),
-    },
-    {
-      method: "GET",
-      pattern: "/api/swarms/:swarmId/participants/:name/messages",
-      handle: ({ params, url }) => {
-        return deps.db.read(() => {
-          const box = boxQuery(url);
-          const page = pageQuery(url);
-          const swarm = requireSwarmItem(deps, params.id("swarmId"));
-          const name = params.text("name");
-          const participant = getParticipant(db, swarm.id, name);
-          if (participant === null) throw notFound(`Participant ${name} not found.`);
-          const filter = url.searchParams.get("unreadOnly");
-          if (filter !== null && filter !== "true" && filter !== "false")
-            throw new ApiFailure(400, "validation", "unreadOnly must be true or false.", "unreadOnly");
-          const unreadOnly = filter === "true";
-          if (unreadOnly && (participant.kind !== "user" || box !== "inbox"))
-            throw new ApiFailure(400, "validation", "unreadOnly is supported only for the User inbox.", "unreadOnly");
-          return reply<MailboxResponse>(getMailbox(db, swarm.id, participant.name, box, { ...page, unreadOnly }));
-        });
-      },
-    },
-    {
-      method: "GET",
-      pattern: "/api/swarms/:swarmId/threads/:threadId",
-      handle: ({ params }) => {
-        return deps.db.read(() => {
-          const swarm = requireSwarmItem(deps, params.id("swarmId"));
-          const threadId = params.id("threadId");
-          const thread = getThread(db, swarm.id, threadId);
-          if (thread === null) throw notFound(`Thread #${threadId} not found.`);
-          return reply<ThreadResponse>(thread);
-        });
-      },
     },
     {
       method: "GET",

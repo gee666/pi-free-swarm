@@ -168,8 +168,6 @@ export const AGENT_TOOL = {
   postsUnsubscribe: "swarm_posts_unsubscribe",
   postsLink: "swarm_posts_link",
   postsUnlink: "swarm_posts_unlink",
-  messagesSend: "swarm_messages_send",
-  messagesRead: "swarm_messages_read",
   skillsSearch: "swarm_skills_search",
   skillsGet: "swarm_skills_get",
   snooze: "swarm_snooze",
@@ -181,7 +179,6 @@ export const IDLE_ONLY_TOOLS: readonly string[] = [AGENT_TOOL.snooze];
 export const WATCHER_TOOL = {
   overview: "swarm_overview",
   activity: "swarm_agent_activity",
-  threads: "swarm_read_threads",
 } as const;
 export const WATCHER_TOOLS = [
   AGENT_TOOL.project,
@@ -194,16 +191,15 @@ export const WATCHER_TOOLS = [
   AGENT_TOOL.postsGet,
   AGENT_TOOL.skillsSearch,
   AGENT_TOOL.skillsGet,
-  AGENT_TOOL.messagesSend,
-  AGENT_TOOL.messagesRead,
+  AGENT_TOOL.postsCreate,
+  AGENT_TOOL.postsComment,
+  AGENT_TOOL.postsUnsubscribe,
   ...Object.values(WATCHER_TOOL),
 ];
 
 // ── Fixed texts that more than one module writes or recognises ───────────────
-export const UNDELIVERABLE_REPLY_TEXT = "The swarm is finished. This message will not be delivered.";
-export const NOT_RUNNING_TEXT = "Swarm is not running. Messages can't be sent.";
 export const MAIN_FEEDBACK_POST_TITLE = "Feedback from Main";
-export const MAIN_FEEDBACK_POST_SUFFIX = "…see your messages";
+export const MAIN_FEEDBACK_POST_SUFFIX = "…read the updated brief file";
 /** First line of the revive prompt; the session reader shows such prompts as a `revive` system item. */
 export const REVIVE_PROMPT_HEADER = "[swarm] You were restarted after a crash or stall.";
 export const RESUME_PROMPT_HEADER = "[swarm resumed by Main]";

@@ -1,5 +1,4 @@
 // The board's REST API (contracts in api-types.ts). Requests outside its routes fall through to the next handler.
-import { watcherRoutes } from "./api-watcher.js";
 import { workReadRoutes } from "./api-work-read.js";
 import { workWriteRoutes } from "./api-work-write.js";
 import { skillRoutes } from "./api-skills.js";
@@ -18,7 +17,6 @@ export function createApiRoutes(deps: ApiDeps): RouteHandler {
     ...skillRoutes(deps),
     ...readRoutes(deps),
     ...writeRoutes(deps),
-    ...watcherRoutes(deps),
     ...configurationRoutes(deps),
   ];
   return async (req, res, url) => {

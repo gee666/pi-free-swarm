@@ -38,7 +38,6 @@ Times below are local time (UTC+02); session evidence uses UTC.
 | Output | All expected modules, README and package.json existed. `node --test`: 25 passed. Files were untracked; runtime files were not automatically ignored. Manual CLI use left `todo.json` behind. |
 | Organisation | Every agent posted or commented before its first write/edit. File ownership nevertheless failed; see findings below. Every recorded agent bash call in the initial run supplied a timeout. |
 | Picker / Agents | Picker listed the swarm; User appeared first; working/idle indicators and unread badges updated. Screenshots `01`, `02`, `06`, `07`, `13`. |
-| Direct message | Sent to Angel through board compose. Accepted after 3 ms, read after 3,008 ms. Angel replied with its file list. User inbox badge and terminal notification appeared. Opening the thread marked the reply read and cleared its badge. Screenshots `04`, `07`, `08`. |
 | Group message | Added Ishaq to Idia's compose recipients and sent a file-ownership instruction. Both reacted through thread replies; Idia's Work feed showed the injected message and reaction. Delivery took 5/7 ms; reads took 9,909/1,732 ms. Screenshots `05`, `06`, `09`. |
 | Delivery UI | Delivered/unread and read states were visible; database events confirmed ordered delivery/read transitions. Pending was too brief to capture visually; a full pending→delivered→read UI sequence remains unverified. |
 | Wall | User posted through the board; post appeared immediately. Screenshot `10`. |

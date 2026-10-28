@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import { sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { finishWork } from "../helpers/finish-work.js";
 import { requestRetirement } from "../../src/broker/retirement.js";
 import { snoozeReminders } from "../../src/broker/reminder-snooze.js";
@@ -60,18 +60,11 @@ test(
         { title: "Old discussion", text: "OLD-NOTIFICATION-POST" },
         Date.now(),
       );
-      sendMessage(run.db, {
-        swarmId: swarmId,
-        from: "User",
-        to: oldName,
-        text: "OLD-SECOND-TURN-TRIGGER",
-        now: Date.now(),
-      });
+      systemNotice(run.db, { swarmId: swarmId, to: oldName, text: "OLD-SECOND-TURN-TRIGGER", now: Date.now() });
       await owner.advance(50);
       await waitFor(() => agentStatus(run.db, swarmId, oldName) === "working", "old worker's later active turn");
-      const unread = sendMessage(run.db, {
+      const unread = systemNotice(run.db, {
         swarmId: swarmId,
-        from: "User",
         to: oldName,
         text: "OLD-PRIVATE-UNREAD",
         now: Date.now(),

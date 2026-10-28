@@ -1,7 +1,6 @@
 // Pure readers for pi's RPC JSONL records (docs/pi-findings.md §2, §5, §8).
 export { createJsonlSplitter } from "./jsonl.js";
 import type { AgentActivity } from "../api-types.js";
-import { AGENT_TOOL } from "../constants.js";
 import { findMessageIds } from "../message-format.js";
 import type { UsageSample } from "../runtime-types.js";
 
@@ -13,7 +12,7 @@ export function headerMessageIds(text: string): number[] {
   let inBody = false;
   for (const line of text.split("\n")) {
     if (inBody) {
-      if (line.startsWith(`(reply with ${AGENT_TOOL.messagesSend} `)) inBody = false;
+      if (line === "(System notification)" || line.startsWith("(reply with ")) inBody = false;
       continue;
     }
     if (line.startsWith('"')) {

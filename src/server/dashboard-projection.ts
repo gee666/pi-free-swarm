@@ -45,7 +45,7 @@ export function dashboard(db: SwarmDb, swarm: SwarmListItem, now: number): Dashb
       recentActivity: work.recentActivity,
       attention: {
         agreedBlockers: criteria.filter((criterion) => criterion.status === "blocked"),
-        unreadUserMessages: userUnreadSummary(db, swarm.id).messages,
+        unreadUserUpdates: userUnreadSummary(db, swarm.id).comments,
       },
       queue: work.queue,
       runnable: work.runnable,

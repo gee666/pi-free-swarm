@@ -7,7 +7,7 @@ import { evaluateCompletion } from "../../src/broker/completion.js";
 import { test } from "node:test";
 import { openSwarmDb, SCHEMA_VERSION } from "../../src/store/db.js";
 import { createPost, addComment } from "../../src/broker/wall.js";
-import { sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { listCriteria } from "../../src/store/criteria.js";
 import { listTasks } from "../../src/store/tasks.js";
 import { removeWorkSchema } from "../helpers/legacy-work-schema.js";
@@ -20,7 +20,7 @@ test("work graph migrates populated v17, preserving communication and dropping r
     const swarm = seedSwarm(db);
     const post = createPost(db, swarm.id, "Maria", { title: "History", text: "Evidence" }, T0);
     addComment(db, swarm.id, "John", post.id, "Reviewed", T0);
-    sendMessage(db, { swarmId: swarm.id, from: "User", to: "Maria", text: "Keep this", now: T0 });
+    systemNotice(db, { swarmId: swarm.id, to: "Maria", text: "Keep this", now: T0 });
     const tables = ["posts", "comments", "messages", "message_recipients"];
     const before = tables.map((table) => db.sql.prepare(`SELECT * FROM ${table}`).all());
     removeWorkSchema(db);

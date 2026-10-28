@@ -158,13 +158,13 @@ export function DashboardPage() {
                         </Link>
                       </div>
                     ))}
-                    {data.attention.unreadUserMessages > 0 && (
-                      <Link {...rowFocusProps} className={styles.attention} to={root + "agents"}>
+                    {data.attention.unreadUserUpdates > 0 && (
+                      <Link {...rowFocusProps} className={styles.attention} to={root + "wall"}>
                         <MessageSquare size={14} />
-                        {data.attention.unreadUserMessages} unread messages to User
+                        {data.attention.unreadUserUpdates} unread Wall updates
                       </Link>
                     )}
-                    {data.attention.agreedBlockers.length === 0 && data.attention.unreadUserMessages === 0 && (
+                    {data.attention.agreedBlockers.length === 0 && data.attention.unreadUserUpdates === 0 && (
                       <EmptyState
                         icon={ListChecks}
                         text="Nothing needs your attention — the swarm is working on its own."

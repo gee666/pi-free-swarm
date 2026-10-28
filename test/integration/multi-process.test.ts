@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { fileURLToPath } from "node:url";
 import { after, describe, it } from "node:test";
-import { sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { sweepStaleRuns } from "../../src/broker/swarms.js";
 import { resumeSwarm } from "../../src/broker/swarm-run.js";
 import { PARENT_WATCH_INTERVAL_MS, RESUME_PROMPT_HEADER } from "../../src/constants.js";
@@ -17,7 +17,6 @@ import {
   promptTexts,
   recipientStatus,
   spawnsOf,
-  systemReplies,
   waitFor,
   waitForWorkersIdle,
   finishWork,
@@ -52,17 +51,10 @@ describe("a runner in another process", () => {
         await waitFor(() => agentStatus(db, swarmId, first) === "idle", "first agent idle", 15_000);
 
         // Written here, as the board's API would: only the child's poll can deliver it.
-        const fromBoard = sendMessage(db, {
-          swarmId: swarmId,
-          from: "User",
-          to: first,
-          text: "from the board",
-          now: Date.now(),
-        }).id;
+        const fromBoard = systemNotice(db, { swarmId: swarmId, to: first, text: "from the board", now: Date.now() }).id;
         await waitFor(() => recipientStatus(db, fromBoard, first) === "read", "delivered by the child runner");
-        const waiting = sendMessage(db, {
+        const waiting = systemNotice(db, {
           swarmId: swarmId,
-          from: "User",
           to: second,
           text: "you have not started",
           now: Date.now(),
@@ -79,7 +71,6 @@ describe("a runner in another process", () => {
         assert.deepEqual(sweepStaleRuns(db, Date.now()), [swarmId]);
         assert.equal(getSwarm(db, swarmId, Date.now())?.status, "interrupted");
         assert.equal(recipientStatus(db, waiting.id, second), "pending");
-        assert.deepEqual(systemReplies(db, waiting.threadId), []);
 
         const outcome = resumeSwarm(run.env, { swarmId, message: "Pick it up from here." }, {});
         await waitForWorkersIdle(run, swarmId);

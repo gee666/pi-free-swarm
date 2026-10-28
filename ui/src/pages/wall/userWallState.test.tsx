@@ -29,13 +29,13 @@ function Counts({ posts }: { posts: PostSummary[] }) {
 }
 
 describe("User subscription-aware wall state", () => {
-  it("shows authoritative initial unread counts only for subscribed posts without fabricating hidden reads", () => {
+  it("shows authoritative unread counts for subscriptions and mentions without fabricating reads", () => {
     const view = render(<Counts posts={[post(1, true, 3), post(2, false, 7), post(3)]} />);
     expect(screen.getByLabelText("Post 1 unread")).toHaveTextContent("3");
-    expect(screen.getByLabelText("Post 2 unread")).toHaveTextContent("0");
+    expect(screen.getByLabelText("Post 2 unread")).toHaveTextContent("7");
     expect(screen.getByLabelText("Post 3 unread")).toHaveTextContent("0");
     view.rerender(<Counts posts={[post(1, false, 3), post(2, true, 7)]} />);
-    expect(screen.getByLabelText("Post 1 unread")).toHaveTextContent("0");
+    expect(screen.getByLabelText("Post 1 unread")).toHaveTextContent("3");
     expect(screen.getByLabelText("Post 2 unread")).toHaveTextContent("7");
   });
 

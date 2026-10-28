@@ -1,6 +1,5 @@
 // One SwarmRun per tool call holds the run lock until launch, delivery and completion finish.
 import type { SwarmListItem } from "../api-types.js";
-import { announceUserMessage } from "./messages.js";
 import type { TimerHandle } from "../clock.js";
 import { WATCHER_NAME } from "../constants.js";
 import { prepareRunRoster } from "./run-roster.js";
@@ -145,7 +144,6 @@ export class SwarmRun {
       clock,
       pollMs: this.#timings.deliveryPollMs,
       onError: this.#fail,
-      onUserMessage: (message) => announceUserMessage(swarm.name, message, env.notifyUser),
     });
     this.#budget = new RunBudget(
       env,

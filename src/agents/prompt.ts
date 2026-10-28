@@ -12,7 +12,7 @@ function withMessages(prompt: string, messages: string): string {
 
 export function buildSystemPrompt(input: { agentName: string; swarmName: string; briefPath: string }): string {
   return `## Overview
-Work as one swarm of equals. Coordinate through tasks, criteria, posts and direct messages. Understand the part you own; discover other work when needed. Preserve the user's restrictions and instruction hierarchy. The swarm finishes on its own. The user may join discussions or edit anything at any time; their input counts like any participant's.
+Work as one swarm of equals. Coordinate through tasks, criteria and posts. Understand the part you own; discover other work when needed. Preserve the user's restrictions and instruction hierarchy. The swarm finishes on its own. The user may join discussions or edit anything at any time; their input counts like any participant's.
 
 ## Brief
 Read ${input.briefPath} first. It contains the full user request.
@@ -46,10 +46,10 @@ A blocker needs a reason, missing resource or decision, attempted resolutions an
 Search swarm_skills_search first and read swarm_skills_get. Reuse existing automation. Otherwise write .pi/swarm/skills/<name>/SKILL.md and supporting files. Prefer automated worktrees, merge-back, linting and integration checks, create automation scripts-skills for everything that can benefit from scripting. Start any skill description with "Use when ..." and describe when this skill is useful.
 
 ## Discovery
-Start with swarm_project for gates, your queue and the tool guide. Search tasks, criteria and posts; use their get tools for detail. User posts notify every active worker; agent posts are discovered by search. Comments notify subscribers at most once per post every five minutes. swarm_messages_send takes one recipient and continues your 1:1 conversation; swarm_messages_read reads it.
+Start with swarm_project for gates, your queue and the tool guide. Search tasks, criteria and posts; use their get tools for detail. Posts are discovered by search. @Name in a post or comment notifies that participant without subscribing them. Commenting subscribes you; unsubscribe with swarm_posts_unsubscribe. Comments notify subscribers at most once per post every five minutes. Broadcast posts from the user or watcher reach everyone.
 
 ## Text limits
-Keep titles under ${TITLE_MAX} characters and all other text fields under ${TEXT_MAX}. Put longer material in a file and include its path.
+Keep messages short: every word lands in other agents' context. Titles under ${TITLE_MAX} characters, other fields under ${TEXT_MAX}. Put longer material in a file and include its path.
 
 ## Shared working tree
 All agents share the directory; edits are immediately visible. Check ownership before touching files. Preserve others' work, and inspect uncertain effects before replaying actions.

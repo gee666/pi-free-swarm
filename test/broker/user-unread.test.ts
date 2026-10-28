@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { markUserRead, sendMessage } from "../../src/broker/messages.js";
 import { setPostSubscription } from "../../src/broker/subscriptions.js";
 import { markUserCommentsRead } from "../../src/broker/user-comment-read.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
@@ -8,26 +7,24 @@ import { openSwarmDb } from "../../src/store/db.js";
 import { userUnreadState, userUnreadSummary } from "../../src/store/user-unread.js";
 import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
 
-test("User attention separates direct messages from subscribed comments and preserves opt-out/self rules", () => {
+test("User attention follows subscribed comments and preserves opt-out/self rules", () => {
   const temp = createTempDb();
   const { db } = temp;
   try {
     const swarm = seedSwarm(db);
     const post = createPost(db, swarm.id, "User", { title: "Mine", text: "Subscribed by authorship." }, T0);
     const comment = addComment(db, swarm.id, "Maria", post.id, "new comment", T0).comment;
-    const direct = sendMessage(db, { swarmId: swarm.id, from: "John", to: "User", text: "direct work", now: T0 });
     addComment(db, swarm.id, "User", post.id, "no self-notification", T0);
-    assert.deepEqual(userUnreadSummary(db, swarm.id), { messages: 1, comments: 1 });
+    assert.deepEqual(userUnreadSummary(db, swarm.id), { messages: 0, comments: 1 });
     const otherPost = createPost(db, swarm.id, "Maria", { title: "Joined", text: "Comment to subscribe." }, T0);
     addComment(db, swarm.id, "User", otherPost.id, "joining", T0);
     const followed = addComment(db, swarm.id, "Liam", otherPost.id, "followed discussion", T0).comment;
-    assert.deepEqual(userUnreadSummary(db, swarm.id), { messages: 1, comments: 2 });
+    assert.deepEqual(userUnreadSummary(db, swarm.id), { messages: 0, comments: 2 });
     setPostSubscription(db, swarm.id, "User", otherPost.id, false, T0);
     addComment(db, swarm.id, "User", otherPost.id, "stay opted out", T0);
     addComment(db, swarm.id, "John", otherPost.id, "not notified", T0);
-    assert.deepEqual(userUnreadSummary(db, swarm.id), { messages: 1, comments: 1 });
-    assert.deepEqual(markUserRead(db, swarm.id, [direct.id], T0 + 1), { updated: 1, unread: 0 });
-    assert.deepEqual(userUnreadState(db, swarm.id), { total: 0, summary: { messages: 0, comments: 1 } });
+    assert.deepEqual(userUnreadSummary(db, swarm.id), { messages: 0, comments: 1 });
+    assert.deepEqual(userUnreadState(db, swarm.id), { total: 1, summary: { messages: 0, comments: 1 } });
     assert.equal(
       markUserCommentsRead(db, swarm.id, otherPost.id, [followed.id], T0 + 2).updated,
       0,

@@ -10,7 +10,6 @@ import type {
   PostListResponse,
   PostsSearchResponse,
   SearchConfigResponse,
-  SendMessageResponse,
   SkillResponse,
   SkillsResponse,
 } from "../../src/api-types.js";
@@ -198,25 +197,6 @@ describe("post links and search", () => {
     const post = await postJson<CreatePostResponse>(board.url("/posts"), { title: "Clean", text: "No contracts" });
     assert.ok(!("claims" in post.body.post));
     assert.ok(!("contract" in post.body.post));
-  });
-});
-
-describe("single-recipient messages", () => {
-  it("continues the same conversation, rejects arrays, and accepts long text", async () => {
-    const first = await postJson<SendMessageResponse>(board.url("/messages"), { to: "Maria", text: "Status?" });
-    assert.equal(first.status, 201);
-    assert.equal(first.body.message.sender, "User");
-    assert.equal(first.body.message.recipients.length, 1);
-    const second = await postJson<SendMessageResponse>(board.url("/messages"), {
-      to: "maria",
-      text: "Evidence\n".repeat(20_000),
-    });
-    assert.equal(second.status, 201);
-    assert.equal(second.body.message.threadId, first.body.message.threadId);
-    assert.match(second.body.message.text, /\.pi\/swarm\/attachments/);
-    assert.equal((await postJson(board.url("/messages"), { to: ["Maria", "John"], text: "No broadcast" })).status, 400);
-    assert.equal((await postJson(board.url("/messages"), { to: ["Maria"], text: "String only" })).status, 400);
-    assert.equal((await postJson(board.url("/messages"), { to: "User", text: "Not an agent" })).status, 400);
   });
 });
 

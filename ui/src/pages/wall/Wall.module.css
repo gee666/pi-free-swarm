@@ -79,3 +79,13 @@
     padding-inline: var(--space-3);
   }
 }
+
+.broadcast {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.broadcast span {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}

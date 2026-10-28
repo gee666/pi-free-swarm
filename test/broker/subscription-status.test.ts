@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { DeliveryLoop } from "../../src/broker/delivery.js";
 import { markDelivered } from "../../src/broker/delivery-state.js";
 import { messagePrompt } from "../../src/broker/message-prompt.js";
-import { sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { setPostSubscription } from "../../src/broker/subscriptions.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
 import { findMessageIds, formatDeliveredMessage, parseDeliveredMessages } from "../../src/message-format.js";
@@ -22,11 +22,10 @@ test("notification batches group subscription guidance across posts and notice w
   addComment(db, swarm.id, "John", second.id, "other post", T0 + 2);
   addComment(db, swarm.id, "John", first.id, "last comment", T0 + COMMENT_NOTICE_WINDOW_MS + 1);
   heartbeatRunLock(db, swarm.id, process.pid, T0 + COMMENT_NOTICE_WINDOW_MS + 2);
-  const direct = sendMessage(db, {
+  const direct = systemNotice(db, {
     swarmId: swarm.id,
-    from: "User",
     to: "Maria",
-    text: "ordinary direct message",
+    text: "ordinary System notice",
     now: T0 + COMMENT_NOTICE_WINDOW_MS + 2,
   });
   const delivery = new DeliveryLoop({ db, swarmId: swarm.id, agents: new Map() });
@@ -51,7 +50,7 @@ test("notification batches group subscription guidance across posts and notice w
   assert.equal(directOnly?.text, formatDeliveredMessage(direct, "Maria"));
 });
 
-test("transport refresh removes a muted post while preserving other notifications and direct messages", (t) => {
+test("transport refresh removes a muted post while preserving other System notices", (t) => {
   const temp = createTempDb();
   t.after(() => temp.cleanup());
   const { db } = temp;
@@ -60,7 +59,7 @@ test("transport refresh removes a muted post while preserving other notification
   const kept = createPost(db, swarm.id, "Maria", { title: "Kept", text: "body" }, T0);
   addComment(db, swarm.id, "John", muted.id, "muted comment", T0 + 1);
   addComment(db, swarm.id, "John", kept.id, "kept comment", T0 + 2);
-  const direct = sendMessage(db, { swarmId: swarm.id, from: "User", to: "Maria", text: "direct stays", now: T0 + 3 });
+  const direct = systemNotice(db, { swarmId: swarm.id, to: "Maria", text: "System notice stays", now: T0 + 3 });
   const delivery = new DeliveryLoop({ db, swarmId: swarm.id, agents: new Map() });
   const initial = delivery.collect("Maria", false);
   const prompt = messagePrompt(db, swarm.id, "Maria", initial.messageIds);

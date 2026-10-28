@@ -49,7 +49,7 @@ describe("two processes writing one swarm.db", () => {
     assert.equal(count("SELECT COUNT(*) AS n FROM posts"), posts);
     assert.equal(count("SELECT COUNT(*) AS n FROM messages"), messages);
     assert.equal(count("SELECT COUNT(*) AS n FROM message_recipients"), messages);
-    assert.equal(count("SELECT COUNT(*) AS n FROM message_recipients WHERE name = 'User'"), messages);
+    assert.equal(count("SELECT COUNT(*) AS n FROM message_recipients WHERE name IN ('Maria', 'John')"), messages);
     assert.equal(count("SELECT COUNT(*) AS n FROM events WHERE type = 'post.created'"), posts);
     assert.equal(count("SELECT COUNT(*) AS n FROM events WHERE type = 'message.created'"), messages);
 
@@ -58,7 +58,7 @@ describe("two processes writing one swarm.db", () => {
     // the other still owes its last one), hence at least LOCKSTEP - 1 author switches, whatever the scheduler.
     const writers = db.sql
       .prepare(
-        `SELECT COALESCE(json_extract(payload, '$.post.author'), json_extract(payload, '$.message.sender')) AS who
+        `SELECT COALESCE(json_extract(payload, '$.post.author'), substr(json_extract(payload, '$.message.text'), 1, instr(json_extract(payload, '$.message.text'), ' ') - 1)) AS who
          FROM events WHERE type IN ('post.created', 'message.created') ORDER BY id`,
       )
       .all()

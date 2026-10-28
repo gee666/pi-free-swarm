@@ -185,15 +185,6 @@ export function findParticipant(db: SwarmDb, swarmId: number, name: string): Par
 }
 
 /** Everyone an agent may message: agents in launch order, then `User`. */
-export function listMessageableNames(db: SwarmDb, swarmId: number): string[] {
-  return db.sql
-    .prepare(
-      `SELECT name FROM participants WHERE swarm_id = ? AND kind IN ('agent', 'user') AND retired_at IS NULL
-       ORDER BY kind = 'user', launch_order`,
-    )
-    .all(swarmId)
-    .map((row) => text(row, "name"));
-}
 
 /** Absolute session file per agent, in launch order. */
 export function listAgentSessions(

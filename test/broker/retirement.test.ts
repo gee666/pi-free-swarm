@@ -209,7 +209,7 @@ test("retire schema accepts handoff text only, not a filename, target identity o
   assert.equal(Value.Check(tool.parameters, { handoff: "Summary", name: "John" }), false);
   assert.match(tool.description, /Available from the start/);
   assert.match(tool.description, /one large task or a few small ones/);
-  assert.match(tool.description, /Your private traffic stays with your session/);
+  assert.match(tool.description, /Your previous session stays archived/);
 });
 
 test("successful native retirement result terminates follow-up without changing its text response", async () => {

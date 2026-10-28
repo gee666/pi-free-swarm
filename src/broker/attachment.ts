@@ -9,12 +9,11 @@ import { projectOf } from "./project-path.js";
 import { workText } from "./work-validation.js";
 import { requireText } from "./validate.js";
 
-export type BodyKind = "post" | "comment" | "message";
+export type BodyKind = "post" | "comment";
 
 export const BODY_TABLE: Readonly<Record<BodyKind, string>> = {
   post: "posts",
   comment: "comments",
-  message: "messages",
 };
 
 /** AUTOINCREMENT ids come from sqlite_sequence; exact inside the write transaction. */

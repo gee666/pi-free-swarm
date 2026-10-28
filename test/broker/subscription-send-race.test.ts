@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { AgentSupervisor } from "../../src/agents/supervisor.js";
 import { messagePrompt } from "../../src/broker/message-prompt.js";
-import { sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { setPostSubscription } from "../../src/broker/subscriptions.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
 import { fakeTransportFactory } from "../agents/fake-transport.js";
@@ -17,7 +17,7 @@ test("a database failure during before-send refresh reports the run error withou
   const errors: unknown[] = [];
   try {
     const swarm = seedSwarm(db);
-    const message = sendMessage(db, { swarmId: swarm.id, from: "User", to: "Maria", text: "saved work", now: T0 });
+    const message = systemNotice(db, { swarmId: swarm.id, to: "Maria", text: "saved work", now: T0 });
     const prompt = messagePrompt(db, swarm.id, "Maria", [message.id], undefined, (error) => errors.push(error));
     assert.ok(prompt?.beforeSend);
     db.close();
@@ -46,13 +46,7 @@ test("unsubscribe cancels a notification waiting behind a serialized transport s
   try {
     const swarm = seedSwarm(temp.db);
     const post = createPost(temp.db, swarm.id, "Maria", { title: "Discussion", text: "body" }, T0);
-    const ordinary = sendMessage(temp.db, {
-      swarmId: swarm.id,
-      from: "User",
-      to: "Maria",
-      text: "ordinary remains",
-      now: T0,
-    });
+    const ordinary = systemNotice(temp.db, { swarmId: swarm.id, to: "Maria", text: "ordinary remains", now: T0 });
     const comment = addComment(temp.db, swarm.id, "User", post.id, "cancel before actual send", T0).comment;
     const row = temp.db.sql
       .prepare("SELECT message_id FROM comment_notifications WHERE comment_id = ?")

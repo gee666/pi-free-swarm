@@ -3,7 +3,7 @@
 // interleaved whatever the scheduler does; at equal counts both race for the write lock. Phase 2 (burst):
 // write freely, hammering the lock at the same time as the peer.
 import { setTimeout as sleep } from "node:timers/promises";
-import { sendMessage } from "../../../src/broker/messages.js";
+import { systemNotice } from "../../helpers/system-notice.js";
 import { createPost } from "../../../src/broker/wall.js";
 import { openSwarmDb } from "../../../src/store/db.js";
 
@@ -12,13 +12,13 @@ const [dbPath, swarmArg, author, peer, lockstepArg, burstArg] = process.argv.sli
 const swarmId = Number(swarmArg);
 const db = openSwarmDb(dbPath, { create: false });
 const writesOf = db.sql.prepare(
-  "SELECT (SELECT COUNT(*) FROM posts WHERE author = ?1) + (SELECT COUNT(*) FROM messages WHERE sender = ?1) AS n",
+  "SELECT (SELECT COUNT(*) FROM posts WHERE author = ?1) + (SELECT COUNT(*) FROM messages WHERE body LIKE ?1 || ' %') AS n",
 );
 const countOf = (name: string): number => Number(writesOf.get(name)?.n);
 
 function write(i: number): void {
   if (i % 2 === 0) createPost(db, swarmId, author, { title: `${author} ${i}`, text: "concurrent" }, Date.now());
-  else sendMessage(db, { swarmId: swarmId, from: author, to: "User", text: `${author} ${i}`, now: Date.now() });
+  else systemNotice(db, { swarmId: swarmId, to: peer, text: `${author} ${i}`, now: Date.now() });
 }
 
 const lockstep = Number(lockstepArg);

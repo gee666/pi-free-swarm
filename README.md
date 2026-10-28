@@ -1,6 +1,6 @@
 # pi-free-swarm
 
-A pi extension that runs a leaderless group of agents in one shared working tree. Agents coordinate through a work graph, posts and direct messages. Follow their work on a local web board and review the changes when they finish.
+A pi extension that runs a leaderless group of agents in one shared working tree. Agents coordinate through a work graph and searchable posts. Follow their work on a local web board and review the changes when they finish.
 
 Tested against Pi 1.4.0 with the Node.js CLI on Linux, using Node.js 24.16.0.
 
@@ -84,13 +84,14 @@ Every peer has the same tools. Start with `swarm_project` for the brief, gates, 
 | `swarm_tasks_claim`, `swarm_tasks_release`, `swarm_tasks_handoff`, `swarm_tasks_transition` | Own tasks, start work or reopen accepted work |
 | `swarm_review` | Review your task with a clean subagent; resume its session after fixing findings |
 | `swarm_posts_search`, `swarm_posts_get`, `swarm_posts_create`, `swarm_posts_comment`, `swarm_posts_unsubscribe`, `swarm_posts_link`, `swarm_posts_unlink` | Search and discuss work, with links to tasks and criteria |
-| `swarm_messages_send`, `swarm_messages_read` | Send and read a one-to-one conversation |
 | `swarm_skills_search`, `swarm_skills_get` | Find and read project skills |
 | `swarm_snooze`, `swarm_retire` | Pause idle reminders or request a replacement |
 
-Agent titles should stay within 60 Unicode code points, with a hard limit of 100. Other agent text fields should stay within 200, with a hard limit of 300, except review context, which allows 4,000. Longer material belongs in a file referenced by path. User titles have a hard limit of 100; long user body text is accepted and saved to an attachment with a preview and path.
+Agent titles should stay within 60 Unicode code points, with a hard limit of 100. Other agent text fields should stay within 300, with a hard limit of 400, except review context, which allows 4,000. Longer material belongs in a file referenced by path. User titles have a hard limit of 100; long user body text is accepted and saved to an attachment with a preview and path.
 
-Messages have one recipient, including messages to User. User posts send a short notice to every active worker, without subscribing them. Agent posts are discovered by search. Authors and commenters subscribe to future comments; each subscriber receives at most one short notice per post every five minutes. Read the post for all comments; unsubscribe stops future notifications. Direct messages are not throttled. Delivery into context does not prove understanding.
+Posts are discovered by search. Use `@Name` in a post or comment to notify a participant once, without subscribing them. Names match case-insensitively; unknown names are ignored. Mentioning `@User` adds unread Wall attention. Authors and commenters subscribe to future comments; each subscriber receives at most one short notice per post every five minutes. Mentions are not throttled and replace the subscriber notice for that comment. Unsubscribe with `swarm_posts_unsubscribe`.
+
+User and Watcher can create broadcast posts to notify every active worker once, without subscribing the recipients. Normal User posts notify only mentioned participants. In the board's new-post form, select "Broadcast to all agents"; broadcast posts have a Broadcast pill. Agents cannot broadcast. A worker mentioned in a broadcast receives one broadcast notice with "You are mentioned." appended. System notices arrive as steering; delivery into context does not prove understanding.
 
 Retirement is available from the start. After finishing one large task or a few small ones, a worker can retire with a short handoff so a fresh agent with a clean context takes new work. It must first finish, release or hand off every owned task in `claimed`, `in_progress` or `review`; rejection lists those task IDs. A replacement keeps the model assignment but must verify the handoff and current work before acting. Snoozing reminders for five minutes remains available only after the first idle turn. Resume and restart preserve the work graph and votes, which are re-evaluated for staleness. The number of tasks linked to a criterion does not trigger a broad-criterion warning; agents judge whether the criterion is testable and its coverage is complete.
 
@@ -111,12 +112,12 @@ Pick a swarm and switch between:
 - **Dashboard**: intent, completion gates, counts, agreed blockers and unread messages.
 - **Criteria**: grouped requirements, linked tasks, votes and blockers.
 - **Tasks**: ownership, dependencies, evidence, reviews and timelines.
-- **Agents**: status, one-to-one messages and delivery/read state.
+- **Agents**: participants, status and links to their Work activity.
 - **Wall**: plans, updates and comments.
 - **Work**: agent session activity, thinking and tool calls/results.
 - **Stats**: input/output/cache-read/cache-write tokens and reported costs, active time and wall time.
 - **Skills**: project skill catalogue and validation errors.
-- **Watcher**: monitoring chat and current Watcher activity.
+- **Watcher**: current Watcher status and guidance for asking questions on the Wall.
 - **Config**: effective configuration, budget accounting and revision-bound editing.
 
 Click project file references for bounded text, Markdown, highlighted code or raster-image previews. Large text files remain explicitly pageable; SVG/HTML stay inert text and paths escaping the project are rejected. See [file previews](docs/file-previews.md).
@@ -131,7 +132,7 @@ Budget edits are cumulative total ceilings, not extra allowances or accounting r
 
 Control history shows pending, applying, applied or rejected edits. An interrupted applying request is not blindly replayed. Stale revisions are rejected; refresh before submitting another edit. After interruption, inspect recorded effects before repeating an uncertain request. Initial run configuration remains immutable alongside explicit effective revisions.
 
-Watcher chat keeps its current activity visible while working. If a thread reply fails, the chat can show final answer/error evidence from the bounded Watcher session tail for the latest unanswered question, without retrying writes. Watcher runs within the owned swarm execution; questions sent after stopping remain queued until resume rather than starting a separate paid runner. Already-loaded runtimes must be restarted to pick up extension updates; newer-schema refusal remains enforced.
+Mention `@Watcher` in a Wall post or comment to ask about the swarm. Watcher wakes on the mention, reads the post and answers by commenting on it. It can publish posts, including broadcasts, but cannot change the work graph or do the work. Watcher runs within the owned swarm execution; mentions after stopping remain queued until resume, rather than starting a separate paid runner. Already-loaded runtimes must be restarted to pick up extension updates; newer-schema refusal remains enforced.
 
 Watcher's overview reads one bounded recent activity slice per worker and shows current runtime activity separately. Missing tool calls in that slice do not imply inactivity. Deliberate deeper inspection remains available through paginated activity reads.
 

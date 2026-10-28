@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, expect, it, vi } from "vitest";
 import { SwarmListProvider } from "../api/SwarmList";
 import { AgentsPage } from "../pages/agents/AgentsPage";
-import { detail, eventBase, mailbox, swarm } from "../pages/agents/testFixtures";
+import { detail, eventBase, swarm } from "../pages/agents/testFixtures";
 import { installFakeApi } from "../test/fakeApi";
 import { FakeEventSource, installFakeEventSource } from "../test/fakeEventSource";
 import { budget } from "../test/runConfigurationFixture";
@@ -21,7 +21,6 @@ it("shares one current-route detail request between the real shell and Agents pa
   let current = detail({ budget });
   api.on("GET", "/api/swarms", () => ({ swarms: [swarm] }));
   api.on("GET", "/api/swarms/3", () => current);
-  api.on("GET", "/api/swarms/3/participants/John/messages", () => mailbox("John", "inbox", []));
   const view = render(
     <MemoryRouter initialEntries={["/s/3/agents/John"]}>
       <SwarmListProvider>
@@ -54,7 +53,7 @@ it("shares one current-route detail request between the real shell and Agents pa
     }),
   );
   expect(await screen.findByText(/Reported spend: \$11.7500/)).toBeInTheDocument();
-  expect(await screen.findByText("31 unread")).toBeInTheDocument();
+  expect(await screen.findByRole("link", { name: "View activity in Work" })).toBeInTheDocument();
   await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3").length).toBeGreaterThan(before));
   const perUsageEvent = api.callsTo("GET", "/api/swarms/3").length - before;
   console.info(JSON.stringify({ before, after: before + perUsageEvent, perUsageEvent }));

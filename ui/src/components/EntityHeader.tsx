@@ -6,7 +6,7 @@ interface EntityHeaderProps {
   avatar: ReactNode;
   title: ReactNode;
   titleLabel?: string;
-  /** --text-muted line under the title, e.g. "Mailbox". */
+  /** --text-muted line under the title, e.g. "Details". */
   subtitle?: ReactNode;
   /** Controls on the right, e.g. the Inbox/Sent segmented control. */
   actions?: ReactNode;

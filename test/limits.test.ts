@@ -10,9 +10,9 @@ describe("limits", () => {
 
   it("uses the exact error texts", () => {
     assert.deepEqual(checkText("   "), { ok: false, error: "Text is empty." });
-    assert.deepEqual(checkText("x".repeat(201)), {
+    assert.deepEqual(checkText("x".repeat(301)), {
       ok: false,
-      error: "Too long: 201/200 characters. Shorten it or point to a file path.",
+      error: "Too long: 301/300 characters. Shorten it or point to a file path.",
     });
     assert.deepEqual(checkTitle(""), { ok: false, error: "Title is empty." });
     assert.equal(checkTitle("t".repeat(100)).ok, true);

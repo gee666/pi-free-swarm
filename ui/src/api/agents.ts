@@ -1,18 +1,11 @@
 import type {
-  MailboxQuery,
-  MailboxResponse,
-  MarkReadRequest,
-  MarkReadResponse,
   ParticipantView,
   ReservedName,
-  SendMessageRequest,
-  SendMessageResponse,
   SwarmDetailResponse,
   SwarmEvent,
-  ThreadResponse,
   UnreadCounts,
 } from "../../../src/api-types";
-import { getJson, postJson } from "./http";
+import { getJson } from "./http";
 
 /** The human at the board; the REST API always acts as this participant. */
 export const USER_NAME = "User" satisfies ReservedName;
@@ -25,42 +18,6 @@ const swarmUrl = (swarmId: number | string) => `/api/swarms/${encodeURIComponent
 /** Swarm record plus participants in API order. */
 export function fetchSwarmDetail(swarmId: number | string, signal: AbortSignal): Promise<SwarmDetailResponse> {
   return getJson<SwarmDetailResponse>(swarmUrl(swarmId), signal);
-}
-
-export function fetchMailbox(
-  swarmId: number | string,
-  name: string,
-  query: MailboxQuery,
-  signal?: AbortSignal,
-): Promise<MailboxResponse> {
-  const params = new URLSearchParams();
-  if (query.box) params.set("box", query.box);
-  if (query.count !== undefined) params.set("count", String(query.count));
-  if (query.offset !== undefined) params.set("offset", String(query.offset));
-  if (query.unreadOnly) params.set("unreadOnly", "true");
-  const url = `${swarmUrl(swarmId)}/participants/${encodeURIComponent(name)}/messages?${params}`;
-  return getJson<MailboxResponse>(url, signal).then((mailbox) => {
-    if (query.unreadOnly && !mailbox.unreadOnly) {
-      throw new Error(
-        "The running backend needs a reload to support unread-only filtering. Turn off the filter to see all messages.",
-      );
-    }
-    return mailbox;
-  });
-}
-
-export function fetchThread(swarmId: number | string, threadId: number, signal: AbortSignal): Promise<ThreadResponse> {
-  return getJson<ThreadResponse>(`${swarmUrl(swarmId)}/threads/${threadId}`, signal);
-}
-
-/** Starts a new thread as `User`; rejects with `ApiError` code `swarm_not_running` (409) when not live. */
-export function sendMessage(swarmId: number | string, request: SendMessageRequest): Promise<SendMessageResponse> {
-  return postJson<SendMessageResponse>(`${swarmUrl(swarmId)}/messages`, request);
-}
-
-export function markUserRead(swarmId: number | string, messageIds: number[]): Promise<MarkReadResponse> {
-  const request: MarkReadRequest = { messageIds };
-  return postJson<MarkReadResponse>(`${swarmUrl(swarmId)}/participants/User/read`, request);
 }
 
 /** Maps participants, keeping the original array when `patch` changed none of them. */

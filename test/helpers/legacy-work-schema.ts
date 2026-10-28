@@ -4,6 +4,9 @@ import type { SwarmDb } from "../../src/store/db.js";
 // Rewind fixtures must remove additive work/search schema before replaying older migrations.
 export function removeWorkSchema(db: SwarmDb): void {
   db.write(() => {
+    db.sql.exec(
+      "CREATE TABLE thread_members (thread_id INTEGER NOT NULL REFERENCES threads(id), name TEXT NOT NULL, position INTEGER NOT NULL, PRIMARY KEY (thread_id, name)); DROP TABLE user_post_attention; ALTER TABLE posts DROP COLUMN broadcast; ALTER TABLE user_comment_attention DROP COLUMN mentioned;",
+    );
     for (const table of [
       "post_links",
       "task_events",

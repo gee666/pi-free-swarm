@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { PostSummary } from "../../../src/api-types";
 import { SwarmViewProvider } from "../api/SwarmView";
 import { AgentsPage } from "../pages/agents/AgentsPage";
-import { detail, mailbox, message } from "../pages/agents/testFixtures";
+import { detail } from "../pages/agents/testFixtures";
 import { WallPage } from "../pages/wall/WallPage";
 import { installFakeApi, jsonResponse, type FakeApi } from "../test/fakeApi";
 import { installFakeEventSource } from "../test/fakeEventSource";
@@ -31,7 +31,6 @@ beforeEach(() => {
   api.on("GET", "/api/swarms/3", () => detail());
   api.on("GET", "/api/swarms/3/posts", () => ({ posts: [post], total: 1 }));
   api.on("GET", "/api/swarms/3/posts/1", () => ({ post, comments: [] }));
-  api.on("GET", "/api/swarms/3/participants/User/messages", () => mailbox("User", "inbox", []));
   api.on("POST", "/api/swarms/3/participants/User/read", () => ({ updated: 0, unread: 0 }));
   api.on("POST", uploadRoute, () => ({ path: uploadedPath }));
 });
@@ -160,52 +159,4 @@ it("keeps the draft unchanged and displays a failed upload without inserting a p
   expect(await screen.findByRole("alert")).toHaveTextContent("File exceeds upload limit.");
   expect(box).toHaveValue("Keep this draft");
   expect(screen.getByRole("button", { name: "Comment" })).toBeEnabled();
-});
-
-it("does not insert a pending file after the message recipient changes", async () => {
-  let finish = () => {};
-  api.on(
-    "POST",
-    uploadRoute,
-    () =>
-      new Promise((resolve) => {
-        finish = () => resolve({ path: uploadedPath });
-      }),
-  );
-  mount("/s/3/agents/User?compose=Maria");
-  const box = await screen.findByRole("textbox", { name: "Type a message…" });
-  await waitFor(() => expect(screen.getByRole("combobox", { name: "Recipient" })).toHaveValue("Maria"));
-  const user = userEvent.setup();
-  await user.upload(screen.getByLabelText("Upload files"), new File(["bytes"], "report.txt"));
-  await waitFor(() => expect(api.callsTo("POST", uploadRoute)).toHaveLength(1));
-  await user.click(screen.getByRole("button", { name: "Send message: John" }));
-  await waitFor(() => expect(screen.getByRole("combobox", { name: "Recipient" })).toHaveValue("John"));
-  await user.type(box, "For John only");
-  await act(async () => finish());
-  expect(box).toHaveValue("For John only");
-  expect(api.callsTo("POST", "/api/swarms/3/messages")).toHaveLength(0);
-});
-
-it("offers the same file picker for User messages without changing recipients", async () => {
-  api.on("POST", "/api/swarms/3/messages", () => ({
-    message: message(1, "User", [["Maria", "pending"]], uploadedPath),
-  }));
-  mount("/s/3/agents/User?compose=Maria");
-  const box = await screen.findByRole("textbox", { name: "Type a message…" });
-  await waitFor(() => expect(screen.getByRole("combobox", { name: "Recipient" })).toHaveValue("Maria"));
-  const user = userEvent.setup();
-  await user.upload(
-    screen.getByLabelText("Upload files"),
-    new File(["document bytes"], "report.pdf", { type: "application/pdf" }),
-  );
-  await waitFor(() => expect(box).toHaveValue(uploadedPath));
-  expect(
-    within(screen.getByRole("region", { name: "Compose" })).getByRole("combobox", { name: "Recipient" }),
-  ).toHaveValue("Maria");
-  expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
-  await user.click(screen.getByRole("button", { name: "Send" }));
-  await waitFor(() =>
-    expect(api.callsTo("POST", "/api/swarms/3/messages")[0]?.body).toEqual({ to: "Maria", text: uploadedPath }),
-  );
-  expect(api.callsTo("POST", uploadRoute)).toHaveLength(1);
 });

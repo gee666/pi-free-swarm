@@ -2,7 +2,6 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
 import { TopBar } from "../shell/TopBar";
-import { AgentsReplica } from "./AgentsReplica";
 import { ControlsSection } from "./ControlsSection";
 import styles from "./Gallery.module.css";
 import { PanelsSection } from "./PanelsSection";
@@ -28,5 +27,7 @@ const root = document.getElementById("root");
 if (!root) throw new Error("gallery.html has no #root element");
 
 createRoot(root).render(
-  <StrictMode>{new URLSearchParams(location.search).has("replica") ? <AgentsReplica /> : <GallerySheet />}</StrictMode>,
+  <StrictMode>
+    <GallerySheet />
+  </StrictMode>,
 );

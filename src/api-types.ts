@@ -20,7 +20,6 @@ export type * from "./api-user-unread-types.js";
 export type * from "./api-common-types.js";
 import type {
   AgentActivity,
-  MailboxKind,
   ParticipantKind,
   ParticipantStatus,
   RecipientStatus,
@@ -34,7 +33,7 @@ export interface SwarmListItem {
   taskPrompt: string;
   /** Already resolved: `starting`/`running` with a stale run lock is reported as `interrupted`. */
   status: SwarmStatus;
-  /** Server-side answer to "can messages be sent now" (status is starting/running and the lock is fresh). */
+  /** Whether the live run admits worker actions. */
   acceptsMessages: boolean;
   agentAmount: number;
   agentsWorking: number;
@@ -73,7 +72,7 @@ export interface AgentParticipantView {
 export interface UserParticipantView {
   kind: "user";
   name: "User";
-  /** Inbox messages the user has not opened yet. */
+  /** Historical inbox count; Wall attention is returned separately in userUnread. */
   unread: number;
   joinedAt: number | null;
   lastActivityAt: number | null;
@@ -99,15 +98,6 @@ export interface MessageView {
   createdAt: number;
   /** One entry per recipient, in the order they were addressed. Empty for nobody (never happens today). */
   recipients: RecipientView[];
-}
-
-export interface ThreadView {
-  id: number;
-  swarmId: number;
-  createdBy: string;
-  createdAt: number;
-  /** All members including the creator, in join order. */
-  members: string[];
 }
 
 /** Unread counts of the participants a change touched, keyed by canonical name. */
@@ -152,6 +142,7 @@ export interface PostDetailResponse {
 
 /** POST /api/swarms/:id/posts. The REST API always acts as `User`, so there is no author field. */
 export interface CreatePostRequest {
+  broadcast?: boolean;
   title: string;
   text: string;
   taskIds?: number[];
@@ -171,77 +162,6 @@ export interface CreateCommentRequest {
 export interface CreateCommentResponse {
   comment: CommentView;
   commentCount: number;
-}
-
-// ── REST: messages ────────────────────────────────────────────────────────────
-
-/** GET /api/swarms/:id/participants/:name/messages?box&count&offset&unreadOnly. */
-export interface MailboxQuery {
-  box?: MailboxKind;
-  unreadOnly?: boolean;
-  count?: number;
-  offset?: number;
-}
-
-export interface MailboxThread {
-  thread: ThreadView;
-  /**
-   * Only this box's messages of the thread, oldest first: messages addressed to the participant (inbox)
-   * or sent by it (sent). The collapsed row shows the last one; expanding fetches the whole thread.
-   */
-  messages: MessageView[];
-  /** Inbox only: messages here that the participant has not read. Always 0 for `sent`. */
-  unread: number;
-  lastMessageAt: number;
-}
-
-/** Threads ordered by `lastMessageAt`, newest first. */
-export interface MailboxResponse {
-  name: string;
-  box: MailboxKind;
-  unreadOnly?: boolean;
-  threads: MailboxThread[];
-  /** Number of threads in this box, for pagination. */
-  total: number;
-  /** The participant's total unread inbox count (badge value). */
-  unread: number;
-}
-
-/** GET /api/swarms/:id/threads/:threadId — messages oldest first. */
-export interface ThreadResponse {
-  thread: ThreadView;
-  messages: MessageView[];
-}
-
-export interface WatcherResponse extends ThreadResponse {
-  /** Session evidence when the latest question has no durable Watcher reply. */
-  fallback?: { questionId: number; text: string; error: string | null };
-}
-
-/** Continues the 1:1 conversation. Returns 409 swarm_not_running when not live. */
-export interface SendMessageRequest {
-  to: string;
-  text: string;
-}
-
-/**
- * If the swarm stopped between the liveness check and the insert, the message is still stored with every
- * agent recipient `undeliverable`, and a `System` reply lands in the same thread (delivered via SSE).
- */
-export interface SendMessageResponse {
-  message: MessageView;
-}
-
-/** POST /api/swarms/:id/participants/User/read. Other names answer 404. */
-export interface MarkReadRequest {
-  messageIds: number[];
-}
-
-export interface MarkReadResponse {
-  /** Recipient rows that changed to `read`. */
-  updated: number;
-  /** User's unread count afterwards. */
-  unread: number;
 }
 
 // ── REST: stats ───────────────────────────────────────────────────────────────

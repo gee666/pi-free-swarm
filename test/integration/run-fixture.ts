@@ -165,9 +165,3 @@ export function isAlive(pid: number): boolean {
 }
 
 /** Texts of the System replies in a thread. */
-export function systemReplies(db: SwarmDb, threadId: number): string[] {
-  return db.sql
-    .prepare("SELECT body FROM messages WHERE thread_id = ? AND sender = 'System' ORDER BY id")
-    .all(threadId)
-    .map((row) => String(row.body));
-}

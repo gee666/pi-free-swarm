@@ -30,11 +30,12 @@ export function markUserCommentsRead(
     const subscription = db.sql
       .prepare("SELECT subscribed FROM post_subscriptions WHERE swarm_id = ? AND post_id = ? AND name = ?")
       .get(swarmId, postId, USER_NAME);
-    if (subscription?.subscribed !== 1)
-      return { updated: 0, userUnread: userUnreadSummary(db, swarmId), userSubscribed: false };
-    const updated = readUserCommentAttention(db, swarmId, postId, commentIds, now);
+    const postRead = db.sql
+      .prepare("UPDATE user_post_attention SET read_at = ? WHERE swarm_id = ? AND post_id = ? AND read_at IS NULL")
+      .run(now, swarmId, postId).changes;
+    const updated = readUserCommentAttention(db, swarmId, postId, commentIds, now) + Number(postRead);
     const userUnread =
       updated > 0 ? emitUserPostAttention(db, swarmId, postId, now).userUnread : userUnreadSummary(db, swarmId);
-    return { updated, userUnread, userSubscribed: true };
+    return { updated, userUnread, userSubscribed: subscription?.subscribed === 1 };
   });
 }

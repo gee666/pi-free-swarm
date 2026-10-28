@@ -10,6 +10,7 @@ interface ListRowProps {
   /** md for participants, sm for wall posts. */
   avatarSize?: "sm" | "md";
   title: ReactNode;
+  titleLabel?: string;
   /** Inline after the title, e.g. the "you" pill. */
   titleAddon?: ReactNode;
   wrapTitle?: boolean;
@@ -26,6 +27,7 @@ export function ListRow({
   avatar,
   avatarSize = "md",
   title,
+  titleLabel,
   titleAddon,
   wrapTitle = false,
   subtitle,
@@ -36,7 +38,7 @@ export function ListRow({
   return (
     <div className={cx(styles.row, selected && styles.selected, wrapTitle && styles.wrapTitle)} data-agent-row>
       <div className={styles.main} onClick={onSelect}>
-        <RowButton label={typeof title === "string" ? title : avatar} selected={selected} />
+        <RowButton label={titleLabel ?? (typeof title === "string" ? title : avatar)} selected={selected} />
         <Avatar name={avatar} size={avatarSize} accent={selected} />
         <span className={styles.text}>
           <span className={styles.titleLine}>

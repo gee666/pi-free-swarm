@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import { sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { startSwarm, stopAllRuns } from "../../src/broker/swarm-run.js";
 import { REVIVE_PROMPT_HEADER, WATCHER_NAME } from "../../src/constants.js";
 import { listPosts } from "../../src/store/wall-queries.js";
@@ -61,13 +61,7 @@ describe("crash recovery", () => {
       };
       const { run, db, outcome, swarmId, name } = startOne({ spawns: [crashMidTool, SCENARIOS.settle] });
       await waitFor(() => agentStatus(db, swarmId, name) === "working", "agent working");
-      const id = sendMessage(db, {
-        swarmId: swarmId,
-        from: "User",
-        to: name,
-        text: "queued before the crash",
-        now: Date.now(),
-      }).id;
+      const id = systemNotice(db, { swarmId: swarmId, to: name, text: "queued before the crash", now: Date.now() }).id;
       await waitFor(() => recipientStatus(db, id, name) === "delivered", "steer queued in pi");
       await waitFor(() => recipientStatus(db, id, name) === "read", "read after the revive", 10_000);
 
@@ -117,13 +111,7 @@ describe("crash recovery", () => {
   it("exhausts revives, reports the crash and waits for an explicit stop", { timeout: 20_000 }, async () => {
     const { run, db, outcome, swarmId, name } = startOne(SCENARIOS.crash);
     await waitFor(() => crashedPosts(run, swarmId).length > 0, "revives exhausted", 10_000);
-    const id = sendMessage(db, {
-      swarmId: swarmId,
-      from: "User",
-      to: name,
-      text: "you will not read this",
-      now: Date.now(),
-    }).id;
+    const id = systemNotice(db, { swarmId: swarmId, to: name, text: "you will not read this", now: Date.now() }).id;
     assert.equal(recipientStatus(db, id, name), "pending");
     await stopAllRuns();
     const result = await outcome;

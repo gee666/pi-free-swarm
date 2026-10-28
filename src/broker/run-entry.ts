@@ -2,7 +2,7 @@ import { recordResumeUpdate } from "./project.js";
 import { findActiveRun } from "./run-registry.js";
 import { RESUME_STAGGER_MS } from "../constants.js";
 import { pickAgentNames } from "../names.js";
-import { sendMainFeedback } from "./messages.js";
+import { sendMainFeedback } from "./main-feedback.js";
 import { SwarmRun } from "./swarm-run.js";
 import { bestEffortEnd, reportRunFailure } from "./run-failure.js";
 import type { SwarmDb } from "../store/db.js";

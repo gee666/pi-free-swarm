@@ -27,7 +27,7 @@ export function projectText(identity: AgentToolIdentity): string {
     "Own tasks:",
     ...queue.tasks.map(taskLine),
     `Votes needed: ${queue.criteria.map((criterion) => `#${criterion.id} ${criterion.title}`).join("; ") || "none"}`,
-    "Tools: swarm_intent_update registers the intent file. swarm_criteria_search/get/create/edit/archive/block/vote define and assess scope; swarm_criteria_vote_context shows your voting duty. swarm_tasks_search/get/create/edit/claim/release/handoff/transition manage work; swarm_review runs a review subagent for your task. swarm_posts_search/get/create/comment/unsubscribe/link/unlink share discussion. swarm_messages_send/read continue one conversation per peer. swarm_skills_search/get find reusable automation. swarm_snooze pauses reminders; swarm_retire saves a handoff.",
+    "Tools: swarm_intent_update registers the intent file. swarm_criteria_search/get/create/edit/archive/block/vote define and assess scope; swarm_criteria_vote_context shows your voting duty. swarm_tasks_search/get/create/edit/claim/release/handoff/transition manage work; swarm_review runs a review subagent for your task. swarm_posts_search/get/create/comment/unsubscribe/link/unlink share discussion. swarm_skills_search/get find reusable automation. swarm_snooze pauses reminders; swarm_retire saves a handoff.",
   ].join("\n");
 }
 export function createWorkHandlers(identity: AgentToolIdentity) {

@@ -78,19 +78,19 @@ it("renders four gates, linked intent, numbers, coverage, and recent activity", 
   );
 });
 
-it("shows agreed blockers and unread messages without requiring attention", async () => {
+it("shows agreed blockers and unread Wall updates without requiring attention", async () => {
   const data = dashboardFixture();
   data.attention.agreedBlockers = [criterion({ status: "blocked", title: "Missing credentials" })];
   api.on("GET", "/api/swarms/3/dashboard", () => data);
   mount();
   expect(await screen.findByText("Worth a look")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Reject" })).toHaveAttribute("href", "/s/3/criteria/12");
-  expect(screen.getByText("2 unread messages to User")).toBeInTheDocument();
+  expect(screen.getByText("2 unread Wall updates")).toBeInTheDocument();
 });
 
 it("makes optional participation clear when there is nothing to inspect", async () => {
   const data = dashboardFixture();
-  data.attention.unreadUserMessages = 0;
+  data.attention.unreadUserUpdates = 0;
   api.on("GET", "/api/swarms/3/dashboard", () => data);
   mount();
   expect(

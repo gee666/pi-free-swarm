@@ -37,6 +37,7 @@ export function NewPostForm({
   );
   const [title, setTitle, clearSubmittedTitle] = useComposerDraft(`post:${swarmId}:title`);
   const [text, setText, clearSubmittedText] = useComposerDraft(`post:${swarmId}:body`);
+  const [broadcast, setBroadcast] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -44,7 +45,12 @@ export function NewPostForm({
     if (!checkTitle(title).ok || busy) return;
     setBusy(true);
     setError(undefined);
-    createPost(swarmId, { title, text, ...(links.length > 0 ? linkRequest(links) : {}) })
+    createPost(swarmId, {
+      title,
+      text,
+      ...(broadcast ? { broadcast } : {}),
+      ...(links.length > 0 ? linkRequest(links) : {}),
+    })
       .then(({ post }) => {
         clearSubmittedTitle();
         clearSubmittedText();
@@ -70,6 +76,20 @@ export function NewPostForm({
         sendDisabled={!checkTitle(title).ok}
         busy={busy}
         mentionNames={mentionNames}
+        afterBody={
+          <div className={styles.broadcast}>
+            <label>
+              <input
+                type="checkbox"
+                disabled={busy}
+                checked={broadcast}
+                onChange={(event) => setBroadcast(event.target.checked)}
+              />{" "}
+              Broadcast to all agents
+            </label>
+            <span>Every agent is notified once.</span>
+          </div>
+        }
         attachmentThreshold={USER_BODY_PREVIEW_CHARS}
         uploadSwarmId={swarmId}
       >

@@ -1,7 +1,6 @@
 // How a swarm message looks inside an agent prompt. The runner writes it, the supervisor finds the
 // `[swarm message #id]` markers to detect reads, and the session reader turns it back into items.
 import type { MessageView } from "./api-types.js";
-import { AGENT_TOOL } from "./constants.js";
 
 export interface ParsedSwarmMessage {
   messageId: number;
@@ -15,7 +14,7 @@ const YOU = "You";
 const MARKER = /\[swarm message #(\d+)\]/g;
 const BLOCK = new RegExp(
   String.raw`\[swarm message #(\d+)\] thread #(\d+) · from ([^\n]+?) · to: ([^\n]*)\n"([\s\S]*?)"\n` +
-    String.raw`\(reply with ${AGENT_TOOL.messagesSend} [^\n]*\)`,
+    String.raw`\((?:System notification|reply with [^\n]*)\)`,
   "g",
 );
 
@@ -25,7 +24,7 @@ export function formatDeliveredMessage(message: MessageView, recipient: string):
   return [
     `[swarm message #${message.id}] thread #${message.threadId} · from ${message.sender} · to: ${to.join(", ")}`,
     `"${message.text}"`,
-    `(reply with ${AGENT_TOOL.messagesSend} {"to":${JSON.stringify(message.sender)},"body":"..."})`,
+    "(System notification)",
   ].join("\n");
 }
 

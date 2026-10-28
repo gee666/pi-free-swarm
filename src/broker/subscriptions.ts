@@ -1,12 +1,12 @@
 import type { CommentView } from "../api-types.js";
-import { COMMENT_NOTICE_CHARS, COMMENT_NOTICE_WINDOW_MS, SYSTEM_NAME } from "../constants.js";
+import { COMMENT_NOTICE_CHARS, COMMENT_NOTICE_WINDOW_MS } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
 import { count, int, text as str } from "../store/rows.js";
 import { findParticipant, type ParticipantRef } from "../store/swarm-queries.js";
 import { postExists } from "../store/wall-queries.js";
 import { emitRecipientStatus } from "./emit.js";
 import { BrokerError } from "./errors.js";
-import { createThread, insertMessage } from "./message-insert.js";
+import { insertSystemNotice } from "./message-insert.js";
 import { actAs, requireSwarm } from "./validate.js";
 import { recordUserCommentAttention } from "../store/user-comment-attention.js";
 
@@ -64,7 +64,7 @@ export function setPostSubscription(
   });
 }
 
-/** Notify each subscriber separately so private conversations stay one-to-one. */
+/** Mention notices bypass the throttle; subscribers must not receive a duplicate for that comment. */
 export function notifyComment(
   db: SwarmDb,
   comment: CommentView,
@@ -103,14 +103,11 @@ export function notifyComment(
   if (recipients.length === 0) return userAttention;
   const preview = Array.from(comment.text).slice(0, COMMENT_NOTICE_CHARS).join("");
   for (const person of recipients) {
-    const threadId = createThread(db, swarmId, [SYSTEM_NAME, person.name], now);
-    insertMessage(db, {
+    insertSystemNotice(db, {
       swarmId,
-      threadId,
-      sender: SYSTEM_NAME,
+      recipient: person.name,
       text: `New comments on post #${postId} "${title}" (latest by ${author}: ${preview}). Read with swarm_posts_get.`,
       commentSource: { postId, commentId: comment.id },
-      recipients: [{ name: person.name, status: "pending" }],
       now,
     });
   }

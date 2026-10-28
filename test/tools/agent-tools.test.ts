@@ -7,7 +7,6 @@ import { FakeExtensionApi } from "../helpers/fake-extension-api.js";
 import { workFixture } from "../helpers/work-graph.js";
 import { getTaskDetail, getCriterionDetail } from "../../src/broker/work-queries.js";
 import { getPostPage } from "../../src/broker/post-queries.js";
-import { readConversation } from "../../src/broker/messages.js";
 
 function handlers(f: ReturnType<typeof workFixture>, name = "Ann") {
   return createAgentToolHandlers({ getDb: () => f.db, swarmId: f.swarmId, run: 1, agentName: name });
@@ -25,8 +24,19 @@ test("worker tool names exactly match v2; watcher receives only read tools", (t)
     watcher.toolNames().sort(),
     WATCHER_TOOLS.filter((name) => !Object.values(WATCHER_TOOL).some((value) => value === name)).sort(),
   );
-  assert.ok(Value.Check(pi.tool(AGENT_TOOL.messagesSend).parameters, { to: "Ben", body: "Hi" }));
-  assert.equal(Value.Check(pi.tool(AGENT_TOOL.messagesSend).parameters, { to: ["Ben"], body: "Hi" }), false);
+  assert.equal(
+    Value.Check(pi.tool(AGENT_TOOL.postsCreate).parameters, { title: "No", body: "No", broadcast: true }),
+    false,
+  );
+  assert.ok(
+    Value.Check(watcher.tool(AGENT_TOOL.postsCreate).parameters, {
+      title: "Notice",
+      body: "Read once",
+      broadcast: true,
+    }),
+  );
+  assert.ok(!pi.toolNames().includes("swarm_messages_send"));
+  assert.ok(!pi.toolNames().includes("swarm_messages_read"));
   assert.equal(Value.Check(pi.tool(AGENT_TOOL.tasksCreate).parameters, { title: "X", body: "Y", criteria: [] }), false);
   assert.ok(
     Value.Check(pi.tool(AGENT_TOOL.review).parameters, { task_id: 1, context: "x".repeat(4000), resume: true }),
@@ -122,7 +132,7 @@ test("post tools search comments, filter links/subscriptions and page comments",
     criterion_ids: [f.criterion.id],
   });
   const id = Number(/#(\d+)/.exec(output)?.[1]);
-  assert.match(output, /Subscribed to post/);
+  assert.match(output, /You are subscribed to post #\d+; unsubscribe with swarm_posts_unsubscribe/);
   run.postsComment({ post_id: id, body: "Distinctive comment phrase" });
   run.postsComment({ post_id: id, body: "Second comment" });
   assert.match(await run.postsSearch({ query: "Distinctive", task_id: task.id, subscribed: true }), /Discussion/);
@@ -138,43 +148,22 @@ test("post tools search comments, filter links/subscriptions and page comments",
   assert.equal(getPostPage(f.db, f.swarmId, id).links.length, 1);
 });
 
-test("messages continue one private conversation in both directions", (t) => {
-  const f = workFixture(t);
-  handlers(f).messagesSend({ to: "Ben", body: "One" });
-  handlers(f, "Ben").messagesSend({ to: "Ann", body: "Two" });
-  const conversation = readConversation(f.db, { swarmId: f.swarmId, a: "Ann", b: "Ben", limit: 1 });
-  assert.deepEqual(conversation.thread?.members, ["Ann", "Ben"]);
-  assert.equal(conversation.messages.length, 1);
-  assert.ok(conversation.nextAfter);
-  assert.match(handlers(f).messagesRead({ with: "Ben" }), /One.*Two/);
-  assert.deepEqual(readConversation(f.db, { swarmId: f.swarmId, a: "Ann", b: "Cam" }).messages, []);
-});
-
-test("Watcher can answer User but cannot message an agent", (t) => {
-  const f = workFixture(t);
-  const run = handlers(f, "Watcher");
-  assert.throws(() => run.messagesSend({ to: "Ann", body: "Do work" }), /only to User/);
-  assert.match(run.messagesSend({ to: "user", body: "The graph is unfinished." }), /sent/);
-  assert.match(run.messagesRead({ with: "User" }), /The graph is unfinished/);
-});
-
 test("fixed Unicode limits cover all agent fields, including optional fields", (t) => {
   const f = workFixture(t);
   const run = handlers(f);
-  assert.doesNotThrow(() => run.postsCreate({ title: "😀".repeat(100), body: "😀".repeat(300) }));
+  assert.doesNotThrow(() => run.postsCreate({ title: "😀".repeat(100), body: "😀".repeat(400) }));
   for (const action of [
     () => run.postsCreate({ title: "x".repeat(101), body: "ok" }),
-    () => run.postsCreate({ title: "ok", body: "x".repeat(301) }),
-    () => run.messagesSend({ to: "Ben", body: "x".repeat(301) }),
+    () => run.postsCreate({ title: "ok", body: "x".repeat(401) }),
     () =>
       run.criteriaCreate({
         group: "Quality",
         title: "Works",
         body: "Check",
         verification: "Test",
-        source: "x".repeat(301),
+        source: "x".repeat(401),
       }),
-    () => run.intentUpdate({ summary: "x".repeat(301), path: "intent.md" }),
+    () => run.intentUpdate({ summary: "x".repeat(401), path: "intent.md" }),
   ])
     assert.throws(action, /too long.*file/i);
 });

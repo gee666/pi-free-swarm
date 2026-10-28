@@ -1,8 +1,9 @@
 import type { ParticipantStatus, SwarmStatus } from "../api-types.js";
-import { USER_NAME, WATCHER_NAME } from "../constants.js";
+import { WATCHER_NAME } from "../constants.js";
 import type { SwarmDb } from "./db.js";
 import { agentStatusOf, int, intOrNull, text } from "./rows.js";
 import { swarmUsageTotals } from "./scalar-totals.js";
+import { USER_ATTENTION_COUNT_SQL } from "./user-unread.js";
 import { resolvedSwarmState } from "./swarm-status.js";
 
 export interface ProgressSnapshot {
@@ -49,9 +50,9 @@ export function getProgressSnapshot(db: SwarmDb, swarmId: number, now: number): 
       `SELECT
       (SELECT COUNT(*) FROM posts WHERE swarm_id = ?) AS posts,
       (SELECT COUNT(*) FROM messages WHERE swarm_id = ?) AS messages,
-      (SELECT COUNT(*) FROM message_recipients WHERE swarm_id = ? AND name = ? AND status IN ('pending','delivered')) AS unread`,
+      ${USER_ATTENTION_COUNT_SQL} AS unread`,
     )
-    .get(swarmId, swarmId, swarmId, USER_NAME);
+    .get(swarmId, swarmId, swarmId, swarmId);
   const usage = swarmUsageTotals(db, swarmId);
   return {
     name: text(row, "name"),

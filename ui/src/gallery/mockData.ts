@@ -1,7 +1,6 @@
-import type { ParticipantStatus, RecipientView, SwarmListItem } from "../../../src/api-types";
+import type { ParticipantStatus, SwarmListItem } from "../../../src/api-types";
 
 const minutesAgo = (minutes: number) => Date.now() - minutes * 60_000;
-const at = (hours: number, minutes: number) => new Date().setHours(hours, minutes, 0, 0);
 
 export const mockSwarm: SwarmListItem = {
   id: 3,
@@ -47,45 +46,6 @@ export const mockAgents: MockAgent[] = [
   { name: "Emma", unread: 0, status: "crashed" },
   { name: "Noah", unread: 1, status: "working" },
   { name: "Ava", unread: 0, status: "idle" },
-];
-
-export interface MockMessage {
-  id: number;
-  sender: string;
-  subject: string;
-  time: number;
-  recipients: RecipientView[];
-}
-
-const readBy = (name: string, time: number): RecipientView => ({
-  name,
-  status: "read",
-  deliveredAt: time,
-  readAt: time + 60_000,
-});
-
-export const mockInbox: MockMessage[] = [
-  { id: 1, sender: "John", subject: "Re: OAuth scopes for dashboard", time: at(10, 24), recipients: [] },
-  { id: 2, sender: "Liam", subject: "Test results from auth flow", time: at(9, 18), recipients: [] },
-  { id: 3, sender: "Oliver", subject: "Updated PR with refresh token logic", time: at(8, 47), recipients: [] },
-  { id: 4, sender: "Emma", subject: "Question about OAuth state param", time: at(8, 12), recipients: [] },
-  { id: 5, sender: "Noah", subject: "CI is failing on auth e2e tests", time: minutesAgo(60 * 24), recipients: [] },
-].map((message) => ({ ...message, recipients: [readBy("Maria", message.time)] }));
-
-export const mockExpandedBody = `Hey Maria,
-
-I've pushed an updated PR with refresh token logic and error handling per the latest notes.
-Could you take a look when you have a moment?
-
-Happy to discuss if anything looks off.
-
-– Oliver`;
-
-export const mockRecipients: RecipientView[] = [
-  readBy("Maria", at(10, 24)),
-  { name: "John", status: "delivered", deliveredAt: at(10, 24), readAt: null },
-  { name: "Sofia", status: "pending", deliveredAt: null, readAt: null },
-  { name: "Ava", status: "undeliverable", deliveredAt: null, readAt: null },
 ];
 
 export const mockMarkdown = `## Plan

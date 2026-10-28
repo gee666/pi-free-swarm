@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { resumeSwarm, startSwarm } from "../../src/broker/swarm-run.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
 import { readBudget } from "../../src/store/budget.js";
@@ -56,9 +56,8 @@ for (const graceful of [false, true]) {
               .get(swarmId) !== undefined,
           "active tool before budget expiry",
         );
-        const unread = sendMessage(run.db, {
+        const unread = systemNotice(run.db, {
           swarmId: swarmId,
-          from: "User",
           to: names[1],
           text: "Preserve this unread work",
           now: clock.now(),

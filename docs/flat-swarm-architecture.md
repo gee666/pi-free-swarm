@@ -1,6 +1,6 @@
 # Flat swarm architecture
 
-A swarm is a set of equal Pi agents working in one shared directory. They coordinate through a SQLite work graph, searchable posts and one-to-one messages. There are no agent roles or parent tasks. Dependencies express ordering; task ownership identifies who is responsible for work.
+A swarm is a set of equal Pi agents working in one shared directory. They coordinate through a SQLite work graph and searchable posts. There are no agent roles or parent tasks. Dependencies express ordering; task ownership identifies who is responsible for work.
 
 ## Work graph
 
@@ -49,7 +49,9 @@ Agent tools and board HTTP routes call the same broker rules. Mutations validate
 
 Migration 020 drops `task_events.reviewer` and adds `task_reviews` for reviewer liveness and resume eligibility. It permits `accepted_by` labels such as `Ann review` without adding review processes to the participant roster. Historical tasks and events, task ID sequences and the owner/author foreign keys are preserved.
 
-Posts can link to tasks and criteria. Authors and commenters subscribe to future comments. System notifications and direct messages have one recipient. Posts are discovered by search rather than pushed to every agent.
+Posts can link to tasks and criteria. Authors and commenters subscribe to future comments. Posts are discovered by search. @Name mentions notify participants once without subscribing them; @User creates unread Wall attention. Subscriber notices are throttled per recipient and post for five minutes; mentions bypass that throttle and replace the subscriber notice for the same comment. User and Watcher may broadcast a post to every active worker without subscribing recipients. Agents cannot broadcast, and ordinary User posts notify only mentions. Watcher answers @Watcher questions by commenting on their post.
+
+System notifications retain one-recipient steering delivery. Historical message tables remain for notifications, statistics and session history; there are no participant messaging tools or routes.
 
 Search filters in SQL and ranks with local BM25. Optional embeddings and reranking can improve ranking; failures report degradation. Project skills live under `.pi/swarm/skills/<name>/SKILL.md`, with supporting files. Search and get synchronize the catalogue from disk and report invalid entries.
 

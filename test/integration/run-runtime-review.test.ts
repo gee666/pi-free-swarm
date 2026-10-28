@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { startSwarm, stopAllRuns } from "../../src/broker/swarm-run.js";
 import { ownsActiveRun } from "../../src/broker/active-ownership.js";
 import { sweepStaleRuns } from "../../src/broker/swarms.js";
@@ -35,13 +35,7 @@ test("terminal error leaving accepted steering unread recovers once and finishes
   const id = newestSwarmId(run.db);
   const [name] = agentNames(run.db, id);
   await waitFor(() => agentStatus(run.db, id, name) === "working", "working");
-  const message = sendMessage(run.db, {
-    swarmId: id,
-    from: "User",
-    to: name,
-    text: "must not be lost",
-    now: Date.now(),
-  });
+  const message = systemNotice(run.db, { swarmId: id, to: name, text: "must not be lost", now: Date.now() });
   await waitFor(() => recipientStatus(run.db, message.id, name) === "delivered", "accepted steer");
   await waitFor(() => recipientStatus(run.db, message.id, name) === "read", "recovered steering read");
   await waitForWorkersIdle(run, id);

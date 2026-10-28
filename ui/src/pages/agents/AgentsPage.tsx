@@ -1,56 +1,22 @@
-import { USER_BODY_PREVIEW_CHARS } from "../../../../src/limits";
-import { useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { UserX } from "lucide-react";
-import type { ThreadView } from "../../../../src/api-types";
 import { USER_NAME } from "../../api/agents";
-import { useSwarmStream } from "../../api/SwarmStream";
-import { ComposeBox } from "../../components/compose/ComposeBox";
-import { Panel } from "../../components/Panel";
+import { Avatar } from "../../components/Avatar";
+import { AgentName } from "../../components/AgentName";
+import { EntityHeader } from "../../components/EntityHeader";
+import { Panel, PanelBody } from "../../components/Panel";
 import { EmptyState, ErrorBanner, SkeletonRows } from "../../components/States";
 import { PanelLayout } from "../../shell/AppShell";
-import styles from "./Agents.module.css";
-import { MailboxPanel } from "./MailboxPanel";
+import { activityLabel } from "../work/activity";
 import { ParticipantList } from "./ParticipantList";
-import { replyRecipient } from "./messageDisplay";
-import { useComposer } from "./useComposer";
-import { useComposeRequest } from "./useComposeRequest";
 import { useSwarmDetail } from "./useSwarmDetail";
 
-/** Agents tab: participants, the selected one's mailbox, and the user's compose box. */
 export function AgentsPage() {
-  const { id: swarmId = "", name: routeName = USER_NAME } = useParams();
+  const { id: swarmId = "", name = USER_NAME } = useParams();
   const navigate = useNavigate();
-  const stream = useSwarmStream();
   const detail = useSwarmDetail(swarmId);
   const participants = detail.data?.participants;
-  const selected = participants?.find((participant) => participant.name.toLowerCase() === routeName.toLowerCase());
-  const agents =
-    participants
-      ?.filter((participant) => participant.kind === "agent" && participant.status !== "retired")
-      .map(({ name }) => name) ?? [];
-  const composer = useComposer(
-    swarmId,
-    detail.data?.swarm,
-    selected?.kind === "agent" && selected.status !== "retired" ? selected.name : "",
-  );
-  const composeSlot = useRef<HTMLDivElement>(null);
-  const focusCompose = () => composeSlot.current?.querySelector("textarea")?.focus();
-
-  useComposeRequest(participants, composer.address, composeSlot);
-  const reply = (thread: ThreadView) => {
-    const recipient = replyRecipient(thread);
-    if (recipient) composer.address(recipient);
-    focusCompose();
-  };
-
-  const banners = (
-    <>
-      {stream.status === "reconnecting" && <ErrorBanner>Connection lost. Reconnecting…</ErrorBanner>}
-      {composer.error && <ErrorBanner>{`Message not sent: ${composer.error}`}</ErrorBanner>}
-    </>
-  );
-
+  const selected = participants?.find((participant) => participant.name.toLowerCase() === name.toLowerCase());
   return (
     <PanelLayout
       list={
@@ -58,44 +24,36 @@ export function AgentsPage() {
           participants={participants}
           error={detail.error}
           selected={selected?.name}
-          onSelect={(name) => navigate(`/s/${swarmId}/agents/${encodeURIComponent(name)}`)}
+          onSelect={(next) => navigate(`/s/${swarmId}/agents/${encodeURIComponent(next)}`)}
         />
       }
       main={
-        selected ? (
-          <MailboxPanel
-            key={selected.name}
-            swarmId={swarmId}
-            participant={selected}
-            banners={banners}
-            canSend={!composer.disabled && (selected.kind !== "agent" || selected.status !== "retired")}
-            onReply={reply}
-          />
-        ) : (
-          <Panel aria-label="Mailbox">
-            {banners}
-            {participants === undefined ? (
-              !detail.error && <SkeletonRows />
-            ) : (
-              <EmptyState icon={UserX} text="Participant not found" />
-            )}
-          </Panel>
-        )
-      }
-      compose={
-        <div ref={composeSlot} className={styles.composeSlot}>
-          <ComposeBox
-            uploadSwarmId={swarmId}
-            uploadScope={composer.to}
-            text={composer.text}
-            onTextChange={composer.setText}
-            onSend={composer.send}
-            recipients={{ name: composer.to, options: agents, onChange: composer.setTo }}
-            attachmentThreshold={USER_BODY_PREVIEW_CHARS}
-            disabled={composer.disabled}
-            busy={composer.busy}
-          />
-        </div>
+        <Panel aria-label="Participant">
+          {detail.error && <ErrorBanner>{detail.error.message}</ErrorBanner>}
+          {selected ? (
+            <>
+              <EntityHeader
+                avatar={<Avatar name={selected.name} />}
+                title={<AgentName name={selected.name} />}
+                subtitle={selected.kind === "agent" ? selected.status : "User"}
+              />
+              <PanelBody>
+                {selected.kind === "agent" ? (
+                  <>
+                    <p>{activityLabel(selected)}</p>
+                    <Link to={`/s/${swarmId}/work/${encodeURIComponent(selected.name)}`}>View activity in Work</Link>
+                  </>
+                ) : (
+                  <Link to={`/s/${swarmId}/wall`}>Open the Wall</Link>
+                )}
+              </PanelBody>
+            </>
+          ) : participants === undefined ? (
+            <SkeletonRows />
+          ) : (
+            <EmptyState icon={UserX} text="Participant not found" />
+          )}
+        </Panel>
       }
     />
   );

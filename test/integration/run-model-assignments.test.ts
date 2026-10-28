@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
-import { sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { resumeSwarm, startSwarm, stopAllRuns } from "../../src/broker/swarm-run.js";
 import { WATCHER_NAME } from "../../src/constants.js";
 import { getRunConfiguration } from "../../src/store/run-configuration.js";
@@ -45,9 +45,8 @@ it(
       const names = agentNames(f.db, id);
       const target = names[4];
       assert.ok(target);
-      const message = sendMessage(f.db, {
+      const message = systemNotice(f.db, {
         swarmId: id,
-        from: "User",
         to: target,
         text: "Inspect saved evidence before repeating work.",
         now: Date.now(),

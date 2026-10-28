@@ -4,7 +4,7 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { raiseSwarmBudget } from "../../src/broker/budget-policy.js";
-import { sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { requestRetirement } from "../../src/broker/retirement.js";
 import { createPost } from "../../src/broker/wall.js";
 import { activeWorkerNames } from "../../src/store/active-roster.js";
@@ -47,9 +47,8 @@ test(
           Date.now(),
         ),
       );
-      const oldMessage = sendMessage(run.db, {
+      const oldMessage = systemNotice(run.db, {
         swarmId: swarmId,
-        from: "User",
         to: oldName,
         text: "OLD-ROLE-PENDING-EVIDENCE",
         now: Date.now(),
@@ -69,9 +68,8 @@ test(
         run.fake.log().some((entry) => entry.fake === "spawn" && entry.agent === newName),
         false,
       );
-      const newMessage = sendMessage(run.db, {
+      const newMessage = systemNotice(run.db, {
         swarmId: swarmId,
-        from: "User",
         to: newName,
         text: "NEW-ROLE-PENDING-NOT-FIRST-PROMPT",
         now: Date.now(),

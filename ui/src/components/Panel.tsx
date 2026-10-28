@@ -3,7 +3,7 @@ import { cx } from "../lib/cx";
 import styles from "./Panel.module.css";
 
 interface PanelProps extends HTMLAttributes<HTMLElement> {
-  /** A bordered box nested inside another panel, e.g. the mailbox rows under the entity header. */
+  /** A bordered box nested inside another panel, e.g. related rows under the entity header. */
   inset?: boolean;
 }
 

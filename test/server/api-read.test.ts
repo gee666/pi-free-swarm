@@ -4,17 +4,14 @@ import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import type {
   ApiErrorBody,
-  MailboxResponse,
   PostDetailResponse,
   PostListResponse,
   SessionPage,
   StatsResponse,
   SwarmDetailResponse,
   SwarmListResponse,
-  ThreadResponse,
 } from "../../src/api-types.js";
 import { recordUsage } from "../../src/broker/agent-state.js";
-import { sendMessage } from "../../src/broker/messages.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
 import { agentSessionFile } from "../../src/store/db.js";
 import { assistantLine, headerLine, userLine } from "../fixtures/sessions/helpers.js";
@@ -136,97 +133,6 @@ describe("wall", () => {
     await expectError(`${board.base}/api/swarms/${otherSwarmId}/posts/${postIds[0]}`, 404, {
       error: "not_found",
       message: `Post #${postIds[0]} not found.`,
-    });
-  });
-});
-
-describe("messages", () => {
-  let threadId: number;
-  let userThreadId: number;
-  before(() => {
-    const { db } = board.temp;
-    const send = (from: string, to: string, text: string) =>
-      sendMessage(db, { swarmId, from, to, text, now: Date.now() });
-    threadId = send("Maria", "User", "Plan is on the wall.").threadId;
-    assert.equal(send("User", "Maria", "Which checks?").threadId, threadId);
-    assert.equal(send("Maria", "User", "Agreed.").threadId, threadId);
-    send("Maria", "John", "Just us.");
-    userThreadId = send("User", "Liam", "Status?").threadId;
-  });
-
-  it("groups the inbox by thread with only the box's messages and unread counts", async () => {
-    const { status, body } = await getJson<MailboxResponse>(url("/participants/User/messages"));
-    assert.equal(status, 200);
-    assert.equal(body.box, "inbox");
-    assert.equal(body.total, 1);
-    assert.equal(body.unread, 2);
-    assert.equal(body.threads[0].thread.id, threadId);
-    assert.deepEqual(body.threads[0].thread.members, ["Maria", "User"]);
-    assert.deepEqual(
-      body.threads[0].messages.map((m) => [m.sender, m.text]),
-      [
-        ["Maria", "Plan is on the wall."],
-        ["Maria", "Agreed."],
-      ],
-    );
-    assert.equal(body.threads[0].unread, 2);
-  });
-
-  it("returns the sent box and resolves names case-insensitively", async () => {
-    const sent = await getJson<MailboxResponse>(url("/participants/user/messages?box=sent"));
-    assert.equal(sent.body.name, "User");
-    assert.deepEqual(
-      sent.body.threads.map((t) => t.thread.id),
-      [userThreadId, threadId],
-    );
-    assert.equal(sent.body.threads[0].unread, 0);
-    const maria = await getJson<MailboxResponse>(url("/participants/maria/messages?box=sent&count=1"));
-    assert.equal(maria.body.total, 2);
-    assert.equal(maria.body.threads.length, 1);
-    assert.equal(maria.body.threads[0].messages[0].text, "Just us.");
-  });
-
-  it("validates the box and paging and answers 404 for unknown participants", async () => {
-    await expectError(url("/participants/User/messages?box=trash"), 400, {
-      error: "validation",
-      message: 'box must be "inbox" or "sent".',
-      field: "box",
-    });
-    await expectError(url("/participants/User/messages?count=500"), 400, {
-      error: "validation",
-      message: "count must be an integer 1–100.",
-      field: "count",
-    });
-    await expectError(url("/participants/Bob/messages"), 404, {
-      error: "not_found",
-      message: "Participant Bob not found.",
-    });
-    await expectError(url("/participants/Main/messages"), 404, {
-      error: "not_found",
-      message: "Participant Main not found.",
-    });
-  });
-
-  it("returns a whole thread and 404 for a missing one", async () => {
-    const { status, body } = await getJson<ThreadResponse>(url(`/threads/${threadId}`));
-    assert.equal(status, 200);
-    assert.equal(body.messages.length, 3);
-    assert.deepEqual(
-      body.messages.map((message) => message.sender),
-      ["Maria", "User", "Maria"],
-    );
-    assert.deepEqual(
-      body.messages[1].recipients.map((r) => [r.name, r.status]),
-      [["Maria", "pending"]],
-    );
-    assert.deepEqual(
-      body.messages[2].recipients.map((r) => [r.name, r.status]),
-      [["User", "delivered"]],
-    );
-    await expectError(url("/threads/999"), 404, { error: "not_found", message: "Thread #999 not found." });
-    await expectError(`${board.base}/api/swarms/${otherSwarmId}/threads/${threadId}`, 404, {
-      error: "not_found",
-      message: `Thread #${threadId} not found.`,
     });
   });
 });

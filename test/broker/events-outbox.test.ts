@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, describe, it } from "node:test";
 import { recordUsage, setAgentActivity, setAgentStatus } from "../../src/broker/agent-state.js";
 import { markDelivered, markRead } from "../../src/broker/delivery-state.js";
-import { markUserRead, sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { endRun } from "../../src/broker/swarms.js";
 import { addComment, createPost } from "../../src/broker/wall.js";
 import { latestEventId, listEventsAfter, pruneEvents } from "../../src/store/events.js";
@@ -52,9 +52,7 @@ describe("events outbox", () => {
   it("covers messages, delivery, agent state and run end", () => {
     let messageId = 0;
     assert.deepEqual(
-      emitted(
-        () => (messageId = sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "John", text: "hi", now: T0 }).id),
-      ),
+      emitted(() => (messageId = systemNotice(db, { swarmId: swarm.id, to: "John", text: "hi", now: T0 }).id)),
       ["message.created"],
     );
     const created = listEventsAfter(db, 0, 100).find((event) => event.type === "message.created");
@@ -66,10 +64,6 @@ describe("events outbox", () => {
     assert.deepEqual(
       emitted(() => markRead(db, swarm.id, "John", [messageId], T0)),
       ["message.status"],
-    );
-    assert.deepEqual(
-      emitted(() => markUserRead(db, swarm.id, [messageId], T0)),
-      [],
     );
     assert.deepEqual(
       emitted(() => setAgentStatus(db, swarm.id, "John", "working", T0)),

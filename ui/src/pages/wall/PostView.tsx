@@ -13,9 +13,10 @@ import { Button } from "../../components/Button";
 import { AuthoredEntry } from "../../components/AuthoredEntry";
 import { Avatar } from "../../components/Avatar";
 import { AgentName } from "../../components/AgentName";
+import { Pill } from "../../components/Pill";
 import { EntityHeader } from "../../components/EntityHeader";
 import { Panel, PanelBody } from "../../components/Panel";
-import { RichText } from "../../components/RichText";
+import { RichText, MentionText } from "../../components/RichText";
 import { EmptyState, ErrorBanner, SkeletonRows } from "../../components/States";
 import { formatTimestamp } from "../../lib/time";
 import styles from "./Wall.module.css";
@@ -25,6 +26,7 @@ import { WallLinks, linkRequest, type WallLink } from "./WallLinks";
 import { workUrl } from "../work-items/useWorkData";
 
 interface PostViewProps {
+  mentionNames?: readonly string[];
   detail: PostDetailResponse | undefined;
   error: Error | undefined;
   banners: ReactNode;
@@ -34,7 +36,15 @@ interface PostViewProps {
 }
 
 /** Main panel of the Wall tab: the post, then its comments. */
-export function PostView({ detail, error, banners, onSubscriptionChange, onLinksChange, onRetry }: PostViewProps) {
+export function PostView({
+  detail,
+  error,
+  banners,
+  onSubscriptionChange,
+  onLinksChange,
+  onRetry,
+  mentionNames,
+}: PostViewProps) {
   const [linkError, setLinkError] = useState<Error>();
   const changeLink = async (action: "link" | "unlink", link: WallLink) => {
     if (!detail) return;
@@ -73,7 +83,8 @@ export function PostView({ detail, error, banners, onSubscriptionChange, onLinks
       {banners}
       <EntityHeader
         avatar={<Avatar name={author} size="lg" accent />}
-        title={post.title}
+        title={<MentionText text={post.title} names={mentionNames} />}
+        titleLabel={post.title}
         actions={
           <PostSubscriptionButton
             swarmId={post.swarmId}
@@ -84,7 +95,7 @@ export function PostView({ detail, error, banners, onSubscriptionChange, onLinks
         }
         subtitle={
           <>
-            <AgentName name={author} /> · {formatTimestamp(post.createdAt)}
+            <AgentName name={author} /> {post.broadcast && <Pill>Broadcast</Pill>} · {formatTimestamp(post.createdAt)}
           </>
         }
       />
@@ -96,12 +107,12 @@ export function PostView({ detail, error, banners, onSubscriptionChange, onLinks
           onAdd={(link) => void changeLink("link", link)}
           onRemove={(link) => void changeLink("unlink", link)}
         />
-        <RichText text={post.text} className={styles.postText} />
+        <RichText mentionNames={mentionNames} text={post.text} className={styles.postText} />
         <hr className={styles.divider} />
         <h2 className={styles.commentsTitle}>{commentCountLabel(comments.length)}</h2>
         <ol className={styles.comments}>
           {comments.map((comment) => (
-            <Comment key={comment.id} comment={comment} />
+            <Comment key={comment.id} comment={comment} mentionNames={mentionNames} />
           ))}
         </ol>
       </PanelBody>
@@ -109,14 +120,14 @@ export function PostView({ detail, error, banners, onSubscriptionChange, onLinks
   );
 }
 
-function Comment({ comment }: { comment: CommentView }) {
+function Comment({ comment, mentionNames }: { comment: CommentView; mentionNames?: readonly string[] }) {
   return (
     <AuthoredEntry
       author={displayName(comment.author)}
       time={formatTimestamp(comment.createdAt)}
       own={comment.author === USER_NAME}
     >
-      <RichText text={comment.text} />
+      <RichText mentionNames={mentionNames} text={comment.text} />
     </AuthoredEntry>
   );
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, describe, it } from "node:test";
 import { markDelivered, markRead } from "../../src/broker/delivery-state.js";
-import { sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { endRun } from "../../src/broker/swarms.js";
 import { getMessages, listOpenAgentRecipients, unreadCounts } from "../../src/store/message-queries.js";
 import { createTempDb, seedSwarm, T0 } from "../helpers/temp-db.js";
@@ -17,7 +17,7 @@ function recipient(messageId: number, name: string) {
 describe("recipient status", () => {
   it("moves pending → delivered → read and never back", () => {
     const swarm = seedSwarm(db);
-    const message = sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "John", text: "hi", now: T0 + 1 });
+    const message = systemNotice(db, { swarmId: swarm.id, to: "John", text: "hi", now: T0 + 1 });
     assert.equal(markDelivered(db, swarm.id, "john", [message.id], T0 + 2), 1);
     assert.deepEqual(recipient(message.id, "John"), {
       name: "John",
@@ -39,7 +39,7 @@ describe("recipient status", () => {
 
   it("fills delivered_at when the read signal comes first", () => {
     const swarm = seedSwarm(db);
-    const message = sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "John", text: "hi", now: T0 + 1 });
+    const message = systemNotice(db, { swarmId: swarm.id, to: "John", text: "hi", now: T0 + 1 });
     assert.equal(markRead(db, swarm.id, "John", [message.id, message.id], T0 + 7), 1);
     assert.deepEqual(recipient(message.id, "John"), {
       name: "John",
@@ -53,7 +53,8 @@ describe("recipient status", () => {
   it("keeps undeliverable final", () => {
     const swarm = seedSwarm(db);
     endRun(db, swarm.id, process.pid, "stopped", T0 + 1);
-    const message = sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "John", text: "hi", now: T0 + 2 });
+    const message = systemNotice(db, { swarmId: swarm.id, to: "John", text: "hi", now: T0 + 2 });
+    db.sql.prepare("UPDATE message_recipients SET status = 'undeliverable' WHERE message_id = ?").run(message.id);
     assert.equal(markDelivered(db, swarm.id, "John", [message.id], T0 + 3), 0);
     assert.equal(markRead(db, swarm.id, "John", [message.id], T0 + 3), 0);
     assert.equal(recipient(message.id, "John")?.status, "undeliverable");
@@ -61,10 +62,10 @@ describe("recipient status", () => {
 
   it("lists open agent recipients and counts unread", () => {
     const swarm = seedSwarm(db);
-    const a = sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "John", text: "a", now: T0 + 1 });
-    const b = sendMessage(db, { swarmId: swarm.id, from: "User", to: "Liam", text: "b", now: T0 + 1 });
-    const c = sendMessage(db, { swarmId: swarm.id, from: "User", to: "John", text: "c", now: T0 + 1 });
-    sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "User", text: "d", now: T0 + 1 });
+    const a = systemNotice(db, { swarmId: swarm.id, to: "John", text: "a", now: T0 + 1 });
+    const b = systemNotice(db, { swarmId: swarm.id, to: "Liam", text: "b", now: T0 + 1 });
+    const c = systemNotice(db, { swarmId: swarm.id, to: "John", text: "c", now: T0 + 1 });
+    systemNotice(db, { swarmId: swarm.id, to: "User", text: "d", now: T0 + 1 });
     markDelivered(db, swarm.id, "John", [a.id], T0 + 2);
     assert.deepEqual(listOpenAgentRecipients(db, swarm.id), [
       { messageId: a.id, name: "John", status: "delivered" },

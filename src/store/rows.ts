@@ -99,6 +99,7 @@ export function postOf(row: Row): PostSummary {
     author: text(row, "author"),
     title: text(row, "title"),
     text: text(row, "body"),
+    broadcast: int(row, "broadcast") === 1,
     commentCount: int(row, "comment_count"),
     createdAt: int(row, "created_at"),
   };

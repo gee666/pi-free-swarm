@@ -12,13 +12,13 @@ import { workFixture } from "../helpers/work-graph.js";
 
 test("agent limits count Unicode points and User long bodies are stored as preview plus file", (t) => {
   const f = workFixture(t);
-  const fields = { group: "QA", title: "x".repeat(100), body: "🙂".repeat(300), verification: "Run tests", source: "" };
+  const fields = { group: "QA", title: "x".repeat(100), body: "🙂".repeat(400), verification: "Run tests", source: "" };
   const criterion = createCriterion(f.db, { ...f.input(), ...fields });
   assert.equal(criterion.body, fields.body);
   assert.throws(() => createCriterion(f.db, { ...f.input(), ...fields, title: "x".repeat(101) }), /too long/);
   assert.throws(
-    () => createCriterion(f.db, { ...f.input(), ...fields, body: "🙂".repeat(301) }),
-    /301 chars.*under 200.*file/,
+    () => createCriterion(f.db, { ...f.input(), ...fields, body: "🙂".repeat(401) }),
+    /401 chars.*under 300.*file/,
   );
   assert.throws(() => createCriterion(f.db, { ...f.input("User"), ...fields, title: "x".repeat(101) }), /too long/);
   const body = "Long user request. ".repeat(100);

@@ -51,7 +51,7 @@ export interface DashboardResponse {
   recentActivity: WorkActivityRow[];
   attention: {
     agreedBlockers: CriterionListItem[];
-    unreadUserMessages: number;
+    unreadUserUpdates: number;
   };
   queue: {
     tasks: TaskRecord[];

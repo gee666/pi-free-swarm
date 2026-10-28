@@ -39,7 +39,6 @@ export function ParticipantList({ participants, error, selected, onSelect }: Par
                   titleAddon={<Pill>you</Pill>}
                   selected={participant.name === selected}
                   onSelect={() => onSelect(participant.name)}
-                  trailing={<CountBadge count={participant.unread} reserveSpace />}
                 />
               ) : (
                 <ListRow

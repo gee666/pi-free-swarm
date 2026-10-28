@@ -1,12 +1,12 @@
 // Runner side of plan §7.2: moves pending messages into running agents. Written messages from any process
 // are found by the poll; writes in this process wake the loop at once through notify.ts.
-import type { MessageView, ParticipantStatus } from "../api-types.js";
+import type { ParticipantStatus } from "../api-types.js";
 import type { DeliveryOutcome, PromptPayload } from "../agents/supervisor.js";
 import { systemClock, type Clock, type TimerHandle } from "../clock.js";
-import { DELIVERY_POLL_MS, USER_NAME } from "../constants.js";
+import { DELIVERY_POLL_MS } from "../constants.js";
 import { formatNotificationMessages } from "./notification-format.js";
 import type { SwarmDb } from "../store/db.js";
-import { getMessages, listInboxAfter, listOpenAgentRecipients } from "../store/message-queries.js";
+import { getMessages, listOpenAgentRecipients } from "../store/message-queries.js";
 import { markDelivered } from "./delivery-state.js";
 import { messagePrompt } from "./message-prompt.js";
 import { onLocalMessage } from "./notify.js";
@@ -26,8 +26,6 @@ export interface DeliveryLoopOptions {
   clock?: Clock;
   pollMs?: number;
   onError?(error: unknown): void;
-  /** Each new message in the User's inbox, once. */
-  onUserMessage?(message: MessageView): void;
 }
 
 /** Only these accept a prompt; pending and crashed agents get their messages in the next launch prompt. */
@@ -40,13 +38,11 @@ export class DeliveryLoop {
   readonly #clock: Clock;
   readonly #pollMs: number;
   readonly #onError: (error: unknown) => void;
-  readonly #onUserMessage: ((message: MessageView) => void) | undefined;
   /** One prompt per agent at a time, so a slow response never doubles a delivery. */
   readonly #inFlight = new Set<string>();
   #timers: TimerHandle[] = [];
   #wake: TimerHandle | null = null;
   #unsubscribe: (() => void) | null = null;
-  #userCursor = 0;
   #running = false;
 
   constructor(options: DeliveryLoopOptions) {
@@ -55,7 +51,6 @@ export class DeliveryLoop {
     this.#agents = options.agents;
     this.#clock = options.clock ?? systemClock;
     this.#pollMs = options.pollMs ?? DELIVERY_POLL_MS;
-    this.#onUserMessage = options.onUserMessage;
     this.#onError = (error) => {
       this.stop();
       options.onError?.(error);
@@ -65,8 +60,6 @@ export class DeliveryLoop {
   start(): void {
     if (this.#running) return;
     this.#running = true;
-    // Only messages that arrive during this run are news for the terminal.
-    this.#userCursor = listInboxAfter(this.#db, this.#swarmId, USER_NAME, 0).at(-1)?.id ?? 0;
     this.#timers.push(this.#clock.every(this.#pollMs, () => guardRunAction(() => this.#pass(), this.#onError)));
     this.#unsubscribe = onLocalMessage((swarmId) => {
       if (swarmId === this.#swarmId) this.#soon();
@@ -116,7 +109,6 @@ export class DeliveryLoop {
         .map((recipient) => recipient.messageId);
       if (messageIds.length) guardRunAction(() => this.#deliver(name, target, messageIds, recover), this.#onError);
     }
-    this.#announceUserMessages();
   }
 
   async #deliver(name: string, target: DeliveryTarget, messageIds: number[], recover: boolean): Promise<void> {
@@ -133,14 +125,5 @@ export class DeliveryLoop {
     markDelivered(this.#db, this.#swarmId, name, messageIds, this.#clock.now());
     // More may have arrived while this prompt was on its way. A rejection waits for the poll instead.
     this.#soon();
-  }
-
-  #announceUserMessages(): void {
-    const onUserMessage = this.#onUserMessage;
-    if (!onUserMessage) return;
-    for (const message of listInboxAfter(this.#db, this.#swarmId, USER_NAME, this.#userCursor)) {
-      this.#userCursor = message.id;
-      onUserMessage(message);
-    }
   }
 }

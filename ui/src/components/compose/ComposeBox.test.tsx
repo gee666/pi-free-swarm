@@ -5,23 +5,20 @@ import { describe, expect, it, vi } from "vitest";
 import { ComposeBox, SWARM_NOT_RUNNING_NOTICE } from "./ComposeBox";
 
 interface HarnessProps {
-  onSend?: (text: string, to: string) => void;
+  onSend?: (text: string) => void;
   initialText?: string;
-  withRecipients?: boolean;
   disabled?: boolean;
 }
 
-function Harness({ onSend = () => undefined, initialText = "", withRecipients = true, disabled }: HarnessProps) {
+function Harness({ onSend = () => undefined, initialText = "", disabled }: HarnessProps) {
   const [text, setText] = useState(initialText);
-  const [to, setTo] = useState("Maria");
   return (
     <ComposeBox
       text={text}
       onTextChange={setText}
-      onSend={() => onSend(text, to)}
+      onSend={() => onSend(text)}
       attachmentThreshold={10}
       disabled={disabled}
-      recipients={withRecipients ? { name: to, options: ["Maria", "John", "Liam"], onChange: setTo } : undefined}
     />
   );
 }
@@ -54,7 +51,7 @@ describe("ComposeBox", () => {
     await userEvent.keyboard("{Control>}{Enter}{/Control}");
     await userEvent.keyboard("{Meta>}{Enter}{/Meta}");
     expect(onSend).toHaveBeenCalledTimes(2);
-    expect(onSend).toHaveBeenLastCalledWith("hi\nthere", "Maria");
+    expect(onSend).toHaveBeenLastCalledWith("hi\nthere");
   });
 
   it("puts the shortcut in the send tooltip, not the composer", async () => {
@@ -72,20 +69,6 @@ describe("ComposeBox", () => {
     expect(screen.queryByText(SWARM_NOT_RUNNING_NOTICE)).not.toBeInTheDocument();
     expect(textbox()).toBeDisabled();
     expect(sendButton()).toBeDisabled();
-    expect(screen.getByRole("combobox", { name: "Recipient" })).toBeDisabled();
-  });
-
-  it("selects exactly one recipient and disables send without one", async () => {
-    const onSend = vi.fn();
-    render(<Harness onSend={onSend} initialText="hello" />);
-    const recipient = screen.getByRole("combobox", { name: "Recipient" });
-    expect(recipient).not.toHaveAttribute("multiple");
-    await userEvent.selectOptions(recipient, "Liam");
-    await userEvent.click(sendButton());
-    expect(onSend).toHaveBeenCalledWith("hello", "Liam");
-    await userEvent.selectOptions(recipient, "");
-    expect(sendButton()).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "add agent" })).not.toBeInTheDocument();
   });
 
   it("warns near the preview allowance but accepts longer text", () => {
@@ -103,7 +86,7 @@ describe("ComposeBox", () => {
   });
 
   it("has no To row in the wall comment variant", () => {
-    render(<Harness withRecipients={false} />);
+    render(<Harness />);
     expect(screen.queryByText("To:")).not.toBeInTheDocument();
   });
 });

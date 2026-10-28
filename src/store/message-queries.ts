@@ -1,18 +1,7 @@
-// Read side of threads, messages and mailboxes.
-import type {
-  MailboxKind,
-  MailboxResponse,
-  MailboxThread,
-  MessageView,
-  RecipientView,
-  ThreadResponse,
-  ThreadView,
-  UnreadCounts,
-} from "../api-types.js";
-import { USER_NAME } from "../constants.js";
+import type { MessageView, RecipientView, UnreadCounts } from "../api-types.js";
+import { SYSTEM_NAME } from "../constants.js";
 import type { SwarmDb } from "./db.js";
-import { int, jsonList, kindOf, recipientOf, recipientStatusOf, text, type Row } from "./rows.js";
-import { findParticipant } from "./swarm-queries.js";
+import { int, jsonList, kindOf, recipientOf, recipientStatusOf, text } from "./rows.js";
 
 const IN_IDS = "IN (SELECT value FROM json_each(?))";
 const OPEN = "('pending', 'delivered')";
@@ -49,75 +38,10 @@ export function getMessages(db: SwarmDb, messageIds: readonly number[]): Message
     }));
 }
 
-function ids(rows: Row[], key = "id"): number[] {
-  return rows.map((row) => int(row, key));
-}
-
-function threadOf(db: SwarmDb, row: Row): ThreadView {
-  const id = int(row, "id");
-  const members = db.sql
-    .prepare("SELECT name FROM thread_members WHERE thread_id = ? ORDER BY position")
-    .all(id)
-    .map((member) => text(member, "name"));
-  return {
-    id,
-    swarmId: int(row, "swarm_id"),
-    createdBy: text(row, "created_by"),
-    createdAt: int(row, "created_at"),
-    members,
-  };
-}
-
-export function getThreadView(db: SwarmDb, swarmId: number, threadId: number): ThreadView | null {
-  const row = db.sql.prepare("SELECT * FROM threads WHERE id = ? AND swarm_id = ?").get(threadId, swarmId);
-  return row === undefined ? null : threadOf(db, row);
-}
-
-/** Messages oldest first; `null` when the thread is missing or belongs to another swarm. */
-export function getThread(db: SwarmDb, swarmId: number, threadId: number): ThreadResponse | null {
-  const thread = getThreadView(db, swarmId, threadId);
-  if (thread === null) return null;
-  const messageIds = ids(db.sql.prepare("SELECT id FROM messages WHERE thread_id = ? ORDER BY id").all(threadId));
-  return { thread, messages: getMessages(db, messageIds) };
-}
-
-export function listThreads(db: SwarmDb, swarmId: number, page: { count: number; offset: number }): ThreadView[] {
-  return db.sql
-    .prepare("SELECT * FROM threads WHERE swarm_id = ? ORDER BY id DESC LIMIT ? OFFSET ?")
-    .all(swarmId, page.count, page.offset)
-    .map((row) => threadOf(db, row));
-}
-
-export function findDirectThreadView(db: SwarmDb, swarmId: number, first: string, second: string): ThreadView | null {
+function unreadOf(db: SwarmDb, swarmId: number, name: string): number {
   const row = db.sql
-    .prepare(
-      `SELECT t.id FROM threads t WHERE t.swarm_id = ?
-    AND (SELECT COUNT(*) FROM thread_members m WHERE m.thread_id = t.id) = 2
-    AND EXISTS (SELECT 1 FROM thread_members m WHERE m.thread_id = t.id AND m.name = ?)
-    AND EXISTS (SELECT 1 FROM thread_members m WHERE m.thread_id = t.id AND m.name = ?)
-    ORDER BY t.id DESC LIMIT 1`,
-    )
-    .get(swarmId, first, second);
-  return row === undefined ? null : getThreadView(db, swarmId, int(row, "id"));
-}
-
-export function findDirectThread(db: SwarmDb, swarmId: number, first: string, second: string): ThreadResponse | null {
-  const thread = findDirectThreadView(db, swarmId, first, second);
-  return thread === null ? null : getThread(db, swarmId, thread.id);
-}
-
-function unreadOf(db: SwarmDb, swarmId: number, name: string, threadId?: number): number {
-  const row =
-    threadId === undefined
-      ? db.sql
-          .prepare(`SELECT COUNT(*) AS n FROM message_recipients WHERE swarm_id = ? AND name = ? AND status IN ${OPEN}`)
-          .get(swarmId, name)
-      : db.sql
-          .prepare(
-            `SELECT COUNT(*) AS n FROM message_recipients r JOIN messages m ON m.id = r.message_id
-             WHERE r.swarm_id = ? AND r.name = ? AND r.status IN ${OPEN} AND m.thread_id = ?`,
-          )
-          .get(swarmId, name, threadId);
+    .prepare(`SELECT COUNT(*) AS n FROM message_recipients WHERE swarm_id = ? AND name = ? AND status IN ${OPEN}`)
+    .get(swarmId, name);
   return row === undefined ? 0 : int(row, "n");
 }
 
@@ -126,57 +50,6 @@ export function unreadCounts(db: SwarmDb, swarmId: number, names: readonly strin
   const counts: UnreadCounts = {};
   for (const name of names) counts[name] = unreadOf(db, swarmId, name);
   return counts;
-}
-
-/** Threads with messages in the box, by their latest such message, newest first. */
-export function getMailbox(
-  db: SwarmDb,
-  swarmId: number,
-  name: string,
-  box: MailboxKind,
-  page: { count: number; offset: number; unreadOnly?: boolean },
-): MailboxResponse {
-  const canonical = findParticipant(db, swarmId, name)?.name ?? name;
-  if (page.unreadOnly && (canonical !== USER_NAME || box !== "inbox"))
-    throw new RangeError("unreadOnly is supported only for the User inbox.");
-  const unreadFilter = page.unreadOnly
-    ? ` AND EXISTS (SELECT 1 FROM messages um JOIN message_recipients ur ON ur.message_id = um.id
-        WHERE um.thread_id = m.thread_id AND ur.swarm_id = r.swarm_id AND ur.name = r.name AND ur.status IN ${OPEN})`
-    : "";
-  const inBox =
-    box === "inbox"
-      ? `FROM messages m JOIN message_recipients r ON r.message_id = m.id WHERE r.swarm_id = ? AND r.name = ?${unreadFilter}`
-      : "FROM messages m WHERE m.swarm_id = ? AND m.sender = ?";
-  const threadRows = db.sql
-    .prepare(
-      `SELECT m.thread_id, MAX(m.id) AS last_id, MAX(m.created_at) AS last_at ${inBox}
-       GROUP BY m.thread_id ORDER BY last_at DESC, last_id DESC LIMIT ? OFFSET ?`,
-    )
-    .all(swarmId, canonical, page.count, page.offset);
-  const threads: MailboxThread[] = [];
-  for (const row of threadRows) {
-    const threadId = int(row, "thread_id");
-    const thread = getThreadView(db, swarmId, threadId);
-    if (thread === null) continue;
-    const messageIds = ids(
-      db.sql.prepare(`SELECT m.id ${inBox} AND m.thread_id = ? ORDER BY m.id`).all(swarmId, canonical, threadId),
-    );
-    threads.push({
-      thread,
-      messages: getMessages(db, messageIds),
-      unread: box === "inbox" ? unreadOf(db, swarmId, canonical, threadId) : 0,
-      lastMessageAt: int(row, "last_at"),
-    });
-  }
-  const total = db.sql.prepare(`SELECT COUNT(DISTINCT m.thread_id) AS n ${inBox}`).get(swarmId, canonical);
-  return {
-    name: canonical,
-    box,
-    ...(page.unreadOnly ? { unreadOnly: true } : {}),
-    threads,
-    total: total === undefined ? 0 : int(total, "n"),
-    unread: unreadOf(db, swarmId, canonical),
-  };
 }
 
 export interface OpenRecipient {
@@ -191,26 +64,14 @@ export function listOpenAgentRecipients(db: SwarmDb, swarmId: number): OpenRecip
     .prepare(
       `SELECT r.message_id, r.name, r.status FROM message_recipients r
        JOIN participants p ON p.swarm_id = r.swarm_id AND p.name = r.name
-       WHERE r.swarm_id = ? AND r.status IN ${OPEN} AND p.kind = 'agent'
+       JOIN messages m ON m.id = r.message_id
+       WHERE r.swarm_id = ? AND r.status IN ${OPEN} AND p.kind = 'agent' AND m.sender = ?
        ORDER BY r.message_id, r.position`,
     )
-    .all(swarmId);
+    .all(swarmId, SYSTEM_NAME);
   return rows.flatMap((row): OpenRecipient[] => {
     const status = recipientStatusOf(row);
     if (status !== "pending" && status !== "delivered") return [];
     return [{ messageId: int(row, "message_id"), name: text(row, "name"), status }];
   });
-}
-
-/** Messages addressed to `name` with id > `afterMessageId`, in id order. */
-export function listInboxAfter(db: SwarmDb, swarmId: number, name: string, afterMessageId: number): MessageView[] {
-  const messageIds = ids(
-    db.sql
-      .prepare(
-        "SELECT message_id FROM message_recipients WHERE swarm_id = ? AND name = ? AND message_id > ? ORDER BY message_id",
-      )
-      .all(swarmId, name, afterMessageId),
-    "message_id",
-  );
-  return getMessages(db, messageIds);
 }

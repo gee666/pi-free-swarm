@@ -78,7 +78,7 @@ export function WallPage() {
     });
   const mentionNames =
     swarm.data?.participants
-      .filter((participant) => participant.kind === "agent" && participant.retiredAt == null)
+      .filter((participant) => participant.kind === "agent" || participant.kind === "user")
       .map((participant) => participant.name) ?? [];
 
   const reconnecting = stream.status === "reconnecting" && <ErrorBanner>Connection lost. Reconnecting…</ErrorBanner>;
@@ -108,6 +108,7 @@ export function WallPage() {
     const commentError = composer.error && <ErrorBanner>{`Comment not posted: ${composer.error}`}</ErrorBanner>;
     main = (
       <PostView
+        mentionNames={mentionNames}
         detail={post.data}
         error={post.error}
         onRetry={post.reload}
@@ -182,6 +183,7 @@ export function WallPage() {
               ))}
             </div>
           }
+          mentionNames={mentionNames}
           posts={posts.data?.posts}
           error={posts.error}
           more={posts}

@@ -128,7 +128,7 @@ describe("WallPage", () => {
     expect(within(list).getByText("Oliver").closest("[data-agent-row]")).toHaveTextContent("Oliver · 10:23 AM");
     expect(within(list).getByRole("button", { name: "Open work: Oliver" })).toBeInTheDocument();
     expect(within(list).getByTitle("2 comments")).toHaveTextContent("2");
-    expect(within(list).getByText("1 new comments")).toBeInTheDocument();
+    expect(within(list).getByText("1 unread updates")).toBeInTheDocument();
     expect(within(list).queryByTitle("0 comments")).not.toBeInTheDocument();
     expect(screen.getByText("Select a post")).toBeInTheDocument();
     // A post seen for the first time counts as read.
@@ -152,7 +152,7 @@ describe("WallPage", () => {
         .getByRole("region", { name: "Post" })
         .compareDocumentPosition(screen.getByRole("region", { name: "Compose" })) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    await waitFor(() => expect(within(postList()).queryByText("2 new comments")).not.toBeInTheDocument());
+    await waitFor(() => expect(within(postList()).queryByText("2 unread updates")).not.toBeInTheDocument());
     expect(seen()).toEqual({ 1: 2, 2: 0 });
     expect(screen.getByRole("textbox", { name: "Write a comment…" })).toBeEnabled();
   });
@@ -225,7 +225,7 @@ describe("WallPage", () => {
       type: "comment.created",
       payload: { comment: comment(20, 2, "Liam", "Agreed."), commentCount: 1 },
     });
-    expect(within(postList()).getByText("1 new comments")).toBeInTheDocument();
+    expect(within(postList()).getByText("1 unread updates")).toBeInTheDocument();
 
     const live = comment(21, 1, "Noah", "CI is green again.");
     emit({ ...eventBase, type: "comment.created", payload: { comment: live, commentCount: 3 } });

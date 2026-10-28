@@ -14,7 +14,7 @@ interface SegmentedControlProps<T extends string> {
   options: readonly Segment<T>[];
   value: T | undefined;
   onChange: (value: T) => void;
-  /** Accessible name of the group, e.g. "Mailbox". */
+  /** Accessible name of the group, e.g. "Details". */
   label: string;
 }
 

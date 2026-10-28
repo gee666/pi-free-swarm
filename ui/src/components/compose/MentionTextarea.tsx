@@ -28,7 +28,7 @@ export function MentionTextarea({
   const [active, setActive] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const [pendingCursor, setPendingCursor] = useState<number | null>(null);
-  const match = value.slice(0, cursor).match(/(?:^|[^\p{L}\p{N}_@])@([A-Za-z]*)$/u);
+  const match = value.slice(0, cursor).match(/(?:^|[^\p{L}\p{N}_@])@([\p{L}\p{N}_]*)$/u);
   const query = match?.[1];
   const candidates =
     query === undefined ? [] : names.filter((name) => name.toLowerCase().startsWith(query.toLowerCase()));

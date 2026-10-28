@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 import { agentDestination, type AgentAction } from "../lib/agentNavigation";
 import { AgentName } from "./AgentName";
 import { ListRow } from "./ListRow";
-import { MessageRow } from "./MessageRow";
 
 function Location() {
   const location = useLocation();
@@ -39,7 +38,6 @@ describe("AgentName", () => {
   it.each([
     ["work", "Open work"],
     ["stats", "Show stats"],
-    ["compose", "Send message"],
   ] satisfies ReadonlyArray<[AgentAction, string]>)("navigates to %s for the named agent", async (action, label) => {
     const name = "Zoë & A";
     mount(name);
@@ -51,8 +49,8 @@ describe("AgentName", () => {
     mount();
     await userEvent.tab();
     expect(await screen.findByRole("tooltip")).toHaveTextContent("Open work: Maria");
-    await userEvent.hover(screen.getByRole("button", { name: "Send message: Maria" }));
-    expect(await screen.findByText("Send message: Maria", { selector: '[role="tooltip"]' })).toBeInTheDocument();
+    await userEvent.hover(screen.getByRole("button", { name: "Show stats: Maria" }));
+    expect(await screen.findByText("Show stats: Maria", { selector: '[role="tooltip"]' })).toBeInTheDocument();
   });
 
   it.each(["User", "You", "Main", "System", "user"])("shows no actions for %s", (name) => {
@@ -73,7 +71,7 @@ describe("AgentName", () => {
   ])("hides the current agent action on %s", (path, label) => {
     mount("Maria", path);
     expect(screen.queryByRole("button", { name: label })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("button")).toHaveLength(2);
+    expect(screen.getAllByRole("button")).toHaveLength(1);
   });
 
   it("keeps another agent's work action available", () => {
@@ -83,20 +81,16 @@ describe("AgentName", () => {
 
   it("does not select or expand a row when an action is clicked", async () => {
     const select = vi.fn();
-    const toggle = vi.fn();
     const { container } = mount(
       "Maria",
       "/s/3/wall",
       <>
         <ListRow avatar="Maria" title={<AgentName name="Maria" />} onSelect={select} />
-        <MessageRow sender="John" subject="Status" time="Now" expanded={false} onToggle={toggle} />
       </>,
     );
     expect(container.querySelector("button button")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Show stats: Maria" }));
-    await userEvent.click(screen.getByRole("button", { name: "Send message: John" }));
     expect(select).not.toHaveBeenCalled();
-    expect(toggle).not.toHaveBeenCalled();
   });
 
   it("preserves keyboard activation of the row itself", async () => {

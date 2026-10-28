@@ -3,7 +3,6 @@ import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { after, it } from "node:test";
 import { recordUsage, setAgentActivity, setAgentStatus } from "../../src/broker/agent-state.js";
-import { sendMessage } from "../../src/broker/messages.js";
 import { createSwarm, endRun } from "../../src/broker/swarms.js";
 import { createPost } from "../../src/broker/wall.js";
 import { WATCHER_ACTIVITY_MAX, WATCHER_NAME, WATCHER_TEXT_MAX, WATCHER_TOOLS } from "../../src/constants.js";
@@ -92,24 +91,6 @@ it("summarizes state, last activity, usage, tool, text, goal, acceptance and new
   assert.match(overview, /outcome unfinished; wall posts 1/);
   assert.match(overview, /Rotation idea/);
   assert.doesNotMatch(overview, /SECRET OUTPUT/);
-});
-
-it("can read agent-to-agent threads without joining or marking them read", () => {
-  const message = sendMessage(db, {
-    swarmId: swarm.id,
-    from: "Maria",
-    to: "John",
-    text: "Consider rotating tokens.",
-    now: clock.now(),
-  });
-  assert.match(run.threads({}), /Maria, John/);
-  assert.match(run.threads({ thread_id: message.threadId }), /Consider rotating tokens/);
-  assert.match(run.threads({ count: 1, offset: 1 }), /No threads/);
-  assert.throws(() => run.threads({ thread_id: 999 }), /not found/);
-  assert.equal(
-    db.sql.prepare("SELECT status FROM message_recipients WHERE message_id = ?").get(message.id)?.status,
-    "pending",
-  );
 });
 
 it("does not hunt backwards for assistant text outside the recent slice", async () => {

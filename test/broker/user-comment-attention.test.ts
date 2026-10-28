@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { after, it } from "node:test";
-import { sendMessage } from "../../src/broker/messages.js";
 import { setPostSubscription } from "../../src/broker/subscriptions.js";
 import { markUserCommentsRead } from "../../src/broker/user-comment-read.js";
 import { getUserPostAttention } from "../../src/broker/user-post-subscription.js";
@@ -37,8 +36,7 @@ it("records User wall badges without creating private messages, while agents sti
   assert.equal(getUserPostAttention(db, swarm.id, post.id).userUnreadComments, 1);
   assert.equal(markUserCommentsRead(db, swarm.id, post.id, [first.id], T0 + 4).updated, 0);
   assert.equal(markUserCommentsRead(db, swarm.id, post.id, [second.id], T0 + 5).updated, 1);
-  sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "User", text: "A real private message", now: T0 + 6 });
-  assert.deepEqual(userUnreadSummary(db, swarm.id), { messages: 1, comments: 0 });
+  assert.deepEqual(userUnreadSummary(db, swarm.id), { messages: 0, comments: 0 });
 });
 
 it("preserves future-only subscriptions, self exclusion and bounded read snapshots", () => {

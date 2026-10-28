@@ -22,3 +22,7 @@
   font-size: var(--fs-small);
   overflow-wrap: anywhere;
 }
+
+.mention {
+  color: var(--accent);
+}

@@ -5,29 +5,24 @@ import { Avatar } from "../components/Avatar";
 import { AgentName } from "../components/AgentName";
 import { Button } from "../components/Button";
 import { ComposeBox, type ComposeBoxProps } from "../components/compose/ComposeBox";
-import { DeliveryList, DeliverySummary } from "../components/DeliveryStatus";
 import { EntityHeader } from "../components/EntityHeader";
 import { CountBadge, StatusDot } from "../components/Indicators";
 import { ListRow } from "../components/ListRow";
 import { Markdown } from "../components/Markdown";
-import { MessageRow } from "../components/MessageRow";
 import { Panel, PanelHeader } from "../components/Panel";
-import { Pill, RecipientPill } from "../components/Pill";
+import { Pill } from "../components/Pill";
 import { RichText } from "../components/RichText";
 import { EmptyState, ErrorBanner, SkeletonRows } from "../components/States";
 import styles from "./Gallery.module.css";
-import { mockAgents, mockMarkdown, mockRecipients } from "./mockData";
+import { mockMarkdown } from "./mockData";
 import { Section } from "./Section";
 
-type ComposeDemoProps = Omit<ComposeBoxProps, "text" | "onTextChange" | "onSend" | "recipients"> & {
+type ComposeDemoProps = Omit<ComposeBoxProps, "text" | "onTextChange" | "onSend"> & {
   initialText?: string;
-  withRecipients?: boolean;
 };
 
-function ComposeDemo({ initialText = "", withRecipients = true, ...props }: ComposeDemoProps) {
+function ComposeDemo({ initialText = "", ...props }: ComposeDemoProps) {
   const [text, setText] = useState(initialText);
-  const [to, setTo] = useState("Maria");
-  const options = mockAgents.map((agent) => agent.name);
   return (
     <ComposeBox
       {...props}
@@ -35,7 +30,6 @@ function ComposeDemo({ initialText = "", withRecipients = true, ...props }: Comp
       onTextChange={setText}
       onSend={() => setText("")}
       attachmentThreshold={USER_BODY_PREVIEW_CHARS}
-      recipients={withRecipients ? { name: to, options, onChange: setTo } : undefined}
     />
   );
 }
@@ -88,7 +82,6 @@ function ListPanel() {
 }
 
 export function PanelsSection() {
-  const [expanded, setExpanded] = useState(true);
   return (
     <>
       <Section title="List panel, entity header">
@@ -105,33 +98,12 @@ export function PanelsSection() {
             }
           />
           <ErrorBanner>Connection lost. Reconnecting…</ErrorBanner>
-          <Panel inset>
-            <MessageRow
-              sender="System"
-              subject="The swarm is finished. This message will not be delivered."
-              time="Yesterday"
-              expanded={false}
-              onToggle={() => undefined}
-            />
-            <MessageRow
-              unread
-              sender="Oliver"
-              subject="Updated PR with refresh token logic"
-              meta={<RecipientPill names={mockRecipients.map((recipient) => recipient.name)} />}
-              status={<DeliverySummary recipients={mockRecipients} />}
-              time="08:47 AM"
-              expanded={expanded}
-              onToggle={() => setExpanded(!expanded)}
-            >
-              <RichText text={"See src/auth/token.ts and docs/prd-auth.md.\nThanks!"} />
-              <DeliveryList recipients={mockRecipients} />
-            </MessageRow>
-          </Panel>
+          <RichText text="See src/auth/token.ts and docs/prd-auth.md." />
         </Panel>
       </Section>
       <Section title="Empty and loading">
         <Panel className={styles.smallPanel}>
-          <EmptyState icon={Inbox} text="No messages yet" action={<Button>New message</Button>} />
+          <EmptyState icon={Inbox} text="No posts yet" action={<Button>New post</Button>} />
         </Panel>
         <Panel className={styles.smallPanel}>
           <SkeletonRows count={3} />
@@ -140,7 +112,7 @@ export function PanelsSection() {
       <Section title="Compose" column>
         <ComposeDemo />
         <ComposeDemo disabled />
-        <ComposeDemo withRecipients={false} placeholder="Write a comment…" sendLabel="Comment" />
+        <ComposeDemo placeholder="Write a comment…" sendLabel="Comment" />
         <ComposeDemo initialText={"x".repeat(205)} />
       </Section>
       <Section title="Markdown (Work tab)" column>

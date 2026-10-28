@@ -27,13 +27,17 @@ it("upgrades released v1 without losing history, delivery state, foreign keys or
       INSERT INTO read_marks VALUES (1,'Maria',8);
       PRAGMA user_version = 1;
     `);
-    const tables = ["posts", "comments", "messages", "message_recipients", "thread_members"];
+    const tables = ["posts", "comments", "messages", "message_recipients"];
     const before = tables.map((table) => legacy.prepare(`SELECT * FROM ${table}`).all());
     legacy.close();
     const db = openSwarmDb(file, { create: false });
     try {
       assert.deepEqual(
-        tables.map((table) => db.sql.prepare(`SELECT * FROM ${table}`).all()),
+        tables.map((table) =>
+          db.sql
+            .prepare(`SELECT ${table === "posts" ? "id,swarm_id,author,title,body,created_at" : "*"} FROM ${table}`)
+            .all(),
+        ),
         before,
       );
       assert.deepEqual(db.sql.prepare("PRAGMA foreign_key_check").all(), []);

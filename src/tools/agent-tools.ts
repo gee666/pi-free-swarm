@@ -35,7 +35,7 @@ export function createAgentToolHandlers(identity: AgentToolIdentity) {
       const until = writeAgentTool(identity, () =>
         snoozeReminders(identity.getDb(), identity.swarmId, identity.agentName, workInput(identity).now),
       );
-      return `Idle reminders snoozed for 5 minutes, until ${new Date(until).toISOString()}. Direct messages and subscribed comments still arrive.`;
+      return `Idle reminders snoozed for 5 minutes, until ${new Date(until).toISOString()}. System notifications still arrive.`;
     },
   };
 }
@@ -95,12 +95,23 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
   register(T.skillsSearch, S.search, "Search project skills before writing new automation.", run.skillsSearch);
   register(T.skillsGet, S.skillsGet, "Read SKILL.md, validation state, file list and path.", run.skillsGet);
   register(
-    T.messagesSend,
-    S.messagesSend,
-    "Message exactly one agent or User; continue your existing 1:1 conversation. Recipient is notified.",
-    run.messagesSend,
+    T.postsCreate,
+    identity.agentName === WATCHER_NAME ? S.watcherPostsCreate : S.postsCreate,
+    "Create a post with optional links; auto-subscribes you. @Name notifies a participant without subscribing them. Only User and Watcher can broadcast to all workers.",
+    run.postsCreate,
   );
-  register(T.messagesRead, S.messagesRead, "Read a page of your 1:1 conversation with one peer.", run.messagesRead);
+  register(
+    T.postsComment,
+    S.postsComment,
+    "Comment and auto-subscribe. Subscribers receive a short notice at most once per post every five minutes; read the post for all comments.",
+    run.postsComment,
+  );
+  register(
+    T.postsUnsubscribe,
+    S.postId,
+    "Stop future comment notifications, including after you comment again.",
+    run.postsUnsubscribe,
+  );
   if (identity.agentName === WATCHER_NAME) return;
   register(T.intentUpdate, S.intentUpdate, "Register the user intent summary and file path.", run.intentUpdate);
   register(
@@ -155,24 +166,6 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
     run.tasksTransition,
   );
   pi.registerTool(createReviewTool(identity));
-  register(
-    T.postsCreate,
-    S.postsCreate,
-    "Create a discussion post with optional links; auto-subscribes you. Agent posts are discovered by search, not broadcast.",
-    run.postsCreate,
-  );
-  register(
-    T.postsComment,
-    S.postsComment,
-    "Comment and auto-subscribe. Subscribers receive a short notice at most once per post every five minutes; read the post for all comments.",
-    run.postsComment,
-  );
-  register(
-    T.postsUnsubscribe,
-    S.postId,
-    "Stop future comment notifications, including after you comment again.",
-    run.postsUnsubscribe,
-  );
   register(T.postsLink, S.postsLink, "Link a post to tasks or criteria. Notifies task owners.", (params) =>
     run.postsLink(params),
   );
@@ -182,7 +175,7 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
   register(
     T.snooze,
     S.empty,
-    "After your first idle turn, snooze reminders for exactly 5 minutes. Direct messages and subscribed comments still arrive. Budgets and completion gates are unchanged.",
+    "After your first idle turn, snooze reminders for exactly 5 minutes. System notifications still arrive. Budgets and completion gates are unchanged.",
     run.snooze,
   );
   pi.registerTool(createRetirementTool(run.retire));

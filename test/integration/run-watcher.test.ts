@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, it } from "node:test";
-import { sendMessage } from "../../src/broker/messages.js";
+import { createAgentToolHandlers } from "../../src/tools/agent-tools.js";
+import { getPostPage } from "../../src/broker/post-queries.js";
+import { createPost } from "../../src/broker/wall.js";
 import { startSwarm, stopAllRuns } from "../../src/broker/swarm-run.js";
 import { SYSTEM_PROMPT_FILE, WATCHER_NAME, WATCHER_TOOLS } from "../../src/constants.js";
 import { agentSessionFile } from "../../src/store/db.js";
@@ -48,17 +50,33 @@ it("launches Watcher idle without kickoff, uses the tool allowlist, and stops it
     SYSTEM_PROMPT_FILE,
   );
   assert.match(readFileSync(promptPath, "utf8"), /Do not do or verify the work/);
-  const question = sendMessage(run.db, {
-    swarmId: swarmId,
-    from: "User",
-    to: WATCHER_NAME,
-    text: "What are they doing?",
-    now: Date.now(),
-  });
-  await waitFor(() => recipientStatus(run.db, question.id, WATCHER_NAME) === "read", "Watcher read question");
+  const post = createPost(
+    run.db,
+    swarmId,
+    "User",
+    { title: "Question", text: "@Watcher What are they doing?" },
+    Date.now(),
+  );
+  const questionId = Number(
+    run.db.sql
+      .prepare(
+        "SELECT message_id FROM message_recipients WHERE swarm_id = ? AND name = ? ORDER BY message_id DESC LIMIT 1",
+      )
+      .get(swarmId, WATCHER_NAME)?.message_id,
+  );
+  await waitFor(() => recipientStatus(run.db, questionId, WATCHER_NAME) === "read", "Watcher read question");
   const prompt = run.fake.log().find((record) => record.agent === WATCHER_NAME && record.type === "prompt");
   assert.match(String(prompt?.message), /What are they doing/);
+  assert.ok(String(prompt?.message).includes(`post #${post.id}`));
+  assert.match(readFileSync(promptPath, "utf8"), /answer by commenting on the same post with swarm_posts_comment/);
   assert.doesNotMatch(String(prompt?.message), /WORKER TASK ONLY|Task for the swarm/);
+  const tools = createAgentToolHandlers({ getDb: () => run.db, swarmId, run: 1, agentName: WATCHER_NAME });
+  assert.ok(tools.postsGet({ id: post.id }).includes("What are they doing?"));
+  assert.match(
+    tools.postsComment({ post_id: post.id, body: "The workers are checking the recorded requirements." }),
+    /You are subscribed/,
+  );
+  assert.equal(getPostPage(run.db, swarmId, post.id).comments[0]?.author, WATCHER_NAME);
   await waitForWorkersIdle(run, swarmId);
   finishWork(run.db, swarmId);
   assert.equal((await outcome).end, "finished");

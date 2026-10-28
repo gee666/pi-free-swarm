@@ -6,10 +6,10 @@ import type { ParticipantView } from "../../src/api-types.js";
 import { incrementReviveCount, recordUsage, setAgentActivity, setAgentStatus } from "../../src/broker/agent-state.js";
 import { markDelivered } from "../../src/broker/delivery-state.js";
 import { BrokerError } from "../../src/broker/errors.js";
-import { sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { beginResume, createSwarm, endRun, markSwarmRunning, sweepStaleRuns } from "../../src/broker/swarms.js";
 import { buildAgentEnv, loadSettings } from "../../src/settings.js";
-import { getMessages, getThread } from "../../src/store/message-queries.js";
+import { getMessages } from "../../src/store/message-queries.js";
 import { getStats } from "../../src/store/stats-queries.js";
 import { getSwarm, listAgentSessions, listParticipants, listSwarms } from "../../src/store/swarm-queries.js";
 import { listCriteria } from "../../src/store/criteria.js";
@@ -139,7 +139,7 @@ describe("settings env", () => {
       runnerPid: process.pid,
     });
     assert.equal(env.DATABASE_URL, secret);
-    sendMessage(db, { swarmId: swarm.id, from: "Maria", to: "John", text: "env is set", now: T0 });
+    systemNotice(db, { swarmId: swarm.id, to: "John", text: "env is set", now: T0 });
     for (const file of [db.path, `${db.path}-wal`]) {
       if (existsSync(file)) assert.ok(!readFileSync(file).includes(secret), file);
     }
@@ -192,8 +192,8 @@ describe("runs", () => {
     const swarm = seedSwarm(db);
     setAgentStatus(db, swarm.id, "Maria", "working", T0);
     setAgentStatus(db, swarm.id, "John", "crashed", T0);
-    const fromUser = sendMessage(db, { swarmId: swarm.id, from: "User", to: "Maria", text: "status?", now: T0 + 1 });
-    const fromAgent = sendMessage(db, { swarmId: swarm.id, from: "Liam", to: "Maria", text: "ping", now: T0 + 1 });
+    const fromUser = systemNotice(db, { swarmId: swarm.id, to: "Maria", text: "status?", now: T0 + 1 });
+    const fromAgent = systemNotice(db, { swarmId: swarm.id, to: "Maria", text: "ping", now: T0 + 1 });
     markDelivered(db, swarm.id, "Maria", [fromAgent.id], T0 + 2);
 
     assert.equal(endRun(db, swarm.id, OTHER_PID, "stopped", T0 + 3), false);
@@ -204,16 +204,7 @@ describe("runs", () => {
     assert.deepEqual(agents(swarm.id), { Maria: "stopped", John: "crashed", Liam: "stopped", Watcher: "stopped" });
     const statuses = getMessages(db, [fromUser.id, fromAgent.id]).flatMap((m) => m.recipients.map((r) => r.status));
     assert.deepEqual(statuses, ["pending", "delivered"]);
-    const userThread = getThread(db, swarm.id, fromUser.threadId)?.messages ?? [];
-    assert.deepEqual(
-      userThread.map((m) => [m.sender, m.text]),
-      [["User", "status?"]],
-    );
-    assert.equal(getThread(db, swarm.id, fromAgent.threadId)?.messages.length, 1, "agents get no notice");
-    const open = db.sql
-      .prepare("SELECT COUNT(*) AS n FROM agent_runs WHERE swarm_id = ? AND ended_at IS NULL")
-      .get(swarm.id);
-    assert.equal(open?.n, 0);
+    assert.equal(getMessages(db, [fromUser.id, fromAgent.id]).length, 2);
   });
 
   it("stops live agents and preserves crashed statuses when finished", () => {
@@ -248,7 +239,7 @@ describe("runs", () => {
 
   it("cleans up a stale run before resuming it", () => {
     const swarm = seedSwarm(db);
-    const message = sendMessage(db, { swarmId: swarm.id, from: "User", to: "Maria", text: "hi", now: T0 + 1 });
+    const message = systemNotice(db, { swarmId: swarm.id, to: "Maria", text: "hi", now: T0 + 1 });
     assert.equal(getMessages(db, [message.id])[0].recipients[0].status, "pending");
     const resumed = beginResume(db, swarm.id, OTHER_PID, T0 + 30_000);
     assert.equal(resumed.swarm.status, "starting");

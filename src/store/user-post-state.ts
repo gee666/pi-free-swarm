@@ -13,10 +13,11 @@ export function userPostStates(db: SwarmDb, swarmId: number, postIds: readonly n
   const rows = db.sql
     .prepare(
       `SELECT p.id, COALESCE(s.subscribed, 0) AS subscribed,
-    CASE WHEN s.subscribed = 1 THEN COALESCE(u.unread, 0) ELSE 0 END AS unread
+    COALESCE(u.unread, 0) + EXISTS (SELECT 1 FROM user_post_attention a WHERE a.post_id = p.id AND a.read_at IS NULL) AS unread
     FROM posts p LEFT JOIN post_subscriptions s ON s.post_id = p.id AND s.swarm_id = p.swarm_id AND s.name = ?
     LEFT JOIN (SELECT post_id, COUNT(*) AS unread FROM user_comment_attention
       WHERE swarm_id = ? AND read_at IS NULL
+      AND (mentioned = 1 OR EXISTS (SELECT 1 FROM post_subscriptions ps WHERE ps.post_id = user_comment_attention.post_id AND ps.name = '${USER_NAME}' AND ps.subscribed = 1))
       AND post_id IN (SELECT value FROM json_each(?)) GROUP BY post_id) u ON u.post_id = p.id
     WHERE p.swarm_id = ? AND p.id IN (SELECT value FROM json_each(?))`,
     )

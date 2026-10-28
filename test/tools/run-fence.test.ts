@@ -21,7 +21,6 @@ test("stale and closing worker identities cannot write communication or run cont
       () => tools.postsComment({ post_id: post.id, body: "Rejected" }),
       () => tools.postsUnsubscribe({ post_id: post.id }),
       () => tools.postsLink({ post_id: post.id, criterion_ids: [f.criterion.id] }),
-      () => tools.messagesSend({ to: "Ben", body: "Rejected" }),
       () => tools.snooze(),
       () => tools.retire({ handoff: "Rejected" }),
     ])

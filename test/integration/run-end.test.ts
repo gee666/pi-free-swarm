@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import { sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { startSwarm, stopAllRuns } from "../../src/broker/swarm-run.js";
 import { sweepStaleRuns } from "../../src/broker/swarms.js";
-import { UNDELIVERABLE_REPLY_TEXT } from "../../src/constants.js";
 import { getSwarm } from "../../src/store/swarm-queries.js";
 import { SCENARIOS } from "../fixtures/fake-pi/harness.js";
 import {
@@ -15,7 +14,6 @@ import {
   newestSwarmId,
   recipientStatus,
   spawnsOf,
-  systemReplies,
   waitFor,
   waitForWorkersIdle,
   finishWork,
@@ -69,13 +67,7 @@ describe("the end of a run", () => {
     const snapshots = run.progress.length;
     await waitFor(() => run.progress.length >= snapshots + 3, "progress while idle without votes");
     assert.equal(getSwarm(db, swarmId, Date.now())?.status, "running");
-    const late = sendMessage(db, {
-      swarmId: swarmId,
-      from: "User",
-      to: name,
-      text: "one more thing",
-      now: Date.now(),
-    }).id;
+    const late = systemNotice(db, { swarmId: swarmId, to: name, text: "one more thing", now: Date.now() }).id;
     await waitFor(() => recipientStatus(db, late, name) === "read", "late message read");
     await waitForWorkersIdle(run, swarmId);
     finishWork(db, swarmId);
@@ -109,9 +101,8 @@ describe("the end of a run", () => {
       const swarmId = newestSwarmId(run.db);
       const [name] = agentNames(run.db, swarmId);
       await waitFor(() => agentStatus(run.db, swarmId, name) === "working", "worker running tool");
-      const steering = sendMessage(run.db, {
+      const steering = systemNotice(run.db, {
         swarmId: swarmId,
-        from: "User",
         to: name,
         text: "still queued in pi",
         now: Date.now(),
@@ -125,7 +116,6 @@ describe("the end of a run", () => {
 
       assert.equal(agentStatus(run.db, swarmId, name), "stopped");
       assert.equal(recipientStatus(run.db, steering.id, name), "delivered");
-      assert.deepEqual(systemReplies(run.db, steering.threadId), []);
       assert.ok(spawnsOf(run.fake).every((child) => !isAlive(child.pid)));
     },
   );
@@ -146,33 +136,14 @@ describe("the end of a run", () => {
       const swarmId = newestSwarmId(db);
       const [first, second] = agentNames(db, swarmId);
       await waitFor(() => agentStatus(db, swarmId, first) === "idle", "first agent idle");
-      const pending = sendMessage(db, {
-        swarmId: swarmId,
-        from: "User",
-        to: second,
-        text: "waiting for my slot",
-        now: Date.now(),
-      });
+      const pending = systemNotice(db, { swarmId: swarmId, to: second, text: "waiting for my slot", now: Date.now() });
 
       controller.abort();
-      // The race: this lands while the agents are being stopped, before the run lock is released.
-      const racing = sendMessage(db, {
-        swarmId: swarmId,
-        from: "User",
-        to: first,
-        text: "during shutdown",
-        now: Date.now(),
-      });
-      assert.equal(recipientStatus(db, racing.id, first), "undeliverable", "stop closes admission before shutdown");
-
       const result = await outcome;
       assert.equal(result.end, "stopped");
       assert.equal(getSwarm(db, swarmId, Date.now())?.status, "stopped");
       assert.deepEqual([agentStatus(db, swarmId, first), agentStatus(db, swarmId, second)], ["stopped", "stopped"]);
       assert.equal(recipientStatus(db, pending.id, second), "pending");
-      assert.deepEqual(systemReplies(db, pending.threadId), []);
-      assert.equal(recipientStatus(db, racing.id, first), "undeliverable");
-      assert.deepEqual(systemReplies(db, racing.threadId), [UNDELIVERABLE_REPLY_TEXT]);
       const [spawn] = spawnsOf(run.fake);
       const grandchild = Number(run.fake.log().find((record) => record.fake === "grandchild")?.pid);
       assert.equal(spawnsOf(run.fake).length, 1, "the second agent never started");

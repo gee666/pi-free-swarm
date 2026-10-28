@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import type { MessageView, ParticipantStatus, RecipientStatus } from "../../src/api-types.js";
+import type { ParticipantStatus, RecipientStatus } from "../../src/api-types.js";
 import type { DeliveryOutcome, PromptPayload } from "../../src/agents/supervisor.js";
 import { markDelivered } from "../../src/broker/delivery-state.js";
 import { DeliveryLoop, type DeliveryTarget } from "../../src/broker/delivery.js";
-import { sendMessage } from "../../src/broker/messages.js";
+import { systemNotice } from "../helpers/system-notice.js";
 import { createPost } from "../../src/broker/wall.js";
 import { DELIVERY_POLL_MS } from "../../src/constants.js";
 import { getMessages } from "../../src/store/message-queries.js";
@@ -37,16 +37,15 @@ let swarmId: number;
 let maria: FakeTarget;
 let john: FakeTarget;
 let loop: DeliveryLoop;
-let userMessages: MessageView[];
 
 function statusOf(messageId: number, name: string): RecipientStatus | undefined {
   return getMessages(temp.db, [messageId])[0]?.recipients.find((r) => r.name === name)?.status;
 }
 
-function send(from: string, to: string[], text: string): number {
+function send(to: string[], text: string): number {
   const peer = to[0];
   if (!peer) throw new Error("Recipient required");
-  return sendMessage(temp.db, { swarmId, from, to: peer, text, now: clock.now() }).id;
+  return systemNotice(temp.db, { swarmId, to: peer, text, now: clock.now() }).id;
 }
 
 beforeEach(() => {
@@ -55,7 +54,6 @@ beforeEach(() => {
   swarmId = seedSwarm(temp.db, { agents: ["Maria", "John"] }).id;
   maria = new FakeTarget();
   john = new FakeTarget();
-  userMessages = [];
   loop = new DeliveryLoop({
     db: temp.db,
     swarmId,
@@ -64,7 +62,6 @@ beforeEach(() => {
       ["John", john],
     ]),
     clock,
-    onUserMessage: (message) => userMessages.push(message),
   });
 });
 
@@ -92,7 +89,7 @@ describe("DeliveryLoop", () => {
         agents: new Map([["Maria", target]]),
         onError: (error) => errors.push(error),
       });
-      send("User", ["Maria"], "delivery failure");
+      send(["Maria"], "delivery failure");
       tested.start();
       const original = temp.db.write;
       if (!reject)
@@ -113,7 +110,7 @@ describe("DeliveryLoop", () => {
   });
 
   it("keeps unread recovery under the same in-flight guard as normal delivery", async () => {
-    const id = send("User", ["Maria"], "queued");
+    const id = send(["Maria"], "queued");
     markDelivered(temp.db, swarmId, "Maria", [id], clock.now());
     let recoveries = 0;
     const target: DeliveryTarget = {
@@ -138,18 +135,18 @@ describe("DeliveryLoop", () => {
   });
   it("wakes on a local write without waiting for the poll and marks the message delivered", async () => {
     loop.start();
-    const id = send("User", ["Maria"], "hello");
+    const id = send(["Maria"], "hello");
     clock.advance(0);
     await flush();
     assert.equal(maria.prompts.length, 1);
-    assert.match(maria.prompts[0].text, new RegExp(`\\[swarm message #${id}\\] thread #\\d+ · from User · to: You`));
+    assert.match(maria.prompts[0].text, new RegExp(`\\[swarm message #${id}\\] thread #\\d+ · from System · to: You`));
     assert.deepEqual(maria.prompts[0].messageIds, [id]);
     assert.equal(statusOf(id, "Maria"), "delivered");
   });
 
   it("delivers several queued messages in one prompt, each with its own header", async () => {
-    const first = send("User", ["Maria"], "one");
-    const second = send("John", ["Maria"], "two");
+    const first = send(["Maria"], "one");
+    const second = send(["Maria"], "two");
     loop.start();
     clock.advance(0);
     await flush();
@@ -160,7 +157,7 @@ describe("DeliveryLoop", () => {
 
   it("keeps messages pending for pending, starting and crashed agents, and delivers once they run", async () => {
     loop.start();
-    const id = send("User", ["Maria"], "later");
+    const id = send(["Maria"], "later");
     for (const status of ["pending", "starting", "crashed"] as const) {
       maria.status = status;
       clock.advance(DELIVERY_POLL_MS);
@@ -178,7 +175,7 @@ describe("DeliveryLoop", () => {
   it("sends one prompt per agent at a time and keeps a rejected message pending", async () => {
     maria.answer = null;
     loop.start();
-    const id = send("User", ["Maria"], "slow");
+    const id = send(["Maria"], "slow");
     clock.advance(DELIVERY_POLL_MS * 3);
     await flush();
     assert.equal(maria.prompts.length, 1, "no second prompt while the first is unanswered");
@@ -186,7 +183,7 @@ describe("DeliveryLoop", () => {
     await flush();
     assert.equal(statusOf(id, "Maria"), "delivered");
 
-    const rejected = send("User", ["John"], "nope");
+    const rejected = send(["John"], "nope");
     john.answer = { accepted: false, error: "John is starting." };
     clock.advance(0);
     await flush();
@@ -197,24 +194,24 @@ describe("DeliveryLoop", () => {
     assert.equal(statusOf(rejected, "John"), "delivered");
   });
 
-  it("wakes workers for User posts but not agent posts", async () => {
+  it("wakes workers for explicit User broadcasts but not ordinary posts", async () => {
     loop.start();
     createPost(temp.db, swarmId, "Maria", { title: "Plan", text: "discover me" }, clock.now());
     clock.advance(DELIVERY_POLL_MS * 2);
     await flush();
     assert.equal(maria.prompts.length + john.prompts.length, 0);
-    createPost(temp.db, swarmId, "User", { title: "Plan", text: "read me" }, clock.now());
+    createPost(temp.db, swarmId, "User", { title: "Plan", text: "read me", broadcast: true }, clock.now());
     clock.advance(DELIVERY_POLL_MS * 2);
     await flush();
     assert.equal(maria.prompts.length, 1);
     assert.equal(john.prompts.length, 1);
-    assert.match(maria.prompts[0].text, /User posted.*read me/);
+    assert.match(maria.prompts[0].text, /User broadcast post.*read me/);
   });
 
   it("collects pending messages, plus delivered-not-read ones for a revive", () => {
-    const delivered = send("User", ["Maria"], "delivered");
+    const delivered = send(["Maria"], "delivered");
     markDelivered(temp.db, swarmId, "Maria", [delivered], clock.now());
-    const pending = send("John", ["Maria"], "pending");
+    const pending = send(["Maria"], "pending");
     assert.deepEqual(loop.collect("Maria", false).messageIds, [pending]);
     const revive = loop.collect("Maria", true);
     assert.deepEqual(revive.messageIds, [delivered, pending]);
@@ -222,22 +219,10 @@ describe("DeliveryLoop", () => {
     assert.deepEqual(loop.collect("John", true), { text: "", messageIds: [] });
   });
 
-  it("reports only new messages for User, once each", async () => {
-    send("Maria", ["User"], "before the run");
-    loop.start();
-    const id = send("John", ["User", "Maria"], "for you");
-    clock.advance(DELIVERY_POLL_MS * 2);
-    await flush();
-    assert.deepEqual(
-      userMessages.map((message) => message.id),
-      [id],
-    );
-  });
-
   it("does nothing after stop", async () => {
     loop.start();
     loop.stop();
-    const id = send("User", ["Maria"], "too late");
+    const id = send(["Maria"], "too late");
     clock.advance(DELIVERY_POLL_MS * 2);
     await flush();
     assert.equal(maria.prompts.length, 0);
