@@ -7,6 +7,7 @@ import { postExists } from "../store/wall-queries.js";
 import { emitRecipientStatus } from "./emit.js";
 import { BrokerError } from "./errors.js";
 import { insertSystemNotice } from "./message-insert.js";
+import { retiringWorkers } from "../store/retirement.js";
 import { actAs, requireSwarm } from "./validate.js";
 import { recordUserCommentAttention } from "../store/user-comment-attention.js";
 
@@ -85,6 +86,7 @@ export function notifyComment(
       .all(postId, now - COMMENT_NOTICE_WINDOW_MS)
       .map((row) => str(row, "name")),
   );
+  const retiring = retiringWorkers(db, swarmId);
   const recipients = db.sql
     .prepare(
       `SELECT s.name FROM post_subscriptions s
@@ -96,6 +98,7 @@ export function notifyComment(
     .filter(
       (person): person is ParticipantRef =>
         person !== null &&
+        !retiring.has(person.name) &&
         !mentionedRecipients.includes(person.name) &&
         !recentlyNotified.has(person.name) &&
         person.kind === "agent",

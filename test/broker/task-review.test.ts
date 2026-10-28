@@ -28,7 +28,7 @@ test("only an owner of in_progress work can request review, including resume", (
     assert.throws(() => beginTaskReview(f.db, { ...input, actor }), /Only the task owner/);
   assert.throws(() => beginTaskReview(f.db, { ...input, context: " " }), /context is required/);
   assert.throws(() => beginTaskReview(f.db, { ...input, context: "x".repeat(REVIEW_CONTEXT_MAX + 1) }), /at most 4000/);
-  assert.throws(() => beginTaskReview(f.db, { ...input, resume: true }), /previous changes/);
+  assert.throws(() => beginTaskReview(f.db, { ...input, resume: true }), /session file/);
   const review = beginTaskReview(f.db, { ...input, context: "😀".repeat(REVIEW_CONTEXT_MAX) });
   assert.equal(review.task.status, "review");
   assert.throws(() => beginTaskReview(f.db, input), /requires in_progress/);
@@ -51,11 +51,20 @@ test("review input includes task and complete linked criteria, including attache
   assert.ok(review.prompt.includes(context));
 });
 
-test("verdicts use only the final nonempty line and fail closed", () => {
+test("verdicts use the last standalone verdict outside code fences", () => {
   for (const [text, expected] of [
     ["Tests passed.\nVERDICT: accept", "accept"],
-    ["Problems found.\r\nVERDICT: changes Missing regression coverage.\r\n", "changes"],
-    ["VERDICT: accept\nExtra text", null],
+    ["VERDICT: changes\n1. Missing regression coverage.\n2. Errors are swallowed.", "changes"],
+    ["Problems found.\r\nVERDICT: changes — Missing regression coverage.\r\n", "changes"],
+    ["VERDICT: accept\nExtra text", "accept"],
+    ["**VERDICT: changes**\n- Handle empty input in src/parse.ts.", "changes"],
+    ["### *verdict: accept*", "accept"],
+    ["- **VERDICT:** CHANGES — Fix src/parse.ts.", "changes"],
+    ["1. _verdict: changes_\nMissing regression coverage.", "changes"],
+    ["VERDICT: changes\nExample:\n```text\nVERDICT: accept\n```", "changes"],
+    ['```ts\nconst example = "VERDICT: accept";\n```\nVERDICT: changes\nVERDICT: accept', "accept"],
+    ["```text\nVERDICT: accept\n```", null],
+    ['"VERDICT: accept"', null],
     ["VERDICT: acceptable", null],
     ["VERDICT: acceptably good", null],
     ["Example VERDICT: accept", null],
@@ -101,22 +110,23 @@ test("accept and changes update the timeline without peer notifications or inval
   assert.equal(f.db.sql.prepare("SELECT 1 FROM messages WHERE body LIKE '%swarm_tasks_review%'").get(), undefined);
 });
 
-test("resume needs changes and an existing task-specific session", (t) => {
-  const f = workFixture(t);
-  const task = f.task(f.criterion.id, [], true);
-  startTask(f.db, { ...f.input(), id: task.id });
-  const input = { ...f.input(), id: task.id, context };
-  const first = beginTaskReview(f.db, input);
-  finishTaskReview(f.db, { ...input, revision: first.task.revision, verdict: "changes", reason: "Fix test" });
-  assert.throws(() => beginTaskReview(f.db, { ...input, resume: true }), /session file/);
-  mkdirSync(path.dirname(first.sessionFile), { recursive: true });
-  writeFileSync(first.sessionFile, "session fixture");
-  const resumed = beginTaskReview(f.db, { ...input, resume: true });
-  assert.equal(resumed.sessionFile, first.sessionFile);
-  const second = f.task(f.criterion.id, [], true);
-  assert.notEqual(reviewSessionFile(f.db, f.swarmId, second.id), resumed.sessionFile);
-  assert.equal(existsSync(reviewSessionFile(f.db, f.swarmId, second.id)), false);
-});
+for (const verdict of ["changes", null] satisfies ("changes" | null)[])
+  test(`resume after ${verdict ?? "unparsable"} needs only an existing task-specific session`, (t) => {
+    const f = workFixture(t);
+    const task = f.task(f.criterion.id, [], true);
+    startTask(f.db, { ...f.input(), id: task.id });
+    const input = { ...f.input(), id: task.id, context };
+    const first = beginTaskReview(f.db, input);
+    finishTaskReview(f.db, { ...input, revision: first.task.revision, verdict, reason: "Fix test" });
+    assert.throws(() => beginTaskReview(f.db, { ...input, resume: true }), /session file/);
+    mkdirSync(path.dirname(first.sessionFile), { recursive: true });
+    writeFileSync(first.sessionFile, "session fixture");
+    const resumed = beginTaskReview(f.db, { ...input, resume: true });
+    assert.equal(resumed.sessionFile, first.sessionFile);
+    const second = f.task(f.criterion.id, [], true);
+    assert.notEqual(reviewSessionFile(f.db, f.swarmId, second.id), resumed.sessionFile);
+    assert.equal(existsSync(reviewSessionFile(f.db, f.swarmId, second.id)), false);
+  });
 
 test("startup resets abandoned reviews but leaves live reviewers alone", (t) => {
   const f = workFixture(t);

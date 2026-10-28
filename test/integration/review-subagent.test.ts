@@ -93,12 +93,12 @@ test(
   async (t) => {
     const f = fixture(t, {
       spawns: [
-        { runs: [[{ type: "reply", text: "VERDICT: changes Add regression coverage." }]] },
+        { runs: [[{ type: "reply", text: "VERDICT: changes\n1. Add regression coverage.\n2. Handle empty input." }]] },
         { runs: [[{ type: "reply", text: "VERDICT: accept" }]] },
       ],
     });
     const first = await reviewTask(f.db, f.input, { model });
-    assert.match(first, /in_progress.*\nVERDICT: changes Add regression coverage/);
+    assert.match(first, /in_progress.*\nVERDICT: changes\n1\. Add regression coverage\.\n2\. Handle empty input\./);
     const file = reviewSessionFile(f.db, f.swarmId, f.task.id);
     const firstSession = readFileSync(file, "utf8");
     const resumed = await reviewTask(
@@ -125,7 +125,9 @@ test(
   { timeout: 15000 },
   async (t) => {
     const text = "Concrete finding. ".repeat(REVIEW_OUTPUT_MAX);
-    const f = fixture(t, { runs: [[{ type: "reply", text }]] });
+    const f = fixture(t, {
+      spawns: [{ runs: [[{ type: "reply", text }]] }, { runs: [[{ type: "reply", text: "VERDICT: accept" }]] }],
+    });
     const output = await reviewTask(f.db, f.input, { model });
     assert.match(output, /in_progress/);
     assert.match(output, /Unparsable review verdict/);
@@ -134,6 +136,13 @@ test(
     assert.equal(readFileSync(file, "utf8"), `Unparsable review verdict.\n${text}`);
     assert.ok(output.length < REVIEW_OUTPUT_MAX + 1000);
     assert.equal(taskTimeline(f.db, f.task.id).at(-1)?.kind, "changes_requested");
+    const session = reviewSessionFile(f.db, f.swarmId, f.task.id);
+    const before = readFileSync(session, "utf8");
+    const resumed = await reviewTask(f.db, { ...f.input, resume: true }, { model });
+    assert.match(resumed, /accepted/);
+    const after = readFileSync(session, "utf8");
+    assert.ok(after.startsWith(before));
+    assert.equal((after.match(/"type":"session"/g) ?? []).length, 1);
   },
 );
 

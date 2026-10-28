@@ -32,9 +32,8 @@ export function beginTaskReview(db: SwarmDb, input: ReviewInput) {
     if (!context || charCount(input.context) > REVIEW_CONTEXT_MAX)
       throw new BrokerError("validation", `context is required and must be at most ${REVIEW_CONTEXT_MAX} characters.`);
     const sessionFile = reviewSessionFile(db, input.swarmId, task.id);
-    const previous = db.sql.prepare("SELECT verdict FROM task_reviews WHERE task_id = ?").get(task.id);
-    if (input.resume && (previous?.verdict !== "changes" || !existsSync(sessionFile)))
-      throw new BrokerError("validation", "resume requires a previous changes review and its session file.");
+    if (input.resume && !existsSync(sessionFile))
+      throw new BrokerError("validation", "resume requires an existing review session file for this task.");
     const updated = commitTask(db, input, { ...task, status: "review" }, actor, "review_requested", "", context);
     db.sql
       .prepare(

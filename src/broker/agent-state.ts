@@ -83,8 +83,12 @@ export function setAgentActivity(
     const encoded = activity === null ? null : JSON.stringify(activity);
     if (agent.status === "retired" || agent.activity === encoded) return;
     db.sql
-      .prepare("UPDATE participants SET activity = ? WHERE swarm_id = ? AND name = ?")
-      .run(encoded, swarmId, agent.name);
+      .prepare(
+        `UPDATE participants SET activity = ?,
+        last_activity_at = CASE WHEN ? THEN ? ELSE last_activity_at END
+        WHERE swarm_id = ? AND name = ?`,
+      )
+      .run(encoded, Number(activity?.kind === "tool"), now, swarmId, agent.name);
     emitParticipantUpdated(db, swarmId, agent.name, now);
   });
 }

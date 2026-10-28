@@ -4,8 +4,14 @@ import path from "node:path";
 import { after, test } from "node:test";
 import { setAgentStatus } from "../../src/broker/agent-state.js";
 import { createTask } from "../../src/broker/tasks.js";
+import { addComment, createPost } from "../../src/broker/wall.js";
 import { listCriteria } from "../../src/store/criteria.js";
 import { requestRetirement } from "../../src/broker/retirement.js";
+import { IdleReminders } from "../../src/broker/idle-reminder.js";
+import { notifyWork } from "../../src/broker/work-notifications.js";
+import { messagePrompt } from "../../src/broker/message-prompt.js";
+import { markRead } from "../../src/broker/delivery-state.js";
+import { FakeClock } from "../agents/fake-clock.js";
 import { endRun } from "../../src/broker/swarms.js";
 import { saveRunConfiguration } from "../../src/store/run-configuration.js";
 import { claimConfigurationRequest, listPendingConfigurationRequests } from "../../src/store/runtime-configuration.js";
@@ -229,3 +235,70 @@ test("successful native retirement result terminates follow-up without changing 
   assert.ok(JSON.stringify(result.content).includes("Replacement request"));
   assert.equal(listPendingConfigurationRequests(db, swarm.id, 1).length, 1);
 });
+
+for (const status of ["pending", "applying", "applied"])
+  test(`${status} retirement suppresses scheduled reminders and new or queued work notices`, async () => {
+    const swarm = fixture();
+    const clock = new FakeClock(T0 + 1);
+    const delivered: string[] = [];
+    const idle = new IdleReminders({
+      db,
+      swarmId: swarm.id,
+      clock,
+      agents: new Map([
+        [
+          "Maria",
+          {
+            status: "idle",
+            async deliver() {
+              delivered.push("Maria");
+              return { accepted: true };
+            },
+          },
+        ],
+        [
+          "John",
+          {
+            status: "idle",
+            async deliver() {
+              delivered.push("John");
+              return { accepted: true };
+            },
+          },
+        ],
+      ]),
+      settings: { idleReminderDelay: 100 },
+      onError: (error) => assert.fail(String(error)),
+    });
+    try {
+      idle.update();
+      notifyWork(db, swarm.id, "Maria", "Queued before retirement", clock.now());
+      const ids = db.sql
+        .prepare("SELECT id FROM messages WHERE swarm_id = ?")
+        .all(swarm.id)
+        .map((row) => Number(row.id));
+      const queued = messagePrompt(db, swarm.id, "Maria", ids);
+      assert.ok(queued);
+      const post = createPost(db, swarm.id, "Maria", { title: "Handoff", text: "Work summary." }, clock.now());
+      const request = requestRetirement(db, swarm.id, "Maria", 1, "Ready for replacement.", clock.now());
+      db.sql.prepare("UPDATE configuration_requests SET status = ? WHERE id = ?").run(status, request.requestId);
+      assert.equal(queued.beforeSend?.(), null);
+      markRead(db, swarm.id, "Maria", ids, clock.now());
+      notifyWork(db, swarm.id, "Maria", "Do not wake a retiring worker", clock.now());
+      addComment(db, swarm.id, "User", post.id, "Replacement can follow up.", clock.now());
+      assert.equal(db.sql.prepare("SELECT count(*) AS n FROM messages WHERE swarm_id = ?").get(swarm.id)?.n, 1);
+      // The send-time check covers retirement after scheduling, before the next reconciliation.
+      clock.advance(100);
+      await Promise.resolve();
+      assert.deepEqual(delivered, ["John"]);
+      idle.update();
+      assert.equal(clock.pending, 1);
+      db.sql.prepare("UPDATE configuration_requests SET status = 'rejected' WHERE id = ?").run(request.requestId);
+      idle.update();
+      clock.advance(100);
+      await Promise.resolve();
+      assert.deepEqual(delivered, ["John", "Maria"]);
+    } finally {
+      idle.stop();
+    }
+  });

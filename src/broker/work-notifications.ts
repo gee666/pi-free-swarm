@@ -1,5 +1,6 @@
 import type { SwarmDb } from "../store/db.js";
 import { criterionTasks } from "../store/criteria.js";
+import { retiringWorkers } from "../store/retirement.js";
 import { workRoster, type WorkAgent } from "../store/work-roster.js";
 import { recordVoteRequest, requestedVoters } from "../store/vote-requests.js";
 import { assessCriterion } from "./criterion-status.js";
@@ -16,7 +17,7 @@ export function chooseWorkRecipient(agents: readonly WorkAgent[], excluded: read
 
 /** One recipient row per message makes delivery and acknowledgement independent. */
 export function notifyWork(db: SwarmDb, swarmId: number, recipient: string | null, body: string, now: number): void {
-  if (recipient === null) return;
+  if (recipient === null || retiringWorkers(db, swarmId).has(recipient)) return;
   insertSystemNotice(db, { swarmId, recipient, text: body, now });
 }
 export function notifyVoteNeeded(db: SwarmDb, swarmId: number, criterionId: number, now: number): void {
@@ -30,9 +31,10 @@ export function notifyVoteNeeded(db: SwarmDb, swarmId: number, criterionId: numb
     return;
   const owners = criterionTasks(db, criterionId).flatMap((task) => (task.owner === null ? [] : [task.owner]));
   const current = assessment.votes.filter((vote) => !vote.stale);
-  const requested = requestedVoters(db, assessment);
+  const retiring = retiringWorkers(db, swarmId);
+  const requested = requestedVoters(db, assessment).filter((name) => !retiring.has(name));
   const send = (recipient: string, independent: boolean) => {
-    if (requested.includes(recipient)) return;
+    if (requested.includes(recipient) || retiring.has(recipient)) return;
     recordVoteRequest(db, assessment, recipient);
     notifyWork(
       db,
@@ -45,7 +47,10 @@ export function notifyVoteNeeded(db: SwarmDb, swarmId: number, criterionId: numb
   for (const owner of assessment.requiredOwners.filter((name) => !current.some((vote) => vote.voter === name)))
     send(owner, false);
   if (!current.some((vote) => !owners.includes(vote.voter)) && !requested.some((name) => !owners.includes(name))) {
-    const recipient = chooseWorkRecipient(workRoster(db, swarmId), owners);
+    const recipient = chooseWorkRecipient(
+      workRoster(db, swarmId).filter((agent) => !retiring.has(agent.name)),
+      owners,
+    );
     if (recipient !== null) send(recipient, true);
   }
 }

@@ -32,9 +32,26 @@ export interface ReviewProcessResult {
   findings: string;
 }
 export function parseReviewVerdict(text: string): ReviewProcessResult["verdict"] {
-  const last = text.trim().split(/\r?\n/).pop() ?? "";
-  const verdict = /^VERDICT: (accept|changes)(?:[ \t]+.*)?$/.exec(last)?.[1];
-  return verdict === "accept" || verdict === "changes" ? verdict : null;
+  let verdict: ReviewProcessResult["verdict"] = null;
+  let fence: string | undefined;
+  for (const line of text.split(/\r?\n/)) {
+    const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1];
+    if (fence) {
+      if (marker?.startsWith(fence) && line.trim() === marker) fence = undefined;
+      continue;
+    }
+    if (marker) {
+      fence = marker;
+      continue;
+    }
+    const plain = line
+      .trim()
+      .replace(/^(?:(?:[-+*]|\d+[.)]|#+)\s+)+/, "")
+      .replace(/[*_]/g, "");
+    const match = /^VERDICT:\s*(accept|changes)(?:\s+—\s+.*)?$/i.exec(plain)?.[1]?.toLowerCase();
+    if (match === "accept" || match === "changes") verdict = match;
+  }
+  return verdict;
 }
 function assistantText(event: RpcRecord): string | null {
   if (event.type !== "message_end") return null;

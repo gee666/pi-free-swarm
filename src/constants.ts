@@ -66,7 +66,7 @@ export const REVIEW_OUTPUT_MAX = 8_000;
 export const REVIEWS_DIR = "reviews";
 export const REVIEW_FINDINGS_FILE = "findings.md";
 export const REVIEW_SYSTEM_PROMPT =
-  "You review one task of a larger project. Read the task, its acceptance criteria and the supplied context. Inspect the code and run relevant tests. Do not modify files. Judge correctness, completeness against the criteria and code quality proportionally, without ceremony. End with a final line VERDICT: accept or VERDICT: changes followed by the concrete problems.";
+  "You review one task of a larger project. Read the task, its acceptance criteria and the supplied context. Inspect the code and run relevant tests. Do not modify files. Judge correctness, completeness against the criteria and code quality proportionally, without ceremony. Put the verdict on its own line: VERDICT: accept or VERDICT: changes, then list the concrete problems (none for accept).";
 export const SIGKILL_TIMEOUT_MS = 5_000;
 export const RETRY_WAIT_GRACE_MS = 60_000;
 export const DEFAULT_STARTUP_TIMEOUT_MS = 120_000;
@@ -97,6 +97,8 @@ export const DEFAULT_MAX_AGENTS = 10;
 export const DEFAULT_AGENTS = 5;
 export const DEFAULT_STAGGER_SECONDS = 30;
 export const DEFAULT_IDLE_REMINDER_DELAY = 60_000;
+export const IDLE_REMINDER_BACKOFF_FACTOR = 2;
+export const IDLE_REMINDER_MAX_DELAY = 30 * 60_000;
 
 // ── Board server ─────────────────────────────────────────────────────────────
 export const SERVER_BIND_HOST = "127.0.0.1";
