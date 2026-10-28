@@ -11,8 +11,6 @@ import { getCriterionDetail, getTaskDetail, criterionVoteContext, workDashboard 
 import { updateProjectIntent } from "../broker/project.js";
 import { BrokerError } from "../broker/errors.js";
 import type { TaskRecord } from "../api-work-types.js";
-import { CRITERION_BROAD_TASKS } from "../constants.js";
-import { criterionTasks } from "../store/criteria.js";
 
 export function taskLine(task: TaskRecord & { dependencies?: TaskRecord[] }): string {
   const waiting = task.dependencies?.filter((dependency) => dependency.status !== "accepted") ?? [];
@@ -35,25 +33,14 @@ export function projectText(identity: AgentToolIdentity): string {
 export function createWorkHandlers(identity: AgentToolIdentity) {
   const db = () => identity.getDb();
   const input = () => workInput(identity);
-  const taskResult = (task: TaskRecord, claimed = false, addedCriteria: readonly number[] = []) =>
+  const taskResult = (task: TaskRecord, claimed = false) =>
     db().read(() => {
       const detail = getTaskDetail(db(), identity.swarmId, task.id);
       const waiting = detail.dependencies.filter((dependency) => dependency.status !== "accepted");
       const voteDuty = claimed
         ? ` You now vote on criteria ${detail.criteria.map((link) => `#${link.criterionId}`).join(", ")}. Do the linked tasks, when done, fully satisfy this criterion?`
         : "";
-      const warnings = addedCriteria.flatMap((id) => {
-        const count = criterionTasks(db(), id).length;
-        return count > CRITERION_BROAD_TASKS
-          ? [
-              `Criterion #${id} now links ${count} tasks: it is too broad. Split it into specific criteria (one testable behaviour each) and archive it.`,
-            ]
-          : [];
-      });
-      return [
-        `Task #${task.id} r${task.revision} [${task.status}].${voteDuty}${waiting.length ? ` Waiting on ${waiting.map((item) => `#${item.id}`).join(", ")} — you will be notified when they are accepted.` : ""}`,
-        ...warnings,
-      ].join(" ");
+      return `Task #${task.id} r${task.revision} [${task.status}].${voteDuty}${waiting.length ? ` Waiting on ${waiting.map((item) => `#${item.id}`).join(", ")} — you will be notified when they are accepted.` : ""}`;
     });
   const criterionResult = (id: number) => {
     const criterion = getCriterionDetail(db(), identity.swarmId, id);
@@ -119,11 +106,9 @@ export function createWorkHandlers(identity: AgentToolIdentity) {
           dependsOn: depends_on,
         }),
         fields.claim,
-        criteria.map((link) => link.criterion_id),
       );
     },
     tasksEdit({ id, expected_revision, criteria, depends_on, ...fields }: Static<typeof S.tasksEdit>) {
-      const previous = getTaskDetail(db(), identity.swarmId, id).criteria.map((link) => link.criterionId);
       return taskResult(
         editTask(db(), {
           ...input(),
@@ -142,8 +127,6 @@ export function createWorkHandlers(identity: AgentToolIdentity) {
             ...(depends_on ? { dependsOn: depends_on } : {}),
           },
         }),
-        false,
-        criteria?.map((link) => link.criterion_id).filter((id) => !previous.includes(id)),
       );
     },
     tasksClaim: ({ id }: Static<typeof S.byId>) => taskResult(claimTask(db(), { ...input(), id }), true),

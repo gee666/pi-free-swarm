@@ -4,6 +4,7 @@ import {
   buildSystemPrompt,
   buildKickoffPrompt,
   buildResumePrompt,
+  buildRestartPrompt,
   buildRevivePrompt,
 } from "../../src/agents/prompt.js";
 
@@ -15,6 +16,7 @@ test("worker prompt covers the v2 workflow in order without inlining the brief",
     "Brief",
     "Workflow",
     "Tasks and dependencies",
+    "Fresh context",
     "Voting duty",
     "Stop rules and blockers",
     "Skills",
@@ -34,6 +36,13 @@ test("worker prompt covers the v2 workflow in order without inlining the brief",
     path,
     "swarm_intent_update",
     "exhaustive",
+    "complete inventory of what the request covers",
+    "the situation or input, the expected result, how to verify it, and its source",
+    "Never let the swarm queue on one shared resource.",
+    "review it with swarm_review; fix what it finds and call it again with resume.",
+    "swarm_review runs a fresh reviewer that knows only what you give it",
+    "no claimed, in-progress or in-review tasks and no promised replies",
+    "Never retire with obligations.",
     "make them findable",
     "end-to-end",
     "independent",
@@ -72,7 +81,18 @@ test("worker prompt covers the v2 workflow in order without inlining the brief",
 test("kickoff starts with project discovery; recovery preserves the graph and avoids replay", () => {
   assert.match(buildResumePrompt({ messages: "" }), /brief file has a new "Update for run N" section/);
   assert.equal(buildKickoffPrompt({ messages: "" }), "Start: call swarm_project.");
-  for (const prompt of [buildResumePrompt({ messages: "Feedback" }), buildRevivePrompt({ messages: "Feedback" })]) {
+  const restarted = buildRestartPrompt({ messages: "" });
+  assert.ok(
+    restarted.startsWith(
+      "[swarm restarted after an interruption] Your process was stopped by an interruption and restarted; files and the work graph remain.",
+    ),
+  );
+  assert.doesNotMatch(restarted, /Update for run|Main-authored update task/);
+  for (const prompt of [
+    buildResumePrompt({ messages: "Feedback" }),
+    buildRestartPrompt({ messages: "Feedback" }),
+    buildRevivePrompt({ messages: "Feedback" }),
+  ]) {
     assert.match(prompt, /swarm_project/);
     assert.match(prompt, /do not replay writes/);
     assert.match(prompt, /Feedback$/);

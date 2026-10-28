@@ -33,7 +33,7 @@ test("retired identities and nonworkers cannot regain idle-only actions", () => 
       .prepare("UPDATE participants SET retired_at = ? WHERE swarm_id = ? AND name = ?")
       .run(T0 + 1, swarm.id, "Maria");
     assert.equal(workerHasIdled(temp.db, swarm.id, "Maria"), false);
-    assert.throws(() => requireIdleWorker(temp.db, swarm.id, "Maria"), /active workers/);
+    assert.throws(() => requireIdleWorker(temp.db, swarm.id, "Maria"), /retired/);
     for (const name of ["Watcher", "User", "Main"]) {
       assert.equal(workerHasIdled(temp.db, swarm.id, name), false);
       assert.throws(() => requireIdleWorker(temp.db, swarm.id, name), /Only worker agents/);

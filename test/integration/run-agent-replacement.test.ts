@@ -43,7 +43,6 @@ test(
     try {
       const [oldName] = activeWorkerNames(run.db, swarmId);
       await waitFor(() => agentStatus(run.db, swarmId, oldName) === "working", "first worker's initial turn");
-      assert.throws(() => requestRetirement(run.db, swarmId, oldName, 1, "too early", Date.now()), /first idle/i);
       assert.throws(() => snoozeReminders(run.db, swarmId, oldName, Date.now()), /first idle/i);
       writeFileSync(initialRelease, "ready");
       await waitFor(() => agentStatus(run.db, swarmId, oldName) === "idle", "first genuine idle");
@@ -102,7 +101,6 @@ test(
       assert.deepEqual({ ...next, name: oldName }, originalAssignment);
 
       assert.throws(() => snoozeReminders(run.db, swarmId, newName, Date.now()), /first idle/i);
-      assert.throws(() => requestRetirement(run.db, swarmId, newName, 1, "too early again", Date.now()), /first idle/i);
       const prompt = run.fake.log().find((entry) => entry.type === "prompt" && entry.agent === newName);
       assert.ok(prompt && typeof prompt.message === "string");
       assert.ok(prompt.message.includes(handoff));

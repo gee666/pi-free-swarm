@@ -20,7 +20,13 @@ export default function (pi: ExtensionAPI) {
   const snapshot = () => {
     const tools = pi
       .getAllTools()
-      .filter((tool) => tool.name === "swarm" || tool.name === "resume_swarm" || tool.name.startsWith("swarm_"))
+      .filter(
+        (tool) =>
+          tool.name === "swarm" ||
+          tool.name === "resume_swarm" ||
+          tool.name === "restart_swarm" ||
+          tool.name.startsWith("swarm_"),
+      )
       .map((tool) => ({ name: tool.name, description: tool.description, parameters: tool.parameters }))
       .sort((a, b) => a.name.localeCompare(b.name));
     console.error(

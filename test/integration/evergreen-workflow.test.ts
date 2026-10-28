@@ -4,7 +4,7 @@ import path from "node:path";
 import { it } from "node:test";
 import type { Model } from "@earendil-works/pi-ai";
 import type { SwarmDetailResponse } from "../../src/api-types.js";
-import { startSwarm, resumeSwarm, stopAllRuns } from "../../src/broker/swarm-run.js";
+import { startSwarm, resumeSwarm, restartSwarm, stopAllRuns } from "../../src/broker/swarm-run.js";
 import { createMainRuntime } from "../../src/main-runtime.js";
 import { ServerHost } from "../../src/server/host.js";
 import { listAgentSessions } from "../../src/store/swarm-queries.js";
@@ -43,6 +43,7 @@ it(
     const tools = createMainToolHandlers(runtime, {
       startSwarm: (env, input, options) => startSwarm({ ...env, timings: FAST }, input, options),
       resumeSwarm: (env, input, options) => resumeSwarm({ ...env, timings: FAST }, input, options),
+      restartSwarm: (env, input, options) => restartSwarm({ ...env, timings: FAST }, input, options),
     });
     const model: Model<"anthropic-messages"> = {
       id: "test",

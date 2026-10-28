@@ -6,16 +6,25 @@ import { charCount, checkText, checkTitle, MAIN_FEEDBACK_MAX, TITLE_MAX } from "
 import { BrokerError } from "../broker/errors.js";
 import { requireAcceptanceCriteria } from "../broker/validate.js";
 import { readRunProgress, type RunProgress } from "../broker/run-progress.js";
-import { resumeSwarm, startSwarm, type RunEnvironment, type RunOptions, type RunOutcome } from "../broker/swarm-run.js";
+import {
+  restartSwarm,
+  resumeSwarm,
+  startSwarm,
+  type RunEnvironment,
+  type RunOptions,
+  type RunOutcome,
+} from "../broker/swarm-run.js";
 import type { MainRuntime } from "../main-runtime.js";
 import { applySessionOptions } from "../session-commands.js";
 import { describeAgentRange, loadSettings, resolveAgentAmount, type SwarmSettings } from "../settings.js";
 import type { SwarmDb } from "../store/db.js";
+import { listSwarms } from "../store/swarm-queries.js";
 import {
   PLAIN_THEME,
   progressLines,
   renderCallLine,
   renderResumeCall,
+  renderRestartCall,
   renderSwarmCall,
   renderToolResult,
 } from "./render.js";
@@ -26,9 +35,10 @@ import { buildRunEnvironment, gitignoreHint, type LaunchSource } from "./run-env
 export interface SwarmRunner {
   startSwarm: typeof startSwarm;
   resumeSwarm: typeof resumeSwarm;
+  restartSwarm: typeof restartSwarm;
 }
 
-const DEFAULT_RUNNER: SwarmRunner = { startSwarm, resumeSwarm };
+const DEFAULT_RUNNER: SwarmRunner = { startSwarm, resumeSwarm, restartSwarm };
 
 export const SWARM_PARAMS = Type.Object({
   swarm_name: Type.String({
@@ -60,6 +70,15 @@ export const RESUME_PARAMS = Type.Object({
     description: `Feedback for the agents: what is wrong or missing and what to do. At most ${MAIN_FEEDBACK_MAX} chars.`,
   }),
 });
+
+export const RESTART_PARAMS = Type.Object(
+  {
+    swarm: Type.Optional(
+      Type.Integer({ minimum: 1, description: "Swarm id; omit for the newest swarm in this project." }),
+    ),
+  },
+  { additionalProperties: false },
+);
 
 type ToolResult = RunToolResult;
 type OnUpdate = ((partial: ToolResult) => void) | undefined;
@@ -160,6 +179,29 @@ export function createMainToolHandlers(runtime: MainRuntime, runner: SwarmRunner
       if (hint !== null) result.content.push({ type: "text", text: hint });
       return boundRunResult(result);
     },
+    async restart(
+      params: Static<typeof RESTART_PARAMS>,
+      signal: AbortSignal | undefined,
+      onUpdate: OnUpdate,
+      ctx: LaunchSource,
+    ): Promise<ToolResult> {
+      assertEnabled();
+      const settings = readSettings(runtime);
+      const db = runtime.getDb(false);
+      if (db === null) throw new BrokerError("not_found", "This project has no swarms yet.");
+      const swarmId = params.swarm ?? listSwarms(db, systemClock.now())[0]?.id;
+      if (swarmId === undefined) throw new BrokerError("not_found", "This project has no swarms yet.");
+      return boundRunResult(
+        await run({
+          db,
+          settings,
+          ctx,
+          signal,
+          onUpdate,
+          start: (env, options) => runner.restartSwarm(env, { swarmId }, options),
+        }),
+      );
+    },
     async resume(
       params: Static<typeof RESUME_PARAMS>,
       signal: AbortSignal | undefined,
@@ -205,7 +247,7 @@ export function registerMainTools(pi: Pick<ExtensionAPI, "registerTool">, runtim
     name: MAIN_TOOL.resumeSwarm,
     label: "Resume swarm",
     description:
-      "Attach to an active swarm or resume an ended one with feedback to every active worker. Appends the full update to the brief and seeds a Planning task to derive criteria and tasks. Preserves the work graph and re-evaluates old votes. Blocks until the run ends.",
+      "Use for new user input: attach to an active swarm or resume an ended one with feedback to every active worker. Appends the full update to the brief and seeds a Planning task to derive criteria and tasks. Preserves the work graph and re-evaluates old votes. Blocks until the run ends.",
     promptSnippet: "Resume a swarm with feedback on its work.",
     parameters: RESUME_PARAMS,
     execute: (_toolCallId, params, signal, onUpdate, ctx) => handlers.resume(params, signal, onUpdate, ctx),
@@ -214,6 +256,21 @@ export function registerMainTools(pi: Pick<ExtensionAPI, "registerTool">, runtim
       renderToolResult(result, options, theme, {
         isError: context.isError,
         callLine: renderResumeCall(context.args, theme),
+      }),
+  });
+  pi.registerTool({
+    name: MAIN_TOOL.restartSwarm,
+    label: "Restart swarm",
+    description:
+      "Use when a swarm stopped before finishing, after a rate limit, crash or manual stop. Relaunches the same non-retired agents with their existing sessions, without updating the brief or seeding a task. Attaches and waits if the local run is active. A finished swarm with an outcome requires resume_swarm with an update; resume_swarm is for new user input. Blocks until the run ends.",
+    promptSnippet: "Restart an unfinished swarm after an interruption, without new user input.",
+    parameters: RESTART_PARAMS,
+    execute: (_toolCallId, params, signal, onUpdate, ctx) => handlers.restart(params, signal, onUpdate, ctx),
+    renderCall: (args, theme, context) => renderCallLine(renderRestartCall(args, theme), context.executionStarted),
+    renderResult: (result, options, theme, context) =>
+      renderToolResult(result, options, theme, {
+        isError: context.isError,
+        callLine: renderRestartCall(context.args, theme),
       }),
   });
 }

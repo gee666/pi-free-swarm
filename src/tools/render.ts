@@ -101,6 +101,11 @@ export function renderResumeCall(args: { swarm_id?: number; message?: string }, 
   return `${theme.fg("accent", GLYPH)} ${theme.fg("toolTitle", theme.bold(`Resume swarm${id}`))}${message}`;
 }
 
+export function renderRestartCall(args: { swarm?: number }, theme: RenderTheme): string {
+  const id = args.swarm === undefined ? "" : ` #${args.swarm}`;
+  return `${theme.fg("accent", GLYPH)} ${theme.fg("toolTitle", theme.bold(`Restart swarm${id}`))}`;
+}
+
 function isRunProgress(value: unknown): value is RunProgress {
   return (
     typeof value === "object" &&

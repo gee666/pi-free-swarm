@@ -96,6 +96,7 @@ export function beginResume(
   swarmId: number,
   runnerPid: number,
   now: number,
+  restart = false,
 ): { swarm: SwarmListItem; run: number } {
   return db.write(() => {
     const row = db.sql.prepare("SELECT * FROM swarms WHERE id = ?").get(swarmId);
@@ -111,6 +112,21 @@ export function beginResume(
     const status = swarmStatusOf(row);
     if (status === "starting" || status === "running")
       cleanupRun(db, swarmId, "interrupted", now, interruptedActiveUntil(db, swarmId, now));
+    if (restart) {
+      const swarm = swarmOrThrow(db, swarmId, now);
+      if (row.outcome !== null) {
+        throw new BrokerError(
+          "validation",
+          `Swarm #${swarmId} finished with an outcome. Use resume_swarm with an update.`,
+        );
+      }
+      if (swarm.status !== "stopped" && swarm.status !== "interrupted") {
+        throw new BrokerError(
+          "validation",
+          `Swarm #${swarmId} must be stopped or interrupted to restart. Use resume_swarm with an update.`,
+        );
+      }
+    }
     const claim = claimRunLock(db, swarmId, runnerPid, now);
     if (!claim.ok) {
       throw new BrokerError(

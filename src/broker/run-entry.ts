@@ -57,23 +57,44 @@ function recordUpdate(db: SwarmDb, swarmId: number, message: string, now: number
 }
 
 /** Brief updates and lock acquisition join the same synchronous transaction. */
-export async function resumeSwarm(
+async function continueSwarm(
+  env: RunEnvironment,
+  swarmId: number,
+  options: RunOptions,
+  message?: string,
+): Promise<RunOutcome> {
+  const { db, runnerPid, clock } = env;
+  const active = findActiveRun(db.path, swarmId);
+  if (active) {
+    if (message !== undefined) db.write(() => recordUpdate(db, swarmId, message, clock.now()));
+    return active.wait(options);
+  }
+  const { swarm, run } = db.write(() => {
+    const resumed = beginResume(db, swarmId, runnerPid, clock.now(), message === undefined);
+    if (message !== undefined) recordUpdate(db, swarmId, message, clock.now());
+    return resumed;
+  });
+  return executeRun(
+    env,
+    swarm,
+    run,
+    { ...options, restart: message === undefined },
+    env.timings?.resumeStaggerMs ?? RESUME_STAGGER_MS,
+  );
+}
+
+export function resumeSwarm(
   env: RunEnvironment,
   input: { swarmId: number; message: string },
   options: RunOptions,
 ): Promise<RunOutcome> {
-  const { db, runnerPid, clock } = env;
-  const active = findActiveRun(db.path, input.swarmId);
-  if (active) {
-    db.write(() => {
-      recordUpdate(db, input.swarmId, input.message, clock.now());
-    });
-    return active.wait(options);
-  }
-  const { swarm, run } = db.write(() => {
-    const resumed = beginResume(db, input.swarmId, runnerPid, clock.now());
-    recordUpdate(db, input.swarmId, input.message, clock.now());
-    return resumed;
-  });
-  return executeRun(env, swarm, run, options, env.timings?.resumeStaggerMs ?? RESUME_STAGGER_MS);
+  return continueSwarm(env, input.swarmId, options, input.message);
+}
+
+export function restartSwarm(
+  env: RunEnvironment,
+  input: { swarmId: number },
+  options: RunOptions,
+): Promise<RunOutcome> {
+  return continueSwarm(env, input.swarmId, options);
 }

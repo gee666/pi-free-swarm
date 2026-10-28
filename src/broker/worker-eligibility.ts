@@ -16,13 +16,21 @@ export function workerHasIdled(db: SwarmDb, swarmId: number, name: string): bool
   );
 }
 
-export function requireIdleWorker(db: SwarmDb, swarmId: number, name: string): string {
+export function requireActiveWorker(db: SwarmDb, swarmId: number, name: string): string {
   const participant = requireParticipant(db, swarmId, name);
   if (participant.kind !== "agent" || participant.name === WATCHER_NAME) {
     throw new BrokerError("validation", "Only worker agents may use this action.");
   }
-  if (!workerHasIdled(db, swarmId, participant.name)) {
-    throw new BrokerError("validation", "This action is available to active workers only after their first idle turn.");
+  if (participant.retiredAt !== undefined) {
+    throw new BrokerError("validation", `Worker ${participant.name} is retired.`);
   }
   return participant.name;
+}
+
+export function requireIdleWorker(db: SwarmDb, swarmId: number, name: string): string {
+  const worker = requireActiveWorker(db, swarmId, name);
+  if (!workerHasIdled(db, swarmId, worker)) {
+    throw new BrokerError("validation", "This action is available to active workers only after their first idle turn.");
+  }
+  return worker;
 }

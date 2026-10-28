@@ -5,7 +5,13 @@ import { WATCHER_NAME } from "../constants.js";
 import { buildWatcherPrompt } from "../agents/watcher-prompt.js";
 import type { ParticipantStatus } from "../api-types.js";
 import { hasSessionFile, type AgentLaunchSpec } from "../agents/launch.js";
-import { buildKickoffPrompt, buildResumePrompt, buildRevivePrompt, buildSystemPrompt } from "../agents/prompt.js";
+import {
+  buildKickoffPrompt,
+  buildRestartPrompt,
+  buildResumePrompt,
+  buildRevivePrompt,
+  buildSystemPrompt,
+} from "../agents/prompt.js";
 import { AgentSupervisor, type AgentCrash, type DeliveryOutcome, type PromptPayload } from "../agents/supervisor.js";
 import type { WatchdogConfig } from "../agents/watchdog.js";
 import type { Clock, TimerHandle } from "../clock.js";
@@ -23,6 +29,7 @@ export interface RunAgentContext {
   db: SwarmDb;
   swarmId: number;
   run: number;
+  restart?: boolean;
   runnerPid: number;
   swarmName: string;
   clock: Clock;
@@ -128,7 +135,7 @@ export class RunAgent implements DeliveryTarget {
     );
   }
 
-  /** Kickoff for a fresh session, the resume prompt when the session already has history. */
+  /** Recovery keeps the existing session, even when the previous process never wrote history. */
   launchFirst(): Promise<void> {
     if (this.#handoff) {
       const { file, text } = this.#handoff;
@@ -142,7 +149,11 @@ export class RunAgent implements DeliveryTarget {
     if (this.name === WATCHER_NAME) return this.#launch(messages.messageIds, (text) => text || null);
     const resumed = hasSessionFile(this.#spec.sessionFile);
     return this.#launch(messages.messageIds, (text) =>
-      resumed ? buildResumePrompt({ messages: text }) : buildKickoffPrompt({ messages: text }),
+      this.#ctx.restart
+        ? buildRestartPrompt({ messages: text })
+        : resumed
+          ? buildResumePrompt({ messages: text })
+          : buildKickoffPrompt({ messages: text }),
     );
   }
 

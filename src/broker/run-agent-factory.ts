@@ -16,6 +16,7 @@ export function runAgentFactory(
   run: number,
   timings: RunTimings,
   services: RunAgentServices,
+  restart = false,
 ): (
   session: { name: string; sessionFile: string },
   assignment?: ModelSelection,
@@ -25,6 +26,7 @@ export function runAgentFactory(
     db: env.db,
     swarmId: swarm.id,
     run,
+    restart,
     runnerPid: env.runnerPid,
     swarmName: swarm.name,
     clock: env.clock,

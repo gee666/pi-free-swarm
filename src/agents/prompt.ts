@@ -1,4 +1,9 @@
-import { RESUME_PROMPT_HEADER, REVIVE_PROMPT_HEADER } from "../constants.js";
+import {
+  RESTART_PROMPT_HEADER,
+  RESTART_PROMPT_TEXT,
+  RESUME_PROMPT_HEADER,
+  REVIVE_PROMPT_HEADER,
+} from "../constants.js";
 import { TEXT_MAX, TITLE_MAX } from "../limits.js";
 
 function withMessages(prompt: string, messages: string): string {
@@ -14,15 +19,19 @@ Read ${input.briefPath} first. It contains the full user request.
 
 ## Workflow
 1. Record the user intent in a file, then register its summary and path with swarm_intent_update.
-2. Develop exhaustive, testable, grouped acceptance criteria covering the whole intent, automation, quality and integration. Each criterion is one specific testable behaviour (inputs, edge cases, expected result); split broad ones and archive the original.
-3. Decide how to store and share artifacts. Establish shared contracts when needed and make them findable, for example by linking them from tasks or criterias.
-4. Make every piece of work a task. Search before creating to avoid duplicates. Link tasks to criteria with their contribution.
-5. Implement, test, integrate and run end-to-end checks. Request independent review with file paths, commands and results as evidence.
-6. Work in parallel as soon as some criteria exist. Do not wait for all planning to finish. You can create tasks, claim them, work on them, create/edit criteria, keep developing the project all in parallel.
+2. Develop the acceptance criteria. They define done, so make them exhaustive: start from a complete inventory of what the request covers, then cover every feature, user path, edge case, error and failure mode, platform, integration point, quality and performance requirement, and the automation the work needs. Each criterion states one testable behaviour: the situation or input, the expected result, how to verify it, and its source. Group related criteria and refine them as understanding grows.
+3. Agree on how to work together. Find the workflow that reaches the goal fastest and cheapest while keeping the best quality, then automate it: isolated branches or worktrees for parallel work, parallel builds and tests, automated merges, custom linters and checkers for shared rules. Never let the swarm queue on one shared resource.
+4. Decide how to store and share artifacts. Establish shared contracts when needed and make them findable, for example by linking them from tasks or criterias.
+5. Make every piece of work a task. Search before creating to avoid duplicates. Link tasks to criteria with their contribution.
+6. Implement, test, integrate and run end-to-end checks. When a task is done, review it with swarm_review; fix what it finds and call it again with resume.
+7. Work in parallel as soon as some criteria exist. Do not wait for all planning to finish. You can create tasks, claim them, work on them, create/edit criteria, keep developing the project all in parallel.
 
 ## Tasks and dependencies
-Use new → claimed → in_progress → review → accepted. Claim explicitly; start only after dependencies are accepted. An independent reviewer accepts or requests changes. Reopen accepted work with a reason when it breaks.
+Use new → claimed → in_progress → review → accepted. Claim explicitly; start only after dependencies are accepted. swarm_review runs a fresh reviewer that knows only what you give it; its verdict accepts the task or returns it to you with changes. Reopen accepted work with a reason when it breaks.
 Waiting is derived from dependencies, not a task state. Mark waiting by linking the dependency and move on; you will be notified when it is accepted. Release or hand off work you cannot own.
+
+## Fresh context
+Long sessions degrade after compaction. After you finish one large task or a few small ones, retire with swarm_retire at a moment with no open obligations: no claimed, in-progress or in-review tasks and no promised replies. A fresh agent then takes new work. Never retire with obligations.
 
 ## Voting duty
 Use swarm_criteria_vote_context. Owners and at least one independent voter must judge coverage: "Do the linked tasks, when done, fully satisfy this criterion?" Vote as soon as tasks are linked, without waiting for acceptance.
@@ -64,6 +73,10 @@ export function buildResumePrompt(input: { messages: string }): string {
     `${RESUME_PROMPT_HEADER} Shared files and the work graph are preserved. Old votes remain and may be stale. The brief file has a new "Update for run N" section to read. Derive criteria and tasks from it, process the Main-authored update task, complete independent review, and collect current votes. ${recovery}`,
     input.messages,
   );
+}
+
+export function buildRestartPrompt(input: { messages: string }): string {
+  return withMessages(`${RESTART_PROMPT_HEADER} ${RESTART_PROMPT_TEXT} ${recovery}`, input.messages);
 }
 
 export function buildRevivePrompt(input: { messages: string }): string {

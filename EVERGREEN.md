@@ -8,7 +8,9 @@ Agents record intent, define testable criteria, claim tasks and review each othe
 
 The four gates require at least one active criterion and links for each, every task accepted or deferred, every active criterion satisfied or blocked, and no task in review. Unaccepted tasks are deferred only when every linked criterion is blocked. Agreed blockers need no user approval. The user may reject one, join discussions or edit work. Waiting on another task is not a blocker; idleness and budget stops are not completion.
 
-Workers read the brief file instead of an inlined request. Resume appends `## Update for run N` and seeds a Main-authored Planning task to derive criteria and tasks from the update. Main's tools wait for the run to end.
+Workers read the brief file instead of an inlined request. Resume appends `## Update for run N` and seeds a Main-authored Planning task to derive criteria and tasks from the update. Use `resume_swarm` for new user input. `restart_swarm({swarm?})` instead recovers a stopped or interrupted swarm without an outcome, reusing non-retired agents and their sessions without changing the brief, adding tasks or sending feedback. Omit the id for the newest swarm. Both attach to an active local run. Finished outcomes require resume with an update. Main's tools wait for the run to end.
+
+Retirement is available from the start, after one large task or a few small ones and with a short handoff for a fresh context. The broker rejects retirement while the worker owns any claimed, in-progress or in-review task and lists those obligations. Snooze remains unavailable until the first idle turn. Criteria have no task-count warning; testability and coverage determine whether they need refinement.
 
 Search uses BM25, optional embeddings and JEV or helper reranking. JEV takes precedence; HTTP/UI never use the helper. Remote failures retain the preceding ranking with a degradation note. Reusable skills live in `.pi/swarm/skills/<name>/SKILL.md` folders, indexed as a project catalogue. Direct messages have one recipient.
 
@@ -28,7 +30,7 @@ RPC ordering and process cleanup affect recovery. Budget reports can lag or be i
 
 ## Tests
 
-Run `npm run typecheck`, `npm test -- --test-concurrency=1`, `npm run --ignore-scripts test:ui`, `npm run format:check`, `npm run check:size` and `npm run build:ui`. Backend pretests refresh Pi dependencies to latest. Suites cover graph transitions, vote currency, notification triggers, blockers, completion gates, resume updates, search, skills, SQLite, fake-peer runners, HTTP and UI components.
+Run `npm run typecheck`, `npm test -- --test-concurrency=1`, `npm run --ignore-scripts test:ui`, `npm run format:check`, `npm run check:size` and `npm run build:ui`. Backend pretests refresh Pi dependencies to latest. Suites cover graph transitions, vote currency, notification triggers, blockers, completion gates, resume updates, interruption restarts and attachment, retirement eligibility, search, skills, SQLite, fake-peer runners, HTTP and UI components.
 
 `npm run test:evergreen` also runs `npm run test:e2e`. Runtime e2e checks extension loading, SQLite, the board and relaunch; live e2e checks delegation and resume. Use `$EVERGREEN_PI_BIN` or `pi` on PATH. Live tests require `$EVERGREEN_E2E_MODEL`, credentials and network access, spend tokens and retain failed projects under `tmp/`. They do not establish scale or multi-model quality.
 

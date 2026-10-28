@@ -163,8 +163,8 @@ export function queueConfigurationChange(
           .get(swarmId, WATCHER_NAME);
         if (Number(count?.n) <= 1)
           throw new ConfigurationConflictError("Keep at least one active worker. Use Stop to end the swarm.");
-      } else if (text(actor, "name").toLowerCase() !== change.name.toLowerCase() || target.first_idle_at === null) {
-        throw new ConfigurationConflictError("A worker can retire only itself after its first genuine idle turn.");
+      } else if (text(actor, "name").toLowerCase() !== change.name.toLowerCase()) {
+        throw new ConfigurationConflictError("A worker can retire only itself.");
       }
     }
     const id = Number(

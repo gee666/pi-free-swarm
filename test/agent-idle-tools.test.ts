@@ -5,6 +5,7 @@ import { createAgentToolHandlers } from "../src/tools/agent-tools.js";
 import { setAgentStatus } from "../src/broker/agent-state.js";
 import {
   AGENT_NAME_ENV,
+  AGENT_TOOL,
   DB_ENV,
   IDLE_ONLY_TOOLS,
   RUN_ENV,
@@ -63,6 +64,7 @@ test("idle-only tools are hidden before first settle and activated once without 
     assert.equal(pi.loadoutChanges, 0, "factory performs registration only");
     await pi.startSession(temp.cwd);
     assert.ok(IDLE_ONLY_TOOLS.every((name) => !pi.getActiveTools().includes(name)));
+    assert.ok(pi.getActiveTools().includes(AGENT_TOOL.retire));
     const initialChanges = pi.loadoutChanges;
     await pi.startSession(temp.cwd);
     assert.equal(pi.loadoutChanges, initialChanges);
@@ -107,11 +109,10 @@ test("Watcher never gains idle-only tools even after native settle", async () =>
   }
 });
 
-test("forced retirement and snooze calls before first idle are broker-rejected without side effects", () => {
+test("forced snooze calls before first idle are broker-rejected without side effects", () => {
   const swarm = seedSwarm(db);
   const tools = createAgentToolHandlers({ getDb: () => db, swarmId: swarm.id, run: 1, agentName: "Maria" });
   assert.throws(() => tools.snooze(), /after.*first.*idle/i);
-  assert.throws(() => tools.retire({ handoff: "Pending work." }), /after.*first.*idle/i);
   assert.equal(
     db.sql.prepare("SELECT COUNT(*) AS n FROM configuration_requests WHERE swarm_id = ?").get(swarm.id)?.n,
     0,

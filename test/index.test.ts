@@ -114,7 +114,7 @@ describe("role detection", () => {
         await pi.startSession(cwd);
         await pi.startSession(cwd);
       });
-      assert.deepEqual(pi.toolNames(), [MAIN_TOOL.swarm, MAIN_TOOL.resumeSwarm]);
+      assert.deepEqual(pi.toolNames(), Object.values(MAIN_TOOL));
       assert.equal(existsSync(swarmDbPath(cwd)), false);
       await pi.shutdownSession();
     });

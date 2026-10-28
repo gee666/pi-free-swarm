@@ -51,6 +51,7 @@ export interface RunEnvironment {
 }
 
 export interface RunOptions {
+  restart?: boolean;
   signal?: AbortSignal;
   onProgress?(progress: RunProgress): void;
 }

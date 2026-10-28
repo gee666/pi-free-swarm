@@ -3,7 +3,7 @@ import type { SwarmListItem } from "../api-types.js";
 import { announceUserMessage } from "./messages.js";
 import type { TimerHandle } from "../clock.js";
 import { WATCHER_NAME } from "../constants.js";
-import { runAgentFactory } from "./run-agent-factory.js";
+import { prepareRunRoster } from "./run-roster.js";
 import { LiveWorkers } from "./live-workers.js";
 import { RunControls } from "./run-controls.js";
 import { RunCompletion } from "./run-completion.js";
@@ -11,16 +11,11 @@ import { onWorkChanged } from "./work-write.js";
 import { runOutcome } from "./run-outcome.js";
 import { RunRecovery } from "./run-recovery.js";
 import { readRunOwnership } from "./run-ownership.js";
-import { configureRun } from "./run-configuration.js";
 import { heartbeatRunLock } from "../store/locks.js";
-import { listAgentSessions } from "../store/swarm-queries.js";
-import { getPendingReplacementHandoff } from "../store/replacement-handoff.js";
-import { readReplacementHandoff } from "./replacement-handoff.js";
 import { DeliveryLoop } from "./delivery.js";
 import { RunResources } from "./run-resources.js";
 import { RunLifecycle } from "./run-lifecycle.js";
 import { resetOrphanedReviews } from "./task-review.js";
-import { assertBudgetPricing } from "./budget.js";
 import { RunBudget } from "./run-budget.js";
 import { IdleReminders } from "./idle-reminder.js";
 import { closeRunAdmission } from "./run-admission.js";
@@ -38,7 +33,7 @@ import {
 } from "./run-types.js";
 export type { RunEnvironment, RunOptions, RunOutcome, RunTimings } from "./run-types.js";
 import { endRun, markSwarmRunning, type RunEndStatus } from "./swarms.js";
-export { startSwarm, resumeSwarm } from "./run-entry.js";
+export { startSwarm, resumeSwarm, restartSwarm } from "./run-entry.js";
 import { StartupAdmission } from "./startup-admission.js";
 
 import { registerRun, unregisterRun } from "./run-registry.js";
@@ -50,7 +45,7 @@ export class SwarmRun {
   readonly #run: number;
   readonly #options: RunOptions;
   readonly #timings: RunTimings;
-  readonly #agents = new Map<string, RunAgent>();
+  readonly #agents: Map<string, RunAgent>;
   readonly #resources = new RunResources();
   readonly #lifecycle = new RunLifecycle();
   readonly #budget: RunBudget;
@@ -102,30 +97,24 @@ export class SwarmRun {
       if (agent) this.#launchFirst(agent);
     }, this.#fail);
     const { db, clock, settings } = env;
-    const sessions = listAgentSessions(db, swarm.id, { activeOnly: true });
-    const assignments = configureRun(
+    const { agents, create } = prepareRunRoster(
       env,
-      swarm.id,
+      swarm,
       run,
-      sessions.map(({ name }) => name),
       this.#timings,
+      {
+        collect: (name, includeDeliveredUnread) => this.#delivery.collect(name, includeDeliveredUnread),
+        isEnding: () => this.#isEnding,
+        canContinue: () => this.#canRun(true),
+        onStatus: (name, status) => this.#reminders.statusChanged(name, status),
+        onReady: (name) => this.#recovery.ready(name),
+        onRealMessage: (name) => this.#reminders.realMessage(name),
+        onError: this.#fail,
+        onCrash: (agent, crash) => this.#recovery.crashed(agent, crash),
+      },
+      options.restart,
     );
-    assertBudgetPricing(env, assignments, swarm.id);
-    const create = runAgentFactory(env, swarm, run, this.#timings, {
-      collect: (name, includeDeliveredUnread) => this.#delivery.collect(name, includeDeliveredUnread),
-      isEnding: () => this.#isEnding,
-      canContinue: () => this.#canRun(true),
-      onStatus: (name, status) => this.#reminders.statusChanged(name, status),
-      onReady: (name) => this.#recovery.ready(name),
-      onRealMessage: (name) => this.#reminders.realMessage(name),
-      onError: this.#fail,
-      onCrash: (agent, crash) => this.#recovery.crashed(agent, crash),
-    });
-    for (const session of sessions) {
-      const pendingHandoff = getPendingReplacementHandoff(db, swarm.id, session.name);
-      const handoff = pendingHandoff ? readReplacementHandoff(db, swarm.id, pendingHandoff) : undefined;
-      this.#agents.set(session.name, create(session, assignments.get(session.name), handoff));
-    }
+    this.#agents = agents;
     this.#liveWorkers = new LiveWorkers(env, swarm.id, this.#agents, this.#resources, {
       create,
       launch: (agent) => this.#launchFirst(agent),
@@ -208,6 +197,7 @@ export class SwarmRun {
   }
 
   execute(staggerMs: number): Promise<RunOutcome> {
+    resetOrphanedReviews(this.#env.db, this.#swarm.id, this.#env.clock.now());
     this.#lifecycle.activate();
     const removeWorkListener = onWorkChanged((id) => {
       if (id === this.#swarm.id) this.#guard(() => this.#completion.check());
@@ -215,7 +205,6 @@ export class SwarmRun {
     this.#resources.add("quiesce", removeWorkListener);
     registerRun(this, this.#env.runOwner);
     this.#releaseOwnership = registerActiveRun(this.#env.db, this.#swarm.id, this.#env.runnerPid);
-    resetOrphanedReviews(this.#env.db, this.#swarm.id, this.#env.clock.now());
     this.#resources.add("quiesce", () => {
       for (const timer of this.#timers) timer.cancel();
       this.#timers = [];

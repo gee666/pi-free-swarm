@@ -222,22 +222,9 @@ it("atomically replaces a sole worker with a fresh assignment and exposes effect
   assert.equal(getSwarm(f.db, f.swarm.id, T0 + 2)?.configuration?.revision, 2);
 });
 
-it("rejects stale lock owners and requires genuine first idle before self-retirement", (t) => {
+it("rejects stale lock owners and permits only self-retirement from the start", (t) => {
   const f = fixture();
   t.after(() => f.cleanup());
-  assert.throws(
-    () =>
-      queueConfigurationChange(
-        f.db,
-        f.swarm.id,
-        "Maria",
-        { type: "retireAgent", name: "Maria", handoffFile: "handoff.md" },
-        0,
-        T0,
-      ),
-    /genuine idle/,
-  );
-  setAgentStatus(f.db, f.swarm.id, "Maria", "idle", T0);
   assert.throws(
     () =>
       queueConfigurationChange(

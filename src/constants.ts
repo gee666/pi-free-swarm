@@ -130,7 +130,6 @@ export const WORK_ETA_MIN_ACCEPTED = 5;
 export const WORK_QUEUE_LIMIT = 5;
 export const WORK_ACTIVITY_LIMIT = 20;
 export const WORK_CONTEXT_PAGE_SIZE = 10;
-export const CRITERION_BROAD_TASKS = 8;
 export const USER_POST_NOTICE_CHARS = 200;
 export const COMMENT_NOTICE_CHARS = 120;
 export const COMMENT_NOTICE_WINDOW_MS = 5 * 60_000;
@@ -140,7 +139,7 @@ export const WATCHER_NAME = "Watcher";
 export const RESERVED_NAMES: readonly string[] = [USER_NAME, MAIN_NAME, SYSTEM_NAME, WATCHER_NAME];
 
 // ── Tool names ───────────────────────────────────────────────────────────────
-export const MAIN_TOOL = { swarm: "swarm", resumeSwarm: "resume_swarm" } as const;
+export const MAIN_TOOL = { swarm: "swarm", resumeSwarm: "resume_swarm", restartSwarm: "restart_swarm" } as const;
 /** Prefixed because a tool name conflict makes pi exit at startup, and generic names like `post` are likely taken. */
 export const AGENT_TOOL = {
   project: "swarm_project",
@@ -177,7 +176,7 @@ export const AGENT_TOOL = {
   retire: "swarm_retire",
 } as const;
 
-export const IDLE_ONLY_TOOLS: readonly string[] = [AGENT_TOOL.snooze, AGENT_TOOL.retire];
+export const IDLE_ONLY_TOOLS: readonly string[] = [AGENT_TOOL.snooze];
 
 export const WATCHER_TOOL = {
   overview: "swarm_overview",
@@ -208,5 +207,8 @@ export const MAIN_FEEDBACK_POST_SUFFIX = "…see your messages";
 /** First line of the revive prompt; the session reader shows such prompts as a `revive` system item. */
 export const REVIVE_PROMPT_HEADER = "[swarm] You were restarted after a crash or stall.";
 export const RESUME_PROMPT_HEADER = "[swarm resumed by Main]";
+export const RESTART_PROMPT_HEADER = "[swarm restarted after an interruption]";
+export const RESTART_PROMPT_TEXT =
+  "Your process was stopped by an interruption and restarted; files and the work graph remain.";
 export const IDLE_REMINDER_HEADER =
   "[swarm] The work graph is unfinished. Check your queue, review or vote where needed, then claim runnable work. Keep dependencies pending and move on; the swarm finishes on its own.";

@@ -3,6 +3,8 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { after, test } from "node:test";
 import { setAgentStatus } from "../../src/broker/agent-state.js";
+import { createTask } from "../../src/broker/tasks.js";
+import { listCriteria } from "../../src/store/criteria.js";
 import { requestRetirement } from "../../src/broker/retirement.js";
 import { endRun } from "../../src/broker/swarms.js";
 import { saveRunConfiguration } from "../../src/store/run-configuration.js";
@@ -103,10 +105,48 @@ test("one retire call writes exact self-authored handoff and queues a fenced rep
   assert.equal(readdirSync(path.dirname(path.join(db.dataDir, request.change.handoffFile))).length, 1);
 });
 
+test("retirement is allowed before the first idle turn when there are no obligations", () => {
+  const swarm = fixture();
+  const result = requestRetirement(db, swarm.id, "Maria", 1, "No open work; ready for a fresh context.", T0 + 1);
+  assert.ok(existsSync(result.handoffPath));
+  assert.equal(listPendingConfigurationRequests(db, swarm.id, 1).length, 1);
+  assert.equal(
+    db.sql.prepare("SELECT first_idle_at FROM participants WHERE swarm_id = ? AND name = 'Maria'").get(swarm.id)
+      ?.first_idle_at,
+    null,
+  );
+});
+
+test("retirement lists every owned obligation and makes no handoff or request until they are finished", () => {
+  const swarm = fixture();
+  const [criterion] = listCriteria(db, swarm.id);
+  assert.ok(criterion);
+  const ids = ["claimed", "in_progress", "review"].map((status) => {
+    const task = createTask(db, {
+      swarmId: swarm.id,
+      actor: "Maria",
+      now: T0 + 1,
+      title: status,
+      body: "Owned work",
+      criteria: [{ criterionId: criterion.id, contribution: "Work" }],
+      claim: true,
+    });
+    db.sql.prepare("UPDATE tasks SET status = ? WHERE id = ?").run(status, task.id);
+    return task.id;
+  });
+  assert.throws(() => requestRetirement(db, swarm.id, "Maria", 1, "Not ready.", T0 + 2), {
+    message: `Finish, release or hand off ${ids.map((id) => `#${id}`).join(", ")} before retiring.`,
+  });
+  assert.equal(existsSync(path.join(db.dataDir, "handoffs", String(swarm.id))), false);
+  assert.equal(listPendingConfigurationRequests(db, swarm.id, 1).length, 0);
+  db.sql.prepare("UPDATE tasks SET status = 'accepted' WHERE swarm_id = ? AND owner = 'Maria'").run(swarm.id);
+  assert.doesNotThrow(() => requestRetirement(db, swarm.id, "Maria", 1, "Work finished.", T0 + 3));
+});
+
 test("empty handoff, ineligible actors, stale run and ended swarm reject before writing handoff files", () => {
   const swarm = fixture();
   const now = T0 + 1000;
-  for (const name of ["Maria", "User", WATCHER_NAME]) {
+  for (const name of ["User", WATCHER_NAME]) {
     assert.throws(() => requestRetirement(db, swarm.id, name, 1, "Summary", now), /idle|worker/i);
   }
   setAgentStatus(db, swarm.id, "Maria", "idle", now);
@@ -167,7 +207,8 @@ test("retire schema accepts handoff text only, not a filename, target identity o
   assert.equal(Value.Check(tool.parameters, { handoff: " " }), false);
   assert.equal(Value.Check(tool.parameters, { handoffFile: "/arbitrary/file" }), false);
   assert.equal(Value.Check(tool.parameters, { handoff: "Summary", name: "John" }), false);
-  assert.match(tool.description, /first idle/);
+  assert.match(tool.description, /Available from the start/);
+  assert.match(tool.description, /one large task or a few small ones/);
   assert.match(tool.description, /Your private traffic stays with your session/);
 });
 

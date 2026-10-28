@@ -7,7 +7,7 @@ import { Value } from "typebox/value";
 
 import { MAIN_TOOL } from "../../src/constants.js";
 import { readRunProgress, type RunProgress } from "../../src/broker/run-progress.js";
-import { resumeSwarm, type RunEnvironment, type RunOptions } from "../../src/broker/swarm-run.js";
+import { restartSwarm, resumeSwarm, type RunEnvironment, type RunOptions } from "../../src/broker/swarm-run.js";
 import { createSwarm, endRun } from "../../src/broker/swarms.js";
 import { createMainRuntime, type BoardHost } from "../../src/main-runtime.js";
 import { pickAgentNames } from "../../src/names.js";
@@ -86,15 +86,16 @@ function stoppingRunner(seen: { env?: RunEnvironment; options?: RunOptions }): S
       return { swarm: ended, run: 1, end: "stopped" };
     },
     resumeSwarm,
+    restartSwarm,
   };
 }
 
 describe("registerMainTools", () => {
-  it("registers swarm and resume_swarm with the live agent range in the description", () => {
+  it("registers Main tools with the live agent range in the description", () => {
     const pi = new FakeExtensionApi();
     const { runtime } = runtimeFor(project('{"minAgents": 2, "maxAgents": 8}'));
     registerMainTools(pi, runtime);
-    assert.deepEqual(pi.toolNames(), [MAIN_TOOL.swarm, MAIN_TOOL.resumeSwarm]);
+    assert.deepEqual(pi.toolNames(), Object.values(MAIN_TOOL));
     const swarm = pi.tool(MAIN_TOOL.swarm);
     assert.match(swarm.description, /agent_amount: 2–8, default 5/);
     assert.match(swarm.description, /concise/);
@@ -141,6 +142,11 @@ describe("registerMainTools", () => {
     const resume = pi.tool(MAIN_TOOL.resumeSwarm).parameters;
     assert.ok(Value.Check(resume, { swarm_id: 3, message: "fix the tests" }));
     assert.ok(!Value.Check(resume, { swarm_id: "3", message: "fix" }));
+    const restart = pi.tool(MAIN_TOOL.restartSwarm).parameters;
+    assert.ok(Value.Check(restart, {}));
+    assert.ok(Value.Check(restart, { swarm: 3 }));
+    for (const params of [{ swarm: 0 }, { swarm: "3" }, { feedback: "fix" }, { message: "fix" }])
+      assert.equal(Value.Check(restart, params), false);
   });
 });
 
@@ -227,13 +233,18 @@ describe("swarm tool", () => {
     assert.deepEqual(warned.notes, ['settings.json: unknown key "colour" ignored']);
   });
 
-  it("runs with the captured launch context, streams progress and stops on abort", async () => {
+  it("runs with the captured launch context, streams progress and stops on abort", { timeout: 30_000 }, async (t) => {
     const cwd = project('{"minAgents": 1}');
     const { runtime, host } = runtimeFor(cwd);
     const seen: { env?: RunEnvironment; options?: RunOptions } = {};
     const tools = createMainToolHandlers(runtime, stoppingRunner(seen));
     const updates: RunProgress[] = [];
     const abort = new AbortController();
+    t.after(() => abort.abort());
+    let reportReady = () => {};
+    const ready = new Promise<void>((resolve) => {
+      reportReady = resolve;
+    });
     const trusted: LaunchSource = {
       model: undefined,
       thinkingLevel: "high",
@@ -247,10 +258,18 @@ describe("swarm tool", () => {
         agent_amount: 2,
       },
       abort.signal,
-      (partial) => updates.push(partial.details),
+      (partial) => {
+        updates.push(partial.details);
+        reportReady();
+      },
       trusted,
     );
-    while (updates.length === 0) await new Promise((resolve) => setTimeout(resolve, 5));
+    await Promise.race([
+      ready,
+      pending.then(() => {
+        throw new Error("Run ended without progress.");
+      }),
+    ]);
     abort.abort();
     const result = await pending;
 
