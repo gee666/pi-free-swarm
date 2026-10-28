@@ -4,7 +4,9 @@ Pi peers form a flat swarm in one shared working tree. A work graph links groupe
 
 ## Intent
 
-Agents record intent, define testable criteria, claim tasks and review each other's work. Votes answer: "Do the linked tasks, when done, fully satisfy this criterion?" Verdicts are `covered`, `gap` and `blocked`. Gap reasons name missing work; blockers describe external limitations the swarm cannot resolve. Votes track criterion revisions and linked task IDs/content revisions, not lifecycle changes. Satisfaction requires all linked tasks accepted, current covered votes from active linked owners and at least one independent voter, and no current dissent.
+Agents record intent, define testable criteria, claim tasks and request review subagents for their work. Votes answer: "Do the linked tasks, when done, fully satisfy this criterion?" Verdicts are `covered`, `gap` and `blocked`. Gap reasons name missing work; blockers describe external limitations the swarm cannot resolve. Votes track criterion revisions and linked task IDs/content revisions, not lifecycle changes. Satisfaction requires all linked tasks accepted, current covered votes from active linked owners and at least one independent voter, and no current dissent.
+
+Only a task's owner can call `swarm_review` on `in_progress` work, supplying up to 4,000 characters about what changed, where and how to verify it. The subagent reads the task and full linked criteria, inspects code and runs relevant tests without modifying files. The task stays in `review` while it runs. Accept marks the task accepted; changes or an invalid verdict returns it to `in_progress` with findings and a file path for long output. A 30-minute timeout kills the reviewer and returns a clear error. No peer assignment, review notification or User acceptance action remains. The User can still reopen accepted work.
 
 The four gates require at least one active criterion and links for each, every task accepted or deferred, every active criterion satisfied or blocked, and no task in review. Unaccepted tasks are deferred only when every linked criterion is blocked. Agreed blockers need no user approval. The user may reject one, join discussions or edit work. Waiting on another task is not a blocker; idleness and budget stops are not completion.
 
@@ -18,6 +20,8 @@ Search uses BM25, optional embeddings and JEV or helper reranking. JEV takes pre
 
 The extension registers tools, commands, flags and lifecycle hooks through public Pi APIs. Workers reuse the running executable or CLI entrypoint and run in RPC mode with explicit sessions and appended system-prompt files. The runner consumes JSONL events and sends prompts and steering. Tools use TypeBox schemas and exported TUI components; the board reads session JSONL.
 
+Review subagents reuse the caller's model and thinking level and run with `--mode json --print --no-extensions --no-mcp --session <path>`. Their environment contains no `PI_SWARM_*` variables. Each task has `.pi/swarm/sessions/<swarmId>/reviews/task-<id>/session.jsonl`; `resume: true` reuses it after a changes verdict. Different tasks never share review sessions. Native usage events use the existing accounting path under the owner, so review tokens and cost count toward budgets and stats. At run startup, tasks left in `review` without a live reviewer return to `in_progress`.
+
 ## Internal Pi APIs
 
 None. SQLite uses `bun:sqlite` or `node:sqlite`. Public event/session shapes, usage provenance and termination behavior remain compatibility risks. Historical probes in `docs/pi-findings.md` are not current guarantees.
@@ -30,7 +34,7 @@ RPC ordering and process cleanup affect recovery. Budget reports can lag or be i
 
 ## Tests
 
-Run `npm run typecheck`, `npm test -- --test-concurrency=1`, `npm run --ignore-scripts test:ui`, `npm run format:check`, `npm run check:size` and `npm run build:ui`. Backend pretests refresh Pi dependencies to latest. Suites cover graph transitions, vote currency, notification triggers, blockers, completion gates, resume updates, interruption restarts and attachment, retirement eligibility, search, skills, SQLite, fake-peer runners, HTTP and UI components.
+Run `npm run typecheck`, `npm test -- --test-concurrency=1`, `npm run --ignore-scripts test:ui`, `npm run format:check`, `npm run check:size` and `npm run build:ui`. Backend pretests refresh Pi dependencies to latest. Suites cover graph transitions, vote currency, notification triggers, blockers, completion gates, resume updates, interruption restarts and attachment, retirement eligibility, search, skills, SQLite, fake-peer runners, HTTP and UI components. Review fixtures cover owner/status rules, verdict parsing and application, process isolation, session reuse and separation, timeout/process-tree cleanup, startup reset, migration and usage accounting.
 
 `npm run test:evergreen` also runs `npm run test:e2e`. Runtime e2e checks extension loading, SQLite, the board and relaunch; live e2e checks delegation and resume. Use `$EVERGREEN_PI_BIN` or `pi` on PATH. Live tests require `$EVERGREEN_E2E_MODEL`, credentials and network access, spend tokens and retain failed projects under `tmp/`. They do not establish scale or multi-model quality.
 

@@ -58,7 +58,7 @@ Main calls `swarm(swarm_name, task_prompt, acceptance_criteria, agent_amount?)` 
 
 `restart_swarm({swarm?})` recovers an unfinished swarm after a rate limit, crash or manual stop. `swarm` is an optional id, defaulting to the newest swarm in this project. It relaunches the same non-retired agents with their existing sessions, without changing the brief, seeding a task or sending feedback. It attaches and waits if the local run is still active. Only stopped or interrupted swarms without an outcome can restart; use `resume_swarm` with an update for new user input or a finished swarm.
 
-Agents are peers. They record intent, create grouped, testable criteria, and link tasks to criteria with a contribution. Tasks have dependencies, not parent tasks. An owner starts work after dependencies are accepted, supplies evidence for review, and a different reviewer accepts it or requests changes. Criterion edits and task title, body or criterion-link changes make votes stale. Claims, reviews, acceptance, handoffs and reopening do not.
+Agents are peers. They record intent, create grouped, testable criteria, and link tasks to criteria with a contribution. Tasks have dependencies, not parent tasks. An owner starts work after dependencies are accepted and calls `swarm_review` to have a subagent check the result. Criterion edits and task title, body or criterion-link changes make votes stale. Claims, reviews, acceptance, handoffs and reopening do not.
 
 Each criterion needs current coverage votes from active owners of linked tasks and at least one independent voter. The question is "Do the linked tasks, when done, fully satisfy this criterion?" Vote `covered` for full coverage, `gap` for missing work, or `blocked` for an external limitation the swarm cannot resolve. A `gap` reason must name the missing part. Vote as soon as tasks are linked; task completion is checked by the pipeline. A criterion becomes `satisfied` only when all linked tasks are accepted, all required voters have current `covered` votes, and no current dissent exists. A blocker records the missing resource or decision, attempts and what would unblock it. Waiting for another swarm task is not a blocker. A criterion is blocked when all required voters agree on its current blocker. Missing and stale votes appear in each agent's own queue and idle reminders, not as push notifications. When all linked tasks become accepted, missing voters and one independent voter receive a request, once per voter per criterion and linked-content signature. The user may optionally reject it, which stales those votes and asks the voters to keep working.
 
@@ -69,7 +69,7 @@ The run completes only when all four gates pass:
 3. Every active criterion is satisfied or blocked.
 4. No task is in review.
 
-The outcome is `completed` or `stopped_with_blockers`. Idle, budget exhaustion, interruption and explicit stop are not completion. The swarm finishes on its own. The user can join discussions, edit criteria or tasks, vote and review at any time; their input counts like any participant's. Main should still inspect the files, diffs and tests: reviews and votes are model judgments, not proof.
+The outcome is `completed` or `stopped_with_blockers`. Idle, budget exhaustion, interruption and explicit stop are not completion. The swarm finishes on its own. The user can join discussions, edit criteria or tasks, vote and reopen accepted work. Task acceptance comes from the review subagent, not a peer or a User action. Main should still inspect the files, diffs and tests: reviews and votes are model judgments, not proof.
 
 **Esc aborts the run** and stops its agents (SIGTERM, then SIGKILL after five seconds if needed). Finished, stopped and interrupted swarms can be resumed by any enabled main pi session in the same project.
 
@@ -81,17 +81,26 @@ Every peer has the same tools. Start with `swarm_project` for the brief, gates, 
 | `swarm_criteria_search`, `swarm_criteria_get`, `swarm_criteria_create`, `swarm_criteria_edit`, `swarm_criteria_archive` | Find and maintain criteria |
 | `swarm_criteria_block`, `swarm_criteria_vote`, `swarm_criteria_vote_context` | Record blockers and assess criteria |
 | `swarm_tasks_search`, `swarm_tasks_get`, `swarm_tasks_create`, `swarm_tasks_edit` | Find and maintain tasks and dependencies |
-| `swarm_tasks_claim`, `swarm_tasks_release`, `swarm_tasks_handoff`, `swarm_tasks_transition`, `swarm_tasks_review` | Own, transition and review tasks |
+| `swarm_tasks_claim`, `swarm_tasks_release`, `swarm_tasks_handoff`, `swarm_tasks_transition` | Own tasks, start work or reopen accepted work |
+| `swarm_review` | Review your task with a clean subagent; resume its session after fixing findings |
 | `swarm_posts_search`, `swarm_posts_get`, `swarm_posts_create`, `swarm_posts_comment`, `swarm_posts_unsubscribe`, `swarm_posts_link`, `swarm_posts_unlink` | Search and discuss work, with links to tasks and criteria |
 | `swarm_messages_send`, `swarm_messages_read` | Send and read a one-to-one conversation |
 | `swarm_skills_search`, `swarm_skills_get` | Find and read project skills |
 | `swarm_snooze`, `swarm_retire` | Pause idle reminders or request a replacement |
 
-Agent titles should stay within 60 Unicode code points, with a hard limit of 100. Other agent text fields should stay within 200, with a hard limit of 300. Longer material belongs in a file referenced by path. User titles have a hard limit of 100; long user body text is accepted and saved to an attachment with a preview and path.
+Agent titles should stay within 60 Unicode code points, with a hard limit of 100. Other agent text fields should stay within 200, with a hard limit of 300, except review context, which allows 4,000. Longer material belongs in a file referenced by path. User titles have a hard limit of 100; long user body text is accepted and saved to an attachment with a preview and path.
 
 Messages have one recipient, including messages to User. User posts send a short notice to every active worker, without subscribing them. Agent posts are discovered by search. Authors and commenters subscribe to future comments; each subscriber receives at most one short notice per post every five minutes. Read the post for all comments; unsubscribe stops future notifications. Direct messages are not throttled. Delivery into context does not prove understanding.
 
 Retirement is available from the start. After finishing one large task or a few small ones, a worker can retire with a short handoff so a fresh agent with a clean context takes new work. It must first finish, release or hand off every owned task in `claimed`, `in_progress` or `review`; rejection lists those task IDs. A replacement keeps the model assignment but must verify the handoff and current work before acting. Snoozing reminders for five minutes remains available only after the first idle turn. Resume and restart preserve the work graph and votes, which are re-evaluated for staleness. The number of tasks linked to a criterion does not trigger a broad-criterion warning; agents judge whether the criterion is testable and its coverage is complete.
+
+### Task review
+
+Only the owner of an `in_progress` task can call `swarm_review({task_id, context, resume?})`. Supply what changed, where and how to verify it in `context`, up to 4,000 characters. The tool gives the reviewer the task title and body, the full linked criteria and that context. It blocks while the task is in `review`.
+
+The reviewer runs in a clean Pi process with the caller's model and thinking level, without extensions, swarm tools or `PI_SWARM_*` environment variables. It inspects the code and runs relevant tests, with instructions not to modify files. A final `VERDICT: accept` accepts the task; `VERDICT: changes` or an invalid verdict returns it to `in_progress` with findings. Long findings include a path to their full text. After 30 minutes, the tool kills the reviewer and returns the task to `in_progress` with a timeout error.
+
+Fix the findings, then call with `resume: true` to continue the same task's review session. Different tasks never share review sessions. Review tokens and cost count toward the owner's usage and the swarm's budgets. At run startup, tasks left in `review` without a live reviewer return to `in_progress`. The board shows context, findings and the timeline, but has no Accept or Request changes actions. Reopen remains available for accepted work.
 
 ## Board
 
@@ -217,6 +226,9 @@ Project-wide skills live in `.pi/swarm/skills/<name>/SKILL.md`. Require YAML fro
   sessions/<swarm-id>/<agent-name>/
     session.jsonl          # same file for launch, revive and resume
     system-prompt.md
+  sessions/<swarm-id>/reviews/task-<task-id>/
+    session.jsonl          # reused only with resume: true for this task's review
+    <revision>-findings.md # full review findings
 ```
 
 Session files appear after the first persisted message. The board's static assets live in the extension, not your project.
