@@ -1,0 +1,13 @@
+.donut {
+  flex: none;
+  display: block;
+}
+.value {
+  fill: var(--text-primary);
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-semibold);
+}
+.caption {
+  fill: var(--text-muted);
+  font-size: var(--fs-small);
+}

@@ -1,6 +1,5 @@
 import type { TaskEvent, TaskEventKind } from "../../../../src/api-types";
-import { AuthoredEntry } from "../../components/AuthoredEntry";
-import { RichText } from "../../components/RichText";
+import { TimelineBody } from "./TimelineBody";
 import { relativeTime } from "../../lib/time";
 import styles from "./TaskTimeline.module.css";
 
@@ -11,7 +10,7 @@ const actions: Record<TaskEventKind, string> = {
   released: "released the task",
   handoff: "handed off the task",
   started: "started the task",
-  review_requested: "started a review subagent",
+  review_requested: "requested review",
   review_accepted: "accepted the task",
   changes_requested: "requested changes",
   reopened: "reopened the task",
@@ -23,20 +22,24 @@ const actions: Record<TaskEventKind, string> = {
   dependency_reopened: "reopened a dependency",
 };
 
+function TimelineEvent({ event }: { event: TaskEvent }) {
+  const text = [event.kind === "review_requested" ? "" : event.body, event.evidence].filter(Boolean).join("\n");
+  return (
+    <li className={styles.event}>
+      <p>
+        <span className={styles.name}>{event.actor}</span> · {actions[event.kind]} ·{" "}
+        <span className={styles.time}>{relativeTime(event.createdAt)}</span>
+      </p>
+      {text && <TimelineBody text={text} />}
+    </li>
+  );
+}
+
 export function TaskTimeline({ events }: { events: TaskEvent[] }) {
   return (
     <ol className={styles.timeline} aria-label="Task timeline">
       {events.map((event) => (
-        <AuthoredEntry
-          key={event.id}
-          author={event.actor}
-          action={actions[event.kind]}
-          time={relativeTime(event.createdAt)}
-        >
-          <RichText
-            text={[event.kind === "review_requested" ? "" : event.body, event.evidence].filter(Boolean).join("\n")}
-          />
-        </AuthoredEntry>
+        <TimelineEvent key={event.id} event={event} />
       ))}
     </ol>
   );

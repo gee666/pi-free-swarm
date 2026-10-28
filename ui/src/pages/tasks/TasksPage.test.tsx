@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskDetailResponse } from "../../../../src/api-types";
@@ -27,8 +27,7 @@ describe("Task work board", () => {
     api.on("GET", "/api/swarms/3/tasks/34", () => value);
     api.on("POST", "/api/swarms/3/tasks/34/edit", () => jsonResponse(409, { error: "validation", message: "Changed" }));
     open();
-    await userEvent.click(await screen.findByRole("button", { name: "More" }));
-    await userEvent.click(screen.getByRole("option", { name: "Edit" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
     const description = screen.getByRole("textbox", { name: "Description" });
     await userEvent.clear(description);
     await userEvent.type(description, "My pending edit");
@@ -61,7 +60,8 @@ describe("Task work board", () => {
     await userEvent.click(screen.getByRole("button", { name: "Status: Open" }));
     await userEvent.click(screen.getByRole("option", { name: "Waiting" }));
     await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/tasks").at(-1)?.query.get("waiting")).toBe("true"));
-    await userEvent.click(screen.getByRole("button", { name: "Remove Criterion #12" }));
+    await userEvent.click(screen.getByRole("button", { name: "Criterion: #12" }));
+    await userEvent.click(screen.getByRole("option", { name: "All" }));
     await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/tasks").at(-1)?.query.has("criterionId")).toBe(false));
   });
   const cases: {
@@ -79,13 +79,13 @@ describe("Task work board", () => {
     {
       status: "claimed",
       validActions: ["start", "release", "edit"],
-      buttons: ["Start", "Release"],
+      buttons: ["Start"],
       absent: ["Claim", "Accept", "Reopen"],
     },
     {
       status: "in_progress",
       validActions: ["release", "edit"],
-      buttons: ["Release"],
+      buttons: [],
       absent: ["Claim", "Start", "Accept"],
     },
     {
@@ -102,20 +102,27 @@ describe("Task work board", () => {
     },
   ];
   it.each(cases)(
-    "shows only valid $status actions and highlights the current lifecycle step",
+    "shows one primary $status action and moves release into More",
     async ({ status, validActions, buttons, absent }) => {
       api.on("GET", "/api/swarms/3/tasks/34", () => task({ status, validActions }));
       open();
-      const lifecycle = await screen.findByRole("list", { name: "Task lifecycle" });
-      expect(lifecycle.querySelector('[aria-current="step"]')).toHaveTextContent(
-        status === "review"
-          ? "Review"
-          : status === "in_progress"
-            ? "In progress"
-            : status[0].toUpperCase() + status.slice(1),
-      );
+      await screen.findByRole("heading", { name: "Add ranking index" });
+      expect(screen.queryByRole("list", { name: "Task lifecycle" })).not.toBeInTheDocument();
+      expect(
+        within(screen.getByRole("region", { name: "Task" })).getByText(
+          status === "review"
+            ? "In review"
+            : status === "in_progress"
+              ? "In progress"
+              : status[0].toUpperCase() + status.slice(1),
+        ),
+      ).toBeInTheDocument();
       for (const label of buttons) expect(screen.getByRole("button", { name: label })).toBeEnabled();
       for (const label of absent) expect(screen.queryByRole("button", { name: label })).not.toBeInTheDocument();
+      if (validActions.includes("release")) {
+        await userEvent.click(screen.getByRole("button", { name: "More" }));
+        expect(screen.getByRole("option", { name: "Release" })).toBeInTheDocument();
+      }
     },
   );
   it("shows waiting dependencies and disables Start with its explanation", async () => {
@@ -132,7 +139,7 @@ describe("Task work board", () => {
     open();
     const start = await screen.findByRole("button", { name: "Start" });
     expect(start).toBeDisabled();
-    expect(screen.getByText("Waiting on #12, #13 — the owner is notified when they are accepted")).toBeInTheDocument();
+    expect(screen.getByText(/Waiting on #12, #13/)).toBeInTheDocument();
     await userEvent.hover(start.parentElement ?? start);
     expect(await screen.findByRole("tooltip")).toHaveTextContent("Waiting on #12, #13");
   });

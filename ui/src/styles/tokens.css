@@ -20,6 +20,7 @@
   --accent: #ff4fa3; /* primary buttons, badges, unread dots, active indicator */
   --accent-hover: #ff66b0;
   --accent-pressed: #e63d8f;
+  --accent-dim: #6b2a4a;
   --accent-strong: #c93a7f; /* filled avatar of the selected/current entity */
   --accent-soft-bg: #3a1f2d; /* selected row background, active segmented button fill */
   --accent-soft-bg-2: #2c1a24; /* chip background (pink-outlined chips) */

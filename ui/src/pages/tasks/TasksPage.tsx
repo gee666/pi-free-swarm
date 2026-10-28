@@ -6,13 +6,13 @@ import { useSwarmDetail } from "../../api/SwarmView";
 import { Button } from "../../components/Button";
 import { TextField } from "../../components/Field";
 import { Panel, PanelBody, PanelHeader } from "../../components/Panel";
-import { RowList, rowFocusProps } from "../../components/RowList";
+import { RowList } from "../../components/RowList";
+import { WorkRow } from "../../components/WorkRow";
 import { EmptyState, ErrorBanner, SkeletonRows } from "../../components/States";
 import { StatusGlyph } from "../../components/StatusGlyph";
 import { PanelLayout } from "../../shell/AppShell";
-import { cx } from "../../lib/cx";
 import { relativeTime } from "../../lib/time";
-import { FilterMenu, FilterPill } from "../work-items/FilterMenu";
+import { FilterMenu } from "../work-items/FilterMenu";
 import { useDebounced } from "../../lib/useDebounced";
 import { useWorkList } from "../work-items/useWorkData";
 import styles from "../work-items/WorkItems.module.css";
@@ -83,28 +83,26 @@ export function TasksPage() {
           />
           <div className={styles.toolbar}>
             <TextField label="Search tasks" placeholder="Search tasks" value={search} onChange={setSearch} />
-            <div className={styles.actions}>
+            <FilterMenu
+              label="Status"
+              items={statuses.map(([key, label]) => ({ key, label, selected: key === status }))}
+              onSelect={(value) => filter("status", value)}
+            />
+            <FilterMenu
+              label="Owner"
+              items={owners.map((item) => ({ ...item, selected: item.key === owner }))}
+              onSelect={(value) => filter("owner", value)}
+            />
+            {criterion && (
               <FilterMenu
-                label="Status"
-                items={statuses.map(([key, label]) => ({ key, label, selected: key === status }))}
-                onSelect={(value) => filter("status", value)}
+                label="Criterion"
+                items={[
+                  { key: criterion, label: `#${criterion}`, selected: true },
+                  { key: "", label: "All", selected: false },
+                ]}
+                onSelect={(value) => filter("criterion", value)}
               />
-              <FilterMenu
-                label="Owner"
-                items={owners.map((item) => ({ ...item, selected: item.key === owner }))}
-                onSelect={(value) => filter("owner", value)}
-              />
-            </div>
-            <div className={styles.chips}>
-              {status !== "open" && (
-                <FilterPill
-                  label={statuses.find(([key]) => key === status)?.[1] ?? status}
-                  onRemove={() => filter("status", "")}
-                />
-              )}
-              {owner && <FilterPill label={owner === "User" ? "Me" : owner} onRemove={() => filter("owner", "")} />}
-              {criterion && <FilterPill label={`Criterion #${criterion}`} onRemove={() => filter("criterion", "")} />}
-            </div>
+            )}
           </div>
           {list.error && (
             <ErrorBanner action={<Button onClick={list.reload}>Retry</Button>}>{list.error.message}</ErrorBanner>
@@ -122,16 +120,14 @@ export function TasksPage() {
             ) : (
               <RowList>
                 {list.data.items.map((task) => (
-                  <button
-                    {...rowFocusProps}
+                  <WorkRow
                     key={task.id}
-                    className={cx(styles.row, String(task.id) === taskId && styles.selected)}
-                    onClick={() => select(task.id)}
-                  >
-                    <StatusGlyph status={task.status} waiting={task.waiting} />
-                    <span className={styles.rowText}>
-                      <span className={styles.title}>{task.title}</span>
-                      <span className={styles.subtitle}>
+                    glyph={<StatusGlyph status={task.status} waiting={task.waiting} />}
+                    title={task.title}
+                    selected={String(task.id) === taskId}
+                    onSelect={() => select(task.id)}
+                    subtitle={
+                      <>
                         #{task.id} · {task.owner ?? "Unowned"} ·{" "}
                         {task.waiting
                           ? `waits ${task.waitsOn.map((id) => `#${id}`).join(", ")}`
@@ -140,10 +136,10 @@ export function TasksPage() {
                             : task.runnable
                               ? "runnable"
                               : task.status.replace("_", " ")}
-                      </span>
-                    </span>
-                    <span className={styles.muted}>{relativeTime(task.updatedAt)}</span>
-                  </button>
+                      </>
+                    }
+                    trailing={relativeTime(task.updatedAt)}
+                  />
                 ))}
               </RowList>
             )}
@@ -170,7 +166,7 @@ export function TasksPage() {
           <TaskDetail key={taskId} swarmId={swarmId} id={Number(taskId)} onChanged={list.reload} />
         ) : (
           <Panel>
-            <EmptyState icon={SquareKanban} text="Select a task" />
+            {!list.data && !list.error ? <SkeletonRows /> : <EmptyState icon={SquareKanban} text="Select a task" />}
           </Panel>
         )
       }

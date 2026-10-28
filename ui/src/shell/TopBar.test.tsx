@@ -5,6 +5,25 @@ import type { RunHeaderState } from "../../../src/api-types";
 import { swarm } from "../pages/agents/testFixtures";
 import { TopBar } from "./TopBar";
 
+it("keeps the current name when the swarm index has not loaded", () => {
+  render(
+    <MemoryRouter>
+      <TopBar swarms={[]} current={swarm} onSelectSwarm={() => undefined} />
+    </MemoryRouter>,
+  );
+  expect(screen.getByRole("button", { name: `${swarm.name} · #${swarm.id}` })).toBeInTheDocument();
+});
+
+it("uses the route id rather than the picker placeholder before either snapshot arrives", () => {
+  render(
+    <MemoryRouter>
+      <TopBar swarms={[]} currentId={3} onSelectSwarm={() => undefined} />
+    </MemoryRouter>,
+  );
+  expect(screen.getByRole("button", { name: "Swarm · #3" })).toBeInTheDocument();
+  expect(screen.queryByText("Select a swarm")).not.toBeInTheDocument();
+});
+
 it.each([
   ["running", "Running"],
   ["completed", "Completed"],

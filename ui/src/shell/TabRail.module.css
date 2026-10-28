@@ -21,11 +21,17 @@
   height: var(--rail-tab-h);
   border-radius: var(--radius-lg) 0 0 var(--radius-lg);
   color: var(--text-muted);
-  font-size: var(--fs-body);
   text-decoration: none;
   transition:
     background var(--transition),
     color var(--transition);
+}
+
+.label {
+  max-width: 100%;
+  padding-inline: var(--space-2);
+  font-size: var(--fs-small);
+  white-space: nowrap;
 }
 
 .tab:hover {
@@ -69,7 +75,6 @@
     height: 58px;
     gap: var(--space-1);
     border-radius: 0;
-    font-size: var(--fs-small);
   }
   .tabBadge {
     top: 0;

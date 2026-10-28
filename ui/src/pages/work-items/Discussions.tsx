@@ -1,44 +1,32 @@
-import { Link, useNavigate } from "react-router-dom";
-import { Button } from "../../components/Button";
+import { useNavigate } from "react-router-dom";
+import { MessageSquare } from "lucide-react";
 import type { PostSummary } from "../../../../src/api-types";
 import { Section } from "../../components/Section";
+import { WorkRow } from "../../components/WorkRow";
 import { relativeTime } from "../../lib/time";
-import styles from "./WorkItems.module.css";
 
 export function discussionUrl(swarmId: string, kind: "task" | "criterion", id: number) {
   return `/s/${swarmId}/wall/new?${kind}=${id}`;
 }
 
-export function Discussions({
-  swarmId,
-  kind,
-  id,
-  posts,
-}: {
-  swarmId: string;
-  kind: "task" | "criterion";
-  id: number;
-  posts: PostSummary[];
-}) {
+export function Discussions({ swarmId, posts }: { swarmId: string; posts: PostSummary[] }) {
   const navigate = useNavigate();
+  if (posts.length === 0) return null;
   return (
-    <Section
-      title="Discussions"
-      action={
-        <Button size="sm" onClick={() => navigate(discussionUrl(swarmId, kind, id))}>
-          Start discussion
-        </Button>
-      }
-    >
-      {posts.length === 0 && <p className={styles.muted}>No discussions yet</p>}
-      {posts.map((post) => (
-        <Link className={styles.row} key={post.id} to={`/s/${swarmId}/wall/${post.id}`}>
-          <span className={styles.rowText}>{post.title}</span>
-          <span className={styles.muted}>
-            {post.commentCount} comments · {relativeTime(post.createdAt)}
-          </span>
-        </Link>
-      ))}
+    <Section title="Discussions">
+      <div>
+        {posts.map((post) => (
+          <WorkRow
+            key={post.id}
+            flush
+            glyph={<MessageSquare size={14} />}
+            title={post.title}
+            subtitle={`${post.author} · ${post.commentCount} comments`}
+            trailing={relativeTime(post.createdAt)}
+            onSelect={() => navigate(`/s/${swarmId}/wall/${post.id}`)}
+          />
+        ))}
+      </div>
     </Section>
   );
 }

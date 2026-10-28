@@ -7,13 +7,13 @@ import { useAsync } from "../../api/useAsync";
 import { Button } from "../../components/Button";
 import { TextField } from "../../components/Field";
 import { Panel, PanelBody, PanelHeader } from "../../components/Panel";
-import { RowList, rowFocusProps } from "../../components/RowList";
+import { RowList } from "../../components/RowList";
+import { WorkRow } from "../../components/WorkRow";
 import { EmptyState, ErrorBanner, SkeletonRows } from "../../components/States";
 import { StatusGlyph } from "../../components/StatusGlyph";
 import { VoteBadge } from "../../components/VoteBadge";
 import { PanelLayout } from "../../shell/AppShell";
-import { cx } from "../../lib/cx";
-import { FilterMenu, FilterPill } from "../work-items/FilterMenu";
+import { FilterMenu } from "../work-items/FilterMenu";
 import { useDebounced } from "../../lib/useDebounced";
 import { useWorkList, workUrl } from "../work-items/useWorkData";
 import styles from "../work-items/WorkItems.module.css";
@@ -28,6 +28,7 @@ const statuses = [
   ["satisfied", "Satisfied"],
   ["blocked", "Blocked"],
   ["vote", "Needs my vote"],
+  ["archived", "Archived"],
 ];
 
 export function CriteriaPage() {
@@ -65,21 +66,19 @@ export function CriteriaPage() {
   if (grouped) for (const item of items ?? []) grouped.set(item.group, [...(grouped.get(item.group) ?? []), item]);
   const rows = (records: CriterionListItem[]) =>
     records.map((item) => (
-      <button
+      <WorkRow
         key={item.id}
-        {...rowFocusProps}
-        className={cx(styles.row, String(item.id) === criterionId && styles.selected)}
-        onClick={() => select(item.id)}
-      >
-        <StatusGlyph status={item.status} />
-        <span className={styles.rowText}>
-          <span className={styles.title}>{item.title}</span>
-          <span className={styles.subtitle}>
+        glyph={<StatusGlyph status={item.status} />}
+        title={item.title}
+        selected={String(item.id) === criterionId}
+        onSelect={() => select(item.id)}
+        subtitle={
+          <>
             {query && `${item.group} · `}#{item.id} · {item.linkedTaskCount} tasks ·{" "}
             <VoteBadge {...item.voteProgress} />
-          </span>
-        </span>
-      </button>
+          </>
+        }
+      />
     ));
   return (
     <PanelLayout
@@ -96,40 +95,36 @@ export function CriteriaPage() {
           />
           <div className={styles.toolbar}>
             <TextField label="Search criteria" placeholder="Search criteria" value={search} onChange={setSearch} />
-            <div className={styles.actions}>
-              <FilterMenu
-                label="Status"
-                items={statuses.map(([key, label]) => ({
-                  key,
-                  label,
-                  selected: key ? selectedStatuses.includes(key) : selectedStatuses.length === 0,
-                }))}
-                onSelect={(value) => filter("status", value)}
-              />
-              <FilterMenu
-                label="Group"
-                items={["", ...(groups.data?.groups.map((coverage) => coverage.group) ?? [])].map((key) => ({
-                  key,
-                  label: key || "All",
-                  selected: group === key,
-                }))}
-                onSelect={(value) => filter("group", value)}
-              />
-              <Button size="sm" aria-pressed={archived} onClick={() => filter("archived", archived ? "" : "true")}>
-                Archived
-              </Button>
-            </div>
-            <div className={styles.chips}>
-              {selectedStatuses.map((selected) => (
-                <FilterPill
-                  key={selected}
-                  label={statuses.find(([key]) => key === selected)?.[1] ?? selected}
-                  onRemove={() => filter("status", selectedStatuses.filter((value) => value !== selected).join(","))}
-                />
-              ))}
-              {group && <FilterPill label={group} onRemove={() => filter("group", "")} />}
-              {archived && <FilterPill label="Archived" onRemove={() => filter("archived", "")} />}
-            </div>
+            <FilterMenu
+              label="Status"
+              items={statuses.map(([key, label]) => ({
+                key,
+                label,
+                selected:
+                  key === "archived"
+                    ? archived
+                    : !archived && (key ? selectedStatuses.includes(key) : selectedStatuses.length === 0),
+              }))}
+              onSelect={(value) => {
+                setParams((previous) => {
+                  const next = new URLSearchParams(previous);
+                  next.delete("status");
+                  next.delete("archived");
+                  if (value === "archived") next.set("archived", "true");
+                  else if (value) next.set("status", value);
+                  return next;
+                });
+              }}
+            />
+            <FilterMenu
+              label="Group"
+              items={["", ...(groups.data?.groups.map((coverage) => coverage.group) ?? [])].map((key) => ({
+                key,
+                label: key || "All",
+                selected: group === key,
+              }))}
+              onSelect={(value) => filter("group", value)}
+            />
           </div>
           {groups.error && (
             <ErrorBanner action={<Button onClick={groups.reload}>Retry</Button>}>{groups.error.message}</ErrorBanner>
@@ -196,7 +191,7 @@ export function CriteriaPage() {
           />
         ) : (
           <Panel>
-            <EmptyState icon={ListChecks} text="Select a criterion" />
+            {!list.data && !list.error ? <SkeletonRows /> : <EmptyState icon={ListChecks} text="Select a criterion" />}
           </Panel>
         )
       }

@@ -22,10 +22,12 @@
 .claimed {
   color: var(--text-secondary);
 }
-.satisfied,
 .blocked,
 .in_progress,
-.review,
+.review {
+  color: var(--text-secondary);
+}
+.satisfied,
 .accepted {
   color: var(--accent);
 }

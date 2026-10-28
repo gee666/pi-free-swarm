@@ -35,7 +35,8 @@ function SwarmFrame({ swarmId }: { swarmId: string }) {
           detail={detail.data}
           runState={dashboard?.header.state}
           swarms={swarms}
-          current={swarms.find((swarm) => String(swarm.id) === swarmId)}
+          current={swarms.find((swarm) => String(swarm.id) === swarmId) ?? detail.data?.swarm}
+          currentId={Number(swarmId)}
           onSelectSwarm={(id) => navigate(`/s/${id}/dashboard`)}
         />
       }

@@ -40,8 +40,8 @@ describe("Criteria work board", () => {
         });
     });
     expect(calls()).toHaveLength(listBefore);
-    expect(await screen.findByText("Owner John is offline")).toBeInTheDocument();
-    expect(screen.getByText(/by Ann · edited by John/)).toBeInTheDocument();
+    expect(await screen.findByText(/Owner John is offline/)).toBeInTheDocument();
+    expect(screen.getByText(/#12 · Search · rev 3 · by Ann/)).toBeInTheDocument();
     expect(calls()).toHaveLength(listBefore + 1);
     expect(api.callsTo("GET", "/api/swarms/3/criteria/12")).toHaveLength(detailBefore + 1);
   });
@@ -76,10 +76,10 @@ describe("Criteria work board", () => {
   it("records a blocker with all four required fields", async () => {
     api.on("POST", "/api/swarms/3/criteria/12/block", () => ({}));
     open("/s/3/criteria/12");
-    const record = await screen.findByRole("button", { name: "Record blocker" });
-    const section = record.closest("section");
+    await userEvent.click(await screen.findByRole("button", { name: "More" }));
+    await userEvent.click(screen.getByRole("option", { name: "Record blocker" }));
+    const section = screen.getByRole("heading", { name: "Blocker" }).closest("section");
     if (!section) throw new Error("Missing blocker section");
-    await userEvent.click(record);
     for (const label of ["Reason", "Missing", "Attempted", "Would unblock"])
       await userEvent.type(within(section).getByRole("textbox", { name: label }), label);
     await userEvent.click(within(section).getByRole("button", { name: "Save" }));
@@ -93,19 +93,21 @@ describe("Criteria work board", () => {
       }),
     );
   });
-  it("preselects dashboard filters, groups rows and removes filter pills", async () => {
+  it("preselects dashboard filters, groups rows and keeps filters inside menus", async () => {
     open("/s/3/criteria?status=blocked&group=Search");
     await within(list()).findByText("Rank matches");
     expect(calls().at(-1)?.query.get("status")).toBe("blocked");
     expect(calls().at(-1)?.query.get("group")).toBe("Search");
     expect(within(list()).getByText("0/1")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Remove Search" }));
+    await userEvent.click(screen.getByRole("button", { name: "Group: Search" }));
+    await userEvent.click(screen.getByRole("option", { name: "All" }));
     await waitFor(() => expect(calls().at(-1)?.query.has("group")).toBe(false));
     await userEvent.click(screen.getByRole("button", { name: "Status: Blocked" }));
     await userEvent.click(screen.getByRole("option", { name: "Needs my vote" }));
     expect(screen.getByRole("button", { name: "Status: Needs my vote" })).toBeInTheDocument();
     await waitFor(() => expect(calls().at(-1)?.query.get("needsMyVote")).toBe("true"));
-    await userEvent.click(screen.getByRole("button", { name: "Archived" }));
+    await userEvent.click(screen.getByRole("button", { name: "Status: Needs my vote" }));
+    await userEvent.click(screen.getByRole("option", { name: "Archived" }));
     await waitFor(() => expect(calls().at(-1)?.query.get("includeArchived")).toBe("true"));
   });
   it("debounces searches and keeps ranked order instead of grouping", async () => {
@@ -148,19 +150,20 @@ describe("Criteria work board", () => {
     api.on("GET", "/api/swarms/3/criteria/12", () => value);
     api.on("POST", "/api/swarms/3/criteria/12/vote", () => ({}));
     open("/s/3/criteria/12");
+    await userEvent.click(await screen.findByRole("button", { name: "Vote" }));
     await screen.findByRole("heading", { name: "Your vote" });
     expect(screen.getByText("stale")).toBeInTheDocument();
     expect(screen.getByText("Do the linked tasks, when done, fully satisfy this criterion?")).toBeInTheDocument();
-    expect(screen.getByText("Waiting for Ann (owner)")).toBeInTheDocument();
+    expect(screen.getByText("Waiting for Ann (owner) and one independent voter")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Covered" })).toBeEnabled();
     expect(screen.getByRole("radio", { name: "Blocked" })).toBeDisabled();
     expect(screen.getByRole("radio", { name: "Gap" })).toHaveAttribute("aria-checked", "false");
-    expect(screen.getByRole("button", { name: "Vote" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Submit vote" })).toBeDisabled();
     await userEvent.type(screen.getByRole("textbox", { name: "Reason" }), "Still needs work");
-    expect(screen.getByRole("button", { name: "Vote" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Submit vote" })).toBeDisabled();
     await userEvent.click(screen.getByRole("radio", { name: "Gap" }));
-    expect(screen.getByRole("button", { name: "Vote" })).toBeEnabled();
-    await userEvent.click(screen.getByRole("button", { name: "Vote" }));
+    expect(screen.getByRole("button", { name: "Submit vote" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Submit vote" }));
     await waitFor(() =>
       expect(api.callsTo("POST", "/api/swarms/3/criteria/12/vote")[0]?.body).toEqual({
         expectedRevision: 3,
@@ -174,11 +177,12 @@ describe("Criteria work board", () => {
       criterion({ tasks: [{ ...task({ status: "in_progress" }), contribution: "Ranks work" }] }),
     );
     open("/s/3/criteria/12");
-    expect(await screen.findByRole("radio", { name: "Covered" })).toBeEnabled();
+    await userEvent.click(await screen.findByRole("button", { name: "Vote" }));
+    expect(screen.getByRole("radio", { name: "Covered" })).toBeEnabled();
     api.on("POST", "/api/swarms/3/criteria/12/vote", () => ({}));
     await userEvent.click(screen.getByRole("radio", { name: "Covered" }));
     await userEvent.type(screen.getByRole("textbox", { name: "Reason" }), "The linked work covers the requirement");
-    await userEvent.click(screen.getByRole("button", { name: "Vote" }));
+    await userEvent.click(screen.getByRole("button", { name: "Submit vote" }));
     await waitFor(() =>
       expect(api.callsTo("POST", "/api/swarms/3/criteria/12/vote")[0]?.body).toEqual({
         expectedRevision: 3,
@@ -212,7 +216,21 @@ describe("Criteria work board", () => {
     });
     open("/s/3/criteria/12");
     await userEvent.click(await screen.findByRole("button", { name: "Reject blocker" }));
-    expect(screen.getByText("Agreed by all voters")).toBeInTheDocument();
+    const agreement = screen.getByText("Agreed by all voters");
+    expect(agreement).toBeInTheDocument();
+    expect(agreement.parentElement).toBe(screen.getByRole("button", { name: "Reject blocker" }).parentElement);
+    expect(screen.getAllByRole("term").map((term) => term.textContent)).toEqual([
+      "Reason",
+      "Missing",
+      "Attempted",
+      "Would unblock",
+    ]);
+    expect(screen.getAllByRole("definition").map((value) => value.textContent)).toEqual([
+      "Unavailable",
+      "Token",
+      "Requested token",
+      "Provide token",
+    ]);
     expect(screen.getByText("Reject this blocker? Voters will be asked to keep working.")).toBeInTheDocument();
     expect(api.callsTo("POST", "/api/swarms/3/criteria/12/blocker-decision")).toHaveLength(0);
     await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
@@ -224,6 +242,7 @@ describe("Criteria work board", () => {
     );
     expect(await screen.findByText("Blocker rejected")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Reject blocker" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Vote" }));
     expect(screen.getByRole("radio", { name: "Blocked" })).toBeDisabled();
   });
   it("saves long requirements, sends expectedRevision and reloads conflicts", async () => {

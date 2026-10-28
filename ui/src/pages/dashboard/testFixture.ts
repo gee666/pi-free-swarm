@@ -20,6 +20,11 @@ export function dashboardFixture(): DashboardResponse {
     completion: { done: false, outcome: null, gates },
     gates,
     header: { state: "running", run: 2, agentCount: 14, startedAt: Date.now() - 4320000 },
+    run: { number: 2, agentCount: 14, startedAt: Date.now() - 4320000, costUsd: 1525 },
+    throughput: Array.from({ length: 13 }, (_, index) => ({
+      hourStart: Math.floor(Date.now() / 3600000) * 3600000 - (12 - index) * 3600000,
+      accepted: index % 5,
+    })),
     counts: {
       tasks: 97,
       accepted: 61,
@@ -44,7 +49,7 @@ export function dashboardFixture(): DashboardResponse {
       { group: "Search", total: 9, satisfied: 7, blocked: 1, incomplete: 1, unlinked: 0 },
       { group: "Main", total: 4, satisfied: 0, blocked: 0, incomplete: 1, unlinked: 3 },
     ],
-    attention: { agreedBlockers: [], unreadUserUpdates: 2, userMentions: 0 },
+    attention: { agreedBlockers: [], unreadUserUpdates: 2, userMentions: 2 },
     recentActivity: [
       {
         id: "task-event:1",
