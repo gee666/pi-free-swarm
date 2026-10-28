@@ -41,8 +41,6 @@ export function dashboardFixture(): DashboardResponse {
       deferred: 2,
       needVotes: 9,
     },
-    run: { number: 2, agentCount: 14, startedAt: Date.now() - 4320000, costUsd: 0 },
-    throughput: [],
     velocity: { accepted15Minutes: 2, accepted60Minutes: 4, etaMs: null },
     etaMs: null,
     criteriaCoverage: [
