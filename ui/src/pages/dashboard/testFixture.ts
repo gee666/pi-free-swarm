@@ -34,14 +34,17 @@ export function dashboardFixture(): DashboardResponse {
       waiting: 3,
       runnable: 5,
       deferred: 2,
+      needVotes: 9,
     },
+    run: { number: 2, agentCount: 14, startedAt: Date.now() - 4320000, costUsd: 0 },
+    throughput: [],
     velocity: { accepted15Minutes: 2, accepted60Minutes: 4, etaMs: null },
     etaMs: null,
     criteriaCoverage: [
       { group: "Search", total: 9, satisfied: 7, blocked: 1, incomplete: 1, unlinked: 0 },
       { group: "Main", total: 4, satisfied: 0, blocked: 0, incomplete: 1, unlinked: 3 },
     ],
-    attention: { agreedBlockers: [], unreadUserUpdates: 2 },
+    attention: { agreedBlockers: [], unreadUserUpdates: 2, userMentions: 0 },
     recentActivity: [
       {
         id: "task-event:1",

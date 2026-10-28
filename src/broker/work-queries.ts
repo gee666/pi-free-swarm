@@ -16,9 +16,9 @@ import {
   type TaskFilters,
 } from "../store/work-search.js";
 import { workRoster } from "../store/work-roster.js";
-import { taskStates } from "../store/work-state.js";
+import { criterionStates, taskStates } from "../store/work-state.js";
 import { latestTaskEvidence, listTasks, taskDependencies, taskLinks, taskTimeline } from "../store/tasks.js";
-import { assessCriteria, assessCriterion } from "./criterion-status.js";
+import { assessCriteriaWithTasks, assessCriterion } from "./criterion-status.js";
 import { evaluateCompletion } from "./completion.js";
 import { readProject } from "./project.js";
 import { requireCriterion, requireTask } from "./work-validation.js";
@@ -104,7 +104,12 @@ export function criterionVoteContext(
     )
       throw new BrokerError("validation", "Invalid vote context page.");
     const ownTasks = listTasks(db, swarmId).filter((task) => task.owner === canonical);
-    const ownIds = new Set(ownTasks.flatMap((task) => taskLinks(db, task.id).map((link) => link.criterionId)));
+    const assessments = new Map(assessCriteriaWithTasks(db, swarmId, true).map((item) => [item.id, item]));
+    const ownIds = new Set(
+      [...assessments.values()]
+        .filter((item) => item.tasks.some((task) => task.owner === canonical))
+        .map((item) => item.id),
+    );
     const needed = new Set(
       filteredCriterionCandidates(db, swarmId, canonical, { needsMyVote: true }).map((item) => item.id),
     );
@@ -112,24 +117,24 @@ export function criterionVoteContext(
       (criterion) => criterion.id > after && (ownIds.has(criterion.id) || needed.has(criterion.id)),
     );
     const page = candidates.slice(0, limit);
-    const relevantTasks = ownTasks.filter((task) =>
-      taskLinks(db, task.id).some((link) => page.some((criterion) => criterion.id === link.criterionId)),
+    const relevantIds = new Set(
+      page.flatMap((criterion) => (assessments.get(criterion.id)?.tasks ?? []).map((task) => task.id)),
     );
+    const relevantTasks = ownTasks.filter((task) => relevantIds.has(task.id));
     return {
       tasks: relevantTasks.slice(0, PAGE_MAX_COUNT).map(({ id, title, status }) => ({ id, title, status })),
       tasksTruncated: relevantTasks.length > PAGE_MAX_COUNT,
-      criteria: page.map((criterion) => ({
-        ...criterion,
-        ...assessCriterion(db, swarmId, criterion.id),
-        tasks: criterionTasks(db, criterion.id)
-          .slice(0, PAGE_MAX_COUNT)
-          .map((task) => ({
-            id: task.id,
-            title: task.title,
-            status: task.status,
-            owner: task.owner,
-          })),
-      })),
+      criteria: page.map((criterion) => {
+        const assessment = assessments.get(criterion.id);
+        if (assessment === undefined) throw new Error(`Missing assessment #${criterion.id}.`);
+        return {
+          ...criterion,
+          ...assessment,
+          tasks: assessment.tasks
+            .slice(0, PAGE_MAX_COUNT)
+            .map((task) => ({ id: task.id, title: task.title, status: task.status, owner: task.owner })),
+        };
+      }),
       nextAfter: candidates.length > limit ? (page.at(-1)?.id ?? null) : null,
     };
   });
@@ -137,8 +142,7 @@ export function criterionVoteContext(
 export function workDashboard(db: SwarmDb, swarmId: number, now: number, actor = USER_NAME) {
   return db.read(() => {
     const tasks = listTasks(db, swarmId);
-    const assessments = new Map(assessCriteria(db, swarmId).map((criterion) => [criterion.id, criterion]));
-    const criteria = listCriteria(db, swarmId).map((criterion) => ({ ...criterion, ...assessments.get(criterion.id) }));
+    const criteria = criterionStates(db, swarmId);
     const states = taskStates(db, swarmId);
     const remaining = tasks.filter(
       (task) => task.status !== "accepted" && !states.find((state) => state.id === task.id)?.deferred,

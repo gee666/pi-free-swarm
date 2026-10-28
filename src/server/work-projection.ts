@@ -10,8 +10,11 @@ import type {
   VoteProgress,
 } from "../api-types.js";
 import { getCriterionDetail, getTaskDetail } from "../broker/work-queries.js";
-import { assessCriteria } from "../broker/criterion-status.js";
-import { criterionTasks, listCriteria } from "../store/criteria.js";
+import { assessCriteriaWithTasks } from "../broker/criterion-status.js";
+import { listCriteria } from "../store/criteria.js";
+import { taskListRecords } from "../store/task-list.js";
+import { criterionStates } from "../store/work-state.js";
+import type { TaskRecord } from "../api-work-types.js";
 import { USER_NAME, WORK_ACTIVITY_LIMIT } from "../constants.js";
 import type { SwarmDb } from "../store/db.js";
 import { listPostLinks } from "../store/post-links.js";
@@ -73,11 +76,11 @@ export function criteriaCoverage(criteria: readonly Pick<CriterionListItem, "gro
 }
 export function criterionListItems(db: SwarmDb, swarmId: number, includeArchived = false): CriterionListItem[] {
   return db.read(() => {
-    const assessments = new Map(assessCriteria(db, swarmId, includeArchived).map((item) => [item.id, item]));
+    const assessments = new Map(assessCriteriaWithTasks(db, swarmId, includeArchived).map((item) => [item.id, item]));
     return listCriteria(db, swarmId, includeArchived).map((criterion) => {
       const assessment = assessments.get(criterion.id);
       if (assessment === undefined) throw new Error(`Missing assessment for criterion #${criterion.id}.`);
-      return listCriterion({ ...criterion, ...assessment, tasks: criterionTasks(db, criterion.id) });
+      return listCriterion({ ...criterion, ...assessment });
     });
   });
 }
@@ -131,7 +134,9 @@ function latestEvent(db: SwarmDb, taskId: number, kinds: readonly string[]) {
     .get(taskId, ...kinds);
   return row === undefined ? null : taskEventOf(row);
 }
-function listTask(detail: TaskDetail): TaskListItem {
+function listTask(
+  detail: Pick<TaskDetail, keyof TaskRecord | "dependencies" | "waiting" | "runnable" | "deferred">,
+): TaskListItem {
   if (detail.waiting === undefined || detail.runnable === undefined || detail.deferred === undefined)
     throw new Error(`Missing derived state for task #${detail.id}.`);
   return {
@@ -153,6 +158,9 @@ function listTask(detail: TaskDetail): TaskListItem {
     runnable: detail.runnable,
     deferred: detail.deferred,
   };
+}
+export function taskListItems(db: SwarmDb, swarmId: number): TaskListItem[] {
+  return db.read(() => taskListRecords(db, swarmId).map(listTask));
 }
 export function taskListItem(db: SwarmDb, swarmId: number, id: number): TaskListItem {
   return db.read(() => {
@@ -183,11 +191,15 @@ export function taskDetail(
     const item = listTask(detail);
     const evidence = latestEvent(db, id, ["review_requested"]);
     const verdict = latestEvent(db, id, ["review_accepted", "changes_requested"]);
+    const criteria = new Map(listCriteria(db, swarmId, true).map((criterion) => [criterion.id, criterion]));
+    const states = new Map(criterionStates(db, swarmId, true).map((state) => [state.id, state.status]));
     return {
       ...item,
       criteria: detail.criteria.map((link) => {
-        const criterion = getCriterionDetail(db, swarmId, link.criterionId);
-        return { ...link, title: criterion.title, status: criterion.status };
+        const criterion = criteria.get(link.criterionId);
+        const status = states.get(link.criterionId);
+        if (criterion === undefined || status === undefined) throw new Error(`Missing criterion #${link.criterionId}.`);
+        return { ...link, title: criterion.title, status };
       }),
       dependencies: detail.dependencies,
       dependents: detail.dependents,

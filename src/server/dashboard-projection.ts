@@ -2,8 +2,9 @@ import type { DashboardResponse, RunHeaderState, SwarmListItem } from "../api-ty
 import { workDashboard } from "../broker/work-queries.js";
 import type { SwarmDb } from "../store/db.js";
 import { listTasks } from "../store/tasks.js";
+import { runCostUsd, workThroughput } from "../store/work-dashboard.js";
 import { taskStates } from "../store/work-state.js";
-import { userUnreadSummary } from "../store/user-unread.js";
+import { userMentionCount, userUnreadSummary } from "../store/user-unread.js";
 import { criteriaCoverage, criterionListItems } from "./work-projection.js";
 
 function runState(swarm: SwarmListItem, work: ReturnType<typeof workDashboard>): RunHeaderState {
@@ -27,11 +28,14 @@ export function dashboard(db: SwarmDb, swarm: SwarmListItem, now: number): Dashb
         satisfied: criteria.filter((item) => item.status === "satisfied").length,
         blocked: criteria.filter((item) => item.status === "blocked").length,
         incomplete: criteria.filter((item) => item.status === "incomplete").length,
-        inProgress: tasks.filter((item) => item.status === "in_progress").length,
+        inProgress: tasks.filter((item) => item.status === "claimed" || item.status === "in_progress").length,
         inReview: tasks.filter((item) => item.status === "review").length,
         waiting: states.filter((item) => item.waiting).length,
         runnable: states.filter((item) => item.runnable).length,
         deferred: states.filter((item) => item.deferred).length,
+        needVotes: criteria.filter(
+          (item) => item.status !== "unlinked" && item.voteProgress.current < item.voteProgress.required,
+        ).length,
       },
       velocity: work.velocity,
       etaMs: work.velocity.etaMs,
@@ -41,11 +45,19 @@ export function dashboard(db: SwarmDb, swarm: SwarmListItem, now: number): Dashb
         agentCount: swarm.agentAmount,
         startedAt: swarm.startedAt,
       },
+      run: {
+        number: swarm.runCount,
+        agentCount: swarm.agentAmount,
+        startedAt: swarm.startedAt,
+        costUsd: runCostUsd(db, swarm.id, swarm.runCount),
+      },
+      throughput: workThroughput(db, swarm.id, now),
       criteriaCoverage: criteriaCoverage(criteria),
       recentActivity: work.recentActivity,
       attention: {
         agreedBlockers: criteria.filter((criterion) => criterion.status === "blocked"),
         unreadUserUpdates: userUnreadSummary(db, swarm.id).comments,
+        userMentions: userMentionCount(db, swarm.id),
       },
       queue: work.queue,
       runnable: work.runnable,

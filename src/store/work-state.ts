@@ -6,26 +6,30 @@ import { WORK_AGENT_ACTIVE_SQL } from "./work-roster.js";
 
 // Shared by filtering and domain reads so status and search cannot disagree.
 export const WORK_STATE_CTE = `WITH
-  work_links AS (
-    SELECT c.id AS criterion_id,
-      COALESCE((SELECT group_concat(signature, ',') FROM (
-        SELECT t.id || ':' || t.content_revision AS signature FROM task_criteria l JOIN tasks t ON t.id = l.task_id
-        WHERE l.criterion_id = c.id ORDER BY t.id
-      )), '') AS links_signature,
-      (SELECT count(*) FROM task_criteria l WHERE l.criterion_id = c.id) AS task_count,
-      (SELECT count(*) FROM task_criteria l JOIN tasks t ON t.id = l.task_id
-        WHERE l.criterion_id = c.id AND t.status <> 'accepted') AS unaccepted_count,
-      (SELECT count(*) FROM task_criteria l JOIN tasks t ON t.id = l.task_id
-        WHERE l.criterion_id = c.id AND t.owner IS NULL) AS unowned_count
-    FROM criteria c WHERE c.swarm_id = ?
+  work_scope AS MATERIALIZED (SELECT * FROM criteria WHERE swarm_id = ?),
+  work_link_rows AS MATERIALIZED (
+    SELECT l.criterion_id, t.* FROM task_criteria l JOIN tasks t ON t.id = l.task_id
+      JOIN work_scope c ON c.id = l.criterion_id ORDER BY t.id
   ),
-  work_votes AS (
-    SELECT v.* FROM criterion_votes v JOIN criteria c ON c.id = v.criterion_id
+  work_link_totals AS (
+    SELECT criterion_id, group_concat(id || ':' || content_revision, ',') AS links_signature,
+      count(*) AS task_count, sum(status <> 'accepted') AS unaccepted_count,
+      sum(owner IS NULL) AS unowned_count
+    FROM work_link_rows GROUP BY criterion_id
+  ),
+  work_links AS MATERIALIZED (
+    SELECT c.id AS criterion_id, COALESCE(l.links_signature, '') AS links_signature,
+      COALESCE(l.task_count, 0) AS task_count, COALESCE(l.unaccepted_count, 0) AS unaccepted_count,
+      COALESCE(l.unowned_count, 0) AS unowned_count
+    FROM work_scope c LEFT JOIN work_link_totals l ON l.criterion_id = c.id
+  ),
+  work_votes AS MATERIALIZED (
+    SELECT v.* FROM criterion_votes v JOIN work_scope c ON c.id = v.criterion_id
       JOIN work_links l ON l.criterion_id = c.id LEFT JOIN criterion_blockers b ON b.criterion_id = c.id
     WHERE v.criterion_revision = c.revision AND v.links_signature = l.links_signature
       AND (v.verdict <> 'blocked' OR (v.blocker_revision = b.revision AND (b.rejected_revision IS NULL OR b.rejected_revision <> b.revision)))
   ),
-  work_owners AS (
+  work_owners AS MATERIALIZED (
     SELECT DISTINCT l.criterion_id, t.owner,
       CASE WHEN p.kind = 'user' OR (p.kind = 'agent' AND (${WORK_AGENT_ACTIVE_SQL}))
         THEN 1 ELSE 0 END AS active
@@ -33,25 +37,30 @@ export const WORK_STATE_CTE = `WITH
       LEFT JOIN participants p ON p.swarm_id = t.swarm_id AND p.name = t.owner
     WHERE t.owner IS NOT NULL AND t.swarm_id = ?
   ),
+  work_owner_totals AS (
+    SELECT o.criterion_id, sum(o.active = 0) AS offline_count,
+      sum(o.active = 1 AND (v.verdict IS NULL OR v.verdict <> 'covered')) AS missing_covered,
+      sum(o.active = 1 AND (v.verdict IS NULL OR v.verdict <> 'blocked')) AS missing_blocked
+    FROM work_owners o LEFT JOIN work_votes v ON v.criterion_id = o.criterion_id AND v.voter = o.owner
+    GROUP BY o.criterion_id
+  ),
+  work_vote_totals AS (
+    SELECT v.criterion_id,
+      max(v.verdict = 'covered' AND o.owner IS NULL) AS independent_covered,
+      max(v.verdict = 'blocked' AND o.owner IS NULL) AS independent_blocked,
+      max(v.verdict <> 'covered') AS negative_vote
+    FROM work_votes v LEFT JOIN work_owners o ON o.criterion_id = v.criterion_id AND o.owner = v.voter
+    GROUP BY v.criterion_id
+  ),
   work_agreement AS (
-    SELECT l.*,
-      (SELECT count(*) FROM work_owners o WHERE o.criterion_id = c.id AND o.active = 0) AS offline_count,
-      (SELECT count(*) FROM work_owners o WHERE o.criterion_id = c.id AND o.active = 1 AND NOT EXISTS (
-        SELECT 1 FROM work_votes v WHERE v.criterion_id = c.id AND v.voter = o.owner AND v.verdict = 'covered'
-      )) AS missing_covered,
-      (SELECT count(*) FROM work_owners o WHERE o.criterion_id = c.id AND o.active = 1 AND NOT EXISTS (
-        SELECT 1 FROM work_votes v WHERE v.criterion_id = c.id AND v.voter = o.owner AND v.verdict = 'blocked'
-      )) AS missing_blocked,
-      EXISTS (SELECT 1 FROM work_votes v WHERE v.criterion_id = c.id AND v.verdict = 'covered' AND NOT EXISTS (
-        SELECT 1 FROM work_owners o WHERE o.criterion_id = c.id AND o.owner = v.voter
-      )) AS independent_covered,
-      EXISTS (SELECT 1 FROM work_votes v WHERE v.criterion_id = c.id AND v.verdict = 'blocked' AND NOT EXISTS (
-        SELECT 1 FROM work_owners o WHERE o.criterion_id = c.id AND o.owner = v.voter
-      )) AS independent_blocked,
-      EXISTS (SELECT 1 FROM work_votes v WHERE v.criterion_id = c.id AND v.verdict <> 'covered') AS negative_vote,
-      b.revision AS blocker_revision
-    FROM work_links l JOIN criteria c ON c.id = l.criterion_id
-      LEFT JOIN criterion_blockers b ON b.criterion_id = c.id
+    SELECT l.*, COALESCE(o.offline_count, 0) AS offline_count,
+      COALESCE(o.missing_covered, 0) AS missing_covered, COALESCE(o.missing_blocked, 0) AS missing_blocked,
+      COALESCE(v.independent_covered, 0) AS independent_covered,
+      COALESCE(v.independent_blocked, 0) AS independent_blocked,
+      COALESCE(v.negative_vote, 0) AS negative_vote, b.revision AS blocker_revision
+    FROM work_links l LEFT JOIN work_owner_totals o ON o.criterion_id = l.criterion_id
+      LEFT JOIN work_vote_totals v ON v.criterion_id = l.criterion_id
+      LEFT JOIN criterion_blockers b ON b.criterion_id = l.criterion_id
   ),
   work_criteria AS (
     SELECT c.*, a.links_signature, a.task_count, a.unaccepted_count, a.unowned_count, a.offline_count,
@@ -61,7 +70,7 @@ export const WORK_STATE_CTE = `WITH
         WHEN a.offline_count = 0 AND a.unaccepted_count = 0 AND a.missing_covered = 0
           AND a.independent_covered = 1 AND a.negative_vote = 0 THEN 'satisfied'
         ELSE 'incomplete' END AS work_status
-    FROM criteria c JOIN work_agreement a ON a.criterion_id = c.id
+    FROM work_scope c JOIN work_agreement a ON a.criterion_id = c.id
   ),
   work_tasks AS (
     SELECT t.*,

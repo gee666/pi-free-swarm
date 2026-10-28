@@ -1,12 +1,10 @@
 import type { Static } from "typebox";
 import * as S from "./agent-schemas.js";
 import { checkedQuery, workInput, type AgentToolIdentity } from "./agent-tool-context.js";
-import {
-  getTaskDetail,
-  getCriterionDetail,
-  searchCriterionCandidates,
-  searchTaskCandidates,
-} from "../broker/work-queries.js";
+import { searchCriterionCandidates, searchTaskCandidates } from "../broker/work-queries.js";
+import { taskListRecords } from "../store/task-list.js";
+import { criterionStates } from "../store/work-state.js";
+import { listCriteria } from "../store/criteria.js";
 import { searchPostCandidates } from "../broker/post-queries.js";
 import { runSearch, type SearchHelper, type SearchResult } from "../search/index.js";
 import { syncSkillsAndNotify } from "../broker/skill-sync.js";
@@ -26,8 +24,9 @@ export function createSearchHandlers(identity: AgentToolIdentity) {
   return {
     async tasksSearch(params: Static<typeof S.tasksSearch>, helper?: SearchHelper) {
       const db = identity.getDb();
-      const candidates = db.read(() =>
-        searchTaskCandidates(db, identity.swarmId, identity.agentName, {
+      const candidates = db.read(() => {
+        const tasks = new Map(taskListRecords(db, identity.swarmId).map((task) => [task.id, task]));
+        return searchTaskCandidates(db, identity.swarmId, identity.agentName, {
           status: params.status,
           owner: params.owner,
           author: params.author,
@@ -35,12 +34,12 @@ export function createSearchHandlers(identity: AgentToolIdentity) {
           runnable: params.runnable,
           waiting: params.waiting,
           mine: params.mine,
-        }).map((candidate) => ({
-          ...candidate,
-          id: String(candidate.id),
-          line: taskLine(getTaskDetail(db, identity.swarmId, candidate.id)),
-        })),
-      );
+        }).map((candidate) => {
+          const task = tasks.get(candidate.id);
+          if (task === undefined) throw new Error(`Missing task #${candidate.id}.`);
+          return { ...candidate, id: String(candidate.id), line: taskLine(task) };
+        });
+      });
       const result = await runSearch({
         db,
         kind: "task",
@@ -54,20 +53,25 @@ export function createSearchHandlers(identity: AgentToolIdentity) {
     },
     async criteriaSearch(params: Static<typeof S.criteriaSearch>, helper?: SearchHelper) {
       const db = identity.getDb();
-      const candidates = db.read(() =>
-        searchCriterionCandidates(db, identity.swarmId, identity.agentName, {
+      const candidates = db.read(() => {
+        const states = new Map(criterionStates(db, identity.swarmId, true).map((state) => [state.id, state.status]));
+        const criteria = new Map(
+          listCriteria(db, identity.swarmId, true).map((criterion) => [criterion.id, criterion]),
+        );
+        return searchCriterionCandidates(db, identity.swarmId, identity.agentName, {
           status: params.status,
           group: params.group,
           taskId: params.task_id,
           author: params.author,
           needsMyVote: params.needs_my_vote,
           includeArchived: params.include_archived,
-        }).map((candidate) => ({
-          ...candidate,
-          id: String(candidate.id),
-          detail: getCriterionDetail(db, identity.swarmId, candidate.id),
-        })),
-      );
+        }).map((candidate) => {
+          const criterion = criteria.get(candidate.id);
+          const status = states.get(candidate.id);
+          if (criterion === undefined || status === undefined) throw new Error(`Missing criterion #${candidate.id}.`);
+          return { ...candidate, id: String(candidate.id), detail: { ...criterion, status } };
+        });
+      });
       const result = await runSearch({
         db,
         kind: "criterion",

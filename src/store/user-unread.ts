@@ -15,6 +15,17 @@ export function userUnreadState(db: SwarmDb, swarmId: number): { total: number; 
   return { total, summary: { messages: 0, comments: total } };
 }
 
+export function userMentionCount(db: SwarmDb, swarmId: number): number {
+  const row = db.sql
+    .prepare(
+      `SELECT
+    (SELECT count(*) FROM user_post_attention WHERE swarm_id = ? AND read_at IS NULL) +
+    (SELECT count(*) FROM user_comment_attention WHERE swarm_id = ? AND read_at IS NULL AND mentioned = 1) AS mentions`,
+    )
+    .get(swarmId, swarmId);
+  return row === undefined ? 0 : int(row, "mentions");
+}
+
 export function userUnreadSummary(db: SwarmDb, swarmId: number): UserUnreadSummary {
   return userUnreadState(db, swarmId).summary;
 }

@@ -90,6 +90,7 @@ const MIGRATIONS: readonly { version: number; file: string }[] = [
   { version: 19, file: "019-search-skills.sql" },
   { version: 20, file: "020-review-subagent.sql" },
   { version: 21, file: "021-wall-notifications.sql" },
+  { version: 22, file: "022-work-read-indexes.sql" },
 ];
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 

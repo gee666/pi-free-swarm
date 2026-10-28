@@ -1,6 +1,7 @@
 import type { CriterionBlocker, CriterionRecord, CriterionVote, TaskRecord } from "../api-work-types.js";
 import { USER_NAME } from "../constants.js";
-import { criterionTasks, criterionVotes, getBlocker, getCriterion, listCriteria } from "../store/criteria.js";
+import { getCriterion, listCriteria } from "../store/criteria.js";
+import { criterionRelations } from "../store/criterion-relations.js";
 import type { SwarmDb } from "../store/db.js";
 import { criterionStates, type CriterionState } from "../store/work-state.js";
 import { workRoster } from "../store/work-roster.js";
@@ -40,17 +41,27 @@ export function assessCriterion(db: SwarmDb, swarmId: number, id: number): Crite
     const criterion = getCriterion(db, swarmId, id);
     const state = criterionStates(db, swarmId, true).find((item) => item.id === id);
     if (!criterion || !state) throw new BrokerError("not_found", `Criterion #${id} not found.`);
-    return assess(db, criterion, state, activeNames(db, swarmId));
+    const { tasks: _tasks, ...assessment } = assess(
+      criterion,
+      state,
+      activeNames(db, swarmId),
+      criterionRelations(db, swarmId, id),
+    );
+    return assessment;
   });
 }
 export function assessCriteria(db: SwarmDb, swarmId: number, includeArchived = false): CriterionAssessment[] {
+  return assessCriteriaWithTasks(db, swarmId, includeArchived).map(({ tasks: _tasks, ...assessment }) => assessment);
+}
+export function assessCriteriaWithTasks(db: SwarmDb, swarmId: number, includeArchived = false) {
   return db.read(() => {
     const states = new Map(criterionStates(db, swarmId, includeArchived).map((state) => [state.id, state]));
     const active = activeNames(db, swarmId);
+    const relations = criterionRelations(db, swarmId);
     return listCriteria(db, swarmId, includeArchived).map((criterion) => {
       const state = states.get(criterion.id);
       if (!state) throw new Error(`Missing criterion state #${criterion.id}.`);
-      return assess(db, criterion, state, active);
+      return assess(criterion, state, active, relations);
     });
   });
 }
@@ -63,18 +74,18 @@ function activeNames(db: SwarmDb, swarmId: number): Set<string> {
   ]);
 }
 function assess(
-  db: SwarmDb,
   criterion: CriterionRecord,
   state: CriterionState,
   active: ReadonlySet<string>,
-): CriterionAssessment {
+  relations: ReturnType<typeof criterionRelations>,
+): CriterionAssessment & { tasks: TaskRecord[] } {
   const id = criterion.id;
-  const tasks = criterionTasks(db, id);
+  const tasks = relations.tasks.get(id) ?? [];
   const owners = new Set(tasks.flatMap((task) => (task.owner === null ? [] : [task.owner])));
   const requiredOwners = [...owners].filter((owner) => active.has(owner)).sort();
   const offlineTasks = tasks.filter((task) => task.owner !== null && !active.has(task.owner)).map((task) => task.id);
-  const blocker = getBlocker(db, id);
-  const votes = criterionVotes(db, id).map((vote) => ({
+  const blocker = relations.blockers.get(id) ?? null;
+  const votes = (relations.votes.get(id) ?? []).map((vote) => ({
     ...vote,
     stale:
       !voteIsCurrent(vote, criterion.revision, state.linksSignature, blocker?.revision ?? null) ||
@@ -105,6 +116,7 @@ function assess(
   if (state.status === "satisfied") reasons.push("All linked tasks accepted and required votes current.");
   return {
     ...state,
+    tasks,
     revision: criterion.revision,
     archivedAt: criterion.archivedAt,
     blocker,

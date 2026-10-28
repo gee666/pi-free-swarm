@@ -7,6 +7,7 @@ export function removeWorkSchema(db: SwarmDb): void {
     db.sql.exec(
       "CREATE TABLE thread_members (thread_id INTEGER NOT NULL REFERENCES threads(id), name TEXT NOT NULL, position INTEGER NOT NULL, PRIMARY KEY (thread_id, name)); DROP TABLE user_post_attention; ALTER TABLE posts DROP COLUMN broadcast; ALTER TABLE user_comment_attention DROP COLUMN mentioned;",
     );
+    db.sql.exec("DROP INDEX usage_by_run");
     for (const table of [
       "post_links",
       "task_events",

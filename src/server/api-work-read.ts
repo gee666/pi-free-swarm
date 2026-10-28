@@ -10,14 +10,7 @@ import { USER_NAME, WORK_ACTIVITY_LIMIT } from "../constants.js";
 import { runSearch } from "../search/index.js";
 import { reply, requireSwarmItem, intQuery, type ApiDeps, type ApiRoute } from "./api-util.js";
 import { booleanQuery, positiveQuery, searchQuery, statuses, textQuery } from "./work-input.js";
-import {
-  criteriaCoverage,
-  criterionDetail,
-  criterionListItem,
-  criterionListItems,
-  taskDetail,
-  taskListItem,
-} from "./work-projection.js";
+import { criteriaCoverage, criterionDetail, criterionListItems, taskDetail, taskListItems } from "./work-projection.js";
 import { dashboard } from "./dashboard-projection.js";
 
 export function workReadRoutes(deps: ApiDeps): ApiRoute[] {
@@ -37,6 +30,9 @@ export function workReadRoutes(deps: ApiDeps): ApiRoute[] {
       handle: async ({ params, url }) => {
         const candidates = db.read(() => {
           const swarm = requireSwarmItem(deps, params.id("swarmId"));
+          const views = new Map(
+            criterionListItems(db, swarm.id, booleanQuery(url, "includeArchived")).map((item) => [item.id, item]),
+          );
           return searchCriterionCandidates(db, swarm.id, USER_NAME, {
             status: statuses(url, ["unlinked", "incomplete", "satisfied", "blocked"]),
             group: textQuery(url, "group"),
@@ -44,7 +40,11 @@ export function workReadRoutes(deps: ApiDeps): ApiRoute[] {
             author: textQuery(url, "author"),
             needsMyVote: booleanQuery(url, "needsMyVote"),
             includeArchived: booleanQuery(url, "includeArchived"),
-          }).map((item) => ({ ...item, id: String(item.id), view: criterionListItem(db, swarm.id, item.id) }));
+          }).map((item) => {
+            const view = views.get(item.id);
+            if (view === undefined) throw new Error(`Missing criterion #${item.id}.`);
+            return { ...item, id: String(item.id), view };
+          });
         });
         const result = await runSearch({
           db,
@@ -85,6 +85,7 @@ export function workReadRoutes(deps: ApiDeps): ApiRoute[] {
       handle: async ({ params, url }) => {
         const candidates = db.read(() => {
           const swarm = requireSwarmItem(deps, params.id("swarmId"));
+          const views = new Map(taskListItems(db, swarm.id).map((item) => [item.id, item]));
           return searchTaskCandidates(db, swarm.id, USER_NAME, {
             status: statuses(url, ["new", "claimed", "in_progress", "review", "accepted"]),
             owner: textQuery(url, "owner"),
@@ -93,7 +94,11 @@ export function workReadRoutes(deps: ApiDeps): ApiRoute[] {
             runnable: booleanQuery(url, "runnable"),
             waiting: booleanQuery(url, "waiting"),
             deferred: booleanQuery(url, "deferred"),
-          }).map((item) => ({ ...item, id: String(item.id), view: taskListItem(db, swarm.id, item.id) }));
+          }).map((item) => {
+            const view = views.get(item.id);
+            if (view === undefined) throw new Error(`Missing task #${item.id}.`);
+            return { ...item, id: String(item.id), view };
+          });
         });
         const result = await runSearch({
           db,

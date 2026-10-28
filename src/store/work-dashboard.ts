@@ -1,12 +1,14 @@
 import type { SwarmDb } from "./db.js";
 import type { WorkActivityRow } from "../api-types.js";
-import { int, intOrNull, text } from "./rows.js";
+import { int, intOrNull, real, text } from "./rows.js";
 import { enumText } from "./work-rows.js";
 import {
   WORK_VELOCITY_SHORT_MS,
   WORK_VELOCITY_LONG_MS,
   WORK_ETA_MIN_AGE_MS,
   WORK_ETA_MIN_ACCEPTED,
+  WORK_THROUGHPUT_HOUR_MS,
+  WORK_THROUGHPUT_WHOLE_HOURS,
 } from "../constants.js";
 
 export function workVelocity(db: SwarmDb, swarmId: number, now: number, remaining: number) {
@@ -29,6 +31,30 @@ export function workVelocity(db: SwarmDb, swarmId: number, now: number, remainin
         ? (remaining / longCount) * WORK_VELOCITY_LONG_MS
         : null,
   };
+}
+export function workThroughput(db: SwarmDb, swarmId: number, now: number) {
+  const currentHour = Math.floor(now / WORK_THROUGHPUT_HOUR_MS) * WORK_THROUGHPUT_HOUR_MS;
+  const start = currentHour - WORK_THROUGHPUT_WHOLE_HOURS * WORK_THROUGHPUT_HOUR_MS;
+  const counts = new Map(
+    db.sql
+      .prepare(
+        `SELECT CAST(created_at / ? AS INTEGER) * ? AS hour_start, count(*) AS accepted
+    FROM task_events WHERE swarm_id = ? AND kind = 'review_accepted' AND created_at BETWEEN ? AND ?
+    GROUP BY hour_start`,
+      )
+      .all(WORK_THROUGHPUT_HOUR_MS, WORK_THROUGHPUT_HOUR_MS, swarmId, start, now)
+      .map((row) => [int(row, "hour_start"), int(row, "accepted")]),
+  );
+  return Array.from({ length: WORK_THROUGHPUT_WHOLE_HOURS + 1 }, (_, index) => {
+    const hourStart = start + index * WORK_THROUGHPUT_HOUR_MS;
+    return { hourStart, accepted: counts.get(hourStart) ?? 0 };
+  });
+}
+export function runCostUsd(db: SwarmDb, swarmId: number, run: number): number {
+  const row = db.sql
+    .prepare("SELECT COALESCE(sum(cost), 0) AS cost FROM usage WHERE swarm_id = ? AND run = ?")
+    .get(swarmId, run);
+  return row === undefined ? 0 : real(row, "cost");
 }
 export function recentWorkActivity(db: SwarmDb, swarmId: number, limit: number): WorkActivityRow[] {
   return db.sql
