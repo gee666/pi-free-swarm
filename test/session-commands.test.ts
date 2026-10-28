@@ -55,6 +55,45 @@ describe("session swarm commands", () => {
     assert.ok(pi.notes.some((note) => note.includes("Pending communication is preserved")));
   });
 
+  it("awaits activation before reporting success and recovers after import failure", async () => {
+    const { pi, controls } = fixture();
+    let release = () => {};
+    const loading = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    controls.enable = () => loading;
+    const enabling = pi.command("swarm:enable", "", cwd);
+    await Promise.resolve();
+    assert.deepEqual(pi.notes, []);
+    release();
+    await enabling;
+    assert.equal(pi.notes.at(-1), "Swarm enabled for this session.");
+    controls.enable = async () => {
+      throw new Error("import failed");
+    };
+    await pi.command("swarm:enable", "", cwd);
+    assert.equal(pi.notes.at(-1), "import failed");
+    controls.enable = () => {};
+    await pi.command("swarm:enable", "", cwd);
+    assert.equal(pi.notes.at(-1), "Swarm enabled for this session.");
+  });
+
+  it("does not notify a stale context when shutdown interrupts activation", async () => {
+    const { pi, controls } = fixture();
+    let release = () => {};
+    controls.enable = () =>
+      new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    const enabling = pi.command("swarm:enable", "", cwd);
+    await Promise.resolve();
+    await pi.shutdownSession();
+    release();
+    await enabling;
+    assert.deepEqual(pi.notes, []);
+    assert.equal(controls.options.enabled, false);
+  });
+
   it("waits for joined disable cleanup before admitting a following enable", async () => {
     const { pi, controls, events } = fixture();
     let release = () => {};

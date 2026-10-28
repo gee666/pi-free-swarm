@@ -2,7 +2,7 @@
 
 A pi extension that runs a leaderless group of agents in one shared working tree. Agents coordinate through a work graph, posts and direct messages. Follow their work on a local web board and review the changes when they finish.
 
-Tested against Pi 1.4.0 with the Bun 1.3.14 compiled binary and the Node.js CLI.
+Tested against Pi 1.4.0 with the Node.js CLI on Linux, using Node.js 24.16.0.
 
 ## Requirements and installation
 
@@ -24,7 +24,7 @@ pi --swarm
 PI_SWARM_ENABLED=1 pi
 ```
 
-Only the exact environment values `1` and `true` enable it; `0`, `false`, unset and other values do not. `--swarm` enables it regardless of the environment value. Disabled main sessions expose no usable swarm tools and do not start the board or open the database. The session commands below remain available without startup opt-in. Internal children with `PI_SWARM_ROLE=agent` automatically get agent communication tools without either opt-in.
+Only the exact environment values `1` and `true` enable it; `0`, `false`, unset and other values do not. `--swarm` enables it regardless of the environment value. Disabled main sessions expose no usable swarm tools and do not import the runtime, start the board or open the database. The session commands below remain available without startup opt-in. Internal children with `PI_SWARM_ROLE=agent` automatically get agent communication tools without either opt-in.
 
 Start enabled pi in the project you want to work on. Write requirements to a file, then ask the main agent to launch a swarm and include that file's path in its task prompt. Agents inherit the main session's current model, thinking level, project-trust decision and explicit extension arguments.
 

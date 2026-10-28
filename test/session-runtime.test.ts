@@ -35,8 +35,8 @@ async function mainSession(run: (pi: FakeExtensionApi, cwd: string) => Promise<v
   const pi = new FakeExtensionApi();
   const cwd = project();
   try {
-    piFreeSwarm(pi);
-    pi.startSession(cwd);
+    await piFreeSwarm(pi);
+    await pi.startSession(cwd);
     await run(pi, cwd);
   } finally {
     await pi.shutdownSession();

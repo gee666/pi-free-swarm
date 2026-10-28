@@ -15,7 +15,7 @@ export interface RecordedTool {
   parameters: TSchema;
 }
 
-type StartHandler = (event: SessionStartEvent, ctx: SessionContext) => void;
+type StartHandler = (event: SessionStartEvent, ctx: SessionContext) => void | Promise<void>;
 type ShutdownHandler = (event: SessionShutdownEvent) => void | Promise<void>;
 type SettledHandler = (event: AgentSettledEvent) => void;
 
@@ -113,9 +113,9 @@ export class FakeExtensionApi implements SwarmExtensionApi {
     };
   }
 
-  startSession(cwd: string = process.cwd()): void {
+  async startSession(cwd: string = process.cwd()): Promise<void> {
     const ctx = this.context(cwd);
-    for (const handler of [...this.startHandlers]) handler({ type: "session_start", reason: "startup" }, ctx);
+    for (const handler of [...this.startHandlers]) await handler({ type: "session_start", reason: "startup" }, ctx);
   }
 
   settleAgent(): void {

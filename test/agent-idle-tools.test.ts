@@ -33,9 +33,9 @@ class ObservedApi extends FakeExtensionApi {
     this.loadoutChanges++;
     super.setActiveTools(names);
   }
-  override startSession(cwd = process.cwd()): void {
+  override async startSession(cwd = process.cwd()): Promise<void> {
     this.runtimeReady = true;
-    super.startSession(cwd);
+    await super.startSession(cwd);
   }
   override async shutdownSession(): Promise<void> {
     await super.shutdownSession();
@@ -61,10 +61,10 @@ test("idle-only tools are hidden before first settle and activated once without 
   try {
     assert.ok(IDLE_ONLY_TOOLS.every((name) => pi.toolNames().includes(name)));
     assert.equal(pi.loadoutChanges, 0, "factory performs registration only");
-    pi.startSession(temp.cwd);
+    await pi.startSession(temp.cwd);
     assert.ok(IDLE_ONLY_TOOLS.every((name) => !pi.getActiveTools().includes(name)));
     const initialChanges = pi.loadoutChanges;
-    pi.startSession(temp.cwd);
+    await pi.startSession(temp.cwd);
     assert.equal(pi.loadoutChanges, initialChanges);
     pi.settleAgent();
     assert.ok(IDLE_ONLY_TOOLS.every((name) => pi.getActiveTools().includes(name)));
@@ -84,8 +84,8 @@ test("persisted genuine idle restores eligibility after recovery, not for a diff
   const recovered = setup(swarm.id, "Maria");
   const fresh = setup(swarm.id, "John");
   try {
-    recovered.startSession(temp.cwd);
-    fresh.startSession(temp.cwd);
+    await recovered.startSession(temp.cwd);
+    await fresh.startSession(temp.cwd);
     assert.ok(IDLE_ONLY_TOOLS.every((name) => recovered.getActiveTools().includes(name)));
     assert.ok(IDLE_ONLY_TOOLS.every((name) => !fresh.getActiveTools().includes(name)));
   } finally {
@@ -98,7 +98,7 @@ test("Watcher never gains idle-only tools even after native settle", async () =>
   const swarm = seedSwarm(db);
   const pi = setup(swarm.id, WATCHER_NAME);
   try {
-    pi.startSession(temp.cwd);
+    await pi.startSession(temp.cwd);
     pi.settleAgent();
     assert.ok(IDLE_ONLY_TOOLS.every((name) => !pi.toolNames().includes(name)));
     assert.ok(IDLE_ONLY_TOOLS.every((name) => !pi.getActiveTools().includes(name)));

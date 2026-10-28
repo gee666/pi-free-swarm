@@ -9,7 +9,7 @@ export interface SessionOptions {
 
 export interface SessionCommands {
   options: SessionOptions;
-  enable(ctx: SessionContext): void;
+  enable(ctx: SessionContext): void | Promise<void>;
   disable(): Promise<void>;
   changed?(): void;
 }
@@ -59,9 +59,11 @@ export function registerSessionCommands(pi: SwarmExtensionApi, controls: Session
       },
     });
   };
-  command("swarm:enable", "Enable swarm tools and board for this session only", (args, ctx) => {
+  command("swarm:enable", "Enable swarm tools and board for this session only", async (args, ctx) => {
     if (args) throw new Error("Usage: /swarm:enable");
-    controls.enable(ctx);
+    const current = generation;
+    await controls.enable(ctx);
+    if (current !== generation) return;
     ctx.ui.notify("Swarm enabled for this session.", "info");
   });
   command(

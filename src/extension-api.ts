@@ -20,7 +20,7 @@ export interface SwarmExtensionApi extends Pick<
     name: string,
     command: { description: string; handler(args: string, ctx: SessionContext): Promise<void> },
   ): void;
-  on(event: "session_start", handler: (event: SessionStartEvent, ctx: SessionContext) => void): unknown;
+  on(event: "session_start", handler: (event: SessionStartEvent, ctx: SessionContext) => void | Promise<void>): unknown;
   on(event: "session_shutdown", handler: (event: SessionShutdownEvent) => void | Promise<void>): unknown;
   on(event: "agent_settled", handler: (event: AgentSettledEvent) => void): unknown;
 }

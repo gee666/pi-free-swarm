@@ -41,12 +41,12 @@ function project(): string {
 }
 
 /** Each test file runs in its own process, so the role variables can be set here. */
-function withEnv(values: Record<string, string | undefined>, run: () => void): void {
+async function withEnv(values: Record<string, string | undefined>, run: () => void | Promise<void>): Promise<void> {
   const saved = Object.fromEntries(Object.keys(values).map((key) => [key, process.env[key]]));
   Object.assign(process.env, values);
   for (const [key, value] of Object.entries(values)) if (value === undefined) delete process.env[key];
   try {
-    run();
+    await run();
   } finally {
     for (const [key, value] of Object.entries(saved)) {
       if (value === undefined) delete process.env[key];
@@ -85,9 +85,9 @@ describe("role detection", () => {
       const pi = new FakeExtensionApi();
       const before = process.listenerCount("exit");
       try {
-        withEnv({ [ROLE_ENV]: undefined, [ENABLED_ENV]: enabled }, () => {
-          piFreeSwarm(pi);
-          pi.startSession(cwd);
+        await withEnv({ [ROLE_ENV]: undefined, [ENABLED_ENV]: enabled }, async () => {
+          await piFreeSwarm(pi);
+          await pi.startSession(cwd);
         });
         assert.deepEqual(pi.toolNames(), []);
         assert.equal(pi.getFlag(ENABLE_FLAG), false);
@@ -106,13 +106,13 @@ describe("role detection", () => {
     it(`main mode activates once by ${byFlag ? "flag" : `env ${enabled}`}`, async () => {
       const cwd = project();
       const pi = new FakeExtensionApi();
-      withEnv({ [ROLE_ENV]: undefined, [ENABLED_ENV]: enabled }, () => {
-        piFreeSwarm(pi);
+      await withEnv({ [ROLE_ENV]: undefined, [ENABLED_ENV]: enabled }, async () => {
+        await piFreeSwarm(pi);
         assert.deepEqual(pi.toolNames(), []);
         assert.equal(pi.flags.get(ENABLE_FLAG)?.type, "boolean");
         if (byFlag) pi.flagValues.set(ENABLE_FLAG, true);
-        pi.startSession(cwd);
-        pi.startSession(cwd);
+        await pi.startSession(cwd);
+        await pi.startSession(cwd);
       });
       assert.deepEqual(pi.toolNames(), [MAIN_TOOL.swarm, MAIN_TOOL.resumeSwarm]);
       assert.equal(existsSync(swarmDbPath(cwd)), false);
@@ -134,9 +134,9 @@ describe("role detection", () => {
     });
     const pi = new FakeExtensionApi();
     try {
-      withEnv({ [ROLE_ENV]: undefined, [ENABLED_ENV]: "true" }, () => {
-        piFreeSwarm(pi);
-        pi.startSession(cwd);
+      await withEnv({ [ROLE_ENV]: undefined, [ENABLED_ENV]: "true" }, async () => {
+        await piFreeSwarm(pi);
+        await pi.startSession(cwd);
       });
       assert.equal(db.sql.prepare("SELECT status FROM swarms WHERE id = 1").get()?.status, "interrupted");
     } finally {
@@ -145,7 +145,7 @@ describe("role detection", () => {
     }
   });
 
-  it("agent mode registers only the swarm_* tools, never swarm/resume_swarm", () => {
+  it("agent mode registers only the swarm_* tools, never swarm/resume_swarm", async () => {
     const pi = new FakeExtensionApi();
     const agentEnv = {
       [ROLE_ENV]: "agent",
@@ -156,14 +156,14 @@ describe("role detection", () => {
       [RUNNER_PID_ENV]: String(process.pid),
       [RUN_ENV]: "1",
     };
-    withEnv(agentEnv, () => piFreeSwarm(pi));
+    await withEnv(agentEnv, () => piFreeSwarm(pi));
     assert.deepEqual(pi.toolNames().sort(), Object.values(AGENT_TOOL).sort());
     assert.equal(pi.flags.size, 0);
   });
 
-  it("Watcher gets agent-mode tools without opt-in", () => {
+  it("Watcher gets agent-mode tools without opt-in", async () => {
     const pi = new FakeExtensionApi();
-    withEnv(
+    await withEnv(
       {
         [ROLE_ENV]: "agent",
         [ENABLED_ENV]: "0",
@@ -179,9 +179,9 @@ describe("role detection", () => {
     assert.equal(pi.flags.size, 0);
   });
 
-  it("agent mode without its identity registers nothing and says what is missing", () => {
+  it("agent mode without its identity registers nothing and says what is missing", async () => {
     const pi = new FakeExtensionApi();
-    withEnv({ [ROLE_ENV]: "agent", [DB_ENV]: "/x.db", [SWARM_ID_ENV]: "0", [AGENT_NAME_ENV]: undefined }, () =>
+    await withEnv({ [ROLE_ENV]: "agent", [DB_ENV]: "/x.db", [SWARM_ID_ENV]: "0", [AGENT_NAME_ENV]: undefined }, () =>
       piFreeSwarm(pi),
     );
     assert.deepEqual(pi.toolNames(), []);
@@ -227,7 +227,7 @@ describe("main mode lifecycle", () => {
       },
     });
     registerMainMode(pi, runtime);
-    pi.startSession();
+    await pi.startSession();
     assert.ok(report);
     report("Board request failed: test error");
     assert.deepEqual(pi.notes, ["Board request failed: test error"]);
@@ -253,7 +253,7 @@ describe("main mode lifecycle", () => {
     const unregister = registerActiveRun(db, active.id, process.pid);
     try {
       registerMainMode(pi, runtime);
-      pi.startSession();
+      await pi.startSession();
       assert.equal(getSwarm(db, active.id, Date.now())?.status, "starting");
       assert.equal(getSwarm(db, abandoned.id, Date.now())?.status, "interrupted");
     } finally {
@@ -267,7 +267,7 @@ describe("main mode lifecycle", () => {
     const { host, calls } = recordingHost();
     const pi = new FakeExtensionApi();
     registerMainMode(pi, createMainRuntime({ cwd, extensionPath: "/abs/index.ts", createHost: () => host }));
-    pi.startSession();
+    await pi.startSession();
     await pi.shutdownSession();
     assert.deepEqual(calls, ["stop"]);
   });
@@ -290,7 +290,7 @@ describe("main mode lifecycle", () => {
     const pi = new FakeExtensionApi();
     const runtime = createMainRuntime({ cwd, extensionPath: "/abs/index.ts", createHost: () => host });
     registerMainMode(pi, runtime);
-    pi.startSession();
+    await pi.startSession();
     assert.deepEqual(calls, ["start"]);
     const db = runtime.getDb(false);
     assert.ok(db);
