@@ -45,7 +45,7 @@ export function TabRail({ basePath, unread }: { basePath: string; unread?: UserU
             className={({ isActive }) => cx(styles.tab, isActive && styles.active)}
           >
             <Icon icon={tab.icon} size="rail" />
-            {tab.label}
+            <span className={styles.label}>{tab.label}</span>
             {count > 0 && (
               <span className={styles.tabBadge}>
                 <CountBadge count={count} label={label} />

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { CriterionDetailResponse } from "../../../../src/api-types";
 import { Button } from "../../components/Button";
 import { Popover } from "../../components/Popover";
@@ -8,6 +8,7 @@ import { ErrorBanner } from "../../components/States";
 import { LongField } from "../work-items/WorkFields";
 import { useWorkMutation } from "../work-items/useWorkMutation";
 import styles from "../work-items/WorkItems.module.css";
+import blockerStyles from "./CriterionBlocker.module.css";
 
 export function CriterionBlocker({
   swarmId,
@@ -83,40 +84,46 @@ export function CriterionBlocker({
         ) : (
           blocker && (
             <>
-              {[
-                ["Reason", blocker.reason],
-                ["Missing", blocker.missing],
-                ["Attempted", blocker.attempted],
-                ["Would unblock", blocker.unblock],
-              ].map(([label, text]) => (
-                <div className={styles.entry} key={label}>
-                  <span className={styles.muted}>{label}</span>
-                  <RichText text={text} />
-                </div>
-              ))}
-              <p className={styles.muted}>
-                {detail.status === "blocked"
-                  ? "Agreed by all voters"
-                  : `${detail.agreement.current}/${detail.agreement.required} agreed`}
-              </p>
-              {detail.status === "blocked" ? (
-                <div className={styles.actions}>
-                  <Button ref={anchor} onClick={() => setConfirm(true)}>
-                    Reject blocker
-                  </Button>
-                  <Popover anchorRef={anchor} open={confirm} onClose={() => setConfirm(false)}>
-                    <div className={styles.form}>
-                      <p>Reject this blocker? Voters will be asked to keep working.</p>
-                      <Button variant="primary" disabled={mutation.busy} onClick={reject}>
-                        Confirm
-                      </Button>
-                      <Button onClick={() => setConfirm(false)}>Cancel</Button>
-                    </div>
-                  </Popover>
-                </div>
-              ) : blocker.rejectedRevision === blocker.revision ? (
-                <p>Blocker rejected</p>
-              ) : null}
+              <dl className={blockerStyles.fields}>
+                {[
+                  ["Reason", blocker.reason],
+                  ["Missing", blocker.missing],
+                  ["Attempted", blocker.attempted],
+                  ["Would unblock", blocker.unblock],
+                ].map(([label, text]) => (
+                  <Fragment key={label}>
+                    <dt>{label}</dt>
+                    <dd>
+                      <RichText text={text} />
+                    </dd>
+                  </Fragment>
+                ))}
+              </dl>
+              <div className={blockerStyles.decision}>
+                <p className={styles.muted}>
+                  {detail.status === "blocked"
+                    ? "Agreed by all voters"
+                    : `${detail.agreement.current}/${detail.agreement.required} agreed`}
+                </p>
+                {detail.status === "blocked" ? (
+                  <>
+                    <Button ref={anchor} onClick={() => setConfirm(true)}>
+                      Reject blocker
+                    </Button>
+                    <Popover anchorRef={anchor} open={confirm} onClose={() => setConfirm(false)}>
+                      <div className={styles.form}>
+                        <p>Reject this blocker? Voters will be asked to keep working.</p>
+                        <Button variant="primary" disabled={mutation.busy} onClick={reject}>
+                          Confirm
+                        </Button>
+                        <Button onClick={() => setConfirm(false)}>Cancel</Button>
+                      </div>
+                    </Popover>
+                  </>
+                ) : blocker.rejectedRevision === blocker.revision ? (
+                  <p>Blocker rejected</p>
+                ) : null}
+              </div>
             </>
           )
         )}

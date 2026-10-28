@@ -216,7 +216,21 @@ describe("Criteria work board", () => {
     });
     open("/s/3/criteria/12");
     await userEvent.click(await screen.findByRole("button", { name: "Reject blocker" }));
-    expect(screen.getByText("Agreed by all voters")).toBeInTheDocument();
+    const agreement = screen.getByText("Agreed by all voters");
+    expect(agreement).toBeInTheDocument();
+    expect(agreement.parentElement).toBe(screen.getByRole("button", { name: "Reject blocker" }).parentElement);
+    expect(screen.getAllByRole("term").map((term) => term.textContent)).toEqual([
+      "Reason",
+      "Missing",
+      "Attempted",
+      "Would unblock",
+    ]);
+    expect(screen.getAllByRole("definition").map((value) => value.textContent)).toEqual([
+      "Unavailable",
+      "Token",
+      "Requested token",
+      "Provide token",
+    ]);
     expect(screen.getByText("Reject this blocker? Voters will be asked to keep working.")).toBeInTheDocument();
     expect(api.callsTo("POST", "/api/swarms/3/criteria/12/blocker-decision")).toHaveLength(0);
     await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
