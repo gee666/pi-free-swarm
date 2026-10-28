@@ -1,5 +1,4 @@
 import type { TaskEvent, TaskEventKind } from "../../../../src/api-types";
-import { AgentName } from "../../components/AgentName";
 import { AuthoredEntry } from "../../components/AuthoredEntry";
 import { RichText } from "../../components/RichText";
 import { relativeTime } from "../../lib/time";
@@ -12,7 +11,7 @@ const actions: Record<TaskEventKind, string> = {
   released: "released the task",
   handoff: "handed off the task",
   started: "started the task",
-  review_requested: "requested review",
+  review_requested: "started a review subagent",
   review_accepted: "accepted the task",
   changes_requested: "requested changes",
   reopened: "reopened the task",
@@ -31,17 +30,7 @@ export function TaskTimeline({ events }: { events: TaskEvent[] }) {
         <AuthoredEntry
           key={event.id}
           author={event.actor}
-          action={
-            <>
-              {actions[event.kind]}
-              {event.kind === "review_requested" && event.reviewer && (
-                <>
-                  {" "}
-                  from <AgentName className={styles.name} name={event.reviewer} />
-                </>
-              )}
-            </>
-          }
+          action={actions[event.kind]}
           time={relativeTime(event.createdAt)}
         >
           <RichText

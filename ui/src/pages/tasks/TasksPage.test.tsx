@@ -84,15 +84,15 @@ describe("Task work board", () => {
     },
     {
       status: "in_progress",
-      validActions: ["request-review", "release", "edit"],
-      buttons: ["Request review", "Release"],
+      validActions: ["release", "edit"],
+      buttons: ["Release"],
       absent: ["Claim", "Start", "Accept"],
     },
     {
       status: "review",
-      validActions: ["review", "edit"],
-      buttons: ["Accept", "Request changes"],
-      absent: ["Claim", "Start", "Release"],
+      validActions: ["edit"],
+      buttons: [],
+      absent: ["Claim", "Start", "Release", "Accept", "Request changes", "Request review"],
     },
     {
       status: "accepted",
@@ -137,30 +137,6 @@ describe("Task work board", () => {
     expect(await screen.findByRole("tooltip")).toHaveTextContent("Waiting on #12, #13");
   });
   it.each([
-    {
-      status: "in_progress",
-      action: "request-review",
-      label: "Request review",
-      field: "Evidence",
-      body: { evidence: "Verified test/output.txt" },
-      validActions: ["request-review"],
-    },
-    {
-      status: "review",
-      action: "review",
-      label: "Accept",
-      field: "Acceptance note",
-      body: { verdict: "accept", reason: "Verified test/output.txt" },
-      validActions: ["review"],
-    },
-    {
-      status: "review",
-      action: "review",
-      label: "Request changes",
-      field: "Reason",
-      body: { verdict: "changes", reason: "Verified test/output.txt" },
-      validActions: ["review"],
-    },
     {
       status: "accepted",
       action: "reopen",
@@ -247,7 +223,6 @@ describe("Task work board", () => {
       kind: "created",
       body: "First entry",
       evidence: "",
-      reviewer: null,
       createdAt: 1,
     } satisfies TaskDetailResponse["timeline"][number];
     api.on("GET", "/api/swarms/3/tasks/34", ({ query }) =>

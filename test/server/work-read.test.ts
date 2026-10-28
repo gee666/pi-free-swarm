@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { requestReview, reviewResult } from "./review-helpers.js";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
@@ -217,8 +218,8 @@ describe("dashboard", () => {
       await action(board, task.id, "claim");
       await action(board, task.id, "handoff", { to: "Maria" });
       await action(board, task.id, "start");
-      await action(board, task.id, "request-review", { evidence: "Tests pass" });
-      await action(board, task.id, "review", { verdict: "accept", reason: "Verified" });
+      requestReview(board, task.id, "Tests pass");
+      reviewResult(board, task.id, "accept", "Verified");
     }
     for (const item of listCriteria(board.temp.db, board.swarm.id)) {
       voteCriterion(board.temp.db, {

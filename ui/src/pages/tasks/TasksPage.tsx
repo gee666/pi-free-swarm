@@ -136,7 +136,7 @@ export function TasksPage() {
                         {task.waiting
                           ? `waits ${task.waitsOn.map((id) => `#${id}`).join(", ")}`
                           : task.status === "review"
-                            ? `in review${task.reviewer ? ` by ${task.reviewer}` : ""}`
+                            ? "in review"
                             : task.runnable
                               ? "runnable"
                               : task.status.replace("_", " ")}

@@ -102,7 +102,6 @@ export function taskEventOf(row: Row): TaskEvent {
     ]),
     body: text(row, "body"),
     evidence: text(row, "evidence"),
-    reviewer: textOrNull(row, "reviewer"),
     createdAt: int(row, "created_at"),
   };
 }

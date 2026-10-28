@@ -19,6 +19,7 @@ import { readReplacementHandoff } from "./replacement-handoff.js";
 import { DeliveryLoop } from "./delivery.js";
 import { RunResources } from "./run-resources.js";
 import { RunLifecycle } from "./run-lifecycle.js";
+import { resetOrphanedReviews } from "./task-review.js";
 import { assertBudgetPricing } from "./budget.js";
 import { RunBudget } from "./run-budget.js";
 import { IdleReminders } from "./idle-reminder.js";
@@ -214,6 +215,7 @@ export class SwarmRun {
     this.#resources.add("quiesce", removeWorkListener);
     registerRun(this, this.#env.runOwner);
     this.#releaseOwnership = registerActiveRun(this.#env.db, this.#swarm.id, this.#env.runnerPid);
+    resetOrphanedReviews(this.#env.db, this.#swarm.id, this.#env.clock.now());
     this.#resources.add("quiesce", () => {
       for (const timer of this.#timers) timer.cancel();
       this.#timers = [];

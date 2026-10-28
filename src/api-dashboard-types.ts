@@ -55,7 +55,6 @@ export interface DashboardResponse {
   };
   queue: {
     tasks: TaskRecord[];
-    reviews: TaskRecord[];
     criteria: { id: number; title: string; text: string; updatedAt: number }[];
   };
   runnable: { id: number; title: string; text: string; updatedAt: number }[];

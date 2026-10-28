@@ -2,7 +2,9 @@ import type { TestContext } from "node:test";
 import { createCriterion } from "../../src/broker/criteria.js";
 import { createTask } from "../../src/broker/tasks.js";
 import { claimTask } from "../../src/broker/task-ownership.js";
-import { requestTaskReview, reviewTask, startTask } from "../../src/broker/task-transitions.js";
+import { startTask } from "../../src/broker/task-transitions.js";
+import { beginTaskReview } from "../../src/broker/task-review.js";
+import { finishReview } from "./task-review.js";
 import { listCriteria } from "../../src/store/criteria.js";
 import { getTask, listTasks } from "../../src/store/tasks.js";
 import { voteCriterion } from "../../src/broker/votes.js";
@@ -31,12 +33,12 @@ export function workFixture(t: TestContext) {
       dependsOn,
       claim,
     });
-  const accept = (id: number, owner = "Ann", reviewer = "Ben") => {
+  const accept = (id: number, owner = "Ann") => {
     const current = getTask(temp.db, swarm.id, id);
     if (current?.status === "new") claimTask(temp.db, { ...input(owner), id });
     startTask(temp.db, { ...input(owner), id });
-    requestTaskReview(temp.db, { ...input(owner), id, evidence: "src/feature.ts; npm test passed" });
-    return reviewTask(temp.db, { ...input(reviewer), id, verdict: "accept", reason: "Verified tests and diff." });
+    beginTaskReview(temp.db, { ...input(owner), id, context: "src/feature.ts; npm test passed" });
+    return finishReview(temp.db, { ...input(owner), id, verdict: "accept", reason: "Verified tests and diff." });
   };
   const settle = () => {
     for (const criterion of listCriteria(temp.db, swarm.id)) {

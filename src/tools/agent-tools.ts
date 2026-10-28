@@ -9,6 +9,7 @@ import * as S from "./agent-schemas.js";
 import { registerTextTool, workInput, writeAgentTool, type AgentToolIdentity } from "./agent-tool-context.js";
 export type { AgentToolIdentity } from "./agent-tool-context.js";
 import { createWorkHandlers } from "./work-tool-handlers.js";
+import { createReviewTool } from "./review-tool.js";
 import { createSearchHandlers } from "./search-tool-handlers.js";
 import { createCommunicationHandlers } from "./communication-tool-handlers.js";
 
@@ -150,15 +151,10 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
   register(
     T.tasksTransition,
     S.tasksTransition,
-    "Start after dependencies are accepted; request_review needs evidence; reopen needs a reason.",
+    "Start after dependencies are accepted; reopen accepted work with a reason. Use swarm_review for review.",
     run.tasksTransition,
   );
-  register(
-    T.tasksReview,
-    S.tasksReview,
-    "Independently accept reviewed work or request changes with a reason. You cannot review your own task.",
-    run.tasksReview,
-  );
+  pi.registerTool(createReviewTool(identity));
   register(
     T.postsCreate,
     S.postsCreate,

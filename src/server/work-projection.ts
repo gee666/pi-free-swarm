@@ -131,16 +131,7 @@ function latestEvent(db: SwarmDb, taskId: number, kinds: readonly string[]) {
     .get(taskId, ...kinds);
   return row === undefined ? null : taskEventOf(row);
 }
-function reviewer(db: SwarmDb, taskId: number): string | null {
-  const row = db.sql
-    .prepare(
-      `SELECT reviewer FROM task_events
-    WHERE task_id = ? AND kind = 'review_requested' ORDER BY id DESC LIMIT 1`,
-    )
-    .get(taskId);
-  return typeof row?.reviewer === "string" ? row.reviewer : null;
-}
-function listTask(db: SwarmDb, detail: TaskDetail): TaskListItem {
+function listTask(detail: TaskDetail): TaskListItem {
   if (detail.waiting === undefined || detail.runnable === undefined || detail.deferred === undefined)
     throw new Error(`Missing derived state for task #${detail.id}.`);
   return {
@@ -158,7 +149,6 @@ function listTask(db: SwarmDb, detail: TaskDetail): TaskListItem {
     acceptedAt: detail.acceptedAt,
     acceptedBy: detail.acceptedBy,
     waitsOn: detail.dependencies.filter((task) => task.status !== "accepted").map((task) => task.id),
-    reviewer: detail.status === "review" ? reviewer(db, detail.id) : null,
     waiting: detail.waiting,
     runnable: detail.runnable,
     deferred: detail.deferred,
@@ -166,7 +156,7 @@ function listTask(db: SwarmDb, detail: TaskDetail): TaskListItem {
 }
 export function taskListItem(db: SwarmDb, swarmId: number, id: number): TaskListItem {
   return db.read(() => {
-    return listTask(db, getTaskDetail(db, swarmId, id));
+    return listTask(getTaskDetail(db, swarmId, id));
   });
 }
 function validActions(db: SwarmDb, task: TaskListItem): TaskUserAction[] {
@@ -174,12 +164,10 @@ function validActions(db: SwarmDb, task: TaskListItem): TaskUserAction[] {
   const activeOwner = task.owner === USER_NAME || agents.some((agent) => agent.name === task.owner);
   const actions: TaskUserAction[] = ["edit"];
   if (task.status === "new" || (task.owner !== null && !activeOwner)) actions.push("claim");
-  if (task.owner !== null) actions.push("release");
+  if (task.owner !== null && task.status !== "review") actions.push("release");
   if (task.owner !== null && task.status !== "review" && agents.some((agent) => agent.name !== task.owner))
     actions.push("handoff");
   if (task.status === "claimed" && !task.waiting) actions.push("start");
-  if (task.status === "in_progress") actions.push("request-review");
-  if (task.status === "review" && task.owner !== USER_NAME) actions.push("review");
   if (task.status === "accepted") actions.push("reopen");
   return actions;
 }
@@ -192,7 +180,7 @@ export function taskDetail(
 ): TaskDetailResponse {
   return db.read(() => {
     const detail = getTaskDetail(db, swarmId, id, after, limit);
-    const item = listTask(db, detail);
+    const item = listTask(detail);
     const evidence = latestEvent(db, id, ["review_requested"]);
     const verdict = latestEvent(db, id, ["review_accepted", "changes_requested"]);
     return {
@@ -205,7 +193,7 @@ export function taskDetail(
       dependents: detail.dependents,
       latestEvidence: detail.latestEvidence,
       evidence,
-      reviewerVerdict: evidence !== null && verdict !== null && verdict.id > evidence.id ? verdict : null,
+      reviewVerdict: evidence !== null && verdict !== null && verdict.id > evidence.id ? verdict : null,
       timeline: detail.timeline,
       nextAfter: detail.nextAfter,
       linkedPosts: linkedPosts(db, swarmId, detail.linkedPosts),

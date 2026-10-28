@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { requestReview, reviewResult } from "./review-helpers.js";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
@@ -105,17 +106,17 @@ describe("post links and search", () => {
       (await getJson<PostDetailResponse>(detailUrl)).body.links.find((link) => link.targetKind === "task")?.status;
     await action(board, dependency.id, "handoff", { to: "Maria" });
     await action(board, dependency.id, "start");
-    await action(board, dependency.id, "request-review", { evidence: "Dependency verified" });
-    await action(board, dependency.id, "review", { verdict: "accept", reason: "Passed" });
+    requestReview(board, dependency.id, "Dependency verified");
+    reviewResult(board, dependency.id, "accept", "Passed");
     assert.equal(await taskStatus(), "new");
     await action(board, task.id, "claim");
     assert.equal(await taskStatus(), "claimed");
     await action(board, task.id, "handoff", { to: "Maria" });
     await action(board, task.id, "start");
     assert.equal(await taskStatus(), "in_progress");
-    await action(board, task.id, "request-review", { evidence: "Work verified" });
+    requestReview(board, task.id, "Work verified");
     assert.equal(await taskStatus(), "review");
-    await action(board, task.id, "review", { verdict: "accept", reason: "Passed" });
+    reviewResult(board, task.id, "accept", "Passed");
     assert.equal(await taskStatus(), "accepted");
     voteCriterion(board.temp.db, {
       swarmId: board.swarm.id,

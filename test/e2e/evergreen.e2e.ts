@@ -87,8 +87,8 @@ it(
       [
         "Create result.txt containing exactly evergreen-one followed by a newline.",
         "Use swarm_posts_create to record short evidence pointing to result.txt, then read the file to verify it.",
-        "Complete the seeded planning tasks and linked implementation tasks through independent review, then vote on every criterion with swarm_criteria_vote. Have a second worker review and vote independently.",
-        "On resume, reopen the affected task, follow Main feedback, verify the changed file, request independent review and re-vote affected criteria.",
+        "Complete the seeded planning tasks and linked implementation tasks using swarm_review, then vote on every criterion with swarm_criteria_vote. Have a second worker vote independently.",
+        "On resume, reopen the affected task, follow Main feedback, verify the changed file, call swarm_review and re-vote affected criteria.",
       ].join("\n"),
     );
     let passed = false;
@@ -131,7 +131,7 @@ it(
         cwd,
         [
           `Call resume_swarm for swarm_id ${swarmId} with message: 'Replace result.txt with exactly evergreen-two followed by a newline.`,
-          "Read it back, request independent review, and cast fresh criterion votes. This replaces the original expected content.'",
+          "Read it back, call swarm_review, and cast fresh criterion votes. This replaces the original expected content.'",
           "Do not change the file yourself. After the tool returns, use read to inspect result.txt and summarize.",
         ].join(" "),
         path.join(cwd, "main-resumed.jsonl"),

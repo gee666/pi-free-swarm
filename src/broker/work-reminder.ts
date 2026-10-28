@@ -9,7 +9,6 @@ export function workReminder(db: SwarmDb, swarmId: number, actor: string, now: n
       .map((gate) => `${gate.key} (${gate.count}): ${gate.detail}`),
     "Own queue:",
     ...dashboard.queue.tasks.map((task) => `#${task.id} [${task.status}] ${task.title}`),
-    `Reviews: ${dashboard.queue.reviews.map((task) => `#${task.id}`).join(", ") || "none"}`,
     `Coverage votes needed: ${dashboard.queue.criteria.map((criterion) => `#${criterion.id}`).join(", ") || "none"}. Do the linked tasks, when done, fully satisfy this criterion? Vote covered, gap (name the missing part) or blocked (external limitation).`,
     "Runnable unclaimed:",
     ...dashboard.runnable.map((task) => `#${task.id} ${task.title}`),

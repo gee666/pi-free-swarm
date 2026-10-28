@@ -5,7 +5,9 @@ import { test } from "node:test";
 import { createTask, editTask } from "../../src/broker/tasks.js";
 import { archiveCriterion } from "../../src/broker/criteria.js";
 import { claimTask, handoffTask, releaseTask } from "../../src/broker/task-ownership.js";
-import { reopenTask, requestTaskReview, reviewTask, startTask } from "../../src/broker/task-transitions.js";
+import { reopenTask, startTask } from "../../src/broker/task-transitions.js";
+import { beginTaskReview } from "../../src/broker/task-review.js";
+import { finishReview } from "../helpers/task-review.js";
 import { getTaskDetail, searchTaskCandidates } from "../../src/broker/work-queries.js";
 import { getTask, taskTimeline } from "../../src/store/tasks.js";
 import { workFixture } from "../helpers/work-graph.js";
@@ -32,7 +34,7 @@ test("create requires nonarchived same-swarm criteria and contributions, ownersh
   assert.throws(() => f.task(), /archived/);
 });
 
-test("task lifecycle enforces owner, evidence, independent review and revision conflicts", (t) => {
+test("task lifecycle enforces ownership, review context and revision conflicts", (t) => {
   const f = workFixture(t);
   const task = f.task();
   assert.throws(() => startTask(f.db, { ...f.input(), id: task.id }), /owner|requires claimed/);
@@ -45,32 +47,21 @@ test("task lifecycle enforces owner, evidence, independent review and revision c
     /Reread/,
   );
   startTask(f.db, { ...f.input(), id: task.id });
-  assert.throws(() => requestTaskReview(f.db, { ...f.input(), id: task.id, evidence: " " }), /required/);
-  requestTaskReview(f.db, { ...f.input(), id: task.id, evidence: "npm test: passed" });
-  assert.throws(
-    () => reviewTask(f.db, { ...f.input(), id: task.id, verdict: "accept", reason: "Mine" }),
-    /must not be/,
-  );
+  assert.throws(() => beginTaskReview(f.db, { ...f.input(), id: task.id, context: " " }), /required/);
+  beginTaskReview(f.db, { ...f.input(), id: task.id, context: "npm test: passed" });
   assert.throws(() => handoffTask(f.db, { ...f.input(), id: task.id, to: "Ben" }), /review/);
-  assert.throws(
-    () => reviewTask(f.db, { ...f.input("Ben"), id: task.id, verdict: "changes", reason: " " }),
-    /required/,
-  );
-  const changes = reviewTask(f.db, {
+  const changes = finishReview(f.db, {
     ...f.input("Ben"),
     id: task.id,
     verdict: "changes",
     reason: "Add regression tests",
   });
   assert.equal(changes.status, "in_progress");
-  requestTaskReview(f.db, { ...f.input(), id: task.id, evidence: "Regression passes" });
-  const accepted = reviewTask(f.db, { ...f.input("User"), id: task.id, verdict: "accept", reason: "Checked" });
-  assert.equal(accepted.acceptedBy, "User");
+  beginTaskReview(f.db, { ...f.input(), id: task.id, context: "Regression passes" });
+  const accepted = finishReview(f.db, { ...f.input("User"), id: task.id, verdict: "accept", reason: "Checked" });
+  assert.equal(accepted.acceptedBy, "Ann review");
   assert.ok(accepted.acceptedAt);
-  assert.throws(
-    () => requestTaskReview(f.db, { ...f.input(), id: task.id, evidence: "again" }),
-    /requires in_progress/,
-  );
+  assert.throws(() => beginTaskReview(f.db, { ...f.input(), id: task.id, context: "again" }), /requires in_progress/);
   assert.throws(() => reopenTask(f.db, { ...f.input(), id: task.id, reason: "" }), /required/);
   const reopened = reopenTask(f.db, { ...f.input("Ben"), id: task.id, reason: "Regression found" });
   assert.equal(reopened.status, "in_progress");
@@ -112,7 +103,7 @@ test("dependency cycles, waiting and runnable are derived and start is gated", (
   f.accept(first.id);
   assert.equal(getTaskDetail(f.db, f.swarmId, second.id).waiting, false);
   assert.ok(taskTimeline(f.db, second.id).some((event) => event.kind === "dependencies_ready"));
-  f.accept(second.id, "Ben", "Ann");
+  f.accept(second.id, "Ben");
   reopenTask(f.db, { ...f.input(), id: first.id, reason: "A regression" });
   assert.ok(taskTimeline(f.db, second.id).some((event) => event.kind === "dependency_reopened"));
   assert.equal(getTaskDetail(f.db, f.swarmId, second.id).waiting, true);
@@ -130,7 +121,7 @@ test("offline owners permit takeover or handoff and reopen clears an offline own
   assert.throws(() => handoffTask(f.db, { ...f.input("Cam"), id: task.id, to: "Ann" }), /active agent/);
   releaseTask(f.db, { ...f.input("Cam"), id: task.id });
   assert.equal(getTask(f.db, f.swarmId, task.id)?.owner, null);
-  f.accept(task.id, "Ben", "Cam");
+  f.accept(task.id, "Ben");
   f.db.sql
     .prepare("UPDATE participants SET retired_at = ? WHERE swarm_id = ? AND name = 'Ben'")
     .run(f.input().now, f.swarmId);

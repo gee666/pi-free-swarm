@@ -60,6 +60,13 @@ export const RESUME_STAGGER_MS = 5_000;
 export const REVIVE_BACKOFF_MS: readonly number[] = [5_000, 30_000, 120_000];
 
 // ── Agent process watchdog (same defaults as the proven stall watchdog it copies) ──
+export const REVIEW_CONTEXT_MAX = 4_000;
+export const REVIEW_TIMEOUT_MS = 30 * 60_000;
+export const REVIEW_OUTPUT_MAX = 8_000;
+export const REVIEWS_DIR = "reviews";
+export const REVIEW_FINDINGS_FILE = "findings.md";
+export const REVIEW_SYSTEM_PROMPT =
+  "You review one task of a larger project. Read the task, its acceptance criteria and the supplied context. Inspect the code and run relevant tests. Do not modify files. Judge correctness, completeness against the criteria and code quality proportionally, without ceremony. End with a final line VERDICT: accept or VERDICT: changes followed by the concrete problems.";
 export const SIGKILL_TIMEOUT_MS = 5_000;
 export const RETRY_WAIT_GRACE_MS = 60_000;
 export const DEFAULT_STARTUP_TIMEOUT_MS = 120_000;
@@ -154,7 +161,7 @@ export const AGENT_TOOL = {
   tasksRelease: "swarm_tasks_release",
   tasksHandoff: "swarm_tasks_handoff",
   tasksTransition: "swarm_tasks_transition",
-  tasksReview: "swarm_tasks_review",
+  review: "swarm_review",
   postsSearch: "swarm_posts_search",
   postsGet: "swarm_posts_get",
   postsCreate: "swarm_posts_create",

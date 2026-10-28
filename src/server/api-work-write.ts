@@ -9,7 +9,7 @@ import { voteCriterion } from "../broker/votes.js";
 import { recordCriterionBlocker, decideCriterionBlocker } from "../broker/blockers.js";
 import { createTask, editTask } from "../broker/tasks.js";
 import { claimTask, releaseTask, handoffTask } from "../broker/task-ownership.js";
-import { startTask, requestTaskReview, reviewTask, reopenTask } from "../broker/task-transitions.js";
+import { startTask, reopenTask } from "../broker/task-transitions.js";
 import { USER_NAME } from "../constants.js";
 import {
   integerField,
@@ -60,13 +60,9 @@ function mutation(deps: ApiDeps, path: string, handle: (ctx: MutationContext) =>
 export function workWriteRoutes(deps: ApiDeps): ApiRoute[] {
   const { db } = deps;
   const route = (path: string, handle: (ctx: MutationContext) => Reply) => mutation(deps, path, handle);
-  const transition = ({ input, params, body }: MutationContext, action: "start" | "request_review" | "reopen") => {
+  const transition = ({ input, params, body }: MutationContext, action: "start" | "reopen") => {
     const taskInput = { ...input, id: params.id("taskId") };
     if (action === "start") return reply<TaskMutationResponse>(startTask(db, taskInput));
-    if (action === "request_review")
-      return reply<TaskMutationResponse>(
-        requestTaskReview(db, { ...taskInput, evidence: stringField(body, "evidence") }),
-      );
     return reply<TaskMutationResponse>(reopenTask(db, { ...taskInput, reason: stringField(body, "reason") }));
   };
   return [
@@ -143,17 +139,6 @@ export function workWriteRoutes(deps: ApiDeps): ApiRoute[] {
       reply<TaskMutationResponse>(handoffTask(db, { ...input, id: params.id("taskId"), to: stringField(body, "to") })),
     ),
     route("tasks/:taskId/start", (ctx) => transition(ctx, "start")),
-    route("tasks/:taskId/request-review", (ctx) => transition(ctx, "request_review")),
-    route("tasks/:taskId/review", ({ input, params, body }) =>
-      reply<TaskMutationResponse>(
-        reviewTask(db, {
-          ...input,
-          id: params.id("taskId"),
-          verdict: choice(body.verdict, ["accept", "changes"], "verdict"),
-          reason: stringField(body, "reason"),
-        }),
-      ),
-    ),
     route("tasks/:taskId/reopen", (ctx) => transition(ctx, "reopen")),
   ];
 }

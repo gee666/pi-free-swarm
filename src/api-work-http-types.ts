@@ -82,14 +82,12 @@ export interface CriterionDetailResponse extends CriterionListItem {
 }
 export interface TaskListItem extends TaskRecord {
   waitsOn: number[];
-  reviewer: string | null;
   waiting: boolean;
   runnable: boolean;
   deferred: boolean;
 }
 export type TasksResponse = SearchPage<TaskListItem>;
-export type TaskUserAction =
-  "edit" | "claim" | "release" | "handoff" | "start" | "request-review" | "review" | "reopen";
+export type TaskUserAction = "edit" | "claim" | "release" | "handoff" | "start" | "reopen";
 export interface TaskCriterionView extends CriterionLink {
   title: string;
   status: CriterionStatus;
@@ -104,7 +102,7 @@ export interface TaskDetailResponse extends TaskListItem {
   dependents: TaskRecord[];
   latestEvidence: string | null;
   evidence: TaskEvent | null;
-  reviewerVerdict: TaskEvent | null;
+  reviewVerdict: TaskEvent | null;
   timeline: TaskEvent[];
   nextAfter: number | null;
   linkedPosts: PostSummary[];
@@ -177,13 +175,6 @@ export interface EditTaskRequest {
 }
 export interface HandoffTaskRequest extends RevisionRequest {
   to: string;
-}
-export interface RequestTaskReviewRequest extends RevisionRequest {
-  evidence: string;
-}
-export interface ReviewTaskRequest extends RevisionRequest {
-  verdict: "accept" | "changes";
-  reason: string;
 }
 export interface ReopenTaskRequest extends RevisionRequest {
   reason: string;

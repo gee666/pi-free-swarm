@@ -24,7 +24,7 @@ export function TaskHeader({
   onChanged: () => void;
   onEdit: () => void;
 }) {
-  const [form, setForm] = useState<"request-review" | "accept" | "changes" | "reopen">();
+  const [form, setForm] = useState<"reopen">();
   const [text, setText] = useState("");
   const [handoff, setHandoff] = useState(false);
   const navigate = useNavigate();
@@ -57,23 +57,10 @@ export function TaskHeader({
                 </Button>
               </Tooltip>
             )}
-            {allowed("request-review") && (
-              <Button variant="primary" onClick={() => setForm("request-review")}>
-                Request review
-              </Button>
-            )}
             {allowed("release") && (
               <Button disabled={mutation.busy} onClick={() => act("release")}>
                 Release
               </Button>
-            )}
-            {allowed("review") && (
-              <>
-                <Button variant="primary" disabled={mutation.busy} onClick={() => setForm("accept")}>
-                  Accept
-                </Button>
-                <Button onClick={() => setForm("changes")}>Request changes</Button>
-              </>
             )}
             {allowed("reopen") && <Button onClick={() => setForm("reopen")}>Reopen</Button>}
             <FilterMenu
@@ -110,27 +97,13 @@ export function TaskHeader({
           onSubmit={(event) => {
             event.preventDefault();
             if (!text.trim()) return;
-            if (form === "request-review") act(form, { evidence: text });
-            else if (form === "changes" || form === "accept") act("review", { verdict: form, reason: text });
-            else act(form, { reason: text });
+            act(form, { reason: text });
           }}
         >
-          <LongField
-            label={form === "request-review" ? "Evidence" : form === "accept" ? "Acceptance note" : "Reason"}
-            placeholder={form === "accept" ? "What you checked" : undefined}
-            required
-            value={text}
-            onChange={setText}
-          />
+          <LongField label="Reason" required value={text} onChange={setText} />
           <div className={styles.actions}>
             <Button type="submit" variant="primary" disabled={mutation.busy || !text.trim()}>
-              {form === "request-review"
-                ? "Request review"
-                : form === "accept"
-                  ? "Accept"
-                  : form === "changes"
-                    ? "Request changes"
-                    : "Reopen"}
+              Reopen
             </Button>
             <Button onClick={() => setForm(undefined)}>Cancel</Button>
           </div>

@@ -1,10 +1,19 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { ATTACHMENTS_DIR, USER_NAME, MAIN_NAME } from "../constants.js";
 import { USER_BODY_PREVIEW_CHARS, charCount } from "../limits.js";
 import type { SwarmDb } from "../store/db.js";
 import { workText } from "./work-validation.js";
+
+export function fullWorkText(db: SwarmDb, value: string): string {
+  const reference = / … \[full text: ([^\n]+)\]$/.exec(value)?.[1];
+  if (!reference) return value;
+  const absolute = path.resolve(db.dataDir, "../..", reference);
+  const relative = path.relative(path.join(db.dataDir, ATTACHMENTS_DIR), absolute);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) return value;
+  return readFileSync(absolute, "utf8");
+}
 
 export function storedWorkText(
   db: SwarmDb,

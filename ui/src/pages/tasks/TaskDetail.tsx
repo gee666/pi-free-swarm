@@ -179,13 +179,13 @@ export function TaskDetail({ swarmId, id, onChanged }: { swarmId: string; id: nu
           ) : (
             <p className={styles.muted}>No evidence yet</p>
           )}
-          {detail.reviewerVerdict && (
+          {detail.reviewVerdict && (
             <div className={styles.entry}>
               <p className={styles.muted}>
-                {detail.reviewerVerdict.actor} · {detail.reviewerVerdict.kind.replaceAll("_", " ")} ·{" "}
-                {relativeTime(detail.reviewerVerdict.createdAt)}
+                {detail.reviewVerdict.actor} · {detail.reviewVerdict.kind.replaceAll("_", " ")} ·{" "}
+                {relativeTime(detail.reviewVerdict.createdAt)}
               </p>
-              <RichText text={detail.reviewerVerdict.body} />
+              <RichText text={detail.reviewVerdict.body} />
             </div>
           )}
         </Section>

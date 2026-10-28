@@ -1,8 +1,8 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { ReviewTaskRequest, TaskEvent } from "../../../../src/api-types";
-import { installFakeApi, jsonResponse, type FakeApi } from "../../test/fakeApi";
+import type { TaskEvent } from "../../../../src/api-types";
+import { installFakeApi, type FakeApi } from "../../test/fakeApi";
 import { installFakeEventSource, type FakeEventSource } from "../../test/fakeEventSource";
 import { agent, eventBase } from "../agents/testFixtures";
 import { page, renderWork, task, workApi } from "../work-items/testFixtures";
@@ -21,41 +21,12 @@ afterEach(() => {
 });
 const open = (path = "/s/3/tasks/34") => renderWork(path, "/s/:id/tasks/:taskId?", <TasksPage />, source);
 
-it("requires a non-empty acceptance note and sends the review payload contract", async () => {
-  api.on("GET", "/api/swarms/3/tasks/34", () => task({ status: "review", validActions: ["review"] }));
-  api.on("POST", "/api/swarms/3/tasks/34/review", ({ body }) => {
-    if (
-      typeof body !== "object" ||
-      body === null ||
-      !("reason" in body) ||
-      typeof body.reason !== "string" ||
-      !body.reason.trim()
-    ) {
-      return jsonResponse(400, { error: "validation", message: "reason must not be empty" });
-    }
-    return task({ status: "accepted" });
-  });
+it("does not expose peer-review actions while a review subagent runs", async () => {
+  api.on("GET", "/api/swarms/3/tasks/34", () => task({ status: "review", validActions: ["edit"] }));
   open();
-  await userEvent.click(await screen.findByRole("button", { name: "Accept" }));
-  const note = screen.getByRole("textbox", { name: "Acceptance note" });
-  expect(note).toBeRequired();
-  expect(note).toHaveAttribute("placeholder", "What you checked");
-  const submit = within(note.closest("form") ?? note).getByRole("button", { name: "Accept" });
-  expect(submit).toBeDisabled();
-  await userEvent.type(note, "   ");
-  expect(submit).toBeDisabled();
-  expect(api.callsTo("POST", "/api/swarms/3/tasks/34/review")).toHaveLength(0);
-  await userEvent.clear(note);
-  await userEvent.type(note, "Checked the diff and test results");
-  await userEvent.click(submit);
-  await waitFor(() =>
-    expect(api.callsTo("POST", "/api/swarms/3/tasks/34/review")[0]?.body).toEqual({
-      expectedRevision: 6,
-      verdict: "accept",
-      reason: "Checked the diff and test results",
-    } satisfies ReviewTaskRequest),
-  );
-  await waitFor(() => expect(screen.queryByRole("textbox", { name: "Acceptance note" })).not.toBeInTheDocument());
+  await screen.findByRole("heading", { name: "Add ranking index" });
+  for (const name of ["Accept", "Request changes", "Request review"])
+    expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
 });
 
 it("shows the contribution counter and long-text notice without truncating the input", async () => {
@@ -89,14 +60,13 @@ it.each(["", '{"reviewer":"Jonah"}'])(
       kind: "review_requested",
       body,
       evidence: "Checked the tests",
-      reviewer: "Jonah",
       createdAt: 1,
     };
     api.on("GET", "/api/swarms/3/tasks/34", () => task({ timeline: [event] }));
     open();
     const timeline = await screen.findByRole("list", { name: "Task timeline" });
     const row = await within(timeline).findByRole("listitem");
-    expect(row).toHaveTextContent("Ada requested review from Jonah");
+    expect(row).toHaveTextContent("Ada started a review subagent");
     expect(within(row).getByText("Checked the tests")).toBeInTheDocument();
     expect(row).not.toHaveTextContent("review_requested");
     expect(row).not.toHaveTextContent('{"reviewer"');

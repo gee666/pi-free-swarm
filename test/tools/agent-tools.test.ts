@@ -28,6 +28,12 @@ test("worker tool names exactly match v2; watcher receives only read tools", (t)
   assert.ok(Value.Check(pi.tool(AGENT_TOOL.messagesSend).parameters, { to: "Ben", body: "Hi" }));
   assert.equal(Value.Check(pi.tool(AGENT_TOOL.messagesSend).parameters, { to: ["Ben"], body: "Hi" }), false);
   assert.equal(Value.Check(pi.tool(AGENT_TOOL.tasksCreate).parameters, { title: "X", body: "Y", criteria: [] }), false);
+  assert.ok(
+    Value.Check(pi.tool(AGENT_TOOL.review).parameters, { task_id: 1, context: "x".repeat(4000), resume: true }),
+  );
+  assert.equal(Value.Check(pi.tool(AGENT_TOOL.review).parameters, { task_id: 1, context: "x".repeat(4001) }), false);
+  assert.equal(Value.Check(pi.tool(AGENT_TOOL.tasksTransition).parameters, { id: 1, action: "request_review" }), false);
+  assert.ok(!pi.toolNames().includes("swarm_tasks_review"));
 });
 
 test("task and criterion handlers adapt snake_case, preserve identity and return revisions", (t) => {
@@ -54,10 +60,7 @@ test("task and criterion handlers adapt snake_case, preserve identity and return
   assert.equal(detail.owner, "Ann");
   assert.equal(detail.criteria[0]?.criterionId, f.criterion.id);
   run.tasksTransition({ id, action: "start" });
-  assert.throws(() => run.tasksTransition({ id, action: "request_review" }), /evidence is required/);
-  run.tasksTransition({ id, action: "request_review", evidence: "src/a.ts; tests passed" });
-  assert.throws(() => run.tasksReview({ id, verdict: "accept", reason: "Good" }), /owner|own task/);
-  assert.match(handlers(f, "Ben").tasksReview({ id, verdict: "accept", reason: "Independent check" }), /accepted/);
+  assert.throws(() => run.tasksTransition({ id, action: "reopen" }), /reason is required/);
   assert.throws(() => run.tasksEdit({ id, expected_revision: 1, body: "Changed" }), /Reread/);
   const criterion = getCriterionDetail(f.db, f.swarmId, f.criterion.id);
   run.criteriaEdit({ id: criterion.id, expected_revision: criterion.revision, verification: "npm test" });

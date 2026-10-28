@@ -29,11 +29,10 @@ export function commitTask(
   kind: TaskEventKind,
   body = "",
   evidence = "",
-  reviewer: string | null = null,
 ): TaskRecord {
   const updated = { ...task, revision: task.revision + 1, updatedAt: input.now };
   saveTask(db, updated);
-  addTaskEvent(db, updated, actor, kind, input.now, body, evidence, reviewer);
+  addTaskEvent(db, updated, actor, kind, input.now, body, evidence);
   insertEvent(db, input.swarmId, "task.changed", { id: task.id }, input.now);
   return updated;
 }

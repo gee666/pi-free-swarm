@@ -4,7 +4,8 @@ import path from "node:path";
 import { test } from "node:test";
 import type { TaskDetailResponse, TasksResponse } from "../../src/api-types.js";
 import { createAgentToolHandlers } from "../../src/tools/agent-tools.js";
-import { requestTaskReview, startTask } from "../../src/broker/task-transitions.js";
+import { startTask } from "../../src/broker/task-transitions.js";
+import { beginTaskReview } from "../../src/broker/task-review.js";
 import { getJson } from "./helpers.js";
 import { action, createHttpCriterion, createHttpTask, workBoard } from "./work-helpers.js";
 
@@ -31,7 +32,7 @@ test("invalid optional search configuration degrades at real worker tool and HTT
   }
 });
 
-test("User contributions use attachments and task detail exposes shared handoff targets and timeline reviewers", async (t) => {
+test("User contributions use attachments and task detail exposes shared handoff targets and subagent review context", async (t) => {
   const board = await workBoard();
   t.after(() => board.close());
   const criterion = await createHttpCriterion(board);
@@ -62,17 +63,17 @@ test("User contributions use attachments and task detail exposes shared handoff 
   await action(board, task.id, "handoff", { to: "Maria" });
   const input = { swarmId: board.swarm.id, actor: "Maria", now: Date.now(), id: task.id };
   startTask(board.temp.db, input);
-  requestTaskReview(board.temp.db, { ...input, evidence: "Tests passed" });
+  beginTaskReview(board.temp.db, { ...input, context: "Tests passed" });
   const review = await getJson<TaskDetailResponse>(board.url(`/tasks/${task.id}`));
   assert.deepEqual(review.body.handoffTargets, ["Liam"]);
   assert.equal(review.body.evidence?.body, "");
-  assert.equal(review.body.evidence?.reviewer, "Liam");
-  assert.equal(review.body.timeline.find((event) => event.kind === "review_requested")?.reviewer, "Liam");
+  assert.equal(review.body.evidence?.evidence, "Tests passed");
+  assert.ok(!("reviewer" in review.body));
   const tools = createAgentToolHandlers({
     getDb: () => board.temp.db,
     swarmId: board.swarm.id,
     run: 1,
     agentName: "Maria",
   });
-  assert.match(tools.tasksGet({ id: task.id }), /reviewer/);
+  assert.match(tools.tasksGet({ id: task.id }), /review_requested/);
 });

@@ -1,6 +1,8 @@
 import { createTask } from "../../src/broker/tasks.js";
 import { claimTask } from "../../src/broker/task-ownership.js";
-import { requestTaskReview, reviewTask, startTask } from "../../src/broker/task-transitions.js";
+import { startTask } from "../../src/broker/task-transitions.js";
+import { beginTaskReview } from "../../src/broker/task-review.js";
+import { finishReview } from "./task-review.js";
 import { voteCriterion } from "../../src/broker/votes.js";
 import { listCriteria, criterionTasks } from "../../src/store/criteria.js";
 import { listTasks } from "../../src/store/tasks.js";
@@ -29,10 +31,9 @@ export function finishWork(db: SwarmDb, swarmId: number): void {
       if (task.status === "new") claimTask(db, { ...input(actor), id: task.id });
       if (["new", "claimed"].includes(task.status)) startTask(db, { ...input(actor), id: task.id });
       if (task.status !== "review")
-        requestTaskReview(db, { ...input(actor), id: task.id, evidence: "Fixture checks passed" });
-      const reviewer = actor === "User" ? owner : "User";
-      reviewTask(db, {
-        ...input(reviewer),
+        beginTaskReview(db, { ...input(actor), id: task.id, context: "Fixture checks passed" });
+      finishReview(db, {
+        ...input(actor),
         id: task.id,
         verdict: "accept",
         reason: "Independent fixture verification",

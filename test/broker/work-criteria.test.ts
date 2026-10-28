@@ -80,7 +80,7 @@ test("satisfaction needs every owner and independent current votes, with any cur
   });
   assert.equal(assessCriterion(f.db, f.swarmId, f.criterion.id).status, "incomplete");
   f.accept(first.id);
-  f.accept(second.id, "Ben", "Ann");
+  f.accept(second.id, "Ben");
   const vote = (actor: string, verdict: "covered" | "gap" = "covered") =>
     voteCriterion(f.db, { ...f.input(actor), criterionId: f.criterion.id, verdict, reason: "Checked" });
   vote("Ann");

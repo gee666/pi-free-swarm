@@ -3,7 +3,7 @@ import * as S from "./agent-schemas.js";
 import { cursorAfter, nextCursor, workInput, type AgentToolIdentity } from "./agent-tool-context.js";
 import { createTask, editTask } from "../broker/tasks.js";
 import { claimTask, releaseTask, handoffTask } from "../broker/task-ownership.js";
-import { startTask, requestTaskReview, reopenTask, reviewTask } from "../broker/task-transitions.js";
+import { startTask, reopenTask } from "../broker/task-transitions.js";
 import { createCriterion, editCriterion, archiveCriterion } from "../broker/criteria.js";
 import { recordCriterionBlocker } from "../broker/blockers.js";
 import { voteCriterion } from "../broker/votes.js";
@@ -28,9 +28,8 @@ export function projectText(identity: AgentToolIdentity): string {
     ...completion.gates.map((gate) => `${gate.ok ? "OK" : "UNMET"} ${gate.key} (${gate.count}): ${gate.detail}`),
     "Own tasks:",
     ...queue.tasks.map(taskLine),
-    `Reviews: ${queue.reviews.map((task) => `#${task.id} ${task.title}`).join("; ") || "none"}`,
     `Votes needed: ${queue.criteria.map((criterion) => `#${criterion.id} ${criterion.title}`).join("; ") || "none"}`,
-    "Tools: swarm_intent_update registers the intent file. swarm_criteria_search/get/create/edit/archive/block/vote define and assess scope; swarm_criteria_vote_context shows your voting duty. swarm_tasks_search/get/create/edit/claim/release/handoff/transition/review manage work and independent review. swarm_posts_search/get/create/comment/unsubscribe/link/unlink share discussion. swarm_messages_send/read continue one conversation per peer. swarm_skills_search/get find reusable automation. swarm_snooze pauses reminders; swarm_retire saves a handoff.",
+    "Tools: swarm_intent_update registers the intent file. swarm_criteria_search/get/create/edit/archive/block/vote define and assess scope; swarm_criteria_vote_context shows your voting duty. swarm_tasks_search/get/create/edit/claim/release/handoff/transition manage work; swarm_review runs a review subagent for your task. swarm_posts_search/get/create/comment/unsubscribe/link/unlink share discussion. swarm_messages_send/read continue one conversation per peer. swarm_skills_search/get find reusable automation. swarm_snooze pauses reminders; swarm_retire saves a handoff.",
   ].join("\n");
 }
 export function createWorkHandlers(identity: AgentToolIdentity) {
@@ -150,20 +149,10 @@ export function createWorkHandlers(identity: AgentToolIdentity) {
     tasksClaim: ({ id }: Static<typeof S.byId>) => taskResult(claimTask(db(), { ...input(), id }), true),
     tasksRelease: ({ id }: Static<typeof S.byId>) => taskResult(releaseTask(db(), { ...input(), id })),
     tasksHandoff: (params: Static<typeof S.tasksHandoff>) => taskResult(handoffTask(db(), { ...params, ...input() })),
-    tasksTransition({ id, action, evidence, reason }: Static<typeof S.tasksTransition>) {
+    tasksTransition({ id, action, reason }: Static<typeof S.tasksTransition>) {
       if (action === "start") return taskResult(startTask(db(), { ...input(), id }));
-      const value = action === "request_review" ? evidence : reason;
-      if (!value)
-        throw new BrokerError(
-          "validation",
-          `${action === "request_review" ? "evidence" : "reason"} is required for ${action}.`,
-        );
-      return taskResult(
-        action === "request_review"
-          ? requestTaskReview(db(), { ...input(), id, evidence: value })
-          : reopenTask(db(), { ...input(), id, reason: value }),
-      );
+      if (!reason) throw new BrokerError("validation", "reason is required for reopen.");
+      return taskResult(reopenTask(db(), { ...input(), id, reason }));
     },
-    tasksReview: (params: Static<typeof S.tasksReview>) => taskResult(reviewTask(db(), { ...params, ...input() })),
   };
 }

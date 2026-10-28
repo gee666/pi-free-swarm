@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { requestReview, reviewResult } from "./review-helpers.js";
 import { afterEach, beforeEach, it } from "node:test";
 import type { CriteriaGroupsResponse, DashboardResponse } from "../../src/api-types.js";
 import { voteCriterion } from "../../src/broker/votes.js";
@@ -21,8 +22,8 @@ it("shares dashboard group coverage and counts every derived status with optiona
   const accepted = await createHttpTask(board, satisfied.id, { claim: true });
   await action(board, accepted.id, "handoff", { to: "Maria" });
   await action(board, accepted.id, "start");
-  await action(board, accepted.id, "request-review", { evidence: "Tests pass" });
-  await action(board, accepted.id, "review", { verdict: "accept", reason: "Verified" });
+  requestReview(board, accepted.id, "Tests pass");
+  reviewResult(board, accepted.id, "accept", "Verified");
   voteCriterion(board.temp.db, {
     swarmId: board.swarm.id,
     actor: "Maria",

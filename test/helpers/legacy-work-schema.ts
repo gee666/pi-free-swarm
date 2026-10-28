@@ -7,6 +7,7 @@ export function removeWorkSchema(db: SwarmDb): void {
     for (const table of [
       "post_links",
       "task_events",
+      "task_reviews",
       "task_dependencies",
       "task_criteria",
       "criterion_events",

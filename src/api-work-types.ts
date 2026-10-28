@@ -84,7 +84,6 @@ export interface TaskEvent {
   kind: TaskEventKind;
   body: string;
   evidence: string;
-  reviewer: string | null;
   createdAt: number;
 }
 export interface ProjectRecord {

@@ -98,14 +98,8 @@ export const tasksEdit = object({
 export const tasksHandoff = object({ id, to: text });
 export const tasksTransition = object({
   id,
-  action: Type.Union([Type.Literal("start"), Type.Literal("request_review"), Type.Literal("reopen")]),
-  evidence: Type.Optional(text),
+  action: Type.Union([Type.Literal("start"), Type.Literal("reopen")]),
   reason: Type.Optional(text),
-});
-export const tasksReview = object({
-  id,
-  verdict: Type.Union([Type.Literal("accept"), Type.Literal("changes")]),
-  reason: text,
 });
 export const postsSearch = object({
   ...searchPage,

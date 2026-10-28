@@ -1,11 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { DeliveryOutcome, PromptPayload } from "../../src/agents/supervisor.js";
-import { workReminder } from "../../src/broker/work-reminder.js";
 import { markRead } from "../../src/broker/delivery-state.js";
 import { IdleReminders } from "../../src/broker/idle-reminder.js";
 import { snoozeReminders } from "../../src/broker/reminder-snooze.js";
-import { requestTaskReview, startTask } from "../../src/broker/task-transitions.js";
 import { workFixture } from "../helpers/work-graph.js";
 import { FakeClock } from "../agents/fake-clock.js";
 import { T0 } from "../helpers/temp-db.js";
@@ -32,7 +30,7 @@ function reminders(f: ReturnType<typeof workFixture>) {
   return { clock, prompts, idle };
 }
 
-test("reminders contain unmet gates, own queue, reviews, votes, five runnable tasks and unlinked count", async (t) => {
+test("reminders contain unmet gates, own queue, votes, five runnable tasks and unlinked count", async (t) => {
   const f = workFixture(t);
   const owned = f.task(f.criterion.id, [], true);
   for (let i = 0; i < 8; i++) f.task();
@@ -50,7 +48,7 @@ test("reminders contain unmet gates, own queue, reviews, votes, five runnable ta
   const text = prompts[0]?.text ?? "";
   assert.match(text, /linked \(1\)|tasks \(/);
   assert.match(text, new RegExp(`#${owned.id} \\[claimed\\]`));
-  assert.match(text, /Reviews:|Votes needed:|Unlinked criteria: 1/);
+  assert.match(text, /Votes needed:|Unlinked criteria: 1/);
   const runnable = text.split("Runnable unclaimed:\n")[1]?.split("\nUnlinked")[0] ?? "";
   assert.equal(runnable.split("\n").length, 5);
   assert.doesNotMatch(text, /quorum|swarm_acceptance|\[swarm post/);
@@ -67,14 +65,6 @@ test("completion cancels reminders, including already scheduled ones", async (t)
   await Promise.resolve();
   assert.equal(prompts.length, 0);
   assert.equal(idle.update(), false);
-});
-
-test("review assignments and voting duty are reported to the chosen agent", (t) => {
-  const f = workFixture(t);
-  const task = f.task(f.criterion.id, [], true);
-  startTask(f.db, { ...f.input(), id: task.id });
-  requestTaskReview(f.db, { ...f.input(), id: task.id, evidence: "Tests pass" });
-  assert.match(workReminder(f.db, f.swarmId, "Ben", T0 + 100), new RegExp(`Reviews: #${task.id}`));
 });
 
 test("snooze postpones reminders without changing run gates", async (t) => {

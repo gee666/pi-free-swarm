@@ -2,12 +2,11 @@
 import type { AgentCrash, SupervisorHooks } from "../agents/supervisor.js";
 import type { Clock } from "../clock.js";
 import type { SwarmDb } from "../store/db.js";
-import { checkUsageAccounting } from "../store/budget.js";
-import { recordUsage, setAgentActivity, setAgentStatus } from "./agent-state.js";
+import { setAgentActivity, setAgentStatus } from "./agent-state.js";
 import { markRead } from "./delivery-state.js";
 import { guardRunAction } from "./run-failure.js";
 import { readRunOwnership } from "./run-ownership.js";
-import { qualifyUsagePricing } from "./usage-pricing.js";
+import { recordAgentUsage } from "./usage-recording.js";
 
 export interface AgentHooksContext {
   db: SwarmDb;
@@ -51,12 +50,7 @@ export function createAgentHooks(ctx: AgentHooksContext): SupervisorHooks {
     onUsage: (sample) =>
       // Closing children can still report attributable usage; other callbacks remain fenced.
       write(() => {
-        const captured = qualifyUsagePricing(sample, ctx.modelPricingKnown);
-        const issue = db.write(() => {
-          recordUsage(db, swarmId, name, captured, clock.now(), ctx.run);
-          return checkUsageAccounting(db, swarmId, name, captured, clock.now(), ctx.run);
-        });
-        if (issue) throw issue;
+        recordAgentUsage(db, swarmId, name, sample, clock.now(), ctx.run, ctx.modelPricingKnown);
       }, true),
     onCrash: (crash) => write(() => ctx.onCrash(crash)),
   };

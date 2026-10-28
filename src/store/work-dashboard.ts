@@ -1,7 +1,7 @@
 import type { SwarmDb } from "./db.js";
 import type { WorkActivityRow } from "../api-types.js";
 import { int, intOrNull, text } from "./rows.js";
-import { taskOf, enumText } from "./work-rows.js";
+import { enumText } from "./work-rows.js";
 import {
   WORK_VELOCITY_SHORT_MS,
   WORK_VELOCITY_LONG_MS,
@@ -9,16 +9,6 @@ import {
   WORK_ETA_MIN_ACCEPTED,
 } from "../constants.js";
 
-export function assignedReviews(db: SwarmDb, swarmId: number, actor: string) {
-  return db.sql
-    .prepare(
-      `SELECT t.* FROM tasks t WHERE t.swarm_id = ? AND t.status = 'review'
-    AND (SELECT e.reviewer FROM task_events e
-      WHERE e.task_id = t.id AND e.kind = 'review_requested' ORDER BY e.id DESC LIMIT 1) = ? ORDER BY t.id`,
-    )
-    .all(swarmId, actor)
-    .map(taskOf);
-}
 export function workVelocity(db: SwarmDb, swarmId: number, now: number, remaining: number) {
   const row = db.sql
     .prepare(

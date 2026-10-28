@@ -88,6 +88,7 @@ const MIGRATIONS: readonly { version: number; file: string }[] = [
   { version: 17, file: "017-post-contracts.sql" },
   { version: 18, file: "018-work-graph.sql" },
   { version: 19, file: "019-search-skills.sql" },
+  { version: 20, file: "020-review-subagent.sql" },
 ];
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 

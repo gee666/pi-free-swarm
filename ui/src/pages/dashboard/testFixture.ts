@@ -53,7 +53,7 @@ export function dashboardFixture(): DashboardResponse {
         createdAt: Date.now() - 120000,
       },
     ],
-    queue: { tasks: [], reviews: [], criteria: [] },
+    queue: { tasks: [], criteria: [] },
     runnable: [],
   };
 }

@@ -1,4 +1,3 @@
-// Fake Pi RPC peer. Scenarios drive turns; test barriers expose races without model calls.
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
@@ -88,7 +87,6 @@ const scenario = loadScenario();
 const sessionFile = argValue("--session");
 log({ fake: "spawn", argv: process.argv.slice(2), pid: process.pid });
 
-// ── Session file ─────────────────────────────────────────────────────────────
 let lastEntryId: string | null = null;
 if (sessionFile && fs.existsSync(sessionFile)) {
   const lastLine = fs.readFileSync(sessionFile, "utf8").trim().split("\n").pop();
@@ -118,7 +116,6 @@ function usageRecord(usage: FakeUsage = {}): Json {
   return { input, output, cacheRead, cacheWrite, totalTokens, cost: { total: usage.cost ?? 0.001 } };
 }
 
-// ── Messages ─────────────────────────────────────────────────────────────────
 function userMessage(text: string): void {
   const message = { role: "user", content: [{ type: "text", text }], timestamp: Date.now() };
   emit({ type: "message_start", message });
@@ -142,7 +139,6 @@ function assistantMessage(content: Json[], usage: FakeUsage | undefined, stopRea
   persist({ type: "message", message });
 }
 
-// ── Run state ────────────────────────────────────────────────────────────────
 const steering: string[] = [];
 let running = false;
 let runCount = 0;
@@ -270,7 +266,6 @@ async function run(text: string): Promise<void> {
   else emit({ type: "agent_settled" });
 }
 
-// ── Commands ─────────────────────────────────────────────────────────────────
 function respond(command: Json, extra: Json = { success: true }): void {
   emit({ type: "response", id: command.id, command: command.type, ...extra });
 }
@@ -309,6 +304,12 @@ function handleCommand(command: Json): void {
   else respond(command, { success: false, error: `Unknown command: ${String(command.type)}` });
 }
 
+if (argValue("--mode") === "json") {
+  const { runPrintReview }: typeof import("./fake-pi/reviewer.js") = await import(
+    new URL("./fake-pi/reviewer.ts", import.meta.url).href
+  );
+  await runPrintReview(run, log);
+}
 const queued: Json[] = [];
 let started = false;
 

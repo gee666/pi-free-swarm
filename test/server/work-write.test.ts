@@ -10,6 +10,7 @@ import type {
   TaskRecord,
 } from "../../src/api-types.js";
 import { voteCriterion } from "../../src/broker/votes.js";
+import { requestReview, reviewResult } from "./review-helpers.js";
 import { seedSwarm } from "../helpers/temp-db.js";
 import { postJson, getJson } from "./helpers.js";
 import { action, createHttpCriterion, createHttpTask, workBoard, type WorkBoard } from "./work-helpers.js";
@@ -75,8 +76,8 @@ describe("criteria writes", () => {
     const detail = async () => (await getJson<CriterionDetailResponse>(board.url(path))).body;
     assert.equal((await detail()).status, "incomplete");
     await action(board, task.id, "start");
-    await action(board, task.id, "request-review", { evidence: "Tests passed" });
-    await action(board, task.id, "review", { verdict: "accept", reason: "Verified" });
+    requestReview(board, task.id, "Tests passed");
+    reviewResult(board, task.id, "accept", "Verified");
     assert.equal((await detail()).status, "satisfied");
     await action(board, task.id, "reopen", { reason: "Regression" });
     const reopened = await detail();
@@ -178,11 +179,8 @@ describe("criteria writes", () => {
     assert.equal(blocker.status, 200);
     for (const field of [blocker.body.reason, blocker.body.missing, blocker.body.attempted, blocker.body.unblock])
       assert.match(field, /full text:/);
-    await action(board, task.id, "start");
-    const review = await action(board, task.id, "request-review", { evidence: long });
-    assert.equal(review.status, "review");
     const detail = await getJson<TaskDetailResponse>(board.url(`/tasks/${task.id}`));
-    assert.match(detail.body.latestEvidence ?? "", /full text:/);
+    assert.match(detail.body.body, /full text:/);
   });
 });
 
@@ -207,23 +205,23 @@ describe("task writes", () => {
     await action(board, task.id, "claim");
     await action(board, task.id, "handoff", { to: "Maria" });
     await action(board, task.id, "start");
-    const requested = await action(board, task.id, "request-review", { evidence: "test/server passes" });
+    const requested = requestReview(board, task.id, "test/server passes");
     assert.equal(requested.status, "review");
-    const changes = await action(board, task.id, "review", { verdict: "changes", reason: "Cover conflicts" });
+    const changes = reviewResult(board, task.id, "changes", "Cover conflicts");
     assert.equal(changes.status, "in_progress");
-    await action(board, task.id, "request-review", { evidence: "Conflict tests pass" });
-    const accepted = await action(board, task.id, "review", { verdict: "accept", reason: "Verified" });
-    assert.equal(accepted.acceptedBy, "User");
+    requestReview(board, task.id, "Conflict tests pass");
+    const accepted = reviewResult(board, task.id, "accept", "Verified");
+    assert.equal(accepted.acceptedBy, "Maria review");
     const detail = await getJson<TaskDetailResponse>(board.url(`/tasks/${task.id}`));
     assert.equal(detail.body.latestEvidence, "Conflict tests pass");
-    assert.equal(detail.body.reviewerVerdict?.kind, "review_accepted");
-    assert.equal(detail.body.evidence?.actor, "User");
+    assert.equal(detail.body.reviewVerdict?.kind, "review_accepted");
+    assert.equal(detail.body.evidence?.actor, "Maria");
     assert.ok(detail.body.validActions.includes("reopen"));
     const reopened = await action(board, task.id, "reopen", { reason: "Regression found" });
     assert.equal(reopened.status, "in_progress");
   });
 
-  it("rejects missing criteria, malformed fields, invalid transitions and User self-review", async () => {
+  it("rejects missing criteria, malformed fields, invalid transitions and removed peer-review endpoints", async () => {
     const criterion = await createHttpCriterion(board);
     assert.equal((await postJson(board.url("/tasks"), { title: "No links", body: "Body", criteria: [] })).status, 400);
     assert.equal(
@@ -233,14 +231,16 @@ describe("task writes", () => {
     const task = await createHttpTask(board, criterion.id, { claim: true });
     assert.equal(
       (await postJson(board.url(`/tasks/${task.id}/review`), { verdict: "accept", reason: "Too early" })).status,
-      400,
+      404,
     );
     await action(board, task.id, "start");
-    await action(board, task.id, "request-review", { evidence: "Checks passed" });
-    const self = await postJson(board.url(`/tasks/${task.id}/review`), { verdict: "accept", reason: "My own work" });
-    assert.equal(self.status, 400);
+    const removed = await postJson(board.url(`/tasks/${task.id}/request-review`), { evidence: "Checks passed" });
+    assert.equal(removed.status, 404);
     const detail = await getJson<TaskDetailResponse>(board.url(`/tasks/${task.id}`));
-    assert.ok(!detail.body.validActions.includes("review"));
+    assert.deepEqual(
+      detail.body.validActions.filter((action) => action === "reopen"),
+      [],
+    );
   });
 });
 

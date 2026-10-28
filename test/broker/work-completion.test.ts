@@ -9,7 +9,8 @@ import { archiveCriterion, editCriterion, restoreCriterion } from "../../src/bro
 import { decideCriterionBlocker, recordCriterionBlocker } from "../../src/broker/blockers.js";
 import { createTask } from "../../src/broker/tasks.js";
 import { claimTask } from "../../src/broker/task-ownership.js";
-import { requestTaskReview, startTask } from "../../src/broker/task-transitions.js";
+import { startTask } from "../../src/broker/task-transitions.js";
+import { beginTaskReview } from "../../src/broker/task-review.js";
 import { voteCriterion } from "../../src/broker/votes.js";
 import { workDashboard } from "../../src/broker/work-queries.js";
 import { endRun } from "../../src/broker/swarms.js";
@@ -73,7 +74,7 @@ test("four stop gates fail independently and idleness never completes work", (t)
   const task = f.task();
   claimTask(f.db, { ...f.input(), id: task.id });
   startTask(f.db, { ...f.input(), id: task.id });
-  requestTaskReview(f.db, { ...f.input(), id: task.id, evidence: "Tests pass" });
+  beginTaskReview(f.db, { ...f.input(), id: task.id, context: "Tests pass" });
   assert.equal(evaluateCompletion(f.db, f.swarmId).gates.find((gate) => gate.key === "review")?.count, 1);
   f.db.sql.prepare("UPDATE participants SET status = 'idle' WHERE swarm_id = ? AND kind = 'agent'").run(f.swarmId);
   assert.equal(
@@ -166,7 +167,7 @@ test("agreed blockers do not bypass pending reviews", (t) => {
   agreement(f, f.criterion.id);
   assert.equal(evaluateCompletion(f.db, f.swarmId).done, true);
   startTask(f.db, { ...f.input(), id: task.id });
-  requestTaskReview(f.db, { ...f.input(), id: task.id, evidence: "Checks pass" });
+  beginTaskReview(f.db, { ...f.input(), id: task.id, context: "Checks pass" });
   agreement(f, f.criterion.id);
   assert.equal(evaluateCompletion(f.db, f.swarmId).done, false);
 });

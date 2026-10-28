@@ -4,7 +4,9 @@ import type { SwarmDb } from "../../src/store/db.js";
 import { int, text } from "../../src/store/rows.js";
 import { chooseWorkRecipient } from "../../src/broker/work-notifications.js";
 import { claimTask, handoffTask } from "../../src/broker/task-ownership.js";
-import { reopenTask, requestTaskReview, reviewTask, startTask } from "../../src/broker/task-transitions.js";
+import { reopenTask, startTask } from "../../src/broker/task-transitions.js";
+import { beginTaskReview } from "../../src/broker/task-review.js";
+import { finishReview } from "../helpers/task-review.js";
 import { voteCriterion } from "../../src/broker/votes.js";
 import { decideCriterionBlocker, recordCriterionBlocker } from "../../src/broker/blockers.js";
 import { updatePostLinks } from "../../src/broker/post-links.js";
@@ -48,7 +50,7 @@ test("recipient selection is pure, prefers idle then load and name, falls back t
   assert.equal(agents[0]?.name, "Ann");
 });
 
-test("handoff, review request, review result and vote duty go to one recipient per durable message", (t) => {
+test("handoff and vote duty notify recipients; subagent reviews send no peer notices", (t) => {
   const f = workFixture(t);
   const task = f.task(f.criterion.id, [], true);
   const handoffCursor = last(f.db);
@@ -61,22 +63,19 @@ test("handoff, review request, review result and vote duty go to one recipient p
     .prepare("UPDATE participants SET status = 'idle' WHERE swarm_id = ? AND name IN ('Cam','Dan')")
     .run(f.swarmId);
   startTask(f.db, { ...f.input("Ben"), id: task.id });
-  requestTaskReview(f.db, { ...f.input("Ben"), id: task.id, evidence: "Tests pass" });
-  assert.equal(notices(f.db).at(-1)?.to, "Cam");
   const cursor = last(f.db);
-  reviewTask(f.db, { ...f.input("Cam"), id: task.id, verdict: "accept", reason: "Checked" });
+  beginTaskReview(f.db, { ...f.input("Ben"), id: task.id, context: "Tests pass" });
+  assert.equal(notices(f.db, cursor).length, 0);
+  finishReview(f.db, { ...f.input("Cam"), id: task.id, verdict: "accept", reason: "Checked" });
   const messages = notices(f.db, cursor);
   assert.deepEqual(
     messages.map((message) => message.to),
-    ["Ben", "Ben", "Cam"],
+    ["Ben", "Cam"],
   );
   assert.equal(messages.filter((message) => message.body.includes("needs your vote")).length, 1);
   assert.equal(messages.filter((message) => message.body.includes("independent vote")).length, 1);
   assert.ok(notices(f.db).every((message) => message.recipients === 1));
-  assert.throws(
-    () => reviewTask(f.db, { ...f.input("Cam"), id: task.id, verdict: "accept", reason: "Again" }),
-    /requires review/,
-  );
+  finishReview(f.db, { ...f.input("Ben"), id: task.id, verdict: "accept", reason: "Again" });
   assert.equal(notices(f.db, cursor).length, messages.length);
 });
 
@@ -92,7 +91,7 @@ test("dependencies notify affected agents while stale votes stay in the queue", 
     ready.map((message) => message.to),
     ["Ben"],
   );
-  f.accept(second.id, "Ben", "Ann");
+  f.accept(second.id, "Ben");
   for (const actor of ["Ann", "Ben", "Cam"])
     voteCriterion(f.db, { ...f.input(actor), criterionId: f.criterion.id, verdict: "covered", reason: "Checked" });
   cursor = last(f.db);

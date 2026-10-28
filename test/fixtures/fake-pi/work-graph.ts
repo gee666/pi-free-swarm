@@ -5,7 +5,9 @@ import { listTasks } from "../../../src/store/tasks.js";
 import { getCriterionDetail } from "../../../src/broker/work-queries.js";
 import { createTask } from "../../../src/broker/tasks.js";
 import { claimTask } from "../../../src/broker/task-ownership.js";
-import { requestTaskReview, reviewTask, startTask } from "../../../src/broker/task-transitions.js";
+import { startTask } from "../../../src/broker/task-transitions.js";
+import { beginTaskReview } from "../../../src/broker/task-review.js";
+import { finishReview } from "../../helpers/task-review.js";
 import { recordCriterionBlocker } from "../../../src/broker/blockers.js";
 import { sendMessage } from "../../../src/broker/messages.js";
 import { voteCriterion } from "../../../src/broker/votes.js";
@@ -37,12 +39,11 @@ try {
         if (task.status === "new") claimTask(db, { ...input(), id: task.id });
         if (!blocked && (task.status === "new" || task.status === "claimed"))
           startTask(db, { ...input(), id: task.id });
-        if (!blocked && ["new", "claimed", "in_progress"].includes(task.status))
-          requestTaskReview(db, { ...input(), id: task.id, evidence: "Fixture task checks passed" });
+        if (!blocked && ["new", "claimed", "in_progress"].includes(task.status)) {
+          beginTaskReview(db, { ...input(), id: task.id, context: "Fixture task checks passed" });
+          finishReview(db, { ...input(), id: task.id, verdict: "accept", reason: "Fixture subagent review passed" });
+        }
       }
-    } else if (!blocked) {
-      for (const task of listTasks(db, swarmId).filter((task) => task.status === "review" && task.owner !== actor))
-        reviewTask(db, { ...input(), id: task.id, verdict: "accept", reason: "Independent fixture check passed" });
     }
     let createdBlocker = false;
     for (const criterion of listCriteria(db, swarmId)) {

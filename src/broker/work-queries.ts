@@ -8,7 +8,7 @@ import {
 import type { SwarmDb } from "../store/db.js";
 import { criterionTasks, listCriteria } from "../store/criteria.js";
 import { linkedPostIds } from "../store/post-links.js";
-import { assignedReviews, recentWorkActivity, workVelocity } from "../store/work-dashboard.js";
+import { recentWorkActivity, workVelocity } from "../store/work-dashboard.js";
 import {
   filteredCriterionCandidates,
   filteredTaskCandidates,
@@ -82,7 +82,6 @@ export function ownWorkQueue(db: SwarmDb, swarmId: number, actor: string) {
     const canonical = requireParticipant(db, swarmId, actor).name;
     return {
       tasks: listTasks(db, swarmId).filter((task) => task.owner === canonical && task.status !== "accepted"),
-      reviews: assignedReviews(db, swarmId, canonical),
       criteria: filteredCriterionCandidates(db, swarmId, canonical, { needsMyVote: true }),
     };
   });
