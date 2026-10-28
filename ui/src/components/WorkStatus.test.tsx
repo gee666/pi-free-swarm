@@ -27,7 +27,7 @@ describe("work status vocabulary", () => {
     render(<StatusGlyph status="claimed" waiting label="Waiting on #12" />);
     expect(screen.getByRole("img", { name: "Waiting on #12" }).querySelector("svg")).toHaveClass("lucide-hourglass");
   });
-  it("shows contextual status pills and distinguishes completed vote counts", () => {
+  it("shows contextual status pills and keeps all vote counts muted", () => {
     render(
       <>
         <StatusPill status="blocked" label="Blocked · awaiting you" />
@@ -37,6 +37,6 @@ describe("work status vocabulary", () => {
     );
     expect(screen.getByText("Blocked · awaiting you")).toBeInTheDocument();
     expect(screen.getByLabelText("votes 2/4").className).toMatch(/badge/);
-    expect(screen.getByLabelText("votes 4/4").className).toMatch(/complete/);
+    expect(screen.getByLabelText("votes 4/4")).toHaveClass(screen.getByLabelText("votes 2/4").className);
   });
 });

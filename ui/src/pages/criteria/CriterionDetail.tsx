@@ -1,15 +1,14 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ListChecks } from "lucide-react";
 import type { CriterionDetailResponse } from "../../../../src/api-types";
-import { AgentName } from "../../components/AgentName";
 import { Button } from "../../components/Button";
-import { EntityHeader } from "../../components/EntityHeader";
+import { DetailHeader } from "../../components/DetailHeader";
 import { IdLink } from "../../components/IdLink";
 import { Markdown } from "../../components/Markdown";
 import { Panel, PanelBody } from "../../components/Panel";
 import { RichText } from "../../components/RichText";
 import { Section } from "../../components/Section";
-import { EmptyState, ErrorBanner, SkeletonRows } from "../../components/States";
+import { ErrorBanner, SkeletonRows } from "../../components/States";
 import { StatusGlyph } from "../../components/StatusGlyph";
 import { StatusPill } from "../../components/StatusPill";
 import { relativeTime } from "../../lib/time";
@@ -35,6 +34,8 @@ export function CriterionDetail({
   onChanged: () => void;
 }) {
   const navigate = useNavigate();
+  const [voting, setVoting] = useState(false);
+  const [blocking, setBlocking] = useState(false);
   const state = useWorkDetail<CriterionDetailResponse>(swarmId, `criteria/${id}`);
   const editor = useWorkEditor<CriterionDetailResponse>(swarmId, `criteria/${id}`);
   const changed = () => {
@@ -69,24 +70,41 @@ export function CriterionDetail({
         reloadError={editor.error}
       />
     );
+  const meta = `#${id} · ${detail.group} · rev ${detail.revision} · by ${detail.author} · ${relativeTime(detail.updatedAt)}`;
+  const reasons = detail.reasons.join(" · ");
   return (
     <Panel aria-label="Criterion">
-      <EntityHeader
-        avatar={<StatusGlyph status={detail.status} />}
+      <DetailHeader
+        glyph={<StatusGlyph status={detail.status} />}
         title={detail.title}
-        subtitle={`#${id} · ${detail.group} · rev ${detail.revision} · by ${detail.author}${detail.updatedBy !== detail.author ? ` · edited by ${detail.updatedBy}` : ""} · ${relativeTime(detail.updatedAt)}`}
+        meta={
+          <>
+            <StatusPill status={detail.status} />
+            <span>
+              {reasons && `${reasons} · `}
+              {meta}
+            </span>
+          </>
+        }
+        metaLabel={[reasons, meta].filter(Boolean).join(" · ")}
         actions={
           <>
+            <Button variant="primary" aria-expanded={voting} onClick={() => setVoting(true)}>
+              Vote
+            </Button>
             <Button onClick={() => editor.edit(detail)}>Edit</Button>
-            <Button onClick={() => navigate(discussionUrl(swarmId, "criterion", id))}>Start discussion</Button>
             <FilterMenu
               label="More"
               items={[
+                { key: "discussion", label: "Start discussion" },
+                { key: "blocker", label: "Record blocker" },
                 { key: detail.archivedAt ? "restore" : "archive", label: detail.archivedAt ? "Restore" : "Archive" },
               ]}
-              onSelect={(action) =>
-                void mutation.mutate(`criteria/${id}/${action}`, { expectedRevision: detail.revision })
-              }
+              onSelect={(action) => {
+                if (action === "discussion") navigate(discussionUrl(swarmId, "criterion", id));
+                else if (action === "blocker") setBlocking(true);
+                else void mutation.mutate(`criteria/${id}/${action}`, { expectedRevision: detail.revision });
+              }}
             />
           </>
         }
@@ -96,41 +114,52 @@ export function CriterionDetail({
           <ErrorBanner action={<Button onClick={state.reload}>Retry</Button>}>{state.error.message}</ErrorBanner>
         )}
         {mutation.error && <ErrorBanner>{mutation.error.message}</ErrorBanner>}
-        <div className={styles.line}>
-          <StatusPill status={detail.status} />
-          <span className={styles.muted}>{detail.reasons.join(" · ")}</span>
-        </div>
-        <Section title="Requirement">
-          <Markdown source={detail.body} />
-        </Section>
-        <Section title="How to verify">
-          <Markdown source={detail.verification} />
-        </Section>
+        {detail.body && (
+          <Section title="Requirement">
+            <Markdown source={detail.body} />
+          </Section>
+        )}
+        {detail.verification && (
+          <Section title="How to verify">
+            <Markdown source={detail.verification} />
+          </Section>
+        )}
         {detail.source && (
           <Section title="Source">
             <RichText text={detail.source} />
           </Section>
         )}
         <Section title="Linked tasks">
-          {detail.tasks.length === 0 && <EmptyState icon={ListChecks} text="No linked tasks" />}
-          {detail.tasks.map((task) => (
-            <div className={styles.entry} key={task.id}>
-              <div className={styles.line}>
-                <StatusGlyph status={task.status} />
-                <IdLink swarmId={swarmId} kind="task" id={task.id} title={task.title} />
-                <span>{task.title}</span>
-                {task.owner && <AgentName name={task.owner} />}
-              </div>
-              <p className={styles.muted}>{task.contribution}</p>
+          {detail.tasks.length === 0 && <p className={styles.muted}>No linked tasks</p>}
+          {detail.tasks.length > 0 && (
+            <div>
+              {detail.tasks.map((task) => (
+                <div className={styles.compactRow} key={task.id} title={task.contribution}>
+                  <StatusGlyph status={task.status} />
+                  <IdLink swarmId={swarmId} kind="task" id={task.id} title={task.title} />
+                  <span className={styles.ellipsis}>{task.title}</span>
+                  {task.owner && <span className={styles.owner}>{task.owner}</span>}
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </Section>
-        <CriterionVotes swarmId={swarmId} detail={detail} onChanged={changed} />
-        <CriterionBlocker key={detail.blocker?.revision ?? 0} swarmId={swarmId} detail={detail} onChanged={changed} />
-        <Discussions swarmId={swarmId} kind="criterion" id={id} posts={detail.linkedPosts} />
-        <p className={styles.muted}>
-          Created by {detail.author} · edited {Math.max(0, detail.revision - 1)} times
-        </p>
+        <CriterionVotes
+          swarmId={swarmId}
+          detail={detail}
+          open={voting}
+          onClose={() => setVoting(false)}
+          onChanged={changed}
+        />
+        <CriterionBlocker
+          key={detail.blocker?.revision ?? 0}
+          swarmId={swarmId}
+          detail={detail}
+          editing={blocking}
+          onClose={() => setBlocking(false)}
+          onChanged={changed}
+        />
+        <Discussions swarmId={swarmId} posts={detail.linkedPosts} />
       </PanelBody>
     </Panel>
   );

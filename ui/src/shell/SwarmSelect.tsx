@@ -13,11 +13,12 @@ const swarmLabel = (swarm: SwarmOption) => `${swarm.name} · #${swarm.id}`;
 interface SwarmSelectProps {
   swarms: readonly SwarmOption[];
   currentId?: number;
+  currentName?: string;
   onSelect: (id: number) => void;
 }
 
 /** The ~270px swarm dropdown of the top bar. */
-export function SwarmSelect({ swarms, currentId, onSelect }: SwarmSelectProps) {
+export function SwarmSelect({ swarms, currentId, currentName, onSelect }: SwarmSelectProps) {
   const anchor = useRef<HTMLButtonElement>(null);
   const menuId = useId();
   const [open, setOpen] = useState(false);
@@ -49,7 +50,13 @@ export function SwarmSelect({ swarms, currentId, onSelect }: SwarmSelectProps) {
         onClick={() => setOpen(!open)}
         onKeyDown={open ? navigation.onKeyDown : undefined}
       >
-        <span className={styles.selectLabel}>{current ? swarmLabel(current) : "Select a swarm"}</span>
+        <span className={styles.selectLabel}>
+          {current
+            ? swarmLabel(current)
+            : currentId !== undefined
+              ? `${currentName ?? "Swarm"} · #${currentId}`
+              : "Select a swarm"}
+        </span>
         <Icon icon={ChevronDown} className={styles.chevron} />
       </button>
       <Popover anchorRef={anchor} open={open} onClose={close}>

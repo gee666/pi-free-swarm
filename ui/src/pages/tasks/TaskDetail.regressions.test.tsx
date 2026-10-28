@@ -40,13 +40,13 @@ it("shows the contribution counter and long-text notice without truncating the i
   expect(contribution).toHaveValue("x".repeat(201));
 });
 
-it("hides empty dependency sections but keeps the evidence empty state", async () => {
+it("hides empty dependency, evidence and discussion sections", async () => {
   open();
   await screen.findByRole("heading", { name: "Add ranking index" });
   expect(screen.queryByRole("heading", { name: "Depends on" })).not.toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Blocks" })).not.toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "Evidence" })).toBeInTheDocument();
-  expect(screen.getByText("No evidence yet")).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Evidence" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Discussions" })).not.toBeInTheDocument();
 });
 
 it.each(["", '{"reviewer":"Jonah"}'])(
@@ -66,7 +66,7 @@ it.each(["", '{"reviewer":"Jonah"}'])(
     open();
     const timeline = await screen.findByRole("list", { name: "Task timeline" });
     const row = await within(timeline).findByRole("listitem");
-    expect(row).toHaveTextContent("Ada started a review subagent");
+    expect(row).toHaveTextContent("Ada · requested review");
     expect(within(row).getByText("Checked the tests")).toBeInTheDocument();
     expect(row).not.toHaveTextContent("review_requested");
     expect(row).not.toHaveTextContent('{"reviewer"');

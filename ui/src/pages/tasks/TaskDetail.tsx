@@ -1,17 +1,14 @@
 import { useEffect, useState } from "react";
-import { cx } from "../../lib/cx";
-import { Check, Circle } from "lucide-react";
-import type { TaskDetailResponse, TaskEvent, TaskRecord, TaskStatus } from "../../../../src/api-types";
+import type { TaskDetailResponse, TaskEvent, TaskRecord } from "../../../../src/api-types";
 import { getJson } from "../../api/http";
 import { Button } from "../../components/Button";
 import { IdLink } from "../../components/IdLink";
 import { Markdown } from "../../components/Markdown";
 import { Panel, PanelBody } from "../../components/Panel";
-import { Pill } from "../../components/Pill";
 import { RichText } from "../../components/RichText";
 import { Section } from "../../components/Section";
 import { ErrorBanner, SkeletonRows } from "../../components/States";
-import { StatusGlyph, statusLabels } from "../../components/StatusGlyph";
+import { StatusGlyph } from "../../components/StatusGlyph";
 import { relativeTime } from "../../lib/time";
 import { Discussions } from "../work-items/Discussions";
 import { useWorkDetail, workUrl } from "../work-items/useWorkData";
@@ -21,48 +18,18 @@ import { TaskHeader } from "./TaskHeader";
 import { TaskForm } from "./TaskForm";
 import { TaskTimeline } from "./TaskTimeline";
 
-const steps: TaskStatus[] = ["new", "claimed", "in_progress", "review", "accepted"];
-export function TaskStepper({ task }: { task: Pick<TaskDetailResponse, "status" | "waiting" | "waitsOn"> }) {
-  const current = steps.indexOf(task.status);
-  return (
-    <>
-      <ol aria-label="Task lifecycle" className={styles.stepper}>
-        {steps.map((status, index) => (
-          <li
-            key={status}
-            className={cx(styles.step, index === current && styles.current)}
-            aria-current={index === current ? "step" : undefined}
-          >
-            {index > 0 && <span className={styles.connector} aria-hidden="true" />}
-            {index < current ? (
-              <Check size={12} aria-hidden="true" />
-            ) : (
-              <Circle size={8} fill={index === current ? "currentColor" : "none"} aria-hidden="true" />
-            )}{" "}
-            {status === "review" ? "Review" : statusLabels[status]}
-          </li>
-        ))}
-      </ol>
-      {task.waiting && (
-        <p className={styles.muted}>
-          Waiting on {task.waitsOn.map((id) => `#${id}`).join(", ")} — the owner is notified when they are accepted
-        </p>
-      )}
-    </>
-  );
-}
 function TaskLinks({ swarmId, tasks }: { swarmId: string; tasks: TaskRecord[] }) {
   return (
-    <>
+    <div>
       {tasks.map((item) => (
-        <div key={item.id} className={styles.line}>
+        <div key={item.id} className={styles.compactRow}>
           <StatusGlyph status={item.status} />
           <IdLink swarmId={swarmId} kind="task" id={item.id} title={item.title} />
-          <span>{item.title}</span>
-          <span className={styles.muted}>{statusLabels[item.status]}</span>
+          <span className={styles.ellipsis}>{item.title}</span>
+          {item.owner && <span className={styles.owner}>{item.owner}</span>}
         </div>
       ))}
-    </>
+    </div>
   );
 }
 
@@ -73,6 +40,7 @@ export function TaskDetail({ swarmId, id, onChanged }: { swarmId: string; id: nu
   const [nextAfter, setNextAfter] = useState<number | null>(null);
   const [moreError, setMoreError] = useState<Error>();
   const [loadingMore, setLoadingMore] = useState(false);
+  const [visibleEvents, setVisibleEvents] = useState(10);
   const detail = state.data;
   useEffect(() => {
     setEvents(detail?.timeline ?? []);
@@ -93,6 +61,7 @@ export function TaskDetail({ swarmId, id, onChanged }: { swarmId: string; id: nu
         return [...current, ...page.timeline.filter((event) => !known.has(event.id))];
       });
       setNextAfter(page.nextAfter);
+      setVisibleEvents((visible) => visible + 10);
     } catch (failure) {
       setMoreError(failure instanceof Error ? failure : new Error(String(failure)));
     } finally {
@@ -131,31 +100,24 @@ export function TaskDetail({ swarmId, id, onChanged }: { swarmId: string; id: nu
         {state.error && (
           <ErrorBanner action={<Button onClick={state.reload}>Retry</Button>}>{state.error.message}</ErrorBanner>
         )}
-        <TaskStepper task={detail} />
-        {detail.deferred && (
-          <Pill>
-            Deferred — blocked criteria{" "}
-            {detail.criteria
-              .filter((item) => item.status === "blocked")
-              .map((item) => `#${item.criterionId}`)
-              .join(", ")}
-          </Pill>
+        {detail.body && (
+          <Section title="Description">
+            <Markdown source={detail.body} />
+          </Section>
         )}
-        <Section title="Description">
-          <Markdown source={detail.body} />
-        </Section>
-        <Section title="Criteria">
-          {detail.criteria.map((item) => (
-            <div key={item.criterionId} className={styles.entry}>
-              <div className={styles.line}>
-                <StatusGlyph status={item.status} />
-                <IdLink swarmId={swarmId} kind="criterion" id={item.criterionId} title={item.title} />
-                <span>{item.title}</span>
-              </div>
-              <p className={styles.muted}>{item.contribution}</p>
+        {detail.criteria.length > 0 && (
+          <Section title="Criteria">
+            <div>
+              {detail.criteria.map((item) => (
+                <div key={item.criterionId} className={styles.compactRow} title={item.contribution}>
+                  <StatusGlyph status={item.status} />
+                  <IdLink swarmId={swarmId} kind="criterion" id={item.criterionId} title={item.title} />
+                  <span className={styles.ellipsis}>{item.title}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </Section>
+          </Section>
+        )}
         {detail.dependencies.length > 0 && (
           <Section title="Depends on">
             <TaskLinks swarmId={swarmId} tasks={detail.dependencies} />
@@ -166,39 +128,47 @@ export function TaskDetail({ swarmId, id, onChanged }: { swarmId: string; id: nu
             <TaskLinks swarmId={swarmId} tasks={detail.dependents} />
           </Section>
         )}
-        <Section title="Evidence">
-          {detail.latestEvidence ? (
-            <>
-              <RichText text={detail.latestEvidence} />
-              {detail.evidence && (
+        {(detail.latestEvidence || detail.reviewVerdict) && (
+          <Section title="Evidence">
+            {detail.latestEvidence ? (
+              <>
+                <RichText text={detail.latestEvidence} />
+                {detail.evidence && (
+                  <p className={styles.muted}>
+                    {detail.evidence.actor} · {relativeTime(detail.evidence.createdAt)}
+                  </p>
+                )}
+              </>
+            ) : null}
+            {detail.reviewVerdict && (
+              <div className={styles.entry}>
                 <p className={styles.muted}>
-                  {detail.evidence.actor} · {relativeTime(detail.evidence.createdAt)}
+                  {detail.reviewVerdict.actor} · {detail.reviewVerdict.kind.replaceAll("_", " ")} ·{" "}
+                  {relativeTime(detail.reviewVerdict.createdAt)}
                 </p>
-              )}
-            </>
-          ) : (
-            <p className={styles.muted}>No evidence yet</p>
-          )}
-          {detail.reviewVerdict && (
-            <div className={styles.entry}>
-              <p className={styles.muted}>
-                {detail.reviewVerdict.actor} · {detail.reviewVerdict.kind.replaceAll("_", " ")} ·{" "}
-                {relativeTime(detail.reviewVerdict.createdAt)}
-              </p>
-              <RichText text={detail.reviewVerdict.body} />
-            </div>
-          )}
-        </Section>
-        <Section title="Timeline">
-          <TaskTimeline events={events} />
-          {moreError && <ErrorBanner>{moreError.message}</ErrorBanner>}
-          {nextAfter !== null && (
-            <Button disabled={loadingMore} onClick={loadMore}>
-              Show more
-            </Button>
-          )}
-        </Section>
-        <Discussions swarmId={swarmId} kind="task" id={id} posts={detail.linkedPosts} />
+                <RichText text={detail.reviewVerdict.body} />
+              </div>
+            )}
+          </Section>
+        )}
+        {events.length > 0 && (
+          <Section title="Timeline">
+            <TaskTimeline events={events.slice(0, visibleEvents)} />
+            {moreError && <ErrorBanner>{moreError.message}</ErrorBanner>}
+            {(events.length > visibleEvents || nextAfter !== null) && (
+              <Button
+                size="sm"
+                disabled={loadingMore}
+                onClick={() =>
+                  events.length > visibleEvents ? setVisibleEvents((visible) => visible + 10) : void loadMore()
+                }
+              >
+                Show more
+              </Button>
+            )}
+          </Section>
+        )}
+        <Discussions swarmId={swarmId} posts={detail.linkedPosts} />
       </PanelBody>
     </Panel>
   );

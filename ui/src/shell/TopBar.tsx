@@ -13,19 +13,25 @@ interface TopBarProps {
   swarms: readonly SwarmListItem[];
   /** Omit on the picker: the dropdown reads "Select a swarm" and status is hidden. */
   current?: SwarmListItem;
+  currentId?: number;
   detail?: SwarmDetailResponse;
   runState?: RunHeaderState;
   onSelectSwarm: (id: number) => void;
 }
 
-export function TopBar({ swarms, current, detail, runState, onSelectSwarm }: TopBarProps) {
+export function TopBar({ swarms, current, currentId, detail, runState, onSelectSwarm }: TopBarProps) {
   return (
     <header className={styles.bar}>
       <div className={styles.brand}>
         <Logo className={styles.logo} />
         <span className={styles.title}>Pi Swarm</span>
       </div>
-      <SwarmSelect swarms={swarms} currentId={current?.id} onSelect={onSelectSwarm} />
+      <SwarmSelect
+        swarms={swarms}
+        currentId={current?.id ?? currentId}
+        currentName={current?.name}
+        onSelect={onSelectSwarm}
+      />
       {current && <CurrentSwarm swarm={current} detail={detail} runState={runState} />}
     </header>
   );

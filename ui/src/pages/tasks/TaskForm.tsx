@@ -110,7 +110,7 @@ export function TaskForm({
           </div>
           <div className={styles.field}>
             <span>Depends on</span>
-            <div className={styles.chips}>
+            <div className={styles.actions}>
               {dependencies.map((item) => (
                 <FilterPill
                   key={item.id}

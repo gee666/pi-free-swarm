@@ -1,63 +1,11 @@
 .helper {
-  padding: 8px 16px;
+  padding: var(--space-4) var(--space-6);
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--fs-small);
   overflow-wrap: anywhere;
 }
-.search {
-  padding: 8px;
-}
-.row {
-  min-height: 40px;
+.fileRow {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  color: var(--text-secondary);
-  text-decoration: none;
-}
-.row:hover {
-  background: var(--bg-hover);
-  text-decoration: none;
-}
-.row[aria-current] {
-  background: var(--accent-soft-bg);
-}
-.rowText {
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  flex-direction: column;
-  gap: 4px;
-}
-.name {
-  font-family: var(--font-mono);
-  color: var(--text-primary);
-}
-.description,
-.invalid,
-.revision,
-.meta {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-.description,
-.invalid {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.invalid {
-  color: var(--accent);
-}
-.fileRow {
-  padding: var(--space-4) 0;
-}
-.detail {
-  padding: 16px;
-}
-@media (max-width: 760px) {
-  .row {
-    min-height: 44px;
-  }
+  min-height: 32px;
 }

@@ -1,5 +1,32 @@
 .timeline {
+  list-style: none;
   margin: 0;
   padding: 0;
-  list-style: none;
+}
+.event {
+  padding-block: var(--space-4);
+  color: var(--text-secondary);
+}
+.name {
+  color: var(--text-primary);
+}
+.time,
+.body {
+  color: var(--text-muted);
+}
+.body {
+  margin-top: var(--space-2);
+}
+.clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.more {
+  color: var(--text-secondary);
+  font-size: var(--fs-small);
+}
+.more:hover {
+  text-decoration: underline;
 }

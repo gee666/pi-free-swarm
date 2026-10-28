@@ -57,8 +57,7 @@ it("lists valid and invalid skills, opens files and renders SKILL.md", async () 
   api.on("GET", "/api/swarms/3/skills/search", () => skill);
   mount();
   expect(await screen.findByText("Invalid: missing description")).toBeInTheDocument();
-  expect(screen.getByText(/Agents add skills by writing folders/)).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("link", { name: /search Rank matching work rev 3/ }));
+  await userEvent.click(screen.getByRole("button", { name: /search Rank matching work rev 3/ }));
   expect(await screen.findByRole("heading", { name: "search", level: 1 })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "Search skill" })).toBeInTheDocument();
   expect(screen.queryByText(/Frontmatter description/)).not.toBeInTheDocument();
@@ -95,17 +94,17 @@ it("starts a fresh first page when the debounced search changes", async () => {
     nextCursor: !query.get("query") && !query.has("cursor") ? "next" : null,
   }));
   mount();
-  await screen.findByRole("link", { name: /first Rank matching work/ });
+  await screen.findByRole("button", { name: /first Rank matching work/ });
   await userEvent.click(screen.getByRole("button", { name: "Load more" }));
-  await screen.findByRole("link", { name: /second Rank matching work/ });
+  await screen.findByRole("button", { name: /second Rank matching work/ });
   const before = api.callsTo("GET", "/api/swarms/3/skills").length;
   await userEvent.type(screen.getByRole("textbox", { name: "Search skills" }), "search");
-  await screen.findByRole("link", { name: /search Rank matching work/ });
+  await screen.findByRole("button", { name: /search Rank matching work/ });
   const searches = api.callsTo("GET", "/api/swarms/3/skills").slice(before);
   expect(searches).toHaveLength(1);
   expect(searches[0]?.query.get("query")).toBe("search");
   expect(searches[0]?.query.has("cursor")).toBe(false);
-  expect(screen.queryByRole("link", { name: /first Rank matching work/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /first Rank matching work/ })).not.toBeInTheDocument();
 });
 
 it("retries errors and displays the empty catalogue", async () => {

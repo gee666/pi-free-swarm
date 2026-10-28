@@ -1,0 +1,9 @@
+.chart {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+.chart text {
+  fill: var(--text-muted);
+  font-size: var(--fs-small);
+}

@@ -43,15 +43,19 @@ export interface DashboardResponse {
     waiting: number;
     runnable: number;
     deferred: number;
+    needVotes: number;
   };
   velocity: { accepted15Minutes: number; accepted60Minutes: number; etaMs: number | null };
   etaMs: number | null;
   header: RunHeader;
+  run: { number: number; agentCount: number; startedAt: number | null; costUsd: number };
+  throughput: { hourStart: number; accepted: number }[];
   criteriaCoverage: CriteriaCoverage[];
   recentActivity: WorkActivityRow[];
   attention: {
     agreedBlockers: CriterionListItem[];
     unreadUserUpdates: number;
+    userMentions: number;
   };
   queue: {
     tasks: TaskRecord[];
