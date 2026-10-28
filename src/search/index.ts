@@ -36,7 +36,7 @@ export interface SearchOptions<T extends SearchDocument> {
 
 export async function runSearch<T extends SearchDocument>(options: SearchOptions<T>): Promise<SearchResult<T>> {
   const { candidates, helper, db, kind } = options;
-  const { settings, notes } = searchConfiguration(db, options.settings);
+  const { settings, env, notes } = searchConfiguration(db, options.settings);
   const query = options.query?.trim() ?? "";
   const config = settings.search ?? {};
   const maximum = Math.min(config.maxResults ?? SEARCH_MAX_RESULTS_DEFAULT, SEARCH_MAX_RESULTS_CAP);
@@ -57,6 +57,7 @@ export async function runSearch<T extends SearchDocument>(options: SearchOptions
           endpoint,
           signal,
           fetcher,
+          env,
         }),
       );
       ranked = reciprocalRankFusion([ranked, semantic]);
@@ -93,7 +94,7 @@ export async function runSearch<T extends SearchDocument>(options: SearchOptions
       const selection = settings.helperModel;
       const rerankTimeout = endpoint === undefined ? timeout : (endpoint.timeoutMs ?? SEARCH_JEV_TIMEOUT_MS);
       window = await withTimeout(rerankTimeout, (signal) => {
-        if (endpoint !== undefined) return jevRerank(query, window, endpoint, signal, fetcher);
+        if (endpoint !== undefined) return jevRerank(query, window, endpoint, signal, fetcher, env);
         if (selection !== undefined && helper !== undefined)
           return helperRerank(query, window, selection, helper, signal);
         throw new Error("helper unavailable");

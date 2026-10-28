@@ -15,6 +15,7 @@ export async function jevRerank<T extends SearchDocument>(
   endpoint: JevSettings,
   signal: AbortSignal,
   fetcher: typeof fetch,
+  env: Record<string, string>,
 ): Promise<T[]> {
   const state = {
     query,
@@ -35,6 +36,7 @@ export async function jevRerank<T extends SearchDocument>(
     { model: endpoint.model ?? SEARCH_JEV_MODEL, state, questions },
     signal,
     fetcher,
+    env,
   );
   if (
     !isRecord(reply) ||

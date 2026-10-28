@@ -23,6 +23,7 @@ export async function embeddingRanking<T extends SearchDocument>(options: {
   endpoint: SearchEndpoint;
   signal: AbortSignal;
   fetcher: typeof fetch;
+  env: Record<string, string>;
 }): Promise<T[]> {
   const { db, kind, documents, endpoint, signal, fetcher } = options;
   const vectors = new Map<string, number[]>();
@@ -75,6 +76,7 @@ export async function embeddingRanking<T extends SearchDocument>(options: {
       { model: endpoint.model, input },
       signal,
       fetcher,
+      options.env,
     );
     if (!isRecord(reply) || !Array.isArray(reply.data) || reply.data.length !== input.length) {
       throw new Error("invalid embeddings reply");

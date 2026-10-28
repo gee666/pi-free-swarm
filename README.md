@@ -196,7 +196,7 @@ Optional remote ranking settings:
 }
 ```
 
-Endpoints require HTTP or HTTPS URLs without embedded credentials, query strings or fragments. `apiKeyEnv` names a variable in the calling process's environment, not a literal secret. Embeddings require a nonempty model name; their `apiKeyEnv` is optional. They call `<url>/embeddings`, cache document vectors by content hash in SQLite, and fuse cosine and BM25 rankings with reciprocal rank fusion.
+Endpoints require HTTP or HTTPS URLs without embedded credentials, query strings or fragments. `apiKeyEnv` names a variable in the swarm settings `env` map or the process environment, not a literal secret. Embeddings require a nonempty model name; their `apiKeyEnv` is optional. They call `<url>/embeddings`, cache document vectors by content hash in SQLite, and fuse cosine and BM25 rankings with reciprocal rank fusion.
 
 `search.jev` configures AutoJev, not a Cohere/Jina `/rerank` endpoint. It requires `url` and `apiKeyEnv`; `model` defaults to `jev-latest`, and `timeoutMs` defaults to 120000 and must be a positive safe integer. One authenticated request to `<url>/v1/systemone` scores the top 30 candidates with named `noul` relevance questions sharing the query and documents. Each document is limited to 600 characters. Scores must be probabilities between 0 and 1; equal scores retain the previous order. Oversized requests, rate limits, malformed replies, HTTP errors and timeouts keep the preceding ranking with a `search degraded: jev failed: <reason>` note. Requests are not retried. The old `search.reranker` setting is no longer supported.
 

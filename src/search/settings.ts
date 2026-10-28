@@ -25,6 +25,7 @@ export interface SearchSettings {
 }
 
 export interface SearchConfiguration {
+  env?: Record<string, string>;
   search?: SearchSettings;
   helperModel?: string;
 }

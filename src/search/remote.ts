@@ -22,10 +22,11 @@ export async function postJson(
   body: unknown,
   signal: AbortSignal,
   fetcher: typeof fetch,
+  env: Record<string, string>,
 ): Promise<unknown> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (endpoint.apiKeyEnv !== undefined) {
-    const apiKey = process.env[endpoint.apiKeyEnv];
+    const apiKey = env[endpoint.apiKeyEnv] ?? process.env[endpoint.apiKeyEnv];
     if (!apiKey) throw new Error(`missing API key environment variable ${endpoint.apiKeyEnv}`);
     headers.Authorization = `Bearer ${apiKey}`;
   }

@@ -9,12 +9,13 @@ export function searchConfiguration(
   supplied?: SearchConfiguration,
 ): {
   settings: SearchConfiguration;
+  env: Record<string, string>;
   notes: string[];
 } {
   try {
     const settings = supplied ?? loadSettings(projectOf(db.dataDir)).settings;
-    return { settings: parseSearchConfiguration({ ...settings }), notes: [] };
+    return { settings: parseSearchConfiguration({ ...settings }), env: settings.env ?? {}, notes: [] };
   } catch (error) {
-    return { settings: {}, notes: [failureNote("settings", error)] };
+    return { settings: {}, env: {}, notes: [failureNote("settings", error)] };
   }
 }

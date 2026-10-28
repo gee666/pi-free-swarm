@@ -6,7 +6,7 @@ import type { CriteriaResponse, SearchConfigResponse } from "../../src/api-types
 import { SEARCH_JEV_MODEL } from "../../src/search/settings.js";
 import { getJson } from "../server/helpers.js";
 import { createHttpCriterion, workBoard } from "../server/work-helpers.js";
-import { fakeJev, jevReply, JEV_KEY_ENV } from "./jev-fixture.js";
+import { fakeJev, jevReply } from "./jev-fixture.js";
 
 test("HTTP searches use JEV and retain the ranked cursor window; config shows its default model without secrets", async (t) => {
   const jev = await fakeJev(t, { body: jevReply([0.1, 0.9]) });
@@ -18,13 +18,15 @@ test("HTTP searches use JEV and retain the ranked cursor window; config shows it
     path.join(board.temp.db.dataDir, "settings.json"),
     JSON.stringify({
       helperModel: "missing/model/off",
-      search: { jev: { url: jev.url, apiKeyEnv: JEV_KEY_ENV } },
+      env: { SEARCH_HTTP_SETTINGS_KEY: "board-settings-key" },
+      search: { jev: { url: jev.url, apiKeyEnv: "SEARCH_HTTP_SETTINGS_KEY" } },
     }),
   );
   const config = await getJson<SearchConfigResponse>(board.url("/search-config"));
   assert.equal(config.status, 200);
   assert.equal(config.body.reranker, `JEV ${SEARCH_JEV_MODEL}`);
-  assert.ok(!JSON.stringify(config.body).includes(JEV_KEY_ENV));
+  assert.ok(!JSON.stringify(config.body).includes("SEARCH_HTTP_SETTINGS_KEY"));
+  assert.ok(!JSON.stringify(config.body).includes("board-settings-key"));
   assert.ok(!JSON.stringify(config.body).includes(jev.url));
   const query = "/criteria?group=HTTP&query=Target&limit=1";
   const page = await getJson<CriteriaResponse>(board.url(query));
@@ -38,4 +40,5 @@ test("HTTP searches use JEV and retain the ranked cursor window; config shows it
   assert.equal(next.body.items[0]?.id, first.id);
   assert.equal(next.body.nextCursor, null);
   assert.equal(jev.requests.length, 1);
+  assert.equal(jev.requests[0]?.authorization, "Bearer board-settings-key");
 });
