@@ -137,7 +137,10 @@ test("startup timeouts beyond the retries crash with startup_timeout", async () 
 });
 
 test("an extension load failure is fatal and never retried", async () => {
-  const agent = superviseFake(SCENARIOS.extensionLoadFailure, { watchdog: { ...FAST, startupRetries: 2 } });
+  const agent = superviseFake(SCENARIOS.extensionLoadFailure, {
+    clock: new FakeClock(),
+    watchdog: { ...FAST, startupRetries: 2 },
+  });
   try {
     const outcome = await agent.supervisor.launch(agent.fake.spec(), prompt("go"));
     assert.equal(outcome.accepted, false);

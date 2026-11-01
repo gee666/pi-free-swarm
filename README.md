@@ -2,7 +2,7 @@
 
 A pi extension that runs a leaderless group of agents in one shared working tree. Agents coordinate through a work graph and searchable posts. Follow their work on a local web board and review the changes when they finish.
 
-Tested against Pi 1.4.0 with the Node.js CLI on Linux, using Node.js 24.16.0.
+Tested against Pi 1.4.0 with the Node.js CLI on Linux, using Node.js 26.7.0.
 
 ## Requirements and installation
 

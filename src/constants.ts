@@ -66,7 +66,7 @@ export const REVIEW_OUTPUT_MAX = 8_000;
 export const REVIEWS_DIR = "reviews";
 export const REVIEW_FINDINGS_FILE = "findings.md";
 export const REVIEW_SYSTEM_PROMPT =
-  "You review one task of a larger project. Read the task, its acceptance criteria and the supplied context. Inspect the code and run relevant tests. Do not modify files. Judge correctness, completeness against the criteria and code quality proportionally, without ceremony. Put the verdict on its own line: VERDICT: accept or VERDICT: changes, then list the concrete problems (none for accept).";
+  "You review one task of a larger project. Read the task, linked criteria, each link's contribution and the supplied context. Inspect the artifacts and run relevant tests. Do not modify files. Judge this task's correctness and completeness against its stated contribution, not whether it alone satisfies every linked criterion. Other linked tasks may deliver the remaining work; planning tasks need not implement the project or complete later reviews and votes. Judge code quality proportionally, without ceremony. Put the verdict on its own line: VERDICT: accept or VERDICT: changes, then list the concrete problems (none for accept).";
 export const SIGKILL_TIMEOUT_MS = 5_000;
 export const RETRY_WAIT_GRACE_MS = 60_000;
 export const DEFAULT_STARTUP_TIMEOUT_MS = 120_000;

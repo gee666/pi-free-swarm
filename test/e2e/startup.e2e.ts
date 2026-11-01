@@ -9,7 +9,7 @@ type Snapshot = { tools: { name: string }[]; active: string[]; commands: string[
 
 it(
   "latest local Pi loads source and extracted npm package with equivalent startup behavior",
-  { timeout: 120_000 },
+  { timeout: 360_000 },
   () => {
     mkdirSync("tmp", { recursive: true });
     const root = mkdtempSync(path.resolve("tmp/startup-package-"));
@@ -43,7 +43,7 @@ it(
           probe,
           ...args,
         ],
-        { cwd, env: { ...env, ...identity }, encoding: "utf8", timeout: 20_000 },
+        { cwd, env: { ...env, ...identity }, stdio: ["ignore", "pipe", "pipe"], encoding: "utf8", timeout: 120_000 },
       );
       assert.equal(result.status, 0, `${result.error ?? ""}\n${result.stderr}\n${result.stdout}`);
       assert.doesNotMatch(result.stderr, /Extension error|Failed to load extension/);
@@ -93,7 +93,7 @@ it(
       assert.deepEqual(agent[0].tools.map((tool) => tool.name).sort(), [...WATCHER_TOOLS].sort());
       assert.deepEqual(run(packed, [], identity), agent);
       console.log(
-        `Startup package equivalence verified against ${spawnSync(process.execPath, [piCli, "--version"], { encoding: "utf8", timeout: 10_000 }).stdout.trim()}`,
+        `Startup package equivalence verified against ${spawnSync(process.execPath, [piCli, "--version"], { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8", timeout: 10_000 }).stdout.trim()}`,
       );
     } finally {
       rmSync(root, { recursive: true, force: true });

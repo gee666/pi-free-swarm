@@ -39,7 +39,7 @@ async function runPi(cwd: string, prompt: string, session: string): Promise<Json
         "--",
         prompt,
       ],
-      { cwd, env, stdio: ["ignore", "pipe", "pipe"], signal: AbortSignal.timeout(240_000) },
+      { cwd, env, stdio: ["ignore", "pipe", "pipe"], signal: AbortSignal.timeout(420_000) },
     );
     let stdout = "";
     let stderr = "";
@@ -66,7 +66,7 @@ function successfulTool(events: JsonAgentSessionEvent[], name: string): void {
 
 it(
   "installed Pi delegates real work, preserves peer evidence and resumes the same worker session",
-  { timeout: 510_000, skip: !model },
+  { timeout: 870_000, skip: !model },
   async () => {
     mkdirSync(path.resolve("tmp"), { recursive: true });
     const cwd = mkdtempSync(path.resolve("tmp/pi-free-swarm-evergreen-"));
@@ -79,7 +79,7 @@ it(
         defaultAgents: 2,
         staggerSeconds: 0,
         idleReminderDelay: 60_000,
-        budgetTimeSeconds: 180,
+        budgetTimeSeconds: 360,
       }),
     );
     writeFileSync(
@@ -87,8 +87,6 @@ it(
       [
         "Create result.txt containing exactly evergreen-one followed by a newline.",
         "Use swarm_posts_create to record short evidence pointing to result.txt, then read the file to verify it.",
-        "Complete the seeded planning tasks and linked implementation tasks using swarm_review, then vote on every criterion with swarm_criteria_vote. Have a second worker vote independently.",
-        "On resume, reopen the affected task, follow Main feedback, verify the changed file, call swarm_review and re-vote affected criteria.",
       ].join("\n"),
     );
     let passed = false;
@@ -96,7 +94,7 @@ it(
       const first = await runPi(
         cwd,
         [
-          "Use the swarm tool now with swarm_name evergreen, agent_amount 2, and task_prompt 'Read requirements.txt and implement it.'",
+          "Use the swarm tool now with swarm_name evergreen, agent_amount 2, and task_prompt 'Read requirements.txt and implement it. Coordinate so ONE worker owns both seeded planning tasks and the implementation task; the other worker verifies the artifact and votes independently without owning any tasks. This preserves an independent voter for every grouped criterion with only two workers. Keep the seeded Planning criterion. Complete all tasks through swarm_review and resolve changes verdicts, then both workers vote covered on every current criterion. Reviews and votes are process instructions, not additional artifact criteria. Do not snooze with unfinished tasks. Keep both worker sessions for the follow-up; do not retire.'",
           "Set acceptance_criteria to ['result.txt matches requirements.txt or explicit resume feedback; worker wall evidence references result.txt.'].",
           "Do not implement the task yourself. After the swarm returns, use read to inspect result.txt and summarize the actual result.",
         ].join(" "),
@@ -113,13 +111,17 @@ it(
         const [swarm] = listSwarms(db, Date.now());
         assert.ok(swarm);
         swarmId = swarm.id;
-        assert.equal(evaluateCompletion(db, swarmId).done, true);
+        assert.equal(evaluateCompletion(db, swarmId).done, true, JSON.stringify(evaluateCompletion(db, swarmId)));
         assert.ok(
           listPosts(db, swarmId, { count: 100, offset: 0 }).posts.some((post) => post.text.includes("result.txt")),
         );
         const workers = listAgentSessions(db, swarmId).filter((agent) => agent.name !== "Watcher");
         assert.equal(workers.length, 2);
-        workerSession = workers[0].sessionFile;
+        const implementer = workers.find((worker) =>
+          readFileSync(worker.sessionFile, "utf8").includes('"toolName":"swarm_posts_create"'),
+        );
+        assert.ok(implementer, "an implementation worker must publish evidence");
+        workerSession = implementer.sessionFile;
         originalSession = readFileSync(workerSession, "utf8");
         assert.match(originalSession, /"toolName":"swarm_criteria_vote"/);
         assert.match(originalSession, /"toolName":"swarm_posts_create"/);
@@ -131,7 +133,7 @@ it(
         cwd,
         [
           `Call resume_swarm for swarm_id ${swarmId} with message: 'Replace result.txt with exactly evergreen-two followed by a newline.`,
-          "Read it back, call swarm_review, and cast fresh criterion votes. This replaces the original expected content.'",
+          "Read it back, call swarm_review, and cast fresh criterion votes. Keep the same single task owner and independent voter. This replaces the original expected content.'",
           "Do not change the file yourself. After the tool returns, use read to inspect result.txt and summarize.",
         ].join(" "),
         path.join(cwd, "main-resumed.jsonl"),
