@@ -94,7 +94,7 @@ it(
       const first = await runPi(
         cwd,
         [
-          "Use the swarm tool now with swarm_name evergreen, agent_amount 2, and task_prompt 'Read requirements.txt and implement it. Coordinate so ONE worker owns both seeded planning tasks and the implementation task; the other worker verifies the artifact and votes independently without owning any tasks. This preserves an independent voter for every grouped criterion with only two workers. Keep the seeded Planning criterion. Complete all tasks through swarm_review and resolve changes verdicts, then both workers vote covered on every current criterion. Reviews and votes are process instructions, not additional artifact criteria. Do not snooze with unfinished tasks. Keep both worker sessions for the follow-up; do not retire.'",
+          "Use the swarm tool now with swarm_name evergreen, agent_amount 2, and task_prompt 'Read requirements.txt and implement it. Coordinate so ONE worker owns all planning and implementation tasks, including on follow-up runs; the other worker verifies the artifact, posts evidence and votes independently without creating or owning any tasks. Do not link tasks owned by both workers to one criterion, since neither could then vote independently. This preserves an independent voter for every grouped criterion with only two workers. Keep the seeded Planning criterion. Complete all tasks through swarm_review and resolve changes verdicts, then both workers vote covered on every current criterion. Reviews and votes are process instructions, not additional artifact criteria. Do not snooze with unfinished tasks. Keep both worker sessions for the follow-up; do not retire.'",
           "Set acceptance_criteria to ['result.txt matches requirements.txt or explicit resume feedback; worker wall evidence references result.txt.'].",
           "Do not implement the task yourself. After the swarm returns, use read to inspect result.txt and summarize the actual result.",
         ].join(" "),
@@ -132,8 +132,7 @@ it(
       const resumed = await runPi(
         cwd,
         [
-          `Call resume_swarm for swarm_id ${swarmId} with message: 'Replace result.txt with exactly evergreen-two followed by a newline.`,
-          "Read it back, call swarm_review, and cast fresh criterion votes. Keep the same single task owner and independent voter. This replaces the original expected content.'",
+          `Call resume_swarm for swarm_id ${swarmId} with message: 'Replace the original expected content with exactly evergreen-two followed by a newline in result.txt. Worker wall evidence must reference the updated file.'`,
           "Do not change the file yourself. After the tool returns, use read to inspect result.txt and summarize.",
         ].join(" "),
         path.join(cwd, "main-resumed.jsonl"),
@@ -144,7 +143,11 @@ it(
       const reopened = openSwarmDb(swarmDbPath(cwd), { create: false });
       try {
         assert.equal(listSwarms(reopened, Date.now()).length, 1, "resume must not create a new swarm");
-        assert.equal(evaluateCompletion(reopened, swarmId).done, true);
+        assert.equal(
+          evaluateCompletion(reopened, swarmId).done,
+          true,
+          JSON.stringify(evaluateCompletion(reopened, swarmId)),
+        );
         assert.ok(listAgentSessions(reopened, swarmId).some((agent) => agent.sessionFile === workerSession));
         const continued = readFileSync(workerSession, "utf8");
         assert.ok(continued.startsWith(originalSession), "resume appends to the worker's persisted history");
