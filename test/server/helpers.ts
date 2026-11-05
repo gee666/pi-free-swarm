@@ -2,6 +2,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { SwarmEvent } from "../../src/api-types.js";
+import { WatcherChatService } from "../../src/broker/watcher-chat.js";
 import { systemClock, type Clock } from "../../src/clock.js";
 import type { PidAlive } from "../../src/store/locks.js";
 import { createApiRoutes } from "../../src/server/api.js";
@@ -35,6 +36,7 @@ export function createUiFixture(): { dir: string; cleanup(): void } {
 export interface TestBoard {
   temp: TempDb;
   base: string;
+  chat: WatcherChatService;
   close(): Promise<void>;
 }
 
@@ -44,14 +46,17 @@ export async function startTestBoard(options: { clock?: Clock; alive?: PidAlive 
   const reader = new SessionReader();
   const hub = new SseHub({ db: temp.db, clock, watcher: new SessionWatcher({ reader, clock }) });
   hub.start();
-  const api = createApiRoutes({ db: temp.db, clock, sessions: reader, alive: options.alive });
+  const watcherChat = new WatcherChatService(temp.db, clock);
+  const api = createApiRoutes({ db: temp.db, clock, sessions: reader, watcherChat, alive: options.alive });
   const ui = createUiFixture();
   const server = await startBoardServer({ candidates: [0], uiDir: ui.dir, routes: [hub.route, api] });
   return {
     temp,
     base: `http://127.0.0.1:${server.port}`,
+    chat: watcherChat,
     async close() {
       hub.stop();
+      await watcherChat.close();
       await server.close();
       temp.cleanup();
       ui.cleanup();

@@ -1,73 +1,95 @@
-import { Link, useParams } from "react-router-dom";
-import { USER_NAME, WATCHER_NAME } from "../../../../src/constants";
-import { displayName } from "../../api/agents";
-import { AuthoredEntry } from "../../components/AuthoredEntry";
+import { useLayoutEffect, useRef } from "react";
+import { useParams } from "react-router-dom";
 import { Button } from "../../components/Button";
 import { ComposeBox } from "../../components/compose/ComposeBox";
+import { Markdown } from "../../components/Markdown";
 import { Panel, PanelBody, PanelHeader } from "../../components/Panel";
-import { RichText } from "../../components/RichText";
 import { ErrorBanner, SkeletonRows } from "../../components/States";
+import { cx } from "../../lib/cx";
 import { formatTimestamp } from "../../lib/time";
-import { useSwarmDetail } from "../agents/useSwarmDetail";
-import { useUserCommentRead } from "../wall/useUserCommentRead";
-import { activityLabel } from "../work/activity";
 import { useWatcherChat } from "./useWatcherChat";
 import styles from "./Watcher.module.css";
 
+// One comfortable line of slack keeps new replies visible without moving readers of older messages.
+const NEAR_BOTTOM_PX = 48;
+
 export function WatcherPage() {
   const { id = "" } = useParams();
-  const detail = useSwarmDetail(id);
-  const chat = useWatcherChat(id);
-  const watcher = detail.data?.participants.find((participant) => participant.name === WATCHER_NAME);
-  const conversation = chat.data?.conversation;
-  const names = detail.data?.participants.map((participant) => participant.name) ?? [];
-  const readError = useUserCommentRead(id, conversation?.post.id, conversation ?? undefined, true);
-  const entries = conversation ? [conversation.post, ...conversation.comments.slice().reverse()] : [];
+  return <WatcherChat key={id} swarmId={id} />;
+}
+
+function WatcherChat({ swarmId }: { swarmId: string }) {
+  const chat = useWatcherChat(swarmId);
+  const scroller = useRef<HTMLDivElement>(null);
+  const nearBottom = useRef(true);
+  const working = chat.busy || chat.data?.status === "working";
+  const error =
+    chat.mutationError ??
+    chat.error ??
+    (chat.data?.status === "error" ? (chat.data.error ?? "Watcher failed.") : undefined);
+  const messages = chat.data?.messages ?? [];
+
+  useLayoutEffect(() => {
+    nearBottom.current = true;
+  }, [chat.data?.sessionId]);
+
+  useLayoutEffect(() => {
+    const element = scroller.current;
+    if (element && nearBottom.current) element.scrollTop = element.scrollHeight;
+  }, [chat.data]);
+
   return (
-    <Panel aria-label="Watcher">
-      <PanelHeader title="Watcher" />
-      <PanelBody>
-        {detail.error && <ErrorBanner>{detail.error.message}</ErrorBanner>}
-        {watcher?.kind === "agent" && (
-          <p role="status">
-            Watcher: {watcher.status} · {activityLabel(watcher)}
-          </p>
-        )}
-        <p>This conversation is saved on the Wall. Messages automatically notify Watcher.</p>
-        {detail.data && !detail.data.swarm.acceptsMessages && (
-          <p>Messages are saved, not delivered yet. Watcher can answer after the swarm resumes.</p>
-        )}
-        {chat.error && (
-          <ErrorBanner action={<Button onClick={chat.reload}>Retry</Button>}>{chat.error.message}</ErrorBanner>
-        )}
+    <Panel aria-label="Watcher" className={styles.chat}>
+      <PanelHeader
+        title={
+          <span className={styles.heading}>
+            Watcher
+            {working && (
+              <span className={styles.working} role="status">
+                <span className={styles.dot} aria-hidden="true" />
+                Working…
+              </span>
+            )}
+          </span>
+        }
+        action={
+          <Button size="sm" onClick={chat.newChat} disabled={chat.resetting} title="New chat">
+            New
+          </Button>
+        }
+      />
+      <PanelBody
+        ref={scroller}
+        role="region"
+        aria-label="Chat history"
+        onScroll={() => {
+          const element = scroller.current;
+          if (element)
+            nearBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight <= NEAR_BOTTOM_PX;
+        }}
+      >
         {!chat.data && !chat.error && <SkeletonRows />}
-        {chat.data && !conversation && <p>Ask Watcher about the swarm.</p>}
         <ol className={styles.messages} aria-label="Watcher conversation">
-          {entries.map((entry, index) => (
-            <AuthoredEntry
-              key={index === 0 ? `post:${entry.id}` : `comment:${entry.id}`}
-              author={displayName(entry.author)}
-              time={formatTimestamp(entry.createdAt)}
-              own={entry.author === USER_NAME}
-            >
-              <RichText text={entry.text} mentionNames={names} />
-            </AuthoredEntry>
+          {messages.map((message) => (
+            <li key={message.id} className={cx(styles.message, message.role === "user" && styles.own)}>
+              <div className={styles.meta}>
+                <span className={styles.author}>{message.role === "user" ? "You" : "Watcher"}</span>
+                <time dateTime={new Date(message.createdAt).toISOString()}>{formatTimestamp(message.createdAt)}</time>
+              </div>
+              <Markdown source={message.text} highlightCode />
+            </li>
           ))}
         </ol>
-        {conversation && <Link to={`/s/${id}/wall/${conversation.post.id}`}>Open conversation on the Wall</Link>}
       </PanelBody>
-      {readError && <ErrorBanner>{readError}</ErrorBanner>}
-      {chat.sendError && <ErrorBanner>{chat.sendError.message}</ErrorBanner>}
+      {error && <ErrorBanner action={chat.error && <Button onClick={chat.reload}>Retry</Button>}>{error}</ErrorBanner>}
       <ComposeBox
         text={chat.text}
         onTextChange={chat.setText}
-        onSend={() => void chat.send()}
+        onSend={chat.send}
         busy={chat.busy}
+        sendDisabled={!chat.data || chat.data.status === "working"}
         textareaLabel="Message Watcher"
-        placeholder="Ask Watcher about the swarm…"
-        uploadSwarmId={id}
-        uploadScope="watcher"
-        mentionNames={names}
+        placeholder="Message Watcher…"
       />
     </Panel>
   );

@@ -28,6 +28,7 @@ export const SWARM_ID_ENV = "PI_SWARM_ID";
 export const RUN_ENV = "PI_SWARM_RUN";
 export const AGENT_NAME_ENV = "PI_SWARM_AGENT";
 export const RUNNER_PID_ENV = "PI_SWARM_RUNNER_PID";
+export const WATCHER_CHAT_ENV = "PI_SWARM_WATCHER_CHAT";
 export const RESERVED_ENV_PREFIX = "PI_SWARM_";
 export const PORT_ENV = "PI_SWARM_PORT";
 /** Replaces the pi executable for agents; tests point it at test/fixtures/fake-pi. */
@@ -184,7 +185,7 @@ export const WATCHER_TOOL = {
   overview: "swarm_overview",
   activity: "swarm_agent_activity",
 } as const;
-export const WATCHER_TOOLS = [
+const WATCHER_RECORD_TOOLS = [
   AGENT_TOOL.project,
   AGENT_TOOL.criteriaSearch,
   AGENT_TOOL.criteriaGet,
@@ -195,6 +196,10 @@ export const WATCHER_TOOLS = [
   AGENT_TOOL.postsGet,
   AGENT_TOOL.skillsSearch,
   AGENT_TOOL.skillsGet,
+];
+export const WATCHER_READONLY_TOOLS = [...WATCHER_RECORD_TOOLS, ...Object.values(WATCHER_TOOL)];
+export const WATCHER_TOOLS = [
+  ...WATCHER_RECORD_TOOLS,
   AGENT_TOOL.postsCreate,
   AGENT_TOOL.postsComment,
   AGENT_TOOL.postsUnsubscribe,

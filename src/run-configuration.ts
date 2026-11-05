@@ -9,6 +9,8 @@ export interface WorkerAssignment {
 export interface RunConfiguration {
   version: 1;
   workers: WorkerAssignment[];
+  /** Absent on runs recorded before private Watcher chat. */
+  watcher?: Omit<WorkerAssignment, "name">;
   launch: {
     projectTrusted: boolean;
     noExtensions: boolean;

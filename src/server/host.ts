@@ -1,5 +1,6 @@
 // Server-host election: of all main pi processes in a folder, the one holding the server_host row serves the
 // board. The others poll and take over when its heartbeat goes stale or its pid dies, keeping the port.
+import { WatcherChatService } from "../broker/watcher-chat.js";
 import { sweepStaleRuns } from "../broker/swarms.js";
 import { systemClock, type Clock, type TimerHandle } from "../clock.js";
 import {
@@ -67,6 +68,7 @@ export interface ServerHostOptions {
 
 interface Bound {
   server: BoardServer;
+  chat: WatcherChatService;
   hub: SseHub;
 }
 
@@ -157,12 +159,12 @@ export class ServerHost {
       try {
         // Binding awaited: stop() may have run, or another process may have taken the row meanwhile.
         if (generation !== this.generation || !heartbeatServerHost(db, this.pid, this.clock.now())) {
-          await bound.server.close();
+          await this.closeBound(bound);
           return;
         }
         setServerHostPort(db, this.pid, bound.server.port);
       } catch (error) {
-        await bound.server.close();
+        await this.closeBound(bound);
         throw error;
       }
       this.lastError = null;
@@ -189,7 +191,15 @@ export class ServerHost {
         : [previousPort, ...choice.candidates.filter((port) => port !== previousPort)];
     const onError = (message: string) => this.report(message);
     const hub = new SseHub({ db, clock: this.clock, watcher: this.watcher, onError });
-    const api = createApiRoutes({ db, clock: this.clock, sessions: this.reader, alive: this.alive, onError });
+    const chat = new WatcherChatService(db, this.clock, onError);
+    const api = createApiRoutes({
+      db,
+      clock: this.clock,
+      sessions: this.reader,
+      watcherChat: chat,
+      alive: this.alive,
+      onError,
+    });
     try {
       const server = await startBoardServer({
         candidates,
@@ -197,8 +207,13 @@ export class ServerHost {
         routes: [hub.route, api],
         onError,
       });
-      return { server, hub };
+      return { server, hub, chat };
     } catch (error) {
+      try {
+        await chat.close();
+      } catch (cleanupError) {
+        this.report(`Board chat cleanup failed: ${describeError(cleanupError)}`);
+      }
       this.report(this.bindError(error, choice));
       return null;
     }
@@ -212,7 +227,7 @@ export class ServerHost {
     return `No free board port: ${error.ports.join(", ")} are all in use.`;
   }
 
-  private beginHosting(db: SwarmDb, { server, hub }: Bound): void {
+  private beginHosting(db: SwarmDb, { server, hub, chat }: Bound): void {
     hub.start();
     const sweep = () =>
       sweepStaleRuns(
@@ -229,6 +244,7 @@ export class ServerHost {
       db,
       server,
       hub,
+      chat,
       timers: [
         this.clock.every(this.intervals.heartbeatMs, () => this.guard(heartbeat)),
         this.clock.every(this.intervals.sweepMs, () => this.guard(sweep)),
@@ -245,7 +261,15 @@ export class ServerHost {
     this.hosting = null;
     for (const timer of hosting.timers) timer.cancel();
     hosting.hub.stop();
-    await hosting.server.close();
+    await this.closeBound(hosting);
+  }
+
+  private async closeBound(bound: Bound): Promise<void> {
+    try {
+      await bound.chat.close();
+    } finally {
+      await bound.server.close();
+    }
   }
 
   /** Timer bodies must not throw into pi's event loop; a transient DB error is retried by the next tick. */

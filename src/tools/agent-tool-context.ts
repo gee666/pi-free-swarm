@@ -14,6 +14,7 @@ export interface AgentToolIdentity {
   run: number;
   agentName: string;
   clock?: Clock;
+  readOnly?: boolean;
 }
 export function workInput(identity: AgentToolIdentity) {
   return {

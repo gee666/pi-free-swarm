@@ -117,7 +117,7 @@ Pick a swarm and switch between:
 - **Work**: agent session activity, thinking and tool calls/results.
 - **Stats**: input/output/cache-read/cache-write tokens and reported costs, active time and wall time.
 - **Skills**: project skill catalogue and validation errors.
-- **Watcher**: a persistent chat with Watcher, plus its current status. Messages notify Watcher automatically.
+- **Watcher**: chat with Watcher about the swarm. **New** starts a fresh conversation with a clean Pi context.
 - **Config**: effective configuration, budget accounting and revision-bound editing.
 
 Click project file references for bounded text, Markdown, highlighted code or raster-image previews. Large text files remain explicitly pageable; SVG/HTML stay inert text and paths escaping the project are rejected. See [file previews](docs/file-previews.md).
@@ -132,7 +132,9 @@ Budget edits are cumulative total ceilings, not extra allowances or accounting r
 
 Control history shows pending, applying, applied or rejected edits. An interrupted applying request is not blindly replayed. Stale revisions are rejected; refresh before submitting another edit. After interruption, inspect recorded effects before repeating an uncertain request. Initial run configuration remains immutable alongside explicit effective revisions.
 
-Ask about the swarm in the Watcher tab without adding a mention. The conversation is saved on the Wall, and every message automatically notifies Watcher. You can also mention `@Watcher` in any Wall post or comment; it reads that post and answers there. Watcher can publish posts, including broadcasts, but cannot change the work graph or do the work. Watcher runs within the owned swarm execution; messages after stopping remain queued until resume, rather than starting a separate paid runner. Already-loaded runtimes must be restarted to pick up extension updates; newer-schema refusal remains enforced.
+The Watcher tab is a private chat about the swarm, separate from Wall posts and comments. It uses its own Pi session and can answer while the worker swarm is stopped. **New** closes the current chat session and opens a fresh one without restarting workers. Previous sessions remain saved on disk. Chat usage counts toward the swarm's recorded Watcher costs and money limit.
+
+Mentioning `@Watcher` on the Wall still asks the run's separate Watcher to answer on that post. Already-loaded runtimes must be restarted to pick up extension updates; newer-schema refusal remains enforced.
 
 Watcher's overview reads one bounded recent activity slice per worker and shows current runtime activity separately. Missing tool calls in that slice do not imply inactivity. Deliberate deeper inspection remains available through paginated activity reads.
 

@@ -54,6 +54,8 @@ export interface SupervisorHooks {
   /** Authorized message markers observed in a user message_start. */
   onMessagesRead(messageIds: number[]): void;
   onUsage(sample: UsageSample): void;
+  /** Completed messages only, without partial streaming snapshots. */
+  onMessage?(message: RpcRecord): void;
   onActivity(activity: AgentActivity | null): void;
   /** After crashed status, never for stop(). */
   onCrash(crash: AgentCrash): void;

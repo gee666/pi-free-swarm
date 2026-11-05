@@ -2,7 +2,15 @@
 // the parent watch; never swarm/resume_swarm (no recursion) and never the board host.
 import type { TimerHandle } from "./clock.js";
 import type { SwarmExtensionApi } from "./extension-api.js";
-import { AGENT_NAME_ENV, DB_ENV, RUNNER_PID_ENV, RUN_ENV, SWARM_ID_ENV, WATCHER_NAME } from "./constants.js";
+import {
+  AGENT_NAME_ENV,
+  DB_ENV,
+  RUNNER_PID_ENV,
+  RUN_ENV,
+  SWARM_ID_ENV,
+  WATCHER_CHAT_ENV,
+  WATCHER_NAME,
+} from "./constants.js";
 import { startParentWatch } from "./agents/parent-watch.js";
 import { openSwarmDb, type SwarmDb } from "./store/db.js";
 import { registerWatcherTools } from "./tools/watcher-tools.js";
@@ -56,12 +64,17 @@ export function registerAgentMode(pi: SwarmExtensionApi, env: NodeJS.ProcessEnv)
   // Opened for persisted tool eligibility or the first tool call; the runner creates the DB.
   let db: SwarmDb | null = null;
   let watch: TimerHandle | null = null;
-  registerAgentTools(pi, {
-    getDb: () => (db ??= openSwarmDb(identity.dbPath, { create: false })),
-    swarmId: identity.swarmId,
-    run: identity.run,
-    agentName: identity.agentName,
-  });
+  const privateChat = identity.agentName === WATCHER_NAME && env[WATCHER_CHAT_ENV] === "1";
+  registerAgentTools(
+    pi,
+    {
+      getDb: () => (db ??= openSwarmDb(identity.dbPath, { create: false })),
+      swarmId: identity.swarmId,
+      run: identity.run,
+      agentName: identity.agentName,
+    },
+    privateChat,
+  );
   if (identity.agentName === WATCHER_NAME)
     registerWatcherTools(pi, {
       getDb: () => (db ??= openSwarmDb(identity.dbPath, { create: false })),
@@ -71,6 +84,7 @@ export function registerAgentMode(pi: SwarmExtensionApi, env: NodeJS.ProcessEnv)
     });
   let idleToolsAvailable: boolean | undefined;
   const setIdleTools = (available: boolean) => {
+    if (privateChat) return;
     if (idleToolsAvailable === available) return;
     const active = pi.getActiveTools().filter((name) => !IDLE_ONLY_TOOLS.includes(name));
     pi.setActiveTools(available ? [...active, ...IDLE_ONLY_TOOLS] : active);

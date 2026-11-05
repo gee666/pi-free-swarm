@@ -55,6 +55,7 @@ it("persists exact named allocations and launches their actual model, leaving Wa
       saved?.effective.workers.map(({ name }) => name),
       ["Maria", "John", "Liam"],
     );
+    assert.deepEqual(saved?.effective.watcher, f.env.launch.model);
     assert.equal(saved?.effective.launch.projectTrusted, true);
     assert.equal(saved?.effective.limits.maxAgents, f.env.settings.maxAgents);
     assert.equal(saved?.effective.workers[2]?.thinkingLevel, "high");

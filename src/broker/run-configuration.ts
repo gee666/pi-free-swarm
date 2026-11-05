@@ -57,6 +57,7 @@ export function configureRun(
   const configuration: RunConfiguration = {
     version: 1,
     workers: assignments,
+    ...(env.launch.model ? { watcher: env.launch.model } : {}),
     launch: {
       projectTrusted: env.launch.projectTrusted,
       noExtensions: env.launch.noExtensions ?? false,

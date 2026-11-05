@@ -1,3 +1,4 @@
+import { WATCHER_NAME } from "../constants.js";
 import type { RunConfiguration, SavedRunConfiguration, WorkerAssignment } from "../run-configuration.js";
 import type { SwarmDb } from "./db.js";
 import { safeExtensionReference } from "./configuration-references.js";
@@ -6,6 +7,15 @@ import { safeExtensionReference } from "./configuration-references.js";
 export function projectRunConfiguration(config: RunConfiguration): RunConfiguration {
   return {
     version: 1,
+    ...(config.watcher
+      ? {
+          watcher: {
+            provider: config.watcher.provider,
+            modelId: config.watcher.modelId,
+            thinkingLevel: config.watcher.thinkingLevel,
+          },
+        }
+      : {}),
     workers: config.workers.map(({ name, provider, modelId, thinkingLevel }) => ({
       name,
       provider,
@@ -63,7 +73,7 @@ export function saveRunConfiguration(
 }
 
 export function changedSections(before: RunConfiguration, after: RunConfiguration): string[] {
-  const sections = ["workers", "launch", "timing", "limits", "budget"] as const;
+  const sections = ["workers", "watcher", "launch", "timing", "limits", "budget"] as const;
   return sections.filter((section) => JSON.stringify(before[section]) !== JSON.stringify(after[section]));
 }
 
@@ -110,6 +120,8 @@ function worker(value: unknown): value is WorkerAssignment {
 }
 function isConfiguration(value: unknown): value is RunConfiguration {
   if (!record(value) || value.version !== 1 || !Array.isArray(value.workers) || !value.workers.every(worker))
+    return false;
+  if (value.watcher !== undefined && (!record(value.watcher) || !worker({ ...value.watcher, name: WATCHER_NAME })))
     return false;
   const { launch, timing, limits, budget } = value;
   return (

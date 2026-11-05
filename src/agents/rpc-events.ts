@@ -26,7 +26,7 @@ export function headerMessageIds(text: string): number[] {
 
 const DIALOG_METHODS = new Set(["select", "confirm", "input", "editor"]);
 
-function isRecord(value: unknown): value is RpcRecord {
+export function isRecord(value: unknown): value is RpcRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 

@@ -17,7 +17,7 @@ import { spawnAgentTransport, type AgentTransport, type AgentTransportFactory } 
 import type { AgentLaunchSpec } from "./launch.js";
 import { createProtocolHandler, forwardUsage } from "./protocol.js";
 import { clearSteeringQueue } from "./steering-queue.js";
-import { dialogRequestId, type RpcRecord } from "./rpc-events.js";
+import { isRecord, dialogRequestId, type RpcRecord } from "./rpc-events.js";
 import { MessageObservation } from "./message-observation.js";
 import { StallWatchdog, watchdogConfigFromEnv, type WatchdogConfig } from "./watchdog.js";
 
@@ -278,6 +278,9 @@ export class AgentSupervisor {
     if (dialogId) life.proc.write({ type: "extension_ui_response", id: dialogId, cancelled: true });
     // Dialogs included: every record is liveness for the watchdog.
     life.handle(event);
+    if (event.type === "message_end" && isRecord(event.message)) {
+      this.#hooks.onMessage?.(event.message);
+    }
   }
 
   #applySettle(life: Life): void {

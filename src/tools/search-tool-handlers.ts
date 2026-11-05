@@ -43,6 +43,7 @@ export function createSearchHandlers(identity: AgentToolIdentity) {
       const result = await runSearch({
         db,
         kind: "task",
+        settings: identity.readOnly ? {} : undefined,
         candidates,
         query: checkedQuery(params.query),
         cursor: params.cursor,
@@ -75,6 +76,7 @@ export function createSearchHandlers(identity: AgentToolIdentity) {
       const result = await runSearch({
         db,
         kind: "criterion",
+        settings: identity.readOnly ? {} : undefined,
         candidates,
         query: checkedQuery(params.query),
         cursor: params.cursor,
@@ -99,6 +101,7 @@ export function createSearchHandlers(identity: AgentToolIdentity) {
       const result = await runSearch({
         db,
         kind: "post",
+        settings: identity.readOnly ? {} : undefined,
         candidates,
         query: checkedQuery(params.query),
         cursor: params.cursor,
@@ -108,10 +111,11 @@ export function createSearchHandlers(identity: AgentToolIdentity) {
       return resultLines(result, (post) => `#${post.id} ${post.title} · author ${post.author}`);
     },
     async skillsSearch(params: Static<typeof S.search>) {
-      syncSkillsAndNotify(identity.getDb(), workInput(identity).now);
+      if (!identity.readOnly) syncSkillsAndNotify(identity.getDb(), workInput(identity).now);
       const result = await searchSkills({
         db: identity.getDb(),
         ...params,
+        settings: identity.readOnly ? {} : undefined,
         query: checkedQuery(params.query),
       });
       return resultLines(
@@ -121,7 +125,7 @@ export function createSearchHandlers(identity: AgentToolIdentity) {
       );
     },
     skillsGet({ name }: Static<typeof S.skillsGet>) {
-      syncSkillsAndNotify(identity.getDb(), workInput(identity).now);
+      if (!identity.readOnly) syncSkillsAndNotify(identity.getDb(), workInput(identity).now);
       const { skill } = identity.getDb().read(() => getSkill(identity.getDb(), name));
       if (!skill) throw new BrokerError("not_found", `Skill ${name} not found.`);
       return `${skill.path} r${skill.revision}${skill.error ? ` · invalid: ${skill.error}` : ""}\nFiles: ${skill.files.join(", ")}\n${skill.content ?? "SKILL.md unavailable"}`;

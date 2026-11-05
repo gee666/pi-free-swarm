@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createReadStream, unlinkSync } from "node:fs";
 import { Readable } from "node:stream";
 import { test } from "node:test";
+import { WatcherChatService } from "../../src/broker/watcher-chat.js";
 import { EVENTS_TAIL_MS } from "../../src/constants.js";
 import { createApiRoutes } from "../../src/server/api.js";
 import { startBoardServer } from "../../src/server/http.js";
@@ -54,7 +55,8 @@ test("request and API failures use the injected reporter and keep serving", asyn
   const clock = new FakeClock();
   const errors: string[] = [];
   const onError = (message: string) => errors.push(message);
-  const api = createApiRoutes({ db: temp.db, clock, sessions: new SessionReader(), onError });
+  const watcherChat = new WatcherChatService(temp.db, clock, onError);
+  const api = createApiRoutes({ db: temp.db, clock, sessions: new SessionReader(), watcherChat, onError });
   const server = await startBoardServer({
     candidates: [0],
     uiDir: ui.dir,
@@ -72,6 +74,7 @@ test("request and API failures use the injected reporter and keep serving", asyn
     temp.cleanup();
     ui.cleanup();
   });
+  await watcherChat.close();
   temp.db.sql.exec("DROP TABLE events; DROP TABLE swarms;");
   const base = `http://127.0.0.1:${server.port}`;
   for (const path of ["/throw", "/api/swarms"]) {

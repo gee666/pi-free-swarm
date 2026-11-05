@@ -39,8 +39,12 @@ export function createAgentToolHandlers(identity: AgentToolIdentity) {
     },
   };
 }
-export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, identity: AgentToolIdentity): void {
-  const run = createAgentToolHandlers(identity);
+export function registerAgentTools(
+  pi: Pick<ExtensionAPI, "registerTool">,
+  identity: AgentToolIdentity,
+  readOnly = false,
+): void {
+  const run = createAgentToolHandlers(readOnly ? { ...identity, readOnly: true } : identity);
   function register<S extends TSchema>(
     name: string,
     parameters: S,
@@ -94,6 +98,7 @@ export function registerAgentTools(pi: Pick<ExtensionAPI, "registerTool">, ident
   register(T.postsGet, S.tasksGet, "Read a post, links and a page of comments. Follow next cursor.", run.postsGet);
   register(T.skillsSearch, S.search, "Search project skills before writing new automation.", run.skillsSearch);
   register(T.skillsGet, S.skillsGet, "Read SKILL.md, validation state, file list and path.", run.skillsGet);
+  if (readOnly) return;
   register(
     T.postsCreate,
     identity.agentName === WATCHER_NAME ? S.watcherPostsCreate : S.postsCreate,

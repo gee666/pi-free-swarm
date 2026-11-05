@@ -1,59 +1,99 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { WatcherChatResponse } from "../../../../src/api-types";
 import { getJson, postJson } from "../../api/http";
 import { useSwarmStream } from "../../api/SwarmStream";
-import { useAsync } from "../../api/useAsync";
 import { useStreamListener } from "../../api/useEventStream";
 import { useComposerDraft } from "../../components/compose/ComposerDrafts";
-import { orderPost, withComment, withUserPostAttention } from "../wall/wallModel";
+
+interface Mutation {
+  kind: "send" | "new";
+  controller: AbortController;
+}
+
+const failureMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 export function useWatcherChat(swarmId: string) {
   const stream = useSwarmStream();
   const url = `/api/swarms/${encodeURIComponent(swarmId)}/watcher`;
-  const state = useAsync(
-    (signal) =>
-      getJson<WatcherChatResponse>(url, signal).then((response) => ({
-        conversation: response.conversation ? orderPost(response.conversation) : null,
-      })),
-    [swarmId, stream.openCount],
-  );
+  const [data, setData] = useState<WatcherChatResponse>();
+  const [error, setError] = useState<string>();
+  const [mutationError, setMutationError] = useState<string>();
+  const [pending, setPending] = useState<Mutation["kind"]>();
   const [text, setText, clearSubmitted] = useComposerDraft(`watcher:${swarmId}`);
-  const [busy, setBusy] = useState(false);
-  const [sendError, setSendError] = useState<Error>();
-  useStreamListener(stream, (event) => {
-    if (event.type === "post.created" && !state.data?.conversation) state.reload();
-    if (event.type === "user.post.updated") {
-      state.update((current) =>
-        current?.conversation
-          ? {
-              conversation: {
-                ...current.conversation,
-                post: withUserPostAttention(current.conversation.post, event.payload),
-              },
-            }
-          : current,
-      );
-    }
-    if (event.type !== "comment.created") return;
-    state.update((current) => {
-      if (!current?.conversation || current.conversation.post.id !== event.payload.comment.postId) return current;
-      return { conversation: withComment(current.conversation, event.payload.comment, event.payload.commentCount) };
-    });
-  });
-  const send = async () => {
-    if (busy) return;
-    setBusy(true);
-    setSendError(undefined);
+  const snapshot = useRef<AbortController | undefined>(undefined);
+  const mutation = useRef<Mutation | undefined>(undefined);
+
+  const reload = useCallback(async () => {
+    // Mutations supply their own snapshot, then fetch again to catch updates during the POST.
+    if (mutation.current) return;
+    snapshot.current?.abort();
+    const controller = new AbortController();
+    snapshot.current = controller;
+    setError(undefined);
     try {
-      await postJson<WatcherChatResponse>(url, { text });
+      const response = await getJson<WatcherChatResponse>(url, controller.signal);
+      if (!controller.signal.aborted) setData(response);
+    } catch (failure) {
+      if (!controller.signal.aborted) setError(failureMessage(failure));
+    }
+  }, [url]);
+
+  useEffect(() => {
+    void reload();
+    return () => {
+      snapshot.current?.abort();
+      mutation.current?.controller.abort();
+      mutation.current = undefined;
+    };
+  }, [reload]);
+  useEffect(() => {
+    if (stream.openCount > 0) void reload();
+  }, [stream.openCount, reload]);
+  useStreamListener(stream, (event) => {
+    if (event.type === "watcher.chat.updated" && String(event.payload.swarmId) === swarmId) void reload();
+  });
+
+  const submit = async (kind: Mutation["kind"]) => {
+    if (kind === "send" && (mutation.current || !text.trim() || !data || data.status === "working")) return;
+    if (mutation.current?.kind === "new") return;
+    // New can replace an in-flight send. Neither its POST nor an older GET may restore the old session.
+    snapshot.current?.abort();
+    mutation.current?.controller.abort();
+    const operation: Mutation = { kind, controller: new AbortController() };
+    mutation.current = operation;
+    setPending(kind);
+    setError(undefined);
+    setMutationError(undefined);
+    try {
+      const response = await postJson<WatcherChatResponse>(
+        kind === "new" ? `${url}/new` : url,
+        kind === "new" ? {} : { text, sessionId: data?.sessionId ?? null },
+        operation.controller.signal,
+      );
+      if (operation.controller.signal.aborted) return;
+      setData(response);
       clearSubmitted();
-      // Reload rather than replacing live comments with a possibly older POST snapshot.
-      state.reload();
-    } catch (error) {
-      setSendError(error instanceof Error ? error : new Error(String(error)));
+    } catch (failure) {
+      if (!operation.controller.signal.aborted) setMutationError(failureMessage(failure));
     } finally {
-      setBusy(false);
+      if (mutation.current === operation) {
+        mutation.current = undefined;
+        setPending(undefined);
+        void reload();
+      }
     }
   };
-  return { ...state, text, setText, send, busy, sendError };
+
+  return {
+    data,
+    error,
+    mutationError,
+    reload: () => void reload(),
+    text,
+    setText,
+    send: () => void submit("send"),
+    newChat: () => void submit("new"),
+    busy: pending !== undefined,
+    resetting: pending === "new",
+  };
 }

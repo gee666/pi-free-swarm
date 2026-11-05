@@ -12,7 +12,7 @@ test("022 upgrades populated 021, preserves reads and uses hot-path indexes", (t
   const { swarm } = seedPerformanceFixture(db);
   const before = assessCriteria(db, swarm.id, true);
   db.sql.exec(`DROP INDEX task_activity_by_swarm; DROP INDEX criterion_activity_by_swarm;
-    DROP INDEX task_acceptance_by_hour; DROP INDEX usage_by_run; DROP TABLE watcher_chats; PRAGMA user_version = 21;`);
+    DROP INDEX task_acceptance_by_hour; DROP INDEX usage_by_run; DROP TABLE watcher_chat_messages; DROP TABLE watcher_chat_sessions; DROP TABLE watcher_chats; PRAGMA user_version = 21;`);
   const upgraded = openSwarmDb(db.path, { create: false });
   try {
     assert.equal(upgraded.sql.prepare("PRAGMA user_version").get()?.user_version, SCHEMA_VERSION);

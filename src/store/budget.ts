@@ -1,3 +1,4 @@
+import { WATCHER_NAME } from "../constants.js";
 import type { BudgetRaises, BudgetStatus } from "../budget.js";
 import type { SwarmSettings } from "../settings.js";
 import type { UsageSample } from "../runtime-types.js";
@@ -163,7 +164,10 @@ export function checkUsageAccounting(
   // Service receipts may name a different model without changing the worker's assignment.
   if (sample.costKnown !== false && (sample.kind !== "message" || sample.model === null)) return;
   const config = getRunConfiguration(db, swarmId, originRun);
-  const assigned = config?.effective.workers.find((worker) => worker.name === agent);
+  const assigned =
+    agent === WATCHER_NAME
+      ? config?.effective.watcher
+      : config?.effective.workers.find((worker) => worker.name === agent);
   const archived = !assigned
     ? db.sql
         .prepare("SELECT retired_model_id FROM participants WHERE swarm_id = ? AND name = ? AND retired_at IS NOT NULL")

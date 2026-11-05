@@ -154,9 +154,19 @@ export interface CreatePostResponse {
   links: import("./api-work-http-types.js").PostLinkView[];
 }
 
-/** GET/POST /api/swarms/:id/watcher. The conversation uses the existing wall reply path. */
+/** Private Watcher session, independent of the worker runner and wall. */
 export interface WatcherChatResponse {
-  conversation: PostDetailResponse | null;
+  sessionId: string | null;
+  messages: WatcherChatMessage[];
+  status: "idle" | "working" | "error";
+  error: string | null;
+}
+
+export interface WatcherChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  createdAt: number;
 }
 
 /** POST /api/swarms/:id/posts/:postId/comments (as `User`). */
@@ -225,6 +235,7 @@ export type * from "./api-work-http-types.js";
 export type * from "./api-dashboard-types.js";
 
 export interface SwarmEventPayloads {
+  "watcher.chat.updated": { swarmId: number };
   "criterion.changed": { id: number };
   "task.changed": { id: number };
   "project.changed": { id: number };

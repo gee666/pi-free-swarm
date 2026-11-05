@@ -1,6 +1,7 @@
 // Plumbing shared by the REST routes: route matching, JSON bodies, query parsing and error mapping.
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ApiErrorBody, ApiErrorCode, SwarmListItem } from "../api-types.js";
+import type { WatcherChatService } from "../broker/watcher-chat.js";
 import { BrokerError } from "../broker/errors.js";
 import { WorkConflictError } from "../broker/work-validation.js";
 import { checkPage } from "../broker/validate.js";
@@ -16,6 +17,7 @@ export interface ApiDeps {
   db: SwarmDb;
   clock: Clock;
   sessions: SessionReader;
+  watcherChat: WatcherChatService;
   alive?: PidAlive;
   onError?(message: string): void;
 }
