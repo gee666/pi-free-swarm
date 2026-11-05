@@ -29,7 +29,7 @@ export function createAgentToolHandlers(identity: AgentToolIdentity) {
           workInput(identity).now,
         ),
       );
-      return `Replacement request #${result.requestId} queued. Handoff saved to \`${result.handoffPath}\`. Do not start more work or repeat this request.`;
+      return `Replacement request #${result.requestId} queued. Handoff saved to \`${result.handoffPath}\`. Retirement is not yet confirmed. Pause new work while this request is pending. Retry only after an explicit rejection and confirmation that you are still active with no retirement effects applied.`;
     },
     snooze() {
       const until = writeAgentTool(identity, () =>

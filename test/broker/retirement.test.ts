@@ -85,6 +85,8 @@ test("one retire call writes exact self-authored handoff and queues a fenced rep
   assert.match(request.change.handoffFile, /^handoffs[/\\]/);
   assert.equal(readFileSync(path.join(db.dataDir, request.change.handoffFile), "utf8"), handoff);
   assert.match(result, new RegExp(`Replacement request #${request.id} queued`));
+  assert.match(result, /Retirement is not yet confirmed/);
+  assert.match(result, /Retry only after an explicit rejection/);
   assert.ok(result.includes(request.change.handoffFile));
   assert.equal(
     db.sql.prepare("SELECT retired_at FROM participants WHERE swarm_id = ? AND name = 'Maria'").get(swarm.id)

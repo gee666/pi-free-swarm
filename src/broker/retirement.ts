@@ -10,6 +10,20 @@ import { workText } from "./work-validation.js";
 import { BrokerError } from "./errors.js";
 import { requireActiveWorker } from "./worker-eligibility.js";
 
+export function requireRetirementReady(db: SwarmDb, swarmId: number, name: string): string {
+  const worker = requireActiveWorker(db, swarmId, name);
+  const obligations = db.sql
+    .prepare(
+      "SELECT id FROM tasks WHERE swarm_id = ? AND owner = ? AND status IN ('claimed', 'in_progress', 'review') ORDER BY id",
+    )
+    .all(swarmId, worker);
+  if (obligations.length > 0) {
+    const tasks = obligations.map((row) => `#${int(row, "id")}`).join(", ");
+    throw new BrokerError("validation", `Finish, release or hand off ${tasks} before retiring.`);
+  }
+  return worker;
+}
+
 export function requestRetirement(
   db: SwarmDb,
   swarmId: number,
@@ -19,16 +33,7 @@ export function requestRetirement(
   now: number,
 ): { requestId: number; handoffFile: string; handoffPath: string } {
   return db.write(() => {
-    const worker = requireActiveWorker(db, swarmId, name);
-    const obligations = db.sql
-      .prepare(
-        "SELECT id FROM tasks WHERE swarm_id = ? AND owner = ? AND status IN ('claimed', 'in_progress', 'review') ORDER BY id",
-      )
-      .all(swarmId, worker);
-    if (obligations.length > 0) {
-      const tasks = obligations.map((row) => `#${int(row, "id")}`).join(", ");
-      throw new BrokerError("validation", `Finish, release or hand off ${tasks} before retiring.`);
-    }
+    const worker = requireRetirementReady(db, swarmId, name);
     const swarm = getSwarm(db, swarmId, now);
     if (swarm === null) throw new BrokerError("not_found", `Swarm #${swarmId} not found.`);
     if (swarm.runCount !== run) {

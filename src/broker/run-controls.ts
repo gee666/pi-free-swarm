@@ -16,7 +16,8 @@ import { validateSwarmBudgetRaise } from "./budget-policy.js";
 import type { LiveWorkers } from "./live-workers.js";
 import type { ReplacementHandoff } from "./run-agent.js";
 import type { RunEnvironment } from "./run-types.js";
-import { requireIdleWorker } from "./worker-eligibility.js";
+import { requireRetirementReady } from "./retirement.js";
+import { insertSystemNotice } from "./message-insert.js";
 import { planWorkerRosterChange } from "./worker-slots.js";
 
 /** Only a claimed current-owner request can cause process effects; uncertainty is never replayed. */
@@ -64,7 +65,18 @@ export class RunControls {
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
         // finish itself fences owner loss. Leave uncertain applying requests intact if that fence fails.
-        finishConfigurationRequest(db, request.id, "rejected", reason, this.env.clock.now());
+        db.write(() => {
+          const now = this.env.clock.now();
+          finishConfigurationRequest(db, request.id, "rejected", reason, now);
+          if (request.change.type === "retireAgent") {
+            insertSystemNotice(db, {
+              swarmId: this.swarmId,
+              recipient: request.requestedBy,
+              text: `Retirement request #${request.id} was rejected: ${reason} You must not assume you retired. Check your current roster and obligations before continuing. Retry retirement only if you are still active and no retirement effects were applied.`,
+              now,
+            });
+          }
+        });
         this.env.notifyUser(`Swarm configuration request #${request.id} was rejected: ${reason}`);
       }
     }
@@ -94,7 +106,6 @@ export class RunControls {
     }
     let handoff: ReplacementHandoff | undefined;
     if (change.type === "retireAgent") {
-      requireIdleWorker(db, this.swarmId, change.name);
       handoff = readReplacementHandoff(db, this.swarmId, change.handoffFile);
     }
     const workers = planWorkerRosterChange(
@@ -108,6 +119,7 @@ export class RunControls {
     this.workers.validate(added);
     const configuration: RunConfiguration = { ...current, workers };
     db.write(() => {
+      if (change.type === "retireAgent") requireRetirementReady(db, this.swarmId, change.name);
       applyRosterConfiguration(
         db,
         this.swarmId,
