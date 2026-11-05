@@ -245,6 +245,8 @@ describe("Task work board", () => {
     expect(screen.getByText("First entry")).toBeInTheDocument();
     const before = api.callsTo("GET", "/api/swarms/3/tasks/34").length;
     act(() => source().emit({ ...eventBase, type: "task.changed", payload: { id: 34 } }));
-    await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/tasks/34")).toHaveLength(before + 1));
+    await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/tasks/34")).toHaveLength(before + 2));
+    expect(screen.getByText("Later entry")).toBeInTheDocument();
+    expect(screen.getByText("First entry")).toBeInTheDocument();
   });
 });

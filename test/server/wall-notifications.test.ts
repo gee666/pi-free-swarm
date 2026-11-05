@@ -10,7 +10,7 @@ import { createPost, addComment } from "../../src/broker/wall.js";
 import { seedSwarm } from "../helpers/temp-db.js";
 import { getJson, postJson, startTestBoard } from "./helpers.js";
 
-test("message and Watcher chat routes are absent", async (t) => {
+test("legacy message routes are absent", async (t) => {
   const board = await startTestBoard();
   t.after(() => board.close());
   const swarm = seedSwarm(board.temp.db, { now: Date.now() });
@@ -21,7 +21,6 @@ test("message and Watcher chat routes are absent", async (t) => {
     "/participants/User/read",
     "/threads/1",
     "/threads/1/reply",
-    "/watcher",
   ]) {
     const url = `${board.base}/api/swarms/${swarm.id}${suffix}`;
     assert.equal((await getJson(url)).status, 404, suffix);

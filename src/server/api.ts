@@ -7,6 +7,7 @@ import { readRoutes } from "./api-read.js";
 import { createFileRoutes } from "./api-files.js";
 import { matchRoute, sendError, type ApiDeps } from "./api-util.js";
 import { writeRoutes } from "./api-write.js";
+import { watcherRoutes } from "./api-watcher.js";
 import { sendJson, type RouteHandler } from "./http.js";
 
 export function createApiRoutes(deps: ApiDeps): RouteHandler {
@@ -17,6 +18,7 @@ export function createApiRoutes(deps: ApiDeps): RouteHandler {
     ...skillRoutes(deps),
     ...readRoutes(deps),
     ...writeRoutes(deps),
+    ...watcherRoutes(deps),
     ...configurationRoutes(deps),
   ];
   return async (req, res, url) => {

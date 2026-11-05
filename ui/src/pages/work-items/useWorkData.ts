@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { SearchPage, SwarmEvent } from "../../../../src/api-types";
 import { getJson } from "../../api/http";
 import { useAsync } from "../../api/useAsync";
+import { useLoadMore } from "../../api/useLoadMore";
 import { useSwarmStream } from "../../api/SwarmStream";
 import { useStreamListener } from "../../api/useEventStream";
 import { REFRESH_DEBOUNCE_MS } from "../../lib/useDebounced";
@@ -20,7 +21,7 @@ export function useWorkRefresh(reload: () => void, matches: (event: SwarmEvent) 
   return stream.openCount;
 }
 
-function affectsWork(event: SwarmEvent) {
+export function affectsWork(event: SwarmEvent) {
   return ["criterion.changed", "task.changed", "post.links.changed", "participant.updated"].includes(event.type);
 }
 
@@ -36,37 +37,23 @@ export function useWorkDetail<T>(swarmId: string, path: string | undefined) {
 
 export function useWorkList<T extends { id: number }>(swarmId: string, path: string, query: string, enabled = true) {
   const stream = useSwarmStream();
-  const state = useAsync(
-    (signal) => getJson<SearchPage<T>>(workUrl(swarmId, `${path}?${query}`), signal),
-    [swarmId, path, query, stream.openCount],
-    enabled,
-  );
-  const [moreError, setMoreError] = useState<Error>();
-  const [loadingMore, setLoadingMore] = useState(false);
-  const key = `${swarmId}/${path}?${query}`;
-  const activeKey = useRef(key);
-  activeKey.current = key;
-  useWorkRefresh(state.reload, affectsWork);
-  const loadMore = async () => {
-    const cursor = state.data?.nextCursor;
-    if (!cursor || loadingMore) return;
-    setLoadingMore(true);
-    setMoreError(undefined);
-    try {
-      const params = new URLSearchParams(query);
-      params.set("cursor", cursor);
-      const page = await getJson<SearchPage<T>>(workUrl(swarmId, `${path}?${params}`));
-      if (activeKey.current !== key) return;
-      state.update((current) => {
-        if (!current) return page;
+  const state = useLoadMore<SearchPage<T>>(
+    {
+      fetch: (signal, current) => {
+        const params = new URLSearchParams(query);
+        if (current?.nextCursor) params.set("cursor", current.nextCursor);
+        return getJson<SearchPage<T>>(workUrl(swarmId, `${path}?${params}`), signal);
+      },
+      hasMore: (data) => Boolean(data.nextCursor),
+      merge: (current, page) => {
         const known = new Set(current.items.map((item) => item.id));
         return { ...page, items: [...current.items, ...page.items.filter((item) => !known.has(item.id))] };
-      });
-    } catch (error) {
-      if (activeKey.current === key) setMoreError(error instanceof Error ? error : new Error(String(error)));
-    } finally {
-      setLoadingMore(false);
-    }
-  };
-  return { ...state, loadMore, loadingMore, moreError };
+      },
+    },
+    `${swarmId}/${path}?${query}`,
+    [stream.openCount],
+    enabled,
+  );
+  useWorkRefresh(state.reload, affectsWork);
+  return { ...state, moreError: state.loadMoreError };
 }

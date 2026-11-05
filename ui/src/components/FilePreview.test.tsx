@@ -187,7 +187,7 @@ it("continues bounded text pages using exact returned bytes and version", async 
       ? textPage("logs/output.txt", "tail\n", { offset: 5, totalBytes: 10 })
       : textPage("logs/output.txt", "head\n", { nextOffset: 5, complete: false, totalBytes: 10 }),
   );
-  render(
+  const view = render(
     <FilePreviewProvider swarmId="3">
       <FileLink reference="logs/output.txt">Output</FileLink>
     </FilePreviewProvider>,
@@ -200,6 +200,15 @@ it("continues bounded text pages using exact returned bytes and version", async 
   const next = api.callsTo("GET", route)[1];
   expect(next.query.get("offset")).toBe("5");
   expect(next.query.get("version")).toBe("v1");
+  view.rerender(
+    <FilePreviewProvider swarmId="3">
+      <FileLink reference="logs/output.txt">Output</FileLink>
+      <span>Updated live dashboard state</span>
+    </FilePreviewProvider>,
+  );
+  expect(api.callsTo("GET", route)).toHaveLength(2);
+  expect(screen.getByRole("dialog")).toHaveTextContent("tail");
+  expect(screen.getByRole("dialog")).not.toHaveTextContent("head");
   expect(nextButton()).toBeDisabled();
   expect(screen.getByRole("dialog")).toHaveTextContent("End of file");
 });

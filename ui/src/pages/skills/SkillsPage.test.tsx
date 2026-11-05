@@ -97,6 +97,10 @@ it("starts a fresh first page when the debounced search changes", async () => {
   await screen.findByRole("button", { name: /first Rank matching work/ });
   await userEvent.click(screen.getByRole("button", { name: "Load more" }));
   await screen.findByRole("button", { name: /second Rank matching work/ });
+  const beforeRefresh = api.callsTo("GET", "/api/swarms/3/skills").length;
+  act(() => source().emit({ id: 1, swarmId: 3, type: "skill.changed", payload: { id: "first" }, createdAt: 1000 }));
+  await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/skills")).toHaveLength(beforeRefresh + 2));
+  expect(screen.getByRole("button", { name: /second Rank matching work/ })).toBeInTheDocument();
   const before = api.callsTo("GET", "/api/swarms/3/skills").length;
   await userEvent.type(screen.getByRole("textbox", { name: "Search skills" }), "search");
   await screen.findByRole("button", { name: /search Rank matching work/ });

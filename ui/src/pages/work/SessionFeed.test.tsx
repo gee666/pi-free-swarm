@@ -96,7 +96,8 @@ describe("SessionFeed", () => {
   });
   it("shows the newest page first and appends older pages without duplicates", async () => {
     const server = mockSessionServer(120, { overlap: true });
-    render(<SessionFeed swarmId="3" agent="John" stream={fakeStream()} />);
+    const stream = fakeStream();
+    const view = render(<SessionFeed swarmId="3" agent="John" stream={stream} />);
     await screen.findByText("Entry 119");
     expect(entries()).toHaveLength(50);
     expect(entries()[0]).toBe("Entry 119");
@@ -118,6 +119,14 @@ describe("SessionFeed", () => {
     // The oldest page is in: nothing is left to observe.
     act(() => FakeIntersectionObserver.intersect());
     expect(server.requests).toHaveLength(3);
+    server.append(2);
+    act(() => stream.emit(sessionAppended("John")));
+    await screen.findByText("Entry 121");
+    expect(entries()).toHaveLength(122);
+    view.rerender(<SessionFeed swarmId="3" agent="John" stream={{ ...stream, openCount: 2 }} />);
+    await waitFor(() => expect(server.requests.at(-1)?.get("after")).toBe("121"));
+    expect(screen.getByText("Entry 0")).toBeInTheDocument();
+    expect(entries()).toHaveLength(122);
   });
 
   it("loads older entries at the bottom without moving the view", async () => {

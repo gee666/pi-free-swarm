@@ -154,6 +154,11 @@ export interface CreatePostResponse {
   links: import("./api-work-http-types.js").PostLinkView[];
 }
 
+/** GET/POST /api/swarms/:id/watcher. The conversation uses the existing wall reply path. */
+export interface WatcherChatResponse {
+  conversation: PostDetailResponse | null;
+}
+
 /** POST /api/swarms/:id/posts/:postId/comments (as `User`). */
 export interface CreateCommentRequest {
   text: string;

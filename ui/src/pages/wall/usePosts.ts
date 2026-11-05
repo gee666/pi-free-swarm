@@ -1,9 +1,8 @@
 import type { PostListResponse, PostsSearchResponse } from "../../../../src/api-types";
 import { getJson } from "../../api/http";
 import { useSwarmStream } from "../../api/SwarmStream";
-import { useAsync, type AsyncState } from "../../api/useAsync";
 import { useStreamListener } from "../../api/useEventStream";
-import { useLoadMore, type LoadMore } from "../../api/useLoadMore";
+import { useLoadMore } from "../../api/useLoadMore";
 import { fetchPosts } from "../../api/wall";
 import { newestFirst } from "../../lib/newestFirst";
 import { useWorkRefresh, workUrl } from "../work-items/useWorkData";
@@ -14,18 +13,29 @@ interface WallPageData extends PostListResponse {
   nextCursor?: string | null;
   notes?: string[];
 }
-export function usePosts(swarmId: string, query = ""): AsyncState<WallPageData> & LoadMore {
+export function usePosts(swarmId: string, query = "") {
   const stream = useSwarmStream();
-  const fetchPage = async (signal?: AbortSignal, offset = 0, cursor?: string | null): Promise<WallPageData> => {
-    if (!query) {
-      const list = await fetchPosts(swarmId, { count: PAGE_SIZE, offset }, signal);
-      return { ...list, posts: newestFirst(list.posts) };
-    }
-    const params = new URLSearchParams(query);
-    if (cursor) params.set("cursor", cursor);
-    return getJson<PostsSearchResponse>(workUrl(swarmId, `posts?${params}`), signal);
-  };
-  const state = useAsync((signal) => fetchPage(signal), [swarmId, query, stream.openCount]);
+  const state = useLoadMore<WallPageData>(
+    {
+      fetch: async (signal, current) => {
+        if (!query) {
+          const list = await fetchPosts(swarmId, { count: PAGE_SIZE, offset: current?.posts.length ?? 0 }, signal);
+          return { ...list, posts: newestFirst(list.posts) };
+        }
+        const params = new URLSearchParams(query);
+        if (current?.nextCursor) params.set("cursor", current.nextCursor);
+        return getJson<PostsSearchResponse>(workUrl(swarmId, `posts?${params}`), signal);
+      },
+      hasMore: (data) => (query ? Boolean(data.nextCursor) : data.posts.length < data.total),
+      merge: (current, page) => {
+        if (!query) return withOlderPosts(current, page);
+        const known = new Set(current.posts.map((post) => post.id));
+        return { ...page, posts: [...current.posts, ...page.posts.filter((post) => !known.has(post.id))] };
+      },
+    },
+    `${swarmId}/posts?${query}`,
+    [stream.openCount],
+  );
   useWorkRefresh(
     state.reload,
     (event) =>
@@ -42,15 +52,5 @@ export function usePosts(swarmId: string, query = ""): AsyncState<WallPageData> 
       update((current) => current && withCommentCount(current, comment.postId, commentCount));
     }
   });
-  const more = useLoadMore(state, {
-    loaded: (data) => data.posts.length,
-    total: (data) => (query ? (data.nextCursor ? data.posts.length + 1 : data.posts.length) : data.total),
-    fetch: (offset) => fetchPage(undefined, offset, state.data?.nextCursor),
-    merge: (current, page) => {
-      if (!query) return withOlderPosts(current, page);
-      const known = new Set(current.posts.map((post) => post.id));
-      return { ...page, posts: [...current.posts, ...page.posts.filter((post) => !known.has(post.id))] };
-    },
-  });
-  return { ...state, ...more };
+  return state;
 }

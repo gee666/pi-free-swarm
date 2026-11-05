@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
-import type { TaskDetailResponse, TaskEvent, TaskRecord } from "../../../../src/api-types";
-import { getJson } from "../../api/http";
+import { useState } from "react";
+import type { TaskDetailResponse, TaskRecord } from "../../../../src/api-types";
 import { Button } from "../../components/Button";
 import { IdLink } from "../../components/IdLink";
 import { Markdown } from "../../components/Markdown";
@@ -11,7 +10,7 @@ import { ErrorBanner, SkeletonRows } from "../../components/States";
 import { StatusGlyph } from "../../components/StatusGlyph";
 import { relativeTime } from "../../lib/time";
 import { Discussions } from "../work-items/Discussions";
-import { useWorkDetail, workUrl } from "../work-items/useWorkData";
+import { useTaskDetail } from "./useTaskDetail";
 import { useWorkEditor } from "../work-items/useWorkEditor";
 import styles from "../work-items/WorkItems.module.css";
 import { TaskHeader } from "./TaskHeader";
@@ -34,39 +33,14 @@ function TaskLinks({ swarmId, tasks }: { swarmId: string; tasks: TaskRecord[] })
 }
 
 export function TaskDetail({ swarmId, id, onChanged }: { swarmId: string; id: number; onChanged: () => void }) {
-  const state = useWorkDetail<TaskDetailResponse>(swarmId, `tasks/${id}`);
+  const state = useTaskDetail(swarmId, id);
   const editor = useWorkEditor<TaskDetailResponse>(swarmId, `tasks/${id}`);
-  const [events, setEvents] = useState<TaskEvent[]>([]);
-  const [nextAfter, setNextAfter] = useState<number | null>(null);
-  const [moreError, setMoreError] = useState<Error>();
-  const [loadingMore, setLoadingMore] = useState(false);
   const [visibleEvents, setVisibleEvents] = useState(10);
   const detail = state.data;
-  useEffect(() => {
-    setEvents(detail?.timeline ?? []);
-    setNextAfter(detail?.nextAfter ?? null);
-  }, [detail]);
+  const events = detail?.timeline ?? [];
   const changed = () => {
     state.reload();
     onChanged();
-  };
-  const loadMore = async () => {
-    if (nextAfter === null || loadingMore) return;
-    setLoadingMore(true);
-    setMoreError(undefined);
-    try {
-      const page = await getJson<TaskDetailResponse>(workUrl(swarmId, `tasks/${id}?after=${nextAfter}`));
-      setEvents((current) => {
-        const known = new Set(current.map((event) => event.id));
-        return [...current, ...page.timeline.filter((event) => !known.has(event.id))];
-      });
-      setNextAfter(page.nextAfter);
-      setVisibleEvents((visible) => visible + 10);
-    } catch (failure) {
-      setMoreError(failure instanceof Error ? failure : new Error(String(failure)));
-    } finally {
-      setLoadingMore(false);
-    }
   };
   if (!detail || detail.id !== id)
     return (
@@ -154,14 +128,15 @@ export function TaskDetail({ swarmId, id, onChanged }: { swarmId: string; id: nu
         {events.length > 0 && (
           <Section title="Timeline">
             <TaskTimeline events={events.slice(0, visibleEvents)} />
-            {moreError && <ErrorBanner>{moreError.message}</ErrorBanner>}
-            {(events.length > visibleEvents || nextAfter !== null) && (
+            {state.loadMoreError && <ErrorBanner>{state.loadMoreError.message}</ErrorBanner>}
+            {(events.length > visibleEvents || state.hasMore) && (
               <Button
                 size="sm"
-                disabled={loadingMore}
-                onClick={() =>
-                  events.length > visibleEvents ? setVisibleEvents((visible) => visible + 10) : void loadMore()
-                }
+                disabled={state.loadingMore || state.loading}
+                onClick={() => {
+                  if (events.length <= visibleEvents) state.loadMore();
+                  setVisibleEvents((visible) => visible + 10);
+                }}
               >
                 Show more
               </Button>

@@ -72,6 +72,14 @@ describe("Criteria work board", () => {
     expect(within(list()).getByText("Rank matches")).toBeInTheDocument();
     expect(within(list()).getByText("3/7")).toBeInTheDocument();
     expect(calls().at(-1)?.query.get("cursor")).toBe("next");
+    const before = calls().length;
+    act(() => source().emit({ ...eventBase, type: "participant.updated", payload: { participant: agent("John", 1) } }));
+    await waitFor(() => expect(calls()).toHaveLength(before + 2));
+    expect(within(list()).getByText("Next criterion")).toBeInTheDocument();
+    expect(within(list()).getByText("Rank matches")).toBeInTheDocument();
+    act(() => source().open());
+    await waitFor(() => expect(calls()).toHaveLength(before + 4));
+    expect(within(list()).getByText("Next criterion")).toBeInTheDocument();
   });
   it("records a blocker with all four required fields", async () => {
     api.on("POST", "/api/swarms/3/criteria/12/block", () => ({}));

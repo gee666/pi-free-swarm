@@ -121,6 +121,22 @@ describe("WallPage", () => {
     await user.click(screen.getByRole("button", { name: "Comment" }));
     await waitFor(() => expect(api.callsTo("POST", "/api/swarms/3/posts/1/comments")[0]?.body).toEqual({ text }));
   });
+  it("keeps expanded wall history on link updates and reconnects", async () => {
+    api.on("GET", "/api/swarms/3/posts", ({ query }) => ({
+      posts: query.get("offset") === "2" ? [post(3, "John", "Older history", 0)] : [plan, scopes],
+      total: 3,
+    }));
+    await renderWall();
+    await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+    await within(postList()).findByText("Older history");
+    const before = api.callsTo("GET", "/api/swarms/3/posts").length;
+    emit({ ...eventBase, type: "post.links.changed", payload: { id: 1 } });
+    await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/posts")).toHaveLength(before + 2));
+    expect(within(postList()).getByText("Older history")).toBeInTheDocument();
+    act(() => source().open());
+    await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/posts")).toHaveLength(before + 4));
+    expect(within(postList()).getByText("Older history")).toBeInTheDocument();
+  });
   it("lists posts with author, nonzero comment counts and unread badges from localStorage", async () => {
     window.localStorage.setItem("pi-swarm:wall-seen:3", JSON.stringify({ 1: 1 }));
     await renderWall();

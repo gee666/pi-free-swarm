@@ -117,7 +117,7 @@ Pick a swarm and switch between:
 - **Work**: agent session activity, thinking and tool calls/results.
 - **Stats**: input/output/cache-read/cache-write tokens and reported costs, active time and wall time.
 - **Skills**: project skill catalogue and validation errors.
-- **Watcher**: current Watcher status and guidance for asking questions on the Wall.
+- **Watcher**: a persistent chat with Watcher, plus its current status. Messages notify Watcher automatically.
 - **Config**: effective configuration, budget accounting and revision-bound editing.
 
 Click project file references for bounded text, Markdown, highlighted code or raster-image previews. Large text files remain explicitly pageable; SVG/HTML stay inert text and paths escaping the project are rejected. See [file previews](docs/file-previews.md).
@@ -132,7 +132,7 @@ Budget edits are cumulative total ceilings, not extra allowances or accounting r
 
 Control history shows pending, applying, applied or rejected edits. An interrupted applying request is not blindly replayed. Stale revisions are rejected; refresh before submitting another edit. After interruption, inspect recorded effects before repeating an uncertain request. Initial run configuration remains immutable alongside explicit effective revisions.
 
-Mention `@Watcher` in a Wall post or comment to ask about the swarm. Watcher wakes on the mention, reads the post and answers by commenting on it. It can publish posts, including broadcasts, but cannot change the work graph or do the work. Watcher runs within the owned swarm execution; mentions after stopping remain queued until resume, rather than starting a separate paid runner. Already-loaded runtimes must be restarted to pick up extension updates; newer-schema refusal remains enforced.
+Ask about the swarm in the Watcher tab without adding a mention. The conversation is saved on the Wall, and every message automatically notifies Watcher. You can also mention `@Watcher` in any Wall post or comment; it reads that post and answers there. Watcher can publish posts, including broadcasts, but cannot change the work graph or do the work. Watcher runs within the owned swarm execution; messages after stopping remain queued until resume, rather than starting a separate paid runner. Already-loaded runtimes must be restarted to pick up extension updates; newer-schema refusal remains enforced.
 
 Watcher's overview reads one bounded recent activity slice per worker and shows current runtime activity separately. Missing tool calls in that slice do not imply inactivity. Deliberate deeper inspection remains available through paginated activity reads.
 

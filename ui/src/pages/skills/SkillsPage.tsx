@@ -4,6 +4,7 @@ import { Puzzle } from "lucide-react";
 import type { SkillResponse, SkillsResponse } from "../../../../src/api-types";
 import { getJson } from "../../api/http";
 import { useAsync } from "../../api/useAsync";
+import { useLoadMore } from "../../api/useLoadMore";
 import { useSwarmStream } from "../../api/SwarmStream";
 import { useStreamListener } from "../../api/useEventStream";
 import { Button } from "../../components/Button";
@@ -28,18 +29,22 @@ export function SkillsPage() {
   const stream = useSwarmStream();
   const [search, setSearch] = useState("");
   const query = useDebounced(search);
-  const [pagination, setPagination] = useState<{
-    query: string;
-    cursor?: string;
-    previous: SkillsResponse["items"];
-  }>({ query: "", previous: [] });
-  const { cursor, previous } = pagination.query === query ? pagination : { previous: [] };
   const root = `/api/swarms/${encodeURIComponent(id)}/skills`;
-  const params = new URLSearchParams({ query });
-  if (cursor) params.set("cursor", cursor);
-  const list = useAsync(
-    (signal) => getJson<SkillsResponse>(`${root}?${params}`, signal),
-    [id, query, cursor, stream.openCount],
+  const list = useLoadMore<SkillsResponse>(
+    {
+      fetch: (signal, current) => {
+        const params = new URLSearchParams({ query });
+        if (current?.nextCursor) params.set("cursor", current.nextCursor);
+        return getJson<SkillsResponse>(`${root}?${params}`, signal);
+      },
+      hasMore: (data) => Boolean(data.nextCursor),
+      merge: (current, page) => {
+        const known = new Set(current.items.map((item) => item.name));
+        return { ...page, items: [...current.items, ...page.items.filter((item) => !known.has(item.name))] };
+      },
+    },
+    `${root}?${query}`,
+    [stream.openCount],
     stream.openCount > 0,
   );
   const detail = useAsync(
@@ -49,12 +54,11 @@ export function SkillsPage() {
   );
   useStreamListener(stream, (event) => {
     if (event.type === "skill.changed") {
-      setPagination({ query, previous: [] });
       list.reload();
       detail.reload();
     }
   });
-  const items = [...previous, ...(list.data?.items ?? [])];
+  const items = list.data?.items ?? [];
   const selected = detail.data?.name === name ? detail.data : undefined;
   return (
     <PanelLayout
@@ -68,6 +72,7 @@ export function SkillsPage() {
           {list.error && (
             <ErrorBanner action={<Button onClick={list.reload}>Retry</Button>}>{list.error.message}</ErrorBanner>
           )}
+          {list.loadMoreError && <ErrorBanner>{list.loadMoreError.message}</ErrorBanner>}
           {list.data?.notes.map((note) => (
             <p key={note} role="status" className={styles.helper}>
               {note}
@@ -95,10 +100,8 @@ export function SkillsPage() {
                 {list.data?.nextCursor && (
                   <Button
                     className={moreStyles.loadMore}
-                    onClick={() => {
-                      setPagination({ query, previous: items, cursor: list.data?.nextCursor ?? undefined });
-                    }}
-                    disabled={list.loading}
+                    onClick={list.loadMore}
+                    disabled={list.loading || list.loadingMore}
                   >
                     Load more
                   </Button>

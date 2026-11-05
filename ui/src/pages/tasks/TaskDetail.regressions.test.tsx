@@ -73,6 +73,44 @@ it.each(["", '{"reviewer":"Jonah"}'])(
   },
 );
 
+it("keeps loaded timeline pages across live refreshes and reconnects", async () => {
+  const events: TaskEvent[] = Array.from({ length: 30 }, (_, index) => ({
+    id: 30 - index,
+    swarmId: 3,
+    taskId: 34,
+    actor: "Ada",
+    kind: "edited",
+    body: `Timeline entry ${30 - index}`,
+    evidence: "",
+    createdAt: 30 - index,
+  }));
+  let title = "Add ranking index";
+  api.on("GET", "/api/swarms/3/tasks/34", ({ query }) => {
+    const bound = Number(query.get("after") ?? 31);
+    const remaining = events.filter((event) => event.id < bound);
+    return task({
+      title,
+      timeline: remaining.slice(0, 20),
+      nextAfter: remaining.length > 20 ? remaining[19].id : null,
+    });
+  });
+  open();
+  const timeline = await screen.findByRole("list", { name: "Task timeline" });
+  expect(within(timeline).getAllByRole("listitem")).toHaveLength(10);
+  await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+  await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+  await within(timeline).findByText("Timeline entry 1");
+  expect(within(timeline).getAllByRole("listitem")).toHaveLength(30);
+  title = "Updated task title";
+  act(() => source().emit({ ...eventBase, type: "task.changed", payload: { id: 34 } }));
+  await screen.findByRole("heading", { name: title });
+  expect(within(timeline).getByText("Timeline entry 1")).toBeInTheDocument();
+  const before = api.callsTo("GET", "/api/swarms/3/tasks/34").length;
+  act(() => source().open());
+  await waitFor(() => expect(api.callsTo("GET", "/api/swarms/3/tasks/34")).toHaveLength(before + 2));
+  expect(within(timeline).getAllByRole("listitem")).toHaveLength(30);
+});
+
 it("debounces participant updates and refreshes both task list and detail", async () => {
   open();
   await screen.findByRole("heading", { name: "Add ranking index" });

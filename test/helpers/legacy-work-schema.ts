@@ -9,6 +9,7 @@ export function removeWorkSchema(db: SwarmDb): void {
     );
     db.sql.exec("DROP INDEX usage_by_run");
     for (const table of [
+      "watcher_chats",
       "post_links",
       "task_events",
       "task_reviews",
