@@ -190,7 +190,11 @@ export class WatcherChatService {
     const message = error instanceof Error ? error.message : String(error);
     this.status(swarmId, runtime, "error", message);
     runtime.cancelled = true;
-    void this.stop(runtime);
+    void this.stop(runtime).catch((cleanupError: unknown) => {
+      this.onError?.(
+        `Watcher chat #${swarmId} cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`,
+      );
+    });
     this.onError?.(`Watcher chat #${swarmId}: ${message}`);
   }
 
