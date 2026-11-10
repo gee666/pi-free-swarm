@@ -39,7 +39,7 @@ async function runPi(cwd: string, prompt: string, session: string): Promise<Json
         "--",
         prompt,
       ],
-      { cwd, env, stdio: ["ignore", "pipe", "pipe"], signal: AbortSignal.timeout(420_000) },
+      { cwd, env, stdio: ["ignore", "pipe", "pipe"], signal: AbortSignal.timeout(660_000) },
     );
     let stdout = "";
     let stderr = "";
@@ -66,20 +66,24 @@ function successfulTool(events: JsonAgentSessionEvent[], name: string): void {
 
 it(
   "installed Pi delegates real work, preserves peer evidence and resumes the same worker session",
-  { timeout: 870_000, skip: !model },
+  { timeout: 1_350_000, skip: !model },
   async () => {
     mkdirSync(path.resolve("tmp"), { recursive: true });
     const cwd = mkdtempSync(path.resolve("tmp/pi-free-swarm-evergreen-"));
+    writeFileSync(
+      path.join(cwd, "AGENTS.md"),
+      "This is an isolated live-test project. Work only in this directory. Do not follow ancestor-repository Git, maintenance or release instructions. Do not run Git commands. Store intent at .pi/swarm/work/1/intent.md.\n",
+    );
     mkdirSync(path.join(cwd, ".pi/swarm"), { recursive: true });
     writeFileSync(
       path.join(cwd, ".pi/swarm/settings.json"),
       JSON.stringify({
         minAgents: 1,
-        maxAgents: 2,
-        defaultAgents: 2,
+        maxAgents: 4,
+        defaultAgents: 4,
         staggerSeconds: 0,
         idleReminderDelay: 60_000,
-        budgetTimeSeconds: 360,
+        budgetTimeSeconds: 600,
       }),
     );
     writeFileSync(
@@ -94,7 +98,7 @@ it(
       const first = await runPi(
         cwd,
         [
-          "Use the swarm tool now with swarm_name evergreen, agent_amount 2, and task_prompt 'Read requirements.txt and implement it. Coordinate so ONE worker owns all planning and implementation tasks, including on follow-up runs; the other worker verifies the artifact, posts evidence and votes independently without creating or owning any tasks. Do not link tasks owned by both workers to one criterion, since neither could then vote independently. This preserves an independent voter for every grouped criterion with only two workers. Keep the seeded Planning criterion. Complete all tasks through swarm_review and resolve changes verdicts, then both workers vote covered on every current criterion. Reviews and votes are process instructions, not additional artifact criteria. Do not snooze with unfinished tasks. Keep both worker sessions for the follow-up; do not retire.'",
+          "Use the swarm tool now with swarm_name evergreen, agent_amount 4, and task_prompt 'Read requirements.txt and implement it. Search before creating tasks and avoid duplicate work. Keep the seeded Planning criterion. Reuse the existing Main artifact criterion: link one implementation/evidence task to it rather than creating duplicate artifact criteria. Complete all tasks through swarm_review and resolve changes verdicts. Owners and at least one independent worker must vote covered on every current criterion. Reviews and votes are process instructions, not additional artifact criteria. Do not snooze with unfinished tasks. Keep worker sessions for the follow-up; do not retire.'",
           "Set acceptance_criteria to ['result.txt matches requirements.txt or explicit resume feedback; worker wall evidence references result.txt.'].",
           "Do not implement the task yourself. After the swarm returns, use read to inspect result.txt and summarize the actual result.",
         ].join(" "),
@@ -116,7 +120,7 @@ it(
           listPosts(db, swarmId, { count: 100, offset: 0 }).posts.some((post) => post.text.includes("result.txt")),
         );
         const workers = listAgentSessions(db, swarmId).filter((agent) => agent.name !== "Watcher");
-        assert.equal(workers.length, 2);
+        assert.equal(workers.length, 4);
         const implementer = workers.find((worker) =>
           readFileSync(worker.sessionFile, "utf8").includes('"toolName":"swarm_posts_create"'),
         );

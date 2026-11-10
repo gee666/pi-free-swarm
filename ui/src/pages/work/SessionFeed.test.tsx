@@ -133,6 +133,7 @@ describe("SessionFeed", () => {
     mockSessionServer(120);
     render(<SessionFeed swarmId="3" agent="John" stream={fakeStream()} />);
     await screen.findByText("Entry 119");
+    await waitFor(() => expect(FakeIntersectionObserver.instances).toHaveLength(1));
     const feed = scrollableFeed();
     feed.scrollTo(500);
     act(() => FakeIntersectionObserver.intersect());

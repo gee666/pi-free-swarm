@@ -5,7 +5,7 @@ import { REVIEW_CONTEXT_MAX, REVIEWS_DIR, SESSIONS_DIR, SESSION_FILE, USER_NAME 
 import { charCount } from "../limits.js";
 import type { SwarmDb } from "../store/db.js";
 import { isPidAlive, type PidAlive } from "../store/locks.js";
-import { getCriterion } from "../store/criteria.js";
+import { getCriterion, listCriteria } from "../store/criteria.js";
 import { listTasks, taskLinks } from "../store/tasks.js";
 import { BrokerError } from "./errors.js";
 import { commitTask, dependencyNotifications, requireStatus } from "./task-write.js";
@@ -57,6 +57,14 @@ export function beginTaskReview(db: SwarmDb, input: ReviewInput) {
       task: updated,
       sessionFile,
       prompt: JSON.stringify({
+        projectCriteria: listCriteria(db, input.swarmId).map((criterion) => ({
+          id: criterion.id,
+          group: criterion.group,
+          title: criterion.title,
+          body: fullWorkText(db, criterion.body),
+          verification: fullWorkText(db, criterion.verification),
+          source: fullWorkText(db, criterion.source),
+        })),
         task: { id: task.id, title: task.title, body: fullWorkText(db, task.body) },
         criteria,
         context,

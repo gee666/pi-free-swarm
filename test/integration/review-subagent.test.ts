@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { test, type TestContext } from "node:test";
 import { reviewTask } from "../../src/broker/review.js";
+import { createCriterion } from "../../src/broker/criteria.js";
 import { startTask } from "../../src/broker/task-transitions.js";
 import { reviewSessionFile } from "../../src/broker/task-review.js";
 import { getTask, taskTimeline } from "../../src/store/tasks.js";
@@ -48,6 +49,14 @@ test(
         ],
       ],
     });
+    const other = createCriterion(f.db, {
+      ...f.input,
+      group: "Other",
+      title: "Additional scope",
+      body: "Another feature.",
+      verification: "Run its tests.",
+      source: "brief.md",
+    });
     const output = await reviewTask(f.db, f.input, { model });
     assert.match(output, /\[accepted\]/);
     assert.equal(getTask(f.db, f.swarmId, f.task.id)?.acceptedBy, "Ann review");
@@ -59,6 +68,10 @@ test(
     assert.equal(argv[argv.indexOf("--mode") + 1], "json");
     assert.equal(argv[argv.indexOf("--model") + 1], "test-provider/caller-model");
     assert.equal(argv[argv.indexOf("--thinking") + 1], "high");
+    assert.match(
+      String(argv[argv.indexOf("--append-system-prompt") + 1]),
+      /pending acceptance or votes are not defects/,
+    );
     const sessionFile = reviewSessionFile(f.db, f.swarmId, f.task.id);
     assert.equal(argv[argv.indexOf("--session") + 1], sessionFile);
     assert.ok(
@@ -69,6 +82,19 @@ test(
     assert.equal(request?.cwd, f.cwd);
     assert.match(String(request?.prompt), /Implement and test the feature/);
     assert.match(String(request?.prompt), /The feature works/);
+    assert.deepEqual(
+      JSON.parse(String(request?.prompt)).projectCriteria.filter((criterion: { id: number }) =>
+        [f.criterion.id, other.id].includes(criterion.id),
+      ),
+      [f.criterion, other].map(({ id, group, title, body, verification, source }) => ({
+        id,
+        group,
+        title,
+        body,
+        verification,
+        source,
+      })),
+    );
     const usage = f.db.sql
       .prepare("SELECT agent, run, kind, input, output, cache_read, cache_write, cost, model FROM usage ORDER BY id")
       .all();

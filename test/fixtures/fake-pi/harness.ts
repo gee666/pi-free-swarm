@@ -93,8 +93,9 @@ export function createFakePiRun(scenario: FakePiScenario): FakePiRun {
     }),
     log: () => {
       if (!fs.existsSync(logFile)) return [];
-      const lines = fs.readFileSync(logFile, "utf8").split("\n").filter(Boolean);
-      return lines.map((line): Record<string, unknown> => JSON.parse(line));
+      const lines = fs.readFileSync(logFile, "utf8").split("\n");
+      lines.pop(); // A live writer may not have finished the final record yet.
+      return lines.filter(Boolean).map((line): Record<string, unknown> => JSON.parse(line));
     },
     cleanup: () => fs.rmSync(dir, { recursive: true, force: true }),
   };
