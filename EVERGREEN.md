@@ -32,6 +32,8 @@ Coverage votes and reviews depend on model judgment and can miss defects. Shared
 
 The build pins Rolldown 1.2.15: 1.2.18's native Linux binding crashes with SIGILL on the test host before Vite loads its config.
 
+Pi 1.5.2's missing-cwd Continue/Fork choices apply to interactive sessions, not RPC workers. Continue leaves the recorded cwd unchanged; Fork creates a new Pi session ID, not a copy of the swarm database or worker sessions. Swarm recovery reuses explicit worker session files in the same project; moving a project whose recorded cwd no longer exists is not repaired automatically. The board reads those files directly and does not depend on Pi's `/import` copies or session-ID discovery.
+
 RPC ordering and process cleanup affect recovery. Budget reports can lag or be incomplete and exclude Main. The unauthenticated localhost board is not a sandbox. Windows process cleanup is unsupported.
 
 ## Tests
