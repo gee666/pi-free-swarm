@@ -16,7 +16,7 @@ const ansiTheme: RenderTheme = {
   fg: (_color, text) => `\x1b[36m${text}\x1b[39m`,
   bold: (text) => `\x1b[1m${text}\x1b[22m`,
 };
-const strip = (lines: string[]) => lines.map((line) => line.replace(/\x1b\[[0-9;]*m/g, ""));
+const strip = (lines: readonly string[]) => lines.map((line) => line.replace(/\x1b\[[0-9;]*m/g, ""));
 
 function progress(overrides: Partial<RunProgress> = {}): RunProgress {
   return {

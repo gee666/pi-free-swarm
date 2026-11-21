@@ -20,6 +20,8 @@ Search uses BM25, optional embeddings and JEV or helper reranking. JEV takes pre
 
 The extension registers tools, commands, flags and lifecycle hooks through public Pi APIs. Workers reuse the running executable or CLI entrypoint and run in RPC mode with explicit sessions and appended system-prompt files. The runner consumes JSONL events and sends prompts and steering. Tools use JSON-Schema-compatible TypeBox schemas, validated by Pi's pi-schema validator, and exported TUI components; the board reads session JSONL.
 
+TUI render output is read-only in Pi 1.6.0; copy embedded or superclass output before mutation. Swarm renderers do not mutate child output. RPC session-start events are delivered once; startup hooks must not rely on duplicate delivery. Model profiles validate thinking levels against Pi's catalog, including GPT-6.2 Astra/Sol's lack of off/minimal support; defaults remain Pi-owned.
+
 Review subagents reuse the caller's model and thinking level and run with `--mode json --print --no-extensions --no-mcp --session <path>`. Their environment contains no `PI_SWARM_*` variables. Each task has `.pi/swarm/sessions/<swarmId>/reviews/task-<id>/session.jsonl`; `resume: true` reuses it after a changes verdict. Different tasks never share review sessions. Native usage events use the existing accounting path under the owner, so review tokens and cost count toward budgets and stats. At run startup, tasks left in `review` without a live reviewer return to `in_progress`.
 
 ## Internal Pi APIs
