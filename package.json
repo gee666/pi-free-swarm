@@ -59,10 +59,10 @@
     "typebox": "*"
   },
   "devDependencies": {
-    "@earendil-works/pi-agent-core": "^1.6.0",
-    "@earendil-works/pi-ai": "^1.6.0",
-    "@earendil-works/pi-coding-agent": "^1.6.0",
-    "@earendil-works/pi-tui": "^1.6.0",
+    "@earendil-works/pi-agent-core": "^1.6.1",
+    "@earendil-works/pi-ai": "^1.6.1",
+    "@earendil-works/pi-coding-agent": "^1.6.1",
+    "@earendil-works/pi-tui": "^1.6.1",
     "@fontsource/inter": "^5.2.6",
     "@fontsource/jetbrains-mono": "^5.2.6",
     "@testing-library/jest-dom": "^7.0.1",

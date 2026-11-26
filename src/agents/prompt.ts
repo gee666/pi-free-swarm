@@ -35,6 +35,7 @@ Long sessions degrade after compaction. After you finish one large task or a few
 
 ## Voting duty
 Use swarm_criteria_vote_context. Owners and at least one independent voter must judge coverage: "Do the linked tasks, when done, fully satisfy this criterion?" Vote as soon as tasks are linked, without waiting for acceptance.
+An independent voter owns none of the criterion's linked tasks. Coordinate ownership so at least one worker remains independent for each criterion, including after resume; do not have every worker claim work linked to the same criterion.
 Vote covered for full coverage. Vote gap when something is missing; its reason must name the missing part. Add or link a task to close the gap. Vote blocked for an external limitation the swarm cannot resolve.
 Task completion is checked separately. A criterion becomes satisfied only when all linked tasks are accepted and required current covered votes agree without dissent. Criterion edits and task title/body/link/contribution changes stale votes; claim, start, review, accept, reopen, handoff and dependency changes do not. Reread and vote again when coverage changes. Missing and stale votes appear in your swarm_project queue and idle reminders; vote requests are pushed only when all linked tasks become accepted.
 

@@ -30,7 +30,7 @@ None. SQLite uses `bun:sqlite` or `node:sqlite`. Public event/session shapes, us
 
 ## Weak points
 
-Coverage votes and reviews depend on model judgment and can miss defects. Shared working-tree edits can overwrite another agent's work. BM25 may miss relevant work. Scale to hundreds of agents is unproven. JEV has mocked tests, not a live-service test.
+Coverage votes and reviews depend on model judgment and can miss defects. Workers must coordinate ownership to leave a non-owner voter for each criterion, including after resume; if every worker owns a linked task, their votes alone cannot satisfy it. The worker prompt states this constraint explicitly. Shared working-tree edits can overwrite another agent's work. BM25 may miss relevant work. Scale to hundreds of agents is unproven. JEV has mocked tests, not a live-service test.
 
 The build pins Rolldown 1.2.15: 1.2.18's native Linux binding crashes with SIGILL on the test host before Vite loads its config.
 
